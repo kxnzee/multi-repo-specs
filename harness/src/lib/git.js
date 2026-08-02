@@ -16,6 +16,35 @@ export function revParse(cwd, ref = 'HEAD') {
   return run(['rev-parse', ref], cwd);
 }
 
+/**
+ * Ревизия, на которую указывает объект тега, а не SHA самого объекта тега.
+ * `git rev-parse <tag>` на аннотированном теге возвращает SHA объекта-тега
+ * (`tag`, не `commit`) — записывать его как spec_revision означает
+ * фиксировать не ту ревизию. `rev-list -n1` всегда разыменовывает до коммита.
+ */
+export function commitSha(cwd, ref) {
+  return run(['rev-list', '-n', '1', ref], cwd);
+}
+
+/** Содержимое файла на заданном ref, или null, если файла там нет. */
+export function showFile(cwd, ref, relPath) {
+  try {
+    return execFileSync('git', ['show', `${ref}:${relPath}`], { cwd, encoding: 'utf8' });
+  } catch {
+    return null;
+  }
+}
+
+/** Список файлов (относительные пути) под каталогом на заданном ref. */
+export function listTreeFiles(cwd, ref, relDir) {
+  try {
+    const out = run(['ls-tree', '-r', '--name-only', ref, '--', relDir], cwd);
+    return out ? out.split('\n').filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function currentBranch(cwd) {
   return run(['rev-parse', '--abbrev-ref', 'HEAD'], cwd);
 }

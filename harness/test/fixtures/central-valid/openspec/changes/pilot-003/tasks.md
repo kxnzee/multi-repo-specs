@@ -5,7 +5,7 @@ work_packages:
   - id: UI-01
     repository: ui
     type: implements
-    scenario_ids: [PILOT-003.1]
+    scenario_ids: [PILOT-003]
   - id: CONFIG-01
     repository: configuration
     type: enables

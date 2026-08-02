@@ -106,3 +106,116 @@ export function parseWorkPackages(tasksText) {
     acIds: Array.isArray(entry.ac_ids) ? entry.ac_ids : [],
   }));
 }
+
+const SCENARIO_HEADER_RE = /^####\s+Scenario:\s+(\S+)\s+.*$/gm;
+
+const DELTA_OPERATION_HEADERS = [
+  '## ADDED Requirements',
+  '## MODIFIED Requirements',
+  '## REMOVED Requirements',
+  '## RENAMED Requirements',
+];
+const NORMATIVE_WORD_RE = /\b(MUST NOT|MUST|SHALL|SHOULD|MAY)\b/;
+const REQUIREMENT_HEADER_RE = /^###\s+Requirement:\s*(.+)$/gm;
+// <ПРЕФИКС>-<NNN>: латиница верхнего регистра, ровно три цифры (I.7.4).
+export const SCENARIO_ID_FORMAT = /^[A-Z][A-Z0-9]*-\d{3}$/;
+
+/**
+ * Проверяет один файл Delta Specs на соответствие I.7.3/I.7.4/I.7.5:
+ * секция операции присутствует, у каждого `### Requirement:` есть
+ * нормативное слово в первой строке тела и хотя бы один сценарий, формат
+ * Scenario ID — `<ПРЕФИКС>-<NNN>`.
+ *
+ * Не проверяет: полноту MODIFIED-блока против текущей мастер-спеки (I.7.5)
+ * — для этого нужен доступ к Master Specs той же capability на актуальной
+ * ревизии, что выходит за объём MVP; отмечено как известное ограничение.
+ */
+export function validateDeltaSpecContent(content, filePath) {
+  const issues = [];
+  const hasOperation = DELTA_OPERATION_HEADERS.some((h) => content.includes(h));
+  if (!hasOperation) {
+    issues.push({
+      what: 'нет секции операции дельты (## ADDED/MODIFIED/REMOVED/RENAMED Requirements)',
+      where: filePath,
+      fix: 'обернуть требования в одну из секций формата I.7.5',
+    });
+    return issues;
+  }
+
+  const requirementMatches = [...content.matchAll(REQUIREMENT_HEADER_RE)];
+  for (let i = 0; i < requirementMatches.length; i++) {
+    const m = requirementMatches[i];
+    const start = m.index;
+    const end = i + 1 < requirementMatches.length ? requirementMatches[i + 1].index : content.length;
+    const body = content.slice(start, end);
+    const afterHeader = body.slice(m[0].length).replace(/^\n+/, '');
+    const firstLine = (afterHeader.split('\n')[0] || '').trim();
+
+    if (!firstLine || !NORMATIVE_WORD_RE.test(firstLine)) {
+      issues.push({
+        what: `требование "${m[1].trim()}" не имеет нормативного слова (MUST/SHALL/MUST NOT/SHOULD/MAY) в строке сразу после заголовка`,
+        where: filePath,
+        fix: 'добавить MUST (или другое нормативное слово) первой строкой тела требования (I.7.3)',
+      });
+    }
+
+    const scenarioMatches = [...body.matchAll(SCENARIO_HEADER_RE)];
+    if (scenarioMatches.length === 0) {
+      issues.push({
+        what: `требование "${m[1].trim()}" не имеет ни одного сценария`,
+        where: filePath,
+        fix: 'добавить #### Scenario: <ПРЕФИКС>-<NNN> <название> (I.7.3: хотя бы один сценарий обязателен)',
+      });
+    }
+    for (const sm of scenarioMatches) {
+      if (!SCENARIO_ID_FORMAT.test(sm[1])) {
+        issues.push({
+          what: `Scenario ID "${sm[1]}" не соответствует формату <ПРЕФИКС>-<NNN>`,
+          where: filePath,
+          fix: 'использовать формат ПРЕФИКС-NNN (латиница верхнего регистра, три цифры), например ROLE-001 (I.7.4)',
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
+/** Все Scenario ID, встреченные в тексте (для проверки сквозной уникальности). */
+export function collectScenarioIds(content) {
+  return [...content.matchAll(SCENARIO_HEADER_RE)].map((m) => m[1]);
+}
+
+/**
+ * Извлекает полный текст сценария (заголовок + тело до следующего
+ * заголовка сценария/требования) по Scenario ID — формат I.7.4:
+ * `#### Scenario: <ПРЕФИКС>-<NNN> <название>`.
+ *
+ * `specFiles` — [{ path, content }], обычно все файлы `specs/` изменения на
+ * ревизии Baseline (не из рабочего дерева — I.5.2: `sdd load` печатает
+ * выжимку требований, которую агент не получает по умолчанию, и она обязана
+ * быть той версией требований, что зафиксирована в Baseline).
+ *
+ * Возвращает Map<scenarioId, { file, text }>; отсутствующие ID просто не
+ * попадают в карту — вызывающий код сам решает, что с этим делать.
+ */
+export function extractScenarios(specFiles, scenarioIds) {
+  const wanted = new Set(scenarioIds);
+  const found = new Map();
+  for (const { path: filePath, content } of specFiles) {
+    if (!content) continue;
+    const headers = [];
+    let m;
+    SCENARIO_HEADER_RE.lastIndex = 0;
+    while ((m = SCENARIO_HEADER_RE.exec(content))) {
+      headers.push({ index: m.index, id: m[1] });
+    }
+    for (let i = 0; i < headers.length; i++) {
+      if (!wanted.has(headers[i].id)) continue;
+      const start = headers[i].index;
+      const end = i + 1 < headers.length ? headers[i + 1].index : content.length;
+      found.set(headers[i].id, { file: filePath, text: content.slice(start, end).trimEnd() });
+    }
+  }
+  return found;
+}

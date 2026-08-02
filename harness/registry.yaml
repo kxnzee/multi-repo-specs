@@ -1,0 +1,70 @@
+# Реестр соответствий — III.7. Единственное место, где записано, на чём мы
+# стоим. Отдельно от ~/.sdd/registry.json (машинное состояние подключённых
+# хранилищ на конкретной машине, не версионируется) — это версионируемая
+# таблица инструментов и того, что наш слой поверх них добавляет.
+
+versions:
+  openspec: "1.7.0" # зафиксировано при `openspec init --tools qwen` этого репозитория
+  agent_tool: "qwen (Qwen Code)" # в этом пилоте — не GigaCode, как в исходном тексте III.7
+  sdd: "0.1.0"
+
+operations:
+  setup:
+    layer: sdd
+    underlying: "openspec store register / openspec list"
+    ours: "sdd setup"
+    adds: [проверка зафиксированной версии CLI, регистрация Store, сверка чисел областей/изменений между openspec и файловой системой]
+    gate: false
+
+  fetch-repos:
+    layer: sdd
+    underlying: none
+    ours: "sdd fetch-repos"
+    adds: [чтение candidate_repositories, изоляция клонов по change-id, read-log.md, ограничение объёма выжимки]
+    gate: false
+    note: "раздел 7 профиля Pilot Core — единственное расширение регламента 3.5.1 из этого пилота (см. 0.4 исходного документа)"
+
+  load:
+    layer: sdd
+    underlying: none
+    ours: "sdd load"
+    adds: [Work Packages на ревизии Baseline через git show, карточка .sdd/change.yaml, выжимка требований]
+    gate: false
+
+  check-change:
+    layer: sdd
+    underlying: none
+    ours: "sdd check change"
+    adds: [структура изменения, формат Delta Specs (MUST, Scenario ID, полнота), Work Packages по правилу 3]
+    gate: true
+
+  check-code:
+    layer: sdd
+    underlying: none
+    ours: "sdd check code"
+    adds: [карточка изменения, имя/тип/достижимость Baseline-тега относительно central, отсутствие своего OpenSpec-корня]
+    gate: true
+
+  propose:
+    layer: none
+    status: "не реализовано"
+    reason: "III.17, очередь 5 — /sdd:propose не раньше первой недели пилота"
+
+  baseline:
+    layer: none
+    status: "не реализовано, ручной режим"
+    reason: "раздел 8 профиля Pilot Core — тег создаётся вручную до первой автоматизации (III.17, очередь 8)"
+
+  finalize:
+    layer: none
+    status: "не реализовано"
+    reason: "III.17, очередь 9 — не раньше первой финализации"
+
+  sync:
+    layer: none
+    status: запрещено
+    reason: "противоречит I.3.2; команда не устанавливается в профиле"
+
+# Реестр печатается в отчёте каждой проверки совместимости (sdd smoke,
+# когда появится — III.17, очередь 11). Три версии вместо одной — иначе
+# «вчера работало» становится неотвечаемым вопросом.

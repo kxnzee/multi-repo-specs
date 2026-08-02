@@ -1,40 +1,71 @@
 <!--
 Шаблон Code PR для Pilot Core.
-Источник: «Профиль Pilot Core» ред. 1.1, раздел 4 (правила 4, 5) и раздел 8 (Baseline).
+Источник: I.19.1 (состав описания, дословно) и I.19.2 (проверки) регламента 3.5.1;
+«Профиль Pilot Core» ред. 1.1, раздел 4 (правила 4, 5) и раздел 8 (Baseline).
 Копируется в описание PR в кодовом репозитории (ui, backend, configuration).
 -->
 
-## Change
+## Specification
+
+Дублирует карточку изменения человекочитаемо (I.19.1) — не редактируется вручную отдельно от `.sdd/change.yaml`, только копируется из него:
 
 - **Change ID:** `<change-id>`
+- **Baseline:** `<spec-baseline/change-id/vN>`
+- **Ревизия:** `<spec_revision из .sdd/change.yaml>`
 - **Репозиторий:** `<ui | backend | configuration>`
-- **Тип Work Package:** `<implements | enables>`
+- **Work Packages:** `<id из tasks.md>`
+- **Scenario ID:** `<для implements — список; для enables — не заполняется, см. AC-* ниже>`
 
-## Карточка изменения (I.17.6 / `.sdd/change.yaml`)
+## Local Design
+Ссылка на файл репозитория (не на PR, не на комментарий) — `<path/to/local-design.md>`
 
-- [ ] `.sdd/change.yaml` присутствует и указывает на существующий Baseline
-- [ ] Имя тега соответствует шаблону `spec-baseline/<change-id>/v<N>`
-- [ ] Тег аннотированный (не lightweight)
-- [ ] Коммит тега достижим из основной ветки
-- [ ] Ревизия в карточке совпадает с фактической ревизией Baseline
+## Implementation Plan
+Ссылка на файл репозитория — `<path/to/implementation-plan.md>`
 
-## Правило 4 (машинная проверка `sdd check --code`)
+## Dependencies
+<Другие Code PR или внешние условия, от которых зависит этот PR — или явно «Нет»>
 
-- [ ] `sdd check --code` пройден локально до открытия PR
-- [ ] Пре-коммит-хук не отключался
+## Deviations
+<Фактические отклонения от Local Design/Implementation Plan — или явно «Нет». Системное отклонение (меняющее наблюдаемое поведение против центрального изменения) скрывать в Code PR нельзя — I.19.2>
 
-## Правило 5 — отсутствие собственного корня OpenSpec
+## Tests
+<Какие тесты добавлены/обновлены под затронутые Scenario ID>
 
-- [ ] В этом кодовом репозитории нет каталога `openspec/` собственного корня (кроме `configuration`, где `openspec/` — это центральный `project-specs`, если репозитории совпадают)
+## Verification Evidence
+<Результат прогона, ссылка на CI>
 
-## Доказательства реализации (I.19)
+## Классификация изменения
 
-- [ ] Блок классификации изменений указан (feature / fix / config)
-- [ ] Тесты добавлены или обновлены для затронутых сценариев
-- [ ] Ссылка на Scenario ID из Work Package в описании коммитов/PR
+Дословно по I.19.1 — три поля, без замены на другие термины:
 
-## Только для `enables` (например, `configuration`)
+- **Business behavior change:** Yes / No
+- **API contract change:** Yes / No
+- **Master Spec update:** Required / Not required
+
+---
+
+## Чек-лист проверок Code PR (I.19.2)
+
+| Что проверяется | Кто сейчас | Отмечено |
+|---|---|---|
+| Карточка изменения `.sdd/change.yaml` присутствует и заполнена | Tech Lead | ☐ |
+| Изменение существует в центральном хранилище — среди активных или отменённых | Tech Lead | ☐ |
+| Baseline-тег существует, аннотированный, имя по шаблону `spec-baseline/<change-id>/v<N>` | Tech Lead / `sdd check --code` | ☐ |
+| Коммит тега достижим из основной ветки central | `sdd check --code` | ☐ |
+| `spec_revision` в карточке совпадает с фактической ревизией тега | `sdd check --code` | ☐ |
+| Work Package назначен именно этому репозиторию | Tech Lead | ☐ |
+| Scenario ID существуют в изменении | Tech Lead | ☐ |
+| Ссылки на Local Design и Implementation Plan ведут на файлы репозитория (не на PR/комментарий) | Tech Lead | ☐ |
+| Собственный корень OpenSpec (`openspec/config.yaml`, `openspec/specs`, `openspec/changes`) в этом репозитории отсутствует | Tech Lead по diff / `sdd check --code` | ☐ |
+| Необходимые тесты выполнены и зелёные | Сборка репозитория | ☐ |
+| При `Business behavior change: Yes` центральное изменение обновлено | Tech Lead, только человек | ☐ |
+| Системное отклонение не скрыто в Code PR | Tech Lead, только человек | ☐ |
+| Пре-коммит-хук не отключался | Разработчик | ☐ |
+
+**Правило 5 без исключений.** `configuration` — полноправный участник (раздел 1 профиля Pilot Core), а не расширение `project-specs`; собственного корня OpenSpec там быть не должно точно так же, как в `ui`/`backend`.
+
+## Только для Work Package типа `enables`
 
 - [ ] Технический критерий (`AC-*`) выполнен и отмечен
-- [ ] Сценариев в этом Work Package нет (и не должно быть — I.16.1)
+- [ ] Scenario ID в этом Work Package нет и не должно быть (I.16.1)
 - [ ] Защитный критерий флага получил `Verified` до раскатки в production (I.16.2)

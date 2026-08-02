@@ -1,9 +1,33 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync, appendFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { changeDir, readImpactAndDesign, parseCandidateRepositories } from '../lib/change.js';
+import { changeDir, readImpactAndDesign, parseCandidateRepositories, isKebabCase } from '../lib/change.js';
 import { isClean, revParse, clone } from '../lib/git.js';
 
 const CLONES_DIR_NAME = '.sdd-clones';
+
+// configuration не читается через fetch-repos — раздел 7 профиля Pilot Core:
+// там нет legacy-кода с ограничениями, только соглашения об именовании,
+// читаемые глазами один раз.
+const EXCLUDED_FROM_FETCH = new Set(['configuration']);
+
+// Разрешённое имя репозитория для использования в пути на диске. Не
+// пропускает "..", "/", пустую строку и прочее, что могло бы вывести dest
+// за пределы clonesRoot.
+const SAFE_REPO_NAME = /^[a-z0-9][a-z0-9._-]*$/;
+
+/**
+ * Требует, чтобы resolvedPath оставался строго внутри resolvedRoot.
+ * Вызывается перед ЛЮБОЙ файловой операцией над dest — в частности перед
+ * rmSync — потому что имя репозитория приходит из impact-and-design.md,
+ * который пишет человек, и один "../../ui" не должен уметь вывести
+ * операцию за .sdd-clones/<change-id>/.
+ */
+function assertContained(resolvedRoot, resolvedPath) {
+  const rootWithSep = resolvedRoot.endsWith(path.sep) ? resolvedRoot : resolvedRoot + path.sep;
+  if (resolvedPath !== resolvedRoot && !resolvedPath.startsWith(rootWithSep)) {
+    throw new Error(`Путь "${resolvedPath}" выходит за пределы "${resolvedRoot}"`);
+  }
+}
 
 // Раздел 7 профиля Pilot Core: "Результат — выжимка, а не клон. Объём
 // ограничен". Порог произвольный (MVP), но проверка обязана быть явной —
@@ -50,9 +74,15 @@ export function dirStats(root) {
  * impact-and-design.md, клонирует read-only, ведёт read-log.md.
  * Восемь гарантий — раздел 7 профиля Pilot Core.
  */
-export function fetchRepos({ change, cwd = process.cwd(), reposConfig }) {
+export function fetchRepos({ change, cwd = process.cwd(), reposConfig = {} }) {
   if (!change) {
     console.error('Ошибка: не указан --change <change-id>.');
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!isKebabCase(change)) {
+    console.error(`Ошибка: change-id "${change}" не в нижнем регистре kebab-case.`);
     process.exitCode = 1;
     return;
   }
@@ -86,7 +116,13 @@ export function fetchRepos({ change, cwd = process.cwd(), reposConfig }) {
   // Гарантия: список — только из черновика влияния, не из аргументов команды.
   console.log(`Кандидаты (из candidate_repositories): ${candidates.join(', ')}`);
 
-  const clonesRoot = path.join(cwd, CLONES_DIR_NAME, change);
+  const excluded = candidates.filter((r) => EXCLUDED_FROM_FETCH.has(r));
+  for (const repoName of excluded) {
+    console.log(`[SKIP] ${repoName}: не читается через fetch-repos (раздел 7 профиля Pilot Core) — соглашения об именовании читаются глазами.`);
+  }
+  const toRead = candidates.filter((r) => !EXCLUDED_FROM_FETCH.has(r));
+
+  const clonesRoot = path.resolve(cwd, CLONES_DIR_NAME, change);
   mkdirSync(clonesRoot, { recursive: true });
   ensureGitignored(cwd, CLONES_DIR_NAME);
 
@@ -95,9 +131,34 @@ export function fetchRepos({ change, cwd = process.cwd(), reposConfig }) {
   writeFileSync(readLogPath, header);
 
   let hadFailure = false;
-  for (const repoName of candidates) {
-    const dest = path.join(clonesRoot, repoName);
-    const url = reposConfig?.[repoName];
+  for (const repoName of toRead) {
+    if (!SAFE_REPO_NAME.test(repoName)) {
+      console.error(`[FAIL] "${repoName}": недопустимое имя репозитория (небезопасные символы или path traversal).`);
+      console.error('  что делать: исправить candidate_repositories на простое имя, как в harness/repos.yaml');
+      appendFileSync(readLogPath, `${repoName} — ОШИБКА: недопустимое имя репозитория\n\n`);
+      hadFailure = true;
+      continue;
+    }
+
+    // Разрешены только зарегистрированные имена — не любое значение,
+    // которое кто-то написал в impact-and-design.md.
+    const url = reposConfig[repoName];
+    if (!url) {
+      console.error(`[FAIL] ${repoName}: не зарегистрирован в harness/repos.yaml.`);
+      console.error('  что делать: добавить репозиторий в harness/repos.yaml с полем url перед повторным запуском');
+      appendFileSync(readLogPath, `${repoName} — ОШИБКА: не зарегистрирован в harness/repos.yaml\n\n`);
+      hadFailure = true;
+      continue;
+    }
+
+    const dest = path.resolve(clonesRoot, repoName);
+    try {
+      assertContained(clonesRoot, dest);
+    } catch (err) {
+      console.error(`[FAIL] ${repoName}: ${err.message}.`);
+      hadFailure = true;
+      continue;
+    }
 
     // Гарантия: клон одноразовый и чистый — грязный клон пересоздаётся.
     if (existsSync(dest) && !isClean(dest)) {
@@ -105,13 +166,6 @@ export function fetchRepos({ change, cwd = process.cwd(), reposConfig }) {
     }
 
     if (!existsSync(dest)) {
-      if (!url) {
-        console.error(`[FAIL] ${repoName}: нет адреса в конфигурации repos (harness/repos.yaml).`);
-        console.error('  что делать: добавить репозиторий в harness/repos.yaml с полем url перед повторным запуском');
-        appendFileSync(readLogPath, `${repoName} — ОШИБКА: нет адреса в harness/repos.yaml\n\n`);
-        hadFailure = true;
-        continue;
-      }
       try {
         clone(url, dest);
       } catch (err) {
@@ -128,11 +182,17 @@ export function fetchRepos({ change, cwd = process.cwd(), reposConfig }) {
     const sizeNote = stats.exceeded
       ? `ПРЕВЫШЕН ОБЪЁМ (>${EXCERPT_FILE_LIMIT} файлов или >${EXCERPT_BYTE_LIMIT / 1024 / 1024}MB) — читать выборочно, не всё дерево.`
       : `${stats.files} файлов, ${(stats.bytes / 1024).toFixed(0)}KB — в пределах выжимки.`;
+    // Инструмент клонирует и фиксирует ревизию — это факт. Он НЕ читает
+    // содержимое и не имеет права утверждать "ограничений не найдено":
+    // это утверждение о содержании, а не о факте клонирования, и его
+    // делает человек/агент после фактического чтения (раздел 7 профиля
+    // Pilot Core, формат read-log.md — "файл:строка" или явная строка).
     appendFileSync(
       readLogPath,
-      `${repoName} @ ${revision}, ${date}\nОбъём: ${sizeNote}\nНайденные ограничения:\n  Новых ограничений не обнаружено.\n\n`,
+      `${repoName} @ ${revision}, ${date}\nОбъём: ${sizeNote}\nНайденные ограничения:\n  TODO — заполнить после чтения: конкретные ограничения со ссылкой "файл:строка", либо строка "Новых ограничений не обнаружено." Инструмент это не проверяет.\n\n`,
     );
     console.log(`[OK] ${repoName} @ ${revision} — ${sizeNote}`);
+    console.log(`[TODO] ${repoName}: чтение и заполнение ограничений в read-log.md — ручной шаг`);
     if (stats.exceeded) {
       // Явно, не тихо (III.16): в отличие от OpenSpec (IV.3), этот
       // инструмент не имеет права отбросить объём молча.

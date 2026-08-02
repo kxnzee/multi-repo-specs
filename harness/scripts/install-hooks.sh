@@ -4,6 +4,21 @@
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
-cp "$repo_root/harness/hooks/pre-commit" "$repo_root/.git/hooks/pre-commit"
-chmod +x "$repo_root/.git/hooks/pre-commit"
-echo "Установлено: .git/hooks/pre-commit"
+target="$repo_root/.git/hooks/pre-commit"
+source="$repo_root/harness/hooks/pre-commit"
+
+if [ -e "$target" ] && ! cmp -s "$source" "$target"; then
+  echo "Внимание: $target уже существует и отличается от harness/hooks/pre-commit."
+  read -r -p "Перезаписать существующий pre-commit хук? [y/N] " answer
+  case "$answer" in
+    [yY]|[yY][eE][sS]) ;;
+    *)
+      echo "Отменено. Существующий хук не тронут."
+      exit 1
+      ;;
+  esac
+fi
+
+cp "$source" "$target"
+chmod +x "$target"
+echo "Установлено: $target"

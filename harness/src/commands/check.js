@@ -1,5 +1,6 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
+import yaml from 'js-yaml';
 import { Report } from '../lib/report.js';
 import {
   changeDir,
@@ -9,9 +10,11 @@ import {
   parseWorkPackages,
   isArchived,
   listActiveChanges,
+  validateDeltaSpecContent,
+  collectScenarioIds,
 } from '../lib/change.js';
 import { readFileIfExists } from '../lib/fs-util.js';
-import { tagExists, isAnnotatedTag, isTagReachableFromBranch, defaultBranch, revParse } from '../lib/git.js';
+import { tagExists, isAnnotatedTag, isTagReachableFromBranch, defaultBranch, commitSha } from '../lib/git.js';
 
 /**
  * `sdd check --change <id>` — правило 1: структура изменения и формат
@@ -63,11 +66,49 @@ export function checkChange({ changeId, central = process.cwd() }) {
     }
   }
 
+  const specsDir = path.join(dir, 'specs');
+  if (existsSync(specsDir)) {
+    const specFiles = listMarkdownFilesRecursive(specsDir);
+    if (specFiles.length === 0) {
+      report.blocking('rule-1: delta specs present', 'каталог specs/ пуст — нет ни одного .md файла', specsDir, 'добавить хотя бы один файл Delta Specs (I.7.5)');
+    }
+    const scenarioIdLocations = new Map(); // id -> [file, file, ...]
+    for (const filePath of specFiles) {
+      const content = readFileIfExists(filePath);
+      if (content === null) continue;
+      const issues = validateDeltaSpecContent(content, path.relative(central, filePath));
+      for (const issue of issues) {
+        report.blocking('rule-1: delta spec format', issue.what, issue.where, issue.fix);
+      }
+      for (const id of collectScenarioIds(content)) {
+        const locations = scenarioIdLocations.get(id) ?? [];
+        locations.push(path.relative(central, filePath));
+        scenarioIdLocations.set(id, locations);
+      }
+    }
+    for (const [id, locations] of scenarioIdLocations) {
+      if (locations.length > 1) {
+        report.blocking(
+          'rule-1: scenario id uniqueness',
+          `Scenario ID "${id}" встречается больше одного раза в пределах этого изменения`,
+          locations.join(', '),
+          'присвоить дублирующему сценарию новый идентификатор из реестра области (I.7.4)',
+        );
+      }
+    }
+    // Сквозная уникальность (по Master Specs и другим активным изменениям,
+    // не только внутри этого) — вне объёма MVP: требует реестра области
+    // (I.7.4), которого в Pilot Core пока нет как отдельного артефакта.
+  }
+
   const tasksText = readFileIfExists(path.join(dir, 'tasks.md'));
   if (tasksText !== null) {
     const packages = parseWorkPackages(tasksText);
     if (packages.length === 0) {
-      report.blocking(
+      // Правило 3 в Pilot Core исполняется Spec Owner по чек-листу до
+      // недели 1-2 пилота (раздел 4 профиля) — здесь предупреждение, не
+      // блокировка, до момента, когда III.17 переведёт его в машинное.
+      report.warn(
         'rule-3: work packages',
         'в tasks.md не найдено ни одного Work Package',
         path.join(dir, 'tasks.md'),
@@ -77,7 +118,7 @@ export function checkChange({ changeId, central = process.cwd() }) {
     for (const pkg of packages) {
       const label = pkg.id ?? pkg.repo ?? '(без id)';
       if (!pkg.id || !pkg.repo || !pkg.type) {
-        report.blocking(
+        report.warn(
           'rule-3: work package fields',
           `Work Package "${label}" не заполнен полностью (нужны id, repository, type)`,
           path.join(dir, 'tasks.md'),
@@ -86,7 +127,7 @@ export function checkChange({ changeId, central = process.cwd() }) {
         continue;
       }
       if (pkg.type === 'implements' && pkg.scenarioIds.length === 0) {
-        report.blocking(
+        report.warn(
           'rule-3: implements needs scenarios',
           `Work Package "${pkg.id}" (${pkg.repo}, implements) не связан ни с одним Scenario ID`,
           path.join(dir, 'tasks.md'),
@@ -95,7 +136,7 @@ export function checkChange({ changeId, central = process.cwd() }) {
       }
       if (pkg.type === 'enables') {
         if (pkg.scenarioIds.length > 0) {
-          report.blocking(
+          report.warn(
             'rule-3: enables must not have scenarios',
             `Work Package "${pkg.id}" (${pkg.repo}, enables) содержит scenario_ids — не должен (I.16.1)`,
             path.join(dir, 'tasks.md'),
@@ -103,7 +144,7 @@ export function checkChange({ changeId, central = process.cwd() }) {
           );
         }
         if (pkg.acIds.length === 0) {
-          report.blocking(
+          report.warn(
             'rule-3: enables needs AC',
             `Work Package "${pkg.id}" (${pkg.repo}, enables) не связан ни с одним AC-*`,
             path.join(dir, 'tasks.md'),
@@ -137,19 +178,34 @@ export function checkCode({ repoPath = process.cwd(), central, centralBranchOver
     return report;
   }
 
+  // Разбор через YAML, а не поиском подстроки "field:" — иначе
+  // `spec_baseline:` с пустым значением проходит как "поле присутствует".
+  let card;
+  try {
+    card = yaml.load(cardText);
+  } catch (err) {
+    report.blocking('rule-4: change card parses', `.sdd/change.yaml не парсится как YAML: ${err.message.split('\n')[0]}`, cardPath, 'пересоздать карточку через `sdd load`');
+    report.print();
+    return report;
+  }
+  if (!card || typeof card !== 'object') {
+    report.blocking('rule-4: change card parses', '.sdd/change.yaml пуст или не является объектом', cardPath, 'пересоздать карточку через `sdd load`');
+    report.print();
+    return report;
+  }
+
   const fields = ['change_id', 'spec_baseline', 'spec_revision', 'repository', 'work_packages'];
   for (const field of fields) {
-    if (!cardText.includes(`${field}:`)) {
-      report.blocking('rule-4: change card fields', `в карточке отсутствует поле "${field}"`, cardPath, 'пересоздать карточку через `sdd load`, не редактировать вручную');
+    const value = card[field];
+    const isEmpty = value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
+    if (isEmpty) {
+      report.blocking('rule-4: change card fields', `в карточке отсутствует или пусто поле "${field}"`, cardPath, 'пересоздать карточку через `sdd load`, не редактировать вручную');
     }
   }
 
-  const tagMatch = cardText.match(/spec_baseline:\s*(\S+)/);
-  const tag = tagMatch ? tagMatch[1] : null;
-  const changeIdMatch = cardText.match(/change_id:\s*(\S+)/);
-  const changeId = changeIdMatch ? changeIdMatch[1] : null;
-  const revisionMatch = cardText.match(/spec_revision:\s*(\S+)/);
-  const cardRevision = revisionMatch ? revisionMatch[1] : null;
+  const tag = typeof card.spec_baseline === 'string' && card.spec_baseline ? card.spec_baseline : null;
+  const changeId = typeof card.change_id === 'string' && card.change_id ? card.change_id : null;
+  const cardRevision = typeof card.spec_revision === 'string' && card.spec_revision ? card.spec_revision : null;
 
   if (!central) {
     // Fail closed (III.16): без доступа к центральному репозиторию Baseline
@@ -187,7 +243,7 @@ export function checkCode({ repoPath = process.cwd(), central, centralBranchOver
           report.blocking('rule-4: tag reachable', `коммит тега "${tag}" не достижим из основной ветки "${branch}"`, central, 'проверить, что Baseline создан от актуальной основной ветки');
         }
 
-        const actualRevision = revParse(central, tag);
+        const actualRevision = commitSha(central, tag);
         if (cardRevision && cardRevision !== actualRevision) {
           report.blocking(
             'rule-4: revision matches card',
@@ -201,12 +257,16 @@ export function checkCode({ repoPath = process.cwd(), central, centralBranchOver
   }
 
   if (!skipOwnRootCheck) {
-    const ownOpenspec = path.join(repoPath, 'openspec', 'config.yaml');
-    if (existsSync(ownOpenspec)) {
+    // Не только config.yaml — каталог openspec/specs или openspec/changes
+    // без config.yaml тоже посторонний корень OpenSpec (кто-то мог удалить
+    // или не закоммитить только сам конфиг).
+    const candidates = ['config.yaml', 'specs', 'changes'];
+    const foundMarkers = candidates.filter((name) => existsSync(path.join(repoPath, 'openspec', name)));
+    if (foundMarkers.length > 0) {
       report.blocking(
         'rule-5: no own OpenSpec root',
-        'в кодовом репозитории найден собственный корень OpenSpec (openspec/config.yaml)',
-        ownOpenspec,
+        `в кодовом репозитории найден собственный корень OpenSpec (openspec/${foundMarkers.join(', openspec/')})`,
+        path.join(repoPath, 'openspec'),
         'удалить локальный корень OpenSpec — требования живут только в project-specs',
       );
     }
@@ -214,4 +274,21 @@ export function checkCode({ repoPath = process.cwd(), central, centralBranchOver
 
   report.print();
   return report;
+}
+
+function listMarkdownFilesRecursive(dir) {
+  const result = [];
+  const stack = [dir];
+  while (stack.length) {
+    const current = stack.pop();
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(full);
+      } else if (entry.isFile() && entry.name.endsWith('.md')) {
+        result.push(full);
+      }
+    }
+  }
+  return result;
 }

@@ -54,6 +54,139 @@ test('checkChange: an existing but empty impact-and-design.md does not silently 
   }
 });
 
+function makeChangeWithSpec(specContent, tasksYaml) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'sdd-spec-'));
+  const changeDir = path.join(dir, 'openspec', 'changes', 'pilot-006');
+  mkdirSync(path.join(changeDir, 'specs'), { recursive: true });
+  writeFileSync(path.join(changeDir, 'proposal.md'), 'x');
+  writeFileSync(path.join(changeDir, 'impact-and-design.md'), REQUIRED_DESIGN_SECTIONS_TEXT);
+  writeFileSync(path.join(changeDir, 'specs', 'DELTA.md'), specContent);
+  const defaultTasksYaml = 'work_packages:\n  - id: UI-01\n    repository: ui\n    type: implements\n    scenario_ids: [ROLE-001]';
+  writeFileSync(path.join(changeDir, 'tasks.md'), `# Tasks: pilot-006\n\n\`\`\`yaml\n${tasksYaml ?? defaultTasksYaml}\n\`\`\`\n`);
+  writeFileSync(path.join(changeDir, 'verification.md'), 'x');
+  return dir;
+}
+
+const REQUIRED_DESIGN_SECTIONS_TEXT = [
+  '## Candidate Repositories',
+  '## Read Log',
+  '## Confirmed Repositories',
+  '## Contracts',
+  '## Design',
+  '## Deployment and Rollout',
+  '## Rollback',
+].join('\n\n');
+
+test('checkChange: Delta Specs without a normative word (MUST/SHALL/...) is blocking', () => {
+  const dir = makeChangeWithSpec(
+    [
+      '## ADDED Requirements',
+      '',
+      '### Requirement: Просмотр роли',
+      'Система отображает текущую роль сотрудника.', // нет MUST
+      '',
+      '#### Scenario: ROLE-001 Роль назначена',
+      '- GIVEN x',
+      '- WHEN y',
+      '- THEN z',
+    ].join('\n'),
+  );
+  try {
+    const report = checkChange({ changeId: 'pilot-006', central: dir });
+    assert.equal(report.hasBlocking, true);
+    assert.ok(report.findings.some((f) => f.rule === 'rule-1: delta spec format' && f.what.includes('нормативного слова')));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('checkChange: a requirement without any scenario is blocking', () => {
+  const dir = makeChangeWithSpec(['## ADDED Requirements', '', '### Requirement: Просмотр роли', 'Система MUST отображать роль.'].join('\n'));
+  try {
+    const report = checkChange({ changeId: 'pilot-006', central: dir });
+    assert.equal(report.hasBlocking, true);
+    assert.ok(report.findings.some((f) => f.what.includes('ни одного сценария')));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('checkChange: Scenario ID not matching <PREFIX>-<NNN> is blocking', () => {
+  const dir = makeChangeWithSpec(
+    [
+      '## ADDED Requirements',
+      '',
+      '### Requirement: Просмотр роли',
+      'Система MUST отображать роль.',
+      '',
+      '#### Scenario: ROLE-1 Роль назначена',
+      '- GIVEN x',
+      '- WHEN y',
+      '- THEN z',
+    ].join('\n'),
+  );
+  try {
+    const report = checkChange({ changeId: 'pilot-006', central: dir });
+    assert.equal(report.hasBlocking, true);
+    assert.ok(report.findings.some((f) => f.what.includes('не соответствует формату')));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('checkChange: duplicate Scenario ID within the change is blocking', () => {
+  const dir = makeChangeWithSpec(
+    [
+      '## ADDED Requirements',
+      '',
+      '### Requirement: A',
+      'Система MUST делать A.',
+      '',
+      '#### Scenario: ROLE-001 Первый',
+      '- GIVEN x',
+      '- WHEN y',
+      '- THEN z',
+      '',
+      '### Requirement: B',
+      'Система MUST делать B.',
+      '',
+      '#### Scenario: ROLE-001 Второй, тот же ID',
+      '- GIVEN x',
+      '- WHEN y',
+      '- THEN z',
+    ].join('\n'),
+  );
+  try {
+    const report = checkChange({ changeId: 'pilot-006', central: dir });
+    assert.equal(report.hasBlocking, true);
+    assert.ok(report.findings.some((f) => f.rule === 'rule-1: scenario id uniqueness'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('checkChange: a well-formed Delta Spec passes', () => {
+  const dir = makeChangeWithSpec(
+    [
+      '## ADDED Requirements',
+      '',
+      '### Requirement: Просмотр роли',
+      'Система MUST отображать текущую роль сотрудника в карточке профиля.',
+      '',
+      '#### Scenario: ROLE-001 Роль назначена',
+      '- GIVEN сотрудник с назначенной ролью',
+      '- WHEN открывается карточка профиля',
+      '- THEN в поле «Роль» отображается роль',
+    ].join('\n'),
+  );
+  try {
+    const report = checkChange({ changeId: 'pilot-006', central: dir });
+    assert.equal(report.hasBlocking, false, JSON.stringify(report.findings, null, 2));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('parseCandidateRepositories: reads the yaml block', () => {
   const text = '```yaml\ncandidate_repositories: [ui, backend]\n```';
   assert.deepEqual(parseCandidateRepositories(text), ['ui', 'backend']);
@@ -109,7 +242,9 @@ function makeCentralWithBaseline() {
   execFileSync('git', ['add', '-A'], { cwd: central });
   execFileSync('git', ['commit', '-q', '-m', 'add change dir'], { cwd: central });
   execFileSync('git', ['tag', '-a', 'spec-baseline/pilot-003/v1', '-m', 'baseline'], { cwd: central });
-  const revision = execFileSync('git', ['rev-parse', 'spec-baseline/pilot-003/v1'], { cwd: central, encoding: 'utf8' }).trim();
+  // Ревизия КОММИТА, не объекта аннотированного тега — то, что теперь
+  // сравнивает checkCode (регрессия на баг "SHA тега вместо SHA коммита").
+  const revision = execFileSync('git', ['rev-list', '-n', '1', 'spec-baseline/pilot-003/v1'], { cwd: central, encoding: 'utf8' }).trim();
   return { central, revision };
 }
 
@@ -264,5 +399,56 @@ test('checkCode: own OpenSpec root in a code repo fails rule 5', () => {
   } finally {
     rmSync(repoDir, { recursive: true, force: true });
     rmSync(central, { recursive: true, force: true });
+  }
+});
+
+test('checkCode: rule 5 also catches openspec/specs or openspec/changes without config.yaml', () => {
+  const repoDir = mkdtempSync(path.join(os.tmpdir(), 'sdd-code-'));
+  const { central, revision } = makeCentralWithBaseline();
+  try {
+    gitInit(repoDir);
+    writeCard(repoDir, { revision });
+    mkdirSync(path.join(repoDir, 'openspec', 'specs'), { recursive: true }); // без config.yaml
+    const report = checkCode({ repoPath: repoDir, central });
+    assert.equal(report.hasBlocking, true);
+    assert.ok(report.findings.some((f) => f.rule === 'rule-5: no own OpenSpec root'));
+  } finally {
+    rmSync(repoDir, { recursive: true, force: true });
+    rmSync(central, { recursive: true, force: true });
+  }
+});
+
+test('checkCode: an empty spec_baseline value in the card is blocking, not silently skipped', () => {
+  const repoDir = mkdtempSync(path.join(os.tmpdir(), 'sdd-code-'));
+  const { central, revision } = makeCentralWithBaseline();
+  try {
+    gitInit(repoDir);
+    mkdirSync(path.join(repoDir, '.sdd'), { recursive: true });
+    // spec_baseline присутствует как ключ, но пуст — раньше substring-проверка
+    // "includes('spec_baseline:')" такое пропускала.
+    writeFileSync(
+      path.join(repoDir, '.sdd', 'change.yaml'),
+      `change_id: pilot-003\nspec_baseline:\nspec_revision: ${revision}\nrepository: ui\nwork_packages: [UI-01]\n`,
+    );
+    const report = checkCode({ repoPath: repoDir, central });
+    assert.equal(report.hasBlocking, true);
+    assert.ok(report.findings.some((f) => f.rule === 'rule-4: change card fields'));
+  } finally {
+    rmSync(repoDir, { recursive: true, force: true });
+    rmSync(central, { recursive: true, force: true });
+  }
+});
+
+test('checkCode: unparseable YAML in the card is blocking', () => {
+  const repoDir = mkdtempSync(path.join(os.tmpdir(), 'sdd-code-'));
+  try {
+    gitInit(repoDir);
+    mkdirSync(path.join(repoDir, '.sdd'), { recursive: true });
+    writeFileSync(path.join(repoDir, '.sdd', 'change.yaml'), 'change_id: [unclosed\n');
+    const report = checkCode({ repoPath: repoDir });
+    assert.equal(report.hasBlocking, true);
+    assert.ok(report.findings.some((f) => f.rule === 'rule-4: change card parses'));
+  } finally {
+    rmSync(repoDir, { recursive: true, force: true });
   }
 });
