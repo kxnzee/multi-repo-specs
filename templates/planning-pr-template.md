@@ -16,7 +16,7 @@
 - [ ] `proposal.md`
 - [ ] `specs/` (Delta Specs со стабильными Scenario ID)
 - [ ] `impact-and-design.md` — закрыт (см. схему `templates/impact-and-design.schema.md`)
-- [ ] `tasks.md` (Work Packages)
+- [ ] `tasks.md` (Work Packages, формат: `templates/tasks.schema.md`)
 - [ ] `verification.md` (скелет: по строке на каждый сценарий, статус `Uncovered`)
 
 ## Чек-лист правила 2 — регистрация репозиториев
@@ -31,13 +31,15 @@
 
 ## Чек-лист правила 3 — Work Packages (I.16.1)
 
-| Репозиторий | Тип пакета | Scenario ID (только для `implements`) | AC-* (только для `enables`) | Отмечено |
-|---|---|---|---|---|
-| `ui` | `implements` | | — | ☐ |
-| `backend` | `implements` | | — | ☐ |
-| `configuration` | `enables` | — | | ☐ |
+Источник данных — блок `work_packages` в `tasks.md` (формат: `templates/tasks.schema.md`), не эта таблица. Таблица — читаемое резюме для ревью, заполняется из `tasks.md`, а не наоборот.
 
-Проверка: `implements` без сценариев — ошибка. `enables` со сценариями — ошибка. `enables`, от которого никто не зависит, — ошибка (I.16.1).
+| ID пакета | Репозиторий | Тип | Scenario ID (только для `implements`) | AC-* (только для `enables`) | Отмечено |
+|---|---|---|---|---|---|
+| `UI-01` | `ui` | `implements` | | — | ☐ |
+| `BACKEND-01` | `backend` | `implements` | | — | ☐ |
+| `CONFIG-01` | `configuration` | `enables` | — | | ☐ |
+
+Проверка (автоматически — `sdd check change`): `implements` без сценариев — ошибка. `enables` со сценариями — ошибка. `enables` без AC — ошибка (I.16.1).
 
 ## Защитный критерий (I.16.2)
 

@@ -20,6 +20,32 @@ export function currentBranch(cwd) {
   return run(['rev-parse', '--abbrev-ref', 'HEAD'], cwd);
 }
 
+/**
+ * Determines the central repository's main branch — reachability of a
+ * Baseline tag is checked against this, not against whatever branch the
+ * checkout happens to be on (a detached HEAD in CI has no branch named
+ * "HEAD", and a Code PR's own feature branch is not "основная ветка").
+ */
+export function defaultBranch(cwd, override) {
+  if (override) return override;
+  try {
+    const ref = run(['symbolic-ref', 'refs/remotes/origin/HEAD'], cwd);
+    return ref.replace('refs/remotes/origin/', '');
+  } catch {
+    // Нет настроенного origin/HEAD (например, локальный репозиторий без
+    // remote) — пробуем распространённые имена основной ветки.
+  }
+  for (const candidate of ['main', 'master']) {
+    try {
+      run(['rev-parse', '--verify', '--quiet', `refs/heads/${candidate}`], cwd);
+      return candidate;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 export function tagExists(cwd, tag) {
   try {
     run(['rev-parse', '--verify', '--quiet', `refs/tags/${tag}`], cwd);
@@ -40,9 +66,11 @@ export function isAnnotatedTag(cwd, tag) {
 
 export function isTagReachableFromBranch(cwd, tag, branch) {
   try {
-    const tagCommit = run(['rev-list', '-n', '1', tag], cwd);
-    const merged = run(['branch', '--contains', tagCommit, branch], cwd);
-    return merged.length > 0;
+    // --is-ancestor работает с любым ref (локальная ветка, origin/<branch>,
+    // detached HEAD) — в отличие от `git branch --contains`, не требует,
+    // чтобы <branch> существовала как локальная ветка.
+    execFileSync('git', ['merge-base', '--is-ancestor', tag, branch], { cwd });
+    return true;
   } catch {
     return false;
   }

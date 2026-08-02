@@ -67,35 +67,42 @@ export function readImpactAndDesign(centralRepoPath, changeId) {
 }
 
 /**
- * Parses Work Packages from tasks.md. Expected format per repository:
+ * Parses Work Packages from tasks.md. Format — see templates/tasks.schema.md:
+ * a single ```yaml fenced block with a `work_packages:` list, each entry
+ * carrying an explicit `id` (this is what ends up in .sdd/change.yaml's
+ * `work_packages` field — not the repository name).
  *
- *   ### ui — implements
- *   Scenario IDs: ROLE-001, ROLE-002
+ *   ```yaml
+ *   work_packages:
+ *     - id: UI-01
+ *       repository: ui
+ *       type: implements
+ *       scenario_ids: [ROLE-001, ROLE-002]
+ *     - id: CONFIG-01
+ *       repository: configuration
+ *       type: enables
+ *       ac_ids: [AC-PILOT-003.1]
+ *   ```
  *
- *   ### configuration — enables
- *   AC: AC-PILOT-003.1
+ * Returns [] (not an error) when the block is absent or malformed — callers
+ * treat an empty list as "no Work Packages found", which rule 3 already
+ * reports as blocking.
  */
 export function parseWorkPackages(tasksText) {
-  const packages = [];
-  const re = /^###\s+(\S+)\s+—\s+(implements|enables)\s*$/gm;
-  let m;
-  const lines = tasksText.split('\n');
-  const headerIdx = [];
-  while ((m = re.exec(tasksText))) {
-    headerIdx.push({ index: m.index, repo: m[1], type: m[2] });
+  const match = tasksText.match(/```ya?ml\n([\s\S]*?work_packages:[\s\S]*?)```/);
+  if (!match) return [];
+  let doc;
+  try {
+    doc = yaml.load(match[1]);
+  } catch {
+    return [];
   }
-  for (let i = 0; i < headerIdx.length; i++) {
-    const start = headerIdx[i].index;
-    const end = i + 1 < headerIdx.length ? headerIdx[i + 1].index : tasksText.length;
-    const body = tasksText.slice(start, end);
-    const scenarioMatch = body.match(/Scenario IDs:\s*(.+)/);
-    const acMatch = body.match(/AC:\s*(.+)/);
-    packages.push({
-      repo: headerIdx[i].repo,
-      type: headerIdx[i].type,
-      scenarioIds: scenarioMatch ? scenarioMatch[1].split(',').map((s) => s.trim()).filter(Boolean) : [],
-      acIds: acMatch ? acMatch[1].split(',').map((s) => s.trim()).filter(Boolean) : [],
-    });
-  }
-  return packages;
+  if (!doc || !Array.isArray(doc.work_packages)) return [];
+  return doc.work_packages.map((entry) => ({
+    id: entry.id ?? null,
+    repo: entry.repository ?? null,
+    type: entry.type ?? null,
+    scenarioIds: Array.isArray(entry.scenario_ids) ? entry.scenario_ids : [],
+    acIds: Array.isArray(entry.ac_ids) ? entry.ac_ids : [],
+  }));
 }

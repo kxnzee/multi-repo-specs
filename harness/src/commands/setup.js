@@ -27,10 +27,19 @@ export function setup({ cwd = process.cwd() } = {}) {
   }
 
   const specsDir = path.join(centralRepo, 'openspec', 'specs');
-  const areaCount = existsSync(specsDir)
-    ? readdirSync(specsDir, { withFileTypes: true }).filter((e) => e.isDirectory()).length
-    : 0;
+  const areas = existsSync(specsDir)
+    ? readdirSync(specsDir, { withFileTypes: true }).filter((e) => e.isDirectory())
+    : [];
+  // "Наличие содержимого", а не только наличие каталога: пустая область
+  // (папка без файлов) — тот же случай тишины, который III.12 запрещает
+  // пропускать молча.
+  const emptyAreas = areas.filter((e) => readdirSync(path.join(specsDir, e.name)).length === 0).map((e) => e.name);
+  const areaCount = areas.length;
+
   const activeChanges = listActiveChanges(centralRepo);
+  const changesWithoutProposal = activeChanges.filter(
+    (id) => !existsSync(path.join(centralRepo, 'openspec', 'changes', id, 'proposal.md')),
+  );
 
   mkdirSync(path.dirname(REGISTRY_PATH), { recursive: true });
   let registry = {};
@@ -57,5 +66,11 @@ export function setup({ cwd = process.cwd() } = {}) {
 
   if (areaCount === 0 && activeChanges.length === 0) {
     console.log('Внимание: областей и активных изменений нет. Это может быть ожидаемо (первый пилот) — не тишина, а факт.');
+  }
+  if (emptyAreas.length > 0) {
+    console.log(`Внимание: области без содержимого (каталог есть, файлов нет): ${emptyAreas.join(', ')}`);
+  }
+  if (changesWithoutProposal.length > 0) {
+    console.log(`Внимание: активные изменения без proposal.md: ${changesWithoutProposal.join(', ')}`);
   }
 }

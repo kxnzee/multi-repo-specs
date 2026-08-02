@@ -7,9 +7,11 @@ import {
   REQUIRED_DESIGN_SECTIONS,
   isKebabCase,
   parseWorkPackages,
+  isArchived,
+  listActiveChanges,
 } from '../lib/change.js';
 import { readFileIfExists } from '../lib/fs-util.js';
-import { tagExists, isAnnotatedTag, isTagReachableFromBranch, currentBranch } from '../lib/git.js';
+import { tagExists, isAnnotatedTag, isTagReachableFromBranch, defaultBranch, revParse } from '../lib/git.js';
 
 /**
  * `sdd check --change <id>` — правило 1: структура изменения и формат
@@ -46,7 +48,9 @@ export function checkChange({ changeId, central = process.cwd() }) {
   }
 
   const impactText = readFileIfExists(path.join(dir, 'impact-and-design.md'));
-  if (impactText) {
+  // Строгое сравнение с null: пустой, но существующий файл ('') не должен
+  // молча проходить проверку схемы — это баг, который поймала фикстура.
+  if (impactText !== null) {
     for (const section of REQUIRED_DESIGN_SECTIONS) {
       if (!impactText.includes(section)) {
         report.blocking(
@@ -60,35 +64,50 @@ export function checkChange({ changeId, central = process.cwd() }) {
   }
 
   const tasksText = readFileIfExists(path.join(dir, 'tasks.md'));
-  if (tasksText) {
+  if (tasksText !== null) {
     const packages = parseWorkPackages(tasksText);
     if (packages.length === 0) {
-      report.blocking('rule-3: work packages', 'в tasks.md не найдено ни одного Work Package', path.join(dir, 'tasks.md'), 'добавить Work Package для каждого затронутого репозитория (формат: "### <repo> — implements|enables")');
+      report.blocking(
+        'rule-3: work packages',
+        'в tasks.md не найдено ни одного Work Package',
+        path.join(dir, 'tasks.md'),
+        'добавить блок work_packages по формату templates/tasks.schema.md',
+      );
     }
     for (const pkg of packages) {
+      const label = pkg.id ?? pkg.repo ?? '(без id)';
+      if (!pkg.id || !pkg.repo || !pkg.type) {
+        report.blocking(
+          'rule-3: work package fields',
+          `Work Package "${label}" не заполнен полностью (нужны id, repository, type)`,
+          path.join(dir, 'tasks.md'),
+          'заполнить id, repository и type по templates/tasks.schema.md',
+        );
+        continue;
+      }
       if (pkg.type === 'implements' && pkg.scenarioIds.length === 0) {
         report.blocking(
           'rule-3: implements needs scenarios',
-          `Work Package "${pkg.repo}" (implements) не связан ни с одним Scenario ID`,
+          `Work Package "${pkg.id}" (${pkg.repo}, implements) не связан ни с одним Scenario ID`,
           path.join(dir, 'tasks.md'),
-          'добавить "Scenario IDs: <ID1>, <ID2>" в блок пакета (I.16.1)',
+          'добавить scenario_ids в блок пакета (I.16.1)',
         );
       }
       if (pkg.type === 'enables') {
         if (pkg.scenarioIds.length > 0) {
           report.blocking(
             'rule-3: enables must not have scenarios',
-            `Work Package "${pkg.repo}" (enables) содержит Scenario ID — не должен (I.16.1)`,
+            `Work Package "${pkg.id}" (${pkg.repo}, enables) содержит scenario_ids — не должен (I.16.1)`,
             path.join(dir, 'tasks.md'),
-            'убрать Scenario IDs из блока enables',
+            'убрать scenario_ids из блока enables',
           );
         }
         if (pkg.acIds.length === 0) {
           report.blocking(
             'rule-3: enables needs AC',
-            `Work Package "${pkg.repo}" (enables) не связан ни с одним AC-*`,
+            `Work Package "${pkg.id}" (${pkg.repo}, enables) не связан ни с одним AC-*`,
             path.join(dir, 'tasks.md'),
-            'добавить "AC: <AC-ID>" в блок пакета',
+            'добавить ac_ids в блок пакета',
           );
         }
       }
@@ -100,9 +119,14 @@ export function checkChange({ changeId, central = process.cwd() }) {
 }
 
 /**
- * `sdd check --code --path <repo>` — правила 4 и 5 (раздел 4 профиля Pilot Core).
+ * `sdd check --code --path <repo> --central <path>` — правила 4 и 5
+ * (раздел 4 профиля Pilot Core).
+ *
+ * Baseline-тег живёт в центральном репозитории (III.12: `sdd baseline` —
+ * "центральный репозиторий"), не в кодовом. Все проверки тега и достижимости
+ * поэтому идут против `central`, а не против `repoPath`.
  */
-export function checkCode({ repoPath = process.cwd(), skipOwnRootCheck = false }) {
+export function checkCode({ repoPath = process.cwd(), central, centralBranchOverride, skipOwnRootCheck = false }) {
   const report = new Report();
   const cardPath = path.join(repoPath, '.sdd', 'change.yaml');
   const cardText = readFileIfExists(cardPath);
@@ -122,19 +146,56 @@ export function checkCode({ repoPath = process.cwd(), skipOwnRootCheck = false }
 
   const tagMatch = cardText.match(/spec_baseline:\s*(\S+)/);
   const tag = tagMatch ? tagMatch[1] : null;
-  if (tag) {
-    if (!/^spec-baseline\/[a-z0-9-]+\/v\d+$/.test(tag)) {
-      report.blocking('rule-4: tag name pattern', `имя тега "${tag}" не соответствует шаблону spec-baseline/<change-id>/v<N>`, cardPath, 'пересоздать Baseline командой `sdd baseline`');
+  const changeIdMatch = cardText.match(/change_id:\s*(\S+)/);
+  const changeId = changeIdMatch ? changeIdMatch[1] : null;
+  const revisionMatch = cardText.match(/spec_revision:\s*(\S+)/);
+  const cardRevision = revisionMatch ? revisionMatch[1] : null;
+
+  if (!central) {
+    // Fail closed (III.16): без доступа к центральному репозиторию Baseline
+    // не проверить в принципе — молчаливый "пропуск" был бы дефектом.
+    report.blocking(
+      'rule-4: central repository required',
+      'не указан --central <path> — Baseline и его достижимость не проверить без центрального репозитория',
+      repoPath,
+      'передать --central <путь к клону project-specs>',
+    );
+  } else {
+    if (changeId && !existsSync(changeDir(central, changeId)) && !isArchived(central, changeId)) {
+      report.blocking(
+        'rule-4: change exists centrally',
+        `изменение "${changeId}" не найдено в центральном хранилище — ни среди активных, ни в архиве`,
+        central,
+        'проверить change_id в карточке или актуальность central-репозитория',
+      );
     }
-    if (!tagExists(repoPath, tag)) {
-      report.blocking('rule-4: tag exists', `тег "${tag}" не найден в этом репозитории`, repoPath, 'подтянуть теги (`git fetch --tags`) или проверить корректность Baseline');
-    } else {
-      if (!isAnnotatedTag(repoPath, tag)) {
-        report.blocking('rule-4: annotated tag', `тег "${tag}" не аннотированный`, repoPath, 'пересоздать Baseline аннотированным тегом');
+
+    if (tag) {
+      if (!/^spec-baseline\/[a-z0-9-]+\/v\d+$/.test(tag)) {
+        report.blocking('rule-4: tag name pattern', `имя тега "${tag}" не соответствует шаблону spec-baseline/<change-id>/v<N>`, cardPath, 'пересоздать Baseline командой `sdd baseline`');
       }
-      const branch = currentBranch(repoPath);
-      if (!isTagReachableFromBranch(repoPath, tag, branch)) {
-        report.blocking('rule-4: tag reachable', `коммит тега "${tag}" не достижим из ветки "${branch}"`, repoPath, 'проверить, что Baseline создан от актуальной основной ветки');
+      if (!tagExists(central, tag)) {
+        report.blocking('rule-4: tag exists', `тег "${tag}" не найден в центральном репозитории`, central, 'подтянуть теги (`git fetch --tags`) в central или проверить корректность Baseline');
+      } else {
+        if (!isAnnotatedTag(central, tag)) {
+          report.blocking('rule-4: annotated tag', `тег "${tag}" не аннотированный`, central, 'пересоздать Baseline аннотированным тегом');
+        }
+        const branch = defaultBranch(central, centralBranchOverride);
+        if (!branch) {
+          report.blocking('rule-4: tag reachable', 'не удалось определить основную ветку central-репозитория', central, 'передать --central-branch явно или настроить origin/HEAD');
+        } else if (!isTagReachableFromBranch(central, tag, branch)) {
+          report.blocking('rule-4: tag reachable', `коммит тега "${tag}" не достижим из основной ветки "${branch}"`, central, 'проверить, что Baseline создан от актуальной основной ветки');
+        }
+
+        const actualRevision = revParse(central, tag);
+        if (cardRevision && cardRevision !== actualRevision) {
+          report.blocking(
+            'rule-4: revision matches card',
+            `spec_revision в карточке ("${cardRevision}") не совпадает с фактической ревизией тега ("${actualRevision}")`,
+            cardPath,
+            'пересоздать карточку через `sdd load` — не редактировать spec_revision вручную',
+          );
+        }
       }
     }
   }

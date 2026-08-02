@@ -60,10 +60,12 @@ check
 
 check
   .command('code')
-  .description('Правила 4, 5 — карточка изменения и отсутствие своего OpenSpec-корня')
+  .description('Правила 4, 5 — карточка изменения (сверяется с central) и отсутствие своего OpenSpec-корня')
   .option('--path <path>', 'путь к кодовому репозиторию', process.cwd())
+  .option('--central <path>', 'путь к central-репозиторию — без него Baseline не проверить (fail closed)')
+  .option('--central-branch <name>', 'основная ветка central, если origin/HEAD не настроен')
   .action((opts) => {
-    const report = checkCode({ repoPath: opts.path });
+    const report = checkCode({ repoPath: opts.path, central: opts.central, centralBranchOverride: opts.centralBranch });
     process.exitCode = report.hasBlocking ? 1 : 0;
   });
 

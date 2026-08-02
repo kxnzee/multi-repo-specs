@@ -34,6 +34,26 @@ test('checkChange: rejects non-kebab-case change id', () => {
   assert.ok(report.findings.some((f) => f.rule === 'rule-1: change-id format'));
 });
 
+test('checkChange: an existing but empty impact-and-design.md does not silently skip the schema check', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'sdd-empty-'));
+  try {
+    const changeDir = path.join(dir, 'openspec', 'changes', 'pilot-005');
+    mkdirSync(path.join(changeDir, 'specs'), { recursive: true });
+    writeFileSync(path.join(changeDir, 'proposal.md'), 'x');
+    writeFileSync(path.join(changeDir, 'impact-and-design.md'), ''); // существует, но пуст
+    writeFileSync(path.join(changeDir, 'tasks.md'), ''); // существует, но пуст
+    writeFileSync(path.join(changeDir, 'verification.md'), 'x');
+
+    const report = checkChange({ changeId: 'pilot-005', central: dir });
+    assert.equal(report.hasBlocking, true);
+    const rules = report.findings.map((f) => f.rule);
+    assert.ok(rules.includes('rule-1: impact-and-design schema'), 'empty impact-and-design.md must still be checked for sections');
+    assert.ok(rules.includes('rule-3: work packages'), 'empty tasks.md must still report missing work packages');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('parseCandidateRepositories: reads the yaml block', () => {
   const text = '```yaml\ncandidate_repositories: [ui, backend]\n```';
   assert.deepEqual(parseCandidateRepositories(text), ['ui', 'backend']);
@@ -43,12 +63,28 @@ test('parseCandidateRepositories: returns null when the block is absent', () => 
   assert.equal(parseCandidateRepositories('no yaml here'), null);
 });
 
-test('parseWorkPackages: extracts scenario ids and AC ids per repo', () => {
-  const text = '### ui — implements\nScenario IDs: A-1, A-2\n\n### configuration — enables\nAC: AC-1\n';
+test('parseWorkPackages: reads the work_packages yaml block with explicit ids', () => {
+  const text = [
+    '```yaml',
+    'work_packages:',
+    '  - id: UI-01',
+    '    repository: ui',
+    '    type: implements',
+    '    scenario_ids: [A-1, A-2]',
+    '  - id: CONFIG-01',
+    '    repository: configuration',
+    '    type: enables',
+    '    ac_ids: [AC-1]',
+    '```',
+  ].join('\n');
   const packages = parseWorkPackages(text);
   assert.equal(packages.length, 2);
-  assert.deepEqual(packages[0], { repo: 'ui', type: 'implements', scenarioIds: ['A-1', 'A-2'], acIds: [] });
-  assert.deepEqual(packages[1], { repo: 'configuration', type: 'enables', scenarioIds: [], acIds: ['AC-1'] });
+  assert.deepEqual(packages[0], { id: 'UI-01', repo: 'ui', type: 'implements', scenarioIds: ['A-1', 'A-2'], acIds: [] });
+  assert.deepEqual(packages[1], { id: 'CONFIG-01', repo: 'configuration', type: 'enables', scenarioIds: [], acIds: ['AC-1'] });
+});
+
+test('parseWorkPackages: returns [] when the block is absent', () => {
+  assert.deepEqual(parseWorkPackages('no yaml here'), []);
 });
 
 test('isKebabCase', () => {
@@ -58,10 +94,31 @@ test('isKebabCase', () => {
 });
 
 function gitInit(dir) {
-  execFileSync('git', ['init', '-q'], { cwd: dir });
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir });
   execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: dir });
   execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir });
   execFileSync('git', ['commit', '--allow-empty', '-q', '-m', 'init'], { cwd: dir });
+}
+
+/** Central repo with an active `pilot-003` change dir and an annotated Baseline tag on `main`. */
+function makeCentralWithBaseline() {
+  const central = mkdtempSync(path.join(os.tmpdir(), 'sdd-central-'));
+  gitInit(central);
+  mkdirSync(path.join(central, 'openspec', 'changes', 'pilot-003'), { recursive: true });
+  writeFileSync(path.join(central, 'openspec', 'changes', 'pilot-003', 'proposal.md'), 'x');
+  execFileSync('git', ['add', '-A'], { cwd: central });
+  execFileSync('git', ['commit', '-q', '-m', 'add change dir'], { cwd: central });
+  execFileSync('git', ['tag', '-a', 'spec-baseline/pilot-003/v1', '-m', 'baseline'], { cwd: central });
+  const revision = execFileSync('git', ['rev-parse', 'spec-baseline/pilot-003/v1'], { cwd: central, encoding: 'utf8' }).trim();
+  return { central, revision };
+}
+
+function writeCard(repoPath, { revision = 'abc123' } = {}) {
+  mkdirSync(path.join(repoPath, '.sdd'), { recursive: true });
+  writeFileSync(
+    path.join(repoPath, '.sdd', 'change.yaml'),
+    `change_id: pilot-003\nspec_baseline: spec-baseline/pilot-003/v1\nspec_revision: ${revision}\nrepository: ui\nwork_packages: [UI-01]\n`,
+  );
 }
 
 test('checkCode: missing change card is blocking', () => {
@@ -76,57 +133,136 @@ test('checkCode: missing change card is blocking', () => {
   }
 });
 
-test('checkCode: valid card with annotated reachable tag passes rules 4 and 5', () => {
+test('checkCode: without --central, Baseline cannot be verified and check fails closed', () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'sdd-code-'));
   try {
     gitInit(dir);
-    execFileSync('git', ['tag', '-a', 'spec-baseline/pilot-003/v1', '-m', 'baseline'], { cwd: dir });
-    mkdirSync(path.join(dir, '.sdd'), { recursive: true });
-    writeFileSync(
-      path.join(dir, '.sdd', 'change.yaml'),
-      'change_id: pilot-003\nspec_baseline: spec-baseline/pilot-003/v1\nspec_revision: abc123\nrepository: ui\nwork_packages: [ui]\n',
-    );
+    writeCard(dir);
     const report = checkCode({ repoPath: dir });
-    assert.equal(report.hasBlocking, false);
+    assert.equal(report.hasBlocking, true);
+    assert.ok(report.findings.some((f) => f.rule === 'rule-4: central repository required'));
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('checkCode: valid card checked against a real central repo passes rules 4 and 5', () => {
+  const repoDir = mkdtempSync(path.join(os.tmpdir(), 'sdd-code-'));
+  const { central, revision } = makeCentralWithBaseline();
+  try {
+    gitInit(repoDir);
+    writeCard(repoDir, { revision });
+    const report = checkCode({ repoPath: repoDir, central });
+    assert.equal(report.hasBlocking, false);
+  } finally {
+    rmSync(repoDir, { recursive: true, force: true });
+    rmSync(central, { recursive: true, force: true });
+  }
+});
+
+test('checkCode: Baseline tag lives in the code repo, not central — must not be found there', () => {
+  // Regression for the review finding: rule 4 used to look for the tag
+  // inside --path (the code repo), where Baseline tags never exist.
+  const repoDir = mkdtempSync(path.join(os.tmpdir(), 'sdd-code-'));
+  const { central, revision } = makeCentralWithBaseline();
+  try {
+    gitInit(repoDir);
+    // Тег специально НЕ создаётся в repoDir — так и должно быть в реальности.
+    writeCard(repoDir, { revision });
+    const report = checkCode({ repoPath: repoDir, central });
+    assert.equal(report.hasBlocking, false, 'tag must be looked up in central, not in the code repo');
+  } finally {
+    rmSync(repoDir, { recursive: true, force: true });
+    rmSync(central, { recursive: true, force: true });
+  }
+});
+
+test('checkCode: reachability check survives a detached HEAD in central (regression for currentBranch("HEAD") bug)', () => {
+  const repoDir = mkdtempSync(path.join(os.tmpdir(), 'sdd-code-'));
+  const { central, revision } = makeCentralWithBaseline();
+  try {
+    execFileSync('git', ['checkout', '-q', '--detach', 'HEAD'], { cwd: central });
+    gitInit(repoDir);
+    writeCard(repoDir, { revision });
+    const report = checkCode({ repoPath: repoDir, central });
+    assert.equal(report.hasBlocking, false);
+  } finally {
+    rmSync(repoDir, { recursive: true, force: true });
+    rmSync(central, { recursive: true, force: true });
   }
 });
 
 test('checkCode: lightweight tag fails rule 4 (annotated tag required)', () => {
-  const dir = mkdtempSync(path.join(os.tmpdir(), 'sdd-code-'));
+  const repoDir = mkdtempSync(path.join(os.tmpdir(), 'sdd-code-'));
+  const central = mkdtempSync(path.join(os.tmpdir(), 'sdd-central-'));
   try {
-    gitInit(dir);
-    execFileSync('git', ['tag', 'spec-baseline/pilot-003/v1'], { cwd: dir });
-    mkdirSync(path.join(dir, '.sdd'), { recursive: true });
-    writeFileSync(
-      path.join(dir, '.sdd', 'change.yaml'),
-      'change_id: pilot-003\nspec_baseline: spec-baseline/pilot-003/v1\nspec_revision: abc123\nrepository: ui\nwork_packages: [ui]\n',
-    );
-    const report = checkCode({ repoPath: dir });
+    gitInit(central);
+    mkdirSync(path.join(central, 'openspec', 'changes', 'pilot-003'), { recursive: true });
+    writeFileSync(path.join(central, 'openspec', 'changes', 'pilot-003', 'proposal.md'), 'x');
+    execFileSync('git', ['add', '-A'], { cwd: central });
+    execFileSync('git', ['commit', '-q', '-m', 'add change dir'], { cwd: central });
+    execFileSync('git', ['tag', 'spec-baseline/pilot-003/v1'], { cwd: central }); // lightweight, не аннотированный
+
+    gitInit(repoDir);
+    writeCard(repoDir);
+    const report = checkCode({ repoPath: repoDir, central });
     assert.equal(report.hasBlocking, true);
     assert.ok(report.findings.some((f) => f.rule === 'rule-4: annotated tag'));
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(repoDir, { recursive: true, force: true });
+    rmSync(central, { recursive: true, force: true });
+  }
+});
+
+test('checkCode: card revision mismatched with the actual tag revision is blocking', () => {
+  const repoDir = mkdtempSync(path.join(os.tmpdir(), 'sdd-code-'));
+  const { central } = makeCentralWithBaseline();
+  try {
+    gitInit(repoDir);
+    writeCard(repoDir, { revision: 'not-the-real-revision' });
+    const report = checkCode({ repoPath: repoDir, central });
+    assert.equal(report.hasBlocking, true);
+    assert.ok(report.findings.some((f) => f.rule === 'rule-4: revision matches card'));
+  } finally {
+    rmSync(repoDir, { recursive: true, force: true });
+    rmSync(central, { recursive: true, force: true });
+  }
+});
+
+test('checkCode: change_id missing from central (neither active nor archived) is blocking', () => {
+  const repoDir = mkdtempSync(path.join(os.tmpdir(), 'sdd-code-'));
+  const central = mkdtempSync(path.join(os.tmpdir(), 'sdd-central-'));
+  try {
+    gitInit(central); // central без каталога openspec/changes/pilot-003
+
+    gitInit(repoDir);
+    mkdirSync(path.join(repoDir, '.sdd'), { recursive: true });
+    writeFileSync(
+      path.join(repoDir, '.sdd', 'change.yaml'),
+      'change_id: pilot-003\nspec_baseline: spec-baseline/pilot-003/v1\nspec_revision: abc123\nrepository: ui\nwork_packages: [UI-01]\n',
+    );
+    const report = checkCode({ repoPath: repoDir, central });
+    assert.equal(report.hasBlocking, true);
+    assert.ok(report.findings.some((f) => f.rule === 'rule-4: change exists centrally'));
+  } finally {
+    rmSync(repoDir, { recursive: true, force: true });
+    rmSync(central, { recursive: true, force: true });
   }
 });
 
 test('checkCode: own OpenSpec root in a code repo fails rule 5', () => {
-  const dir = mkdtempSync(path.join(os.tmpdir(), 'sdd-code-'));
+  const repoDir = mkdtempSync(path.join(os.tmpdir(), 'sdd-code-'));
+  const { central, revision } = makeCentralWithBaseline();
   try {
-    gitInit(dir);
-    execFileSync('git', ['tag', '-a', 'spec-baseline/pilot-003/v1', '-m', 'baseline'], { cwd: dir });
-    mkdirSync(path.join(dir, '.sdd'), { recursive: true });
-    writeFileSync(
-      path.join(dir, '.sdd', 'change.yaml'),
-      'change_id: pilot-003\nspec_baseline: spec-baseline/pilot-003/v1\nspec_revision: abc123\nrepository: ui\nwork_packages: [ui]\n',
-    );
-    mkdirSync(path.join(dir, 'openspec'), { recursive: true });
-    writeFileSync(path.join(dir, 'openspec', 'config.yaml'), 'schema: spec-driven\n');
-    const report = checkCode({ repoPath: dir });
+    gitInit(repoDir);
+    writeCard(repoDir, { revision });
+    mkdirSync(path.join(repoDir, 'openspec'), { recursive: true });
+    writeFileSync(path.join(repoDir, 'openspec', 'config.yaml'), 'schema: spec-driven\n');
+    const report = checkCode({ repoPath: repoDir, central });
     assert.equal(report.hasBlocking, true);
     assert.ok(report.findings.some((f) => f.rule === 'rule-5: no own OpenSpec root'));
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(repoDir, { recursive: true, force: true });
+    rmSync(central, { recursive: true, force: true });
   }
 });

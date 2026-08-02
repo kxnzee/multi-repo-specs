@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
 import { execFileSync } from 'node:child_process';
-import { changeDir, isArchived, parseWorkPackages } from '../lib/change.js';
+import { changeDir, isArchived, parseWorkPackages, isKebabCase } from '../lib/change.js';
 import { readFileIfExists } from '../lib/fs-util.js';
 import { isAnnotatedTag, revParse } from '../lib/git.js';
 
@@ -19,6 +19,12 @@ export function load({ changeId, repo, central = process.cwd(), targetPath = pro
     return;
   }
 
+  if (!isKebabCase(changeId)) {
+    console.error(`Ошибка: change-id "${changeId}" не в нижнем регистре kebab-case.`);
+    process.exitCode = 1;
+    return;
+  }
+
   const dir = changeDir(central, changeId);
   if (!existsSync(dir)) {
     const archived = isArchived(central, changeId);
@@ -30,18 +36,32 @@ export function load({ changeId, repo, central = process.cwd(), targetPath = pro
   }
 
   const tasksText = readFileIfExists(path.join(dir, 'tasks.md'));
-  if (!tasksText) {
+  if (tasksText === null) {
     console.error('Ошибка: tasks.md отсутствует — Work Packages не определены.');
     process.exitCode = 1;
     return;
   }
 
   const packages = parseWorkPackages(tasksText);
+  if (packages.length === 0) {
+    console.error('Ошибка: tasks.md пуст или не содержит блока work_packages.');
+    console.error(`  где:    ${path.join(dir, 'tasks.md')}`);
+    console.error('  что делать: заполнить блок work_packages по templates/tasks.schema.md');
+    process.exitCode = 1;
+    return;
+  }
   const myPackage = packages.find((p) => p.repo === repo);
   if (!myPackage) {
     console.error(`Ошибка: для репозитория "${repo}" нет Work Package в изменении "${changeId}".`);
     console.error(`  где:    ${path.join(dir, 'tasks.md')}`);
     console.error('  что делать: проверить, что репозиторий действительно затронут; если да — добавить Work Package в Planning PR');
+    process.exitCode = 1;
+    return;
+  }
+  if (!myPackage.id || !myPackage.type) {
+    console.error(`Ошибка: Work Package для "${repo}" не заполнен полностью (нужны id и type).`);
+    console.error(`  где:    ${path.join(dir, 'tasks.md')}`);
+    console.error('  что делать: заполнить id и type по templates/tasks.schema.md');
     process.exitCode = 1;
     return;
   }
@@ -70,7 +90,7 @@ export function load({ changeId, repo, central = process.cwd(), targetPath = pro
     spec_baseline: latestTag,
     spec_revision: revision,
     repository: repo,
-    work_packages: [myPackage.repo],
+    work_packages: [myPackage.id],
     scenario_ids: myPackage.scenarioIds,
   };
 
