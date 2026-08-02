@@ -1,0 +1,20 @@
+{
+  "name": "@pilot-core/sdd",
+  "version": "0.1.0",
+  "private": true,
+  "description": "sdd CLI - harness utilities for SDD and OpenSpec (Pilot Core scope: setup, fetch-repos, load, check)",
+  "bin": {
+    "sdd": "./bin/sdd.js"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "js-yaml": "^4.1.0"
+  }
+}

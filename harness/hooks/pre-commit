@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Пре-коммит-хук: половина отказов ловится до Pull Request (III.17, очередь 6).
+# Запускает `sdd check change` для каждого изменения, чьи файлы затронуты
+# в этом коммите (staged files под openspec/changes/**, кроме archive/).
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+changed_ids=$(git diff --cached --name-only --diff-filter=ACM \
+  | grep -E '^openspec/changes/[^/]+/' \
+  | grep -v '^openspec/changes/archive/' \
+  | cut -d/ -f3 \
+  | sort -u || true)
+
+if [ -z "$changed_ids" ]; then
+  exit 0
+fi
+
+failed=0
+for change_id in $changed_ids; do
+  echo "sdd check change ${change_id}"
+  if ! node "$repo_root/harness/bin/sdd.js" check change "$change_id"; then
+    failed=1
+  fi
+done
+
+exit $failed

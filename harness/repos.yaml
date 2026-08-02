@@ -1,0 +1,7 @@
+# Адреса read-only remote для sdd fetch-repos.
+# Заполняется по факту выдачи read-only credentials (В-04 трекера).
+# ui: https://<host>/<org>/ui.git
+# backend: https://<host>/<org>/backend.git
+#
+# configuration сюда не входит — раздел 7 профиля Pilot Core:
+# соглашения об именовании читаются глазами, не через fetch-repos.
