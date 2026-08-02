@@ -2,10 +2,10 @@
 
 Этот репозиторий (`project-specs`) — центральное хранилище Master Specs и активных изменений для пилота Pilot Core.
 
-**Профиль:** Pilot Core, ред. 1.1 (см. `Profil-Pilot-Core-1.1.md`).
-**Регламент-источник:** SDD и OpenSpec, ред. 3.5.1 (см. `SDD-OpenSpec-3.5.1.md`).
-**План подготовки:** `Plan-podgotovki-Pilot-Core-1.1.md`.
-**Прогресс:** `Pilot-Core-Implementation-Tracker.md`.
+**Профиль:** Pilot Core, ред. 1.1 (см. `.claude/Profil-Pilot-Core-1.1.md`).
+**Регламент-источник:** SDD и OpenSpec, ред. 3.5.1 (см. `.claude/SDD-OpenSpec-3.5.1.md`).
+**План подготовки:** `.claude/Plan-podgotovki-Pilot-Core-1.1.md`.
+**Прогресс:** `.claude/Pilot-Core-Implementation-Tracker.md`.
 
 ## Что делать первым
 
