@@ -7,7 +7,7 @@ import yaml from 'js-yaml';
 import { setup } from '../src/commands/setup.js';
 import { fetchRepos } from '../src/commands/fetch-repos.js';
 import { load } from '../src/commands/load.js';
-import { checkChange, checkCode } from '../src/commands/check.js';
+import { checkChange, checkCode, checkContext, checkIds } from '../src/commands/check.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
@@ -50,18 +50,22 @@ program
 // III.12: "Область задаётся явно, а не угадывается по каталогу: --change,
 // --code, --ids, --context." Одна команда `sdd check`, область — флаг, а не
 // подкоманда — так же, как в шаблонах и плане (`sdd check --change`,
-// `sdd check --code`). --ids и --context пока не реализованы.
+// `sdd check --code`). Ровно одна область за вызов.
 program
   .command('check')
-  .description('Блокирующие проверки. Область обязательна: --change <id> или --code')
+  .description('Блокирующие и справочные проверки. Область обязательна: --change, --code, --context или --ids')
   .option('--change <change-id>', 'правило 1 — структура изменения и формат Delta Specs')
   .option('--code', 'правила 4, 5 — карточка изменения (сверяется с --central) и отсутствие своего OpenSpec-корня')
+  .option('--context', 'объём контекст-пака (openspec/context/*.md) — предупреждения, не блокирует')
+  .option('--ids', 'сквозная уникальность Scenario ID (Master Specs + активные изменения); с --prefix — занятость префикса')
+  .option('--prefix <prefix>', 'префикс для --ids (например, ROLE)')
   .option('--central <path>', 'путь к central-репозиторию')
   .option('--central-branch <name>', 'основная ветка central, если origin/HEAD не настроен')
   .option('--path <path>', 'путь к кодовому репозиторию (для --code)', process.cwd())
   .action((opts) => {
-    if (opts.change && opts.code) {
-      console.error('Ошибка: указать можно только одну область — --change ИЛИ --code, не обе.');
+    const areas = ['change', 'code', 'context', 'ids'].filter((a) => opts[a]);
+    if (areas.length > 1) {
+      console.error(`Ошибка: указать можно только одну область — выбрано сразу несколько: --${areas.join(', --')}.`);
       process.exitCode = 1;
       return;
     }
@@ -75,7 +79,17 @@ program
       process.exitCode = report.hasBlocking ? 1 : 0;
       return;
     }
-    console.error('Ошибка: область не задана. Нужно --change <id> или --code (III.12: область не угадывается).');
+    if (opts.context) {
+      const report = checkContext({ central: opts.central ?? process.cwd() });
+      process.exitCode = report.hasBlocking ? 1 : 0;
+      return;
+    }
+    if (opts.ids) {
+      const report = checkIds({ central: opts.central ?? process.cwd(), prefix: opts.prefix });
+      process.exitCode = report.hasBlocking ? 1 : 0;
+      return;
+    }
+    console.error('Ошибка: область не задана. Нужно --change, --code, --context или --ids (III.12: область не угадывается).');
     process.exitCode = 1;
   });
 
