@@ -22,7 +22,7 @@ operations:
     ours: "sdd fetch-repos"
     adds: [чтение candidate_repositories, изоляция клонов по change-id, read-log.md, ограничение объёма выжимки]
     gate: false
-    note: "раздел 7 профиля Pilot Core — единственное расширение регламента 3.5.1 из этого пилота (см. 0.4 исходного документа)"
+    note: "раздел 7 профиля Pilot Core — единственное расширение регламента 3.5.4 из этого пилота (см. 0.4 исходного документа)"
 
   load:
     layer: sdd
@@ -34,16 +34,40 @@ operations:
   check-change:
     layer: sdd
     underlying: none
-    ours: "sdd check change"
+    ours: "sdd check --change"
     adds: [структура изменения, формат Delta Specs (MUST, Scenario ID, полнота), Work Packages по правилу 3]
     gate: true
 
   check-code:
     layer: sdd
     underlying: none
-    ours: "sdd check code"
+    ours: "sdd check --code"
     adds: [карточка изменения, имя/тип/достижимость Baseline-тега относительно central, отсутствие своего OpenSpec-корня]
     gate: true
+
+  check-context:
+    layer: sdd
+    underlying: none
+    ours: "sdd check --context"
+    adds: [объём файлов openspec/context/*.md против ориентира, без _raw/]
+    gate: false
+    note: "вызывается командой /sdd-context (III.11, «Сборщики контекста»), не повторяет собственную проверку размера"
+
+  check-ids:
+    layer: sdd
+    underlying: none
+    ours: "sdd check --ids"
+    adds: [сквозная уникальность Scenario ID по Master Specs и активным изменениям; с --prefix — занятость префикса]
+    gate: true
+    note: "занятость префикса (--prefix) не блокирует — вызывается командой /sdd-context для реестра префиксов"
+
+  context:
+    layer: none
+    underlying: none
+    ours: "/sdd-context"
+    adds: [интервью по блокам, состав контекста I.6, роли владельцев, буфер _raw, вызов sdd check --context / --ids]
+    gate: false
+    note: "layer: none, не gigacode — команда Qwen Code (.qwen/commands/sdd-context.md), не декоратор GigaCode, как в исходном тексте III.7. Целевой репозиторий определяет процедуру: project-specs — контекст-пак, кодовый репозиторий — файл правил агента (III.11)"
 
   propose:
     layer: none

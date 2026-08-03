@@ -130,7 +130,7 @@ export function load({ changeId, repo, central = process.cwd(), targetPath = pro
   if (implementsPackages.length > 0) {
     const scenarioIds = implementsPackages.flatMap((p) => p.scenarioIds);
     if (scenarioIds.length === 0) {
-      console.log('Work Package: implements — Scenario ID не указаны (ошибка правила 3, sdd check change это отловит).');
+      console.log('Work Package: implements — Scenario ID не указаны (ошибка правила 3, sdd check --change это отловит).');
     } else {
       const specDir = `${changeDirRel}/specs`;
       const specFiles = listTreeFiles(central, latestTag, specDir).map((filePath) => ({

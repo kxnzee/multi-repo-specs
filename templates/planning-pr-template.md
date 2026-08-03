@@ -39,7 +39,7 @@
 | `BACKEND-01` | `backend` | `implements` | | — | ☐ |
 | `CONFIG-01` | `configuration` | `enables` | — | | ☐ |
 
-Проверка (автоматически — `sdd check change`): `implements` без сценариев — ошибка. `enables` со сценариями — ошибка. `enables` без AC — ошибка (I.16.1).
+Проверка (автоматически — `sdd check --change`): `implements` без сценариев — ошибка. `enables` со сценариями — ошибка. `enables` без AC — ошибка (I.16.1).
 
 ## Защитный критерий (I.16.2)
 

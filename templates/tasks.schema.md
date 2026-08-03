@@ -1,6 +1,6 @@
 # Схема артефакта `tasks.md`
 
-**Назначение:** Work Packages изменения (I.16.1), в формате, который читают и человек, и `sdd check change` / `sdd load` (`harness/`).
+**Назначение:** Work Packages изменения (I.16.1), в формате, который читают и человек, и `sdd check --change` / `sdd load` (`harness/`).
 **Правило:** это единственный источник Work Packages. Таблица в `templates/planning-pr-template.md` — читаемое резюме для ревью, не источник данных; при расхождении верен `tasks.md`.
 
 ## Формат
@@ -33,7 +33,7 @@ work_packages:
 | `scenario_ids` | да для `implements`, запрещено для `enables` | — |
 | `ac_ids` | да для `enables`, не используется для `implements` | — |
 
-## Правило 3 (I.16.1), что проверяет `sdd check change`
+## Правило 3 (I.16.1), что проверяет `sdd check --change`
 
 - `implements` без `scenario_ids` — блокирует.
 - `enables` со непустым `scenario_ids` — блокирует («enables от требований не зависит по определению»).
