@@ -210,11 +210,26 @@ export function extractScenarios(specFiles, scenarioIds) {
     while ((m = SCENARIO_HEADER_RE.exec(content))) {
       headers.push({ index: m.index, id: m[1] });
     }
-    for (let i = 0; i < headers.length; i++) {
-      if (!wanted.has(headers[i].id)) continue;
-      const start = headers[i].index;
-      const end = i + 1 < headers.length ? headers[i + 1].index : content.length;
-      found.set(headers[i].id, { file: filePath, text: content.slice(start, end).trimEnd() });
+
+    // Границы обрезки текста — не только следующий #### Scenario:, но и
+    // следующий ### Requirement: (иначе текст последнего сценария
+    // требования утекает в СЛЕДУЮЩЕЕ требование — баг, пойманный ручной
+    // приёмкой fixture-Change: FIX-002 включал в себя заголовок и тело
+    // совершенно другого требования).
+    const boundaries = new Set(headers.map((h) => h.index));
+    REQUIREMENT_HEADER_RE.lastIndex = 0;
+    let rm;
+    while ((rm = REQUIREMENT_HEADER_RE.exec(content))) {
+      boundaries.add(rm.index);
+    }
+    const sortedBoundaries = [...boundaries].sort((a, b) => a - b);
+
+    for (const header of headers) {
+      if (!wanted.has(header.id)) continue;
+      const start = header.index;
+      const nextBoundary = sortedBoundaries.find((b) => b > start);
+      const end = nextBoundary ?? content.length;
+      found.set(header.id, { file: filePath, text: content.slice(start, end).trimEnd() });
     }
   }
   return found;

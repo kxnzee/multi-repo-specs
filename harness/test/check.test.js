@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { checkChange, checkCode } from '../src/commands/check.js';
-import { parseCandidateRepositories, parseWorkPackages, isKebabCase } from '../src/lib/change.js';
+import { parseCandidateRepositories, parseWorkPackages, isKebabCase, extractScenarios } from '../src/lib/change.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixtures = path.join(__dirname, 'fixtures');
@@ -218,6 +218,42 @@ test('parseWorkPackages: reads the work_packages yaml block with explicit ids', 
 
 test('parseWorkPackages: returns [] when the block is absent', () => {
   assert.deepEqual(parseWorkPackages('no yaml here'), []);
+});
+
+test('extractScenarios: stops at the next Requirement header, not only the next Scenario header', () => {
+  // Регрессия на баг, пойманный ручной приёмкой fixture-Change (В-07):
+  // последний сценарий требования "утекал" в текст СЛЕДУЮЩЕГО требования,
+  // потому что резка шла только по следующему "#### Scenario:".
+  const content = [
+    '## ADDED Requirements',
+    '',
+    '### Requirement: A',
+    'Система MUST делать A.',
+    '',
+    '#### Scenario: A-001 Первый',
+    '- GIVEN a',
+    '- WHEN b',
+    '- THEN c',
+    '',
+    '#### Scenario: A-002 Последний в требовании A',
+    '- GIVEN x',
+    '- WHEN y',
+    '- THEN z',
+    '',
+    '### Requirement: B',
+    'Система MUST делать B — этот текст не должен попасть в A-002.',
+    '',
+    '#### Scenario: B-001 Первый в B',
+    '- GIVEN q',
+    '- WHEN w',
+    '- THEN e',
+  ].join('\n');
+
+  const found = extractScenarios([{ path: 'DELTA.md', content }], ['A-002']);
+  const text = found.get('A-002').text;
+  assert.match(text, /A-002 Последний в требовании A/);
+  assert.ok(!text.includes('Requirement: B'), `A-002 text must not include the next requirement:\n${text}`);
+  assert.ok(!text.includes('этот текст не должен попасть'), `A-002 text leaked into Requirement B:\n${text}`);
 });
 
 test('isKebabCase', () => {
