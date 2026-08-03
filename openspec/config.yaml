@@ -1,6 +1,11 @@
 schema: spec-driven
 
-# Project context (optional)
+context: |
+  Перед созданием или обновлением артефактов прочитай openspec/context/00-start-here.md
+  и перечисленные в нём файлы контекст-пака. openspec/context/_raw/ ненормативен:
+  сведения оттуда нельзя переносить в артефакты без подтверждения человека.
+
+# Project context
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
 # Example:

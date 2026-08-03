@@ -1,3 +1,8 @@
+---
+owner: Spec Owner
+updated: 2026-08-03
+---
+
 # Старт
 
 Этот репозиторий (`project-specs`) — центральное хранилище Master Specs и активных изменений для пилота Pilot Core.
@@ -9,10 +14,11 @@
 
 ## Что делать первым
 
-1. Прочитать `context/glossary.md` — термины, которые используются без расшифровки везде дальше.
-2. Прочитать `context/landscape.md` — состав репозиториев и их роли.
-3. Прочитать `context/system-map.md` — как области требований соотносятся с репозиториями.
-4. Смотреть `context/prefix-registry.md` перед тем, как придумывать новый Scenario ID.
+1. Прочитать `openspec/context/02-domain-glossary.md` — термины, которые используются без расшифровки везде дальше.
+2. Прочитать `openspec/context/03-architecture.md` — состав репозиториев, их роли и архитектурные правила.
+3. Прочитать `openspec/context/system-map.yaml` — машиночитаемую карту систем и связей.
+4. Смотреть `openspec/context/09-scenario-prefixes.md` перед выдачей нового Scenario ID.
+5. Образец Delta Spec находится в `openspec/context/examples/sample-requirement.md`.
 
 ## Границы пилота (напоминание)
 

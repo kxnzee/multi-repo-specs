@@ -28,13 +28,13 @@
 | Часть | Работа | Статус |
 |---|---|---|
 | 0,5 дня | Ручной smoke protocol (4 вопроса IV.9) | Not started — требует реального прогона `sdd`, не сделать из репозитория |
-| 0,5 дня | Слой B: схема артефактов, шаблоны PR, образец требования | **Done** — `templates/impact-and-design.schema.md`, `templates/planning-pr-template.md`, `templates/code-pr-template.md`, `context/sample-requirement.md` |
+| 0,5 дня | Слой B: схема артефактов, шаблоны PR, образец требования | **Done** — `templates/impact-and-design.schema.md`, `templates/planning-pr-template.md`, `templates/code-pr-template.md`, `openspec/context/examples/sample-requirement.md` |
 
 ## День 2 — контекст
 
 | Работа | Статус |
 |---|---|
-| Контекст-пак (5 файлов: старт, глоссарий, ландшафт, карта системы, реестр префиксов) | **Done** — каталог `context/` |
+| Контекст-пак (5 файлов: старт, глоссарий, архитектура/ландшафт, карта системы, реестр префиксов) | **Done** — каталог `openspec/context/`, подключён через `openspec/config.yaml` |
 | Файлы правил агента в `project-specs`, `ui`, `backend` | In progress — `AGENTS.md` создан для `project-specs`; для `ui` и `backend` заводится в их собственных репозиториях (вне текущего репозитория) |
 
 ## День 3 — подключение и чтение
@@ -119,7 +119,7 @@
 
 ### День 1–2 (Слой B + контекст-пак) — в процессе
 
-- Сделано: схема `impact-and-design.md`, шаблоны Planning PR и Code PR, образец требования (`context/sample-requirement.md`), контекст-пак из 5 файлов (`context/start.md`, `glossary.md`, `landscape.md`, `system-map.md`, `prefix-registry.md`), `AGENTS.md` для `project-specs`
+- Сделано: схема `impact-and-design.md`, шаблоны Planning PR и Code PR, образец требования (`openspec/context/examples/sample-requirement.md`), контекст-пак из 5 файлов в `openspec/context/`, `AGENTS.md` для `project-specs`
 - Споткнулись: файлы правил агента для `ui` и `backend` создать здесь нельзя — это отдельные репозитории вне текущего доступа. Оставлено как открытый пункт для команд этих репозиториев
 - Пропущено осознанно: ручной smoke protocol (день 1, 0.5 дня) — требует реального прогона `sdd` на живом окружении, не воспроизводится в этой сессии
 - Время: работа — в рамках одной сессии; ожидания нет

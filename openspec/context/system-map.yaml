@@ -1,0 +1,31 @@
+owner: архитектор
+updated: 2026-08-03
+
+systems:
+  - id: project-specs
+    repository: project-specs
+    role: central-spec-store
+    owner: Spec Owner
+  - id: ui
+    repository: ui
+    role: implements-ui-behavior
+    owner: "TODO: назначить Tech Lead ui"
+  - id: backend
+    repository: backend
+    role: implements-backend-behavior
+    owner: "TODO: назначить Tech Lead backend"
+  - id: configuration
+    repository: configuration
+    role: enables-release-flag
+    owner: Release Owner
+
+relations:
+  - from: project-specs
+    to: ui
+    contract: Scenario ID and Work Package implements
+  - from: project-specs
+    to: backend
+    contract: Scenario ID and Work Package implements
+  - from: project-specs
+    to: configuration
+    contract: AC-* and Work Package enables

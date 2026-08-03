@@ -11,6 +11,10 @@ const pkg = JSON.parse(readFileSync(path.join(__dirname, '..', 'package.json'), 
 const program = new Command();
 program.name('sdd').description('Утилиты обвязки SDD/OpenSpec — Pilot Core').version(pkg.version);
 
+function appendOption(value, previous) {
+  return [...previous, value];
+}
+
 // III.12: "Область задаётся явно, а не угадывается по каталогу: --change,
 // --code, --ids, --context." Эта поставка реализует только --context и
 // --ids — обвязку, нужную команде /sdd-context. --change, --code, setup,
@@ -18,9 +22,10 @@ program.name('sdd').description('Утилиты обвязки SDD/OpenSpec — 
 program
   .command('check')
   .description('Справочные проверки для /sdd-context. Область обязательна: --context или --ids')
-  .option('--context', 'объём контекст-пака (openspec/context/*.md) — предупреждения, не блокирует')
+  .option('--context', 'состав и объём контекст-пака (openspec/context/*.{md,yaml}) — предупреждения, не блокирует')
   .option('--ids', 'сквозная уникальность Scenario ID (Master Specs + активные изменения); с --prefix — занятость префикса')
   .option('--prefix <prefix>', 'префикс для --ids (например, ROLE)')
+  .option('--planning-ref <ref>', 'открытая planning-ветка/PR ref для --ids; можно повторить', appendOption, [])
   .option('--central <path>', 'путь к central-репозиторию', process.cwd())
   .action((opts) => {
     const areas = ['context', 'ids'].filter((a) => opts[a]);
@@ -35,7 +40,7 @@ program
       return;
     }
     if (opts.ids) {
-      const report = checkIds({ central: opts.central, prefix: opts.prefix });
+      const report = checkIds({ central: opts.central, prefix: opts.prefix, planningRefs: opts.planningRef });
       process.exitCode = report.hasBlocking ? 1 : 0;
       return;
     }

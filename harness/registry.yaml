@@ -13,17 +13,18 @@ operations:
     layer: sdd
     underlying: none
     ours: "sdd check --context"
-    adds: [объём файлов openspec/context/*.md против ориентира, без _raw/]
+    adds:
+      - "минимальный состав и объём файлов openspec/context/*.{md,yaml} верхнего уровня против ориентира, без _raw/ и каталогов подробностей"
     gate: false
     note: "вызывается командой /sdd-context (III.11, «Сборщики контекста»), не повторяет собственную проверку размера"
 
   check-ids:
     layer: sdd
     underlying: none
-    ours: "sdd check --ids"
-    adds: [сквозная уникальность Scenario ID по Master Specs и активным изменениям; с --prefix — занятость префикса]
+    ours: "sdd check --ids [--planning-ref <REF>...]"
+    adds: [сквозная уникальность новых Scenario ID по Master Specs и активным изменениям; MODIFIED сохраняет существующий ID; явно переданные planning refs; с --prefix — реестр и фактическая занятость префикса]
     gate: true
-    note: "занятость префикса (--prefix) не блокирует — вызывается командой /sdd-context для реестра префиксов"
+    note: "без --planning-ref предупреждает о неполном охвате; недоступный ref и дубликаты блокируют; занятость префикса (--prefix) предупреждает"
 
   context:
     layer: none
@@ -31,7 +32,7 @@ operations:
     ours: "/sdd-context"
     adds: [интервью по блокам, состав контекста I.6, роли владельцев, буфер _raw, вызов sdd check --context / --ids]
     gate: false
-    note: "layer: none, не gigacode — команда Qwen Code (.qwen/commands/sdd-context.md), не декоратор GigaCode, как в исходном тексте III.7. Целевой репозиторий определяет процедуру: project-specs — контекст-пак, кодовый репозиторий — файл правил агента (III.11)"
+    note: "layer: none, не gigacode — команда Qwen Code (.qwen/commands/sdd-context.md), не декоратор GigaCode, как в исходном тексте III.7. В кодовые репозитории устанавливается harness/scripts/install-sdd-context.sh без молчаливой перезаписи; целевой репозиторий определяет процедуру (III.11)"
 
   setup:
     layer: none

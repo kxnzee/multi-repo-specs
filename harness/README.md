@@ -4,8 +4,8 @@
 
 | Команда | Статус | Покрывает |
 |---|---|---|
-| `sdd check --context` | реализовано | III.12 «--context» — объём файлов `openspec/context/*.md` (без `_raw/`); только предупреждения, ничего не блокирует |
-| `sdd check --ids [--prefix <ПРЕФИКС>]` | реализовано | III.12 «--ids» — сквозная уникальность Scenario ID по Master Specs и активным изменениям (блокирует дубликаты); с `--prefix` — занятость префикса (предупреждение) |
+| `sdd check --context` | реализовано | III.12 «--context» — минимальный состав и объём файлов `openspec/context/*.{md,yaml}` верхнего уровня (без `_raw/` и каталогов подробностей); только предупреждения, ничего не блокирует |
+| `sdd check --ids [--planning-ref <REF>...] [--prefix <ПРЕФИКС>]` | реализовано | III.12 «--ids» — сквозная уникальность Scenario ID по Master Specs, активным изменениям и явно переданным открытым planning refs (блокирует дубликаты); с `--prefix` — занятость префикса (предупреждение) |
 | `sdd setup`, `fetch-repos`, `load`, `check --change`, `check --code` | не реализовано в этой поставке | отдельная задача (см. `harness/registry.yaml`) |
 | `sdd conflicts`, `preview`, `status`, `baseline`, `cancel`, `finalize`, `smoke`, `metrics` | не реализовано | по III.17 — не раньше первой недели пилота / появления второго изменения |
 
@@ -14,19 +14,38 @@
 ## Установка
 
 ```bash
-cd harness
-npm install
+npm --prefix harness install
 ```
 
 Требует Node `>=20.19` (как и сам OpenSpec CLI). Локально: `node harness/bin/sdd.js check --context` / `--ids`.
 
+Для полной проверки I.7.4 сначала получите refs открытых planning PR, затем передайте каждый ref отдельно:
+
+```bash
+node harness/bin/sdd.js check --ids \
+  --planning-ref refs/remotes/origin/planning-one \
+  --planning-ref refs/remotes/origin/planning-two
+```
+
+Без `--planning-ref` проверяются только Master Specs и активные изменения текущего checkout, а команда печатает предупреждение о неполном охвате. Недоступный ref блокирует проверку.
+
+Команда `/sdd-context` является project-local командой Qwen. В `project-specs` она уже лежит в `.qwen/commands/`. Для Процедуры B установите ту же версию в каждый кодовый репозиторий:
+
+```bash
+harness/scripts/install-sdd-context.sh /path/to/ui
+harness/scripts/install-sdd-context.sh /path/to/backend
+harness/scripts/install-sdd-context.sh /path/to/configuration
+```
+
+Скрипт не перезаписывает отличающийся файл молча.
+
 ## Тесты
 
 ```bash
-npm test
+npm --prefix harness test
 ```
 
-7 тестов, все зелёные: `checkContext` (объём, игнорирование `_raw/`), `checkIds` (сквозные дубликаты блокируют, `--prefix` только предупреждает, архив не пересканируется).
+13 тестов: `checkContext` (минимальный состав, объём, игнорирование `_raw/`), `checkIds` (сквозные дубликаты блокируют, MODIFIED не даёт ложного дубля, registry учитывается, planning refs сканируются, `--prefix` только предупреждает, архив не пересканируется).
 
 ## Почему такой узкий объём
 
@@ -35,4 +54,4 @@ npm test
 ## Что не сделано осознанно
 
 - `harness/registry.yaml` перечисляет операции, которых здесь нет (`setup`, `fetch-repos`, `load`, `check --change`, `check --code`) со статусом «не реализовано в этой поставке» — не забыты, а сознательно за пределами этой задачи.
-- Сквозная уникальность Scenario ID (`sdd check --ids`) не сканирует открытые планировочные пул-реквесты (I.7.4 упоминает их отдельно) — видны только слитые ветки на диске central-репозитория.
+- Провайдер Git hosting не угадывается: полный набор открытых planning refs передаёт CI или человек через повторяемый `--planning-ref`. Без него команда явно предупреждает о неполном охвате.
