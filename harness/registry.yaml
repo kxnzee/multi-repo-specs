@@ -1,0 +1,83 @@
+# Реестр соответствий — III.7. Единственное место, где записано, на чём мы
+# стоим. Отдельно от ~/.sdd/registry.json (машинное состояние подключённых
+# хранилищ на конкретной машине, не версионируется) — это версионируемая
+# таблица инструментов и того, что наш слой поверх них добавляет.
+
+versions:
+  openspec: "1.7.0" # зафиксировано при `openspec init --tools qwen` этого репозитория
+  agent_tool: "qwen (Qwen Code)" # в этом пилоте — не GigaCode, как в исходном тексте III.7
+  sdd: "0.1.0"
+
+operations:
+  check-context:
+    layer: sdd
+    underlying: none
+    ours: "sdd check --context"
+    adds: [объём файлов openspec/context/*.md против ориентира, без _raw/]
+    gate: false
+    note: "вызывается командой /sdd-context (III.11, «Сборщики контекста»), не повторяет собственную проверку размера"
+
+  check-ids:
+    layer: sdd
+    underlying: none
+    ours: "sdd check --ids"
+    adds: [сквозная уникальность Scenario ID по Master Specs и активным изменениям; с --prefix — занятость префикса]
+    gate: true
+    note: "занятость префикса (--prefix) не блокирует — вызывается командой /sdd-context для реестра префиксов"
+
+  context:
+    layer: none
+    underlying: none
+    ours: "/sdd-context"
+    adds: [интервью по блокам, состав контекста I.6, роли владельцев, буфер _raw, вызов sdd check --context / --ids]
+    gate: false
+    note: "layer: none, не gigacode — команда Qwen Code (.qwen/commands/sdd-context.md), не декоратор GigaCode, как в исходном тексте III.7. Целевой репозиторий определяет процедуру: project-specs — контекст-пак, кодовый репозиторий — файл правил агента (III.11)"
+
+  setup:
+    layer: none
+    status: "не реализовано в этой поставке"
+    reason: "отдельная задача — см. harness/README.md"
+
+  fetch-repos:
+    layer: none
+    status: "не реализовано в этой поставке"
+    reason: "отдельная задача — см. harness/README.md"
+
+  load:
+    layer: none
+    status: "не реализовано в этой поставке"
+    reason: "отдельная задача — см. harness/README.md"
+
+  check-change:
+    layer: none
+    status: "не реализовано в этой поставке"
+    reason: "отдельная задача — см. harness/README.md"
+
+  check-code:
+    layer: none
+    status: "не реализовано в этой поставке"
+    reason: "отдельная задача — см. harness/README.md"
+
+  propose:
+    layer: none
+    status: "не реализовано"
+    reason: "III.17, очередь 5 — /sdd:propose не раньше первой недели пилота"
+
+  baseline:
+    layer: none
+    status: "не реализовано, ручной режим"
+    reason: "раздел 8 профиля Pilot Core — тег создаётся вручную до первой автоматизации (III.17, очередь 8)"
+
+  finalize:
+    layer: none
+    status: "не реализовано"
+    reason: "III.17, очередь 9 — не раньше первой финализации"
+
+  sync:
+    layer: none
+    status: запрещено
+    reason: "противоречит I.3.2; команда не устанавливается в профиле"
+
+# Реестр печатается в отчёте каждой проверки совместимости (sdd smoke,
+# когда появится — III.17, очередь 11). Три версии вместо одной — иначе
+# «вчера работало» становится неотвечаемым вопросом.
