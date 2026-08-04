@@ -1,0 +1,5 @@
+# CODEOWNERS
+# https://docs.github.com/articles/about-code-owners
+# Более специфичные правила ниже переопределяют более общие выше.
+
+* @kxnzee
