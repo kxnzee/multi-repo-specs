@@ -1,0 +1,56 @@
+name: multi-repo-sdd
+version: 1
+description: Complete SDD workflow for one or more repositories
+
+artifacts:
+  - id: research
+    generates: research.md
+    description: Подтверждённое исследование запроса и существующей системы
+    template: research.md
+    requires: []
+
+  - id: proposal
+    generates: proposal.md
+    description: Цель, ожидаемый результат и границы изменения
+    template: proposal.md
+    requires: [research]
+
+  - id: specs
+    generates: specs/**/*.md
+    description: Delta Specs с наблюдаемыми Requirements и Scenarios
+    template: spec.md
+    requires: [proposal]
+
+  - id: impact
+    generates: system-impact-analysis.md
+    description: Влияние изменения на системы, репозитории и контракты
+    template: system-impact-analysis.md
+    requires: [research, proposal, specs]
+
+  - id: design
+    generates: design.md
+    description: Принятое системное техническое решение
+    template: design.md
+    requires: [specs, impact]
+
+  - id: tasks
+    generates: tasks.md
+    description: Work Packages и порядок реализации
+    template: tasks.md
+    requires: [specs, impact, design]
+
+  - id: verification
+    generates: verification.md
+    description: План проверки поведения и технических критериев
+    template: verification.md
+    requires: [specs, tasks]
+
+  - id: delivery
+    generates: delivery.md
+    description: План слияния, поставки, наблюдения и отката
+    template: delivery.md
+    requires: [impact, design, tasks]
+
+apply:
+  requires: [tasks, verification, delivery]
+  tracks: tasks.md

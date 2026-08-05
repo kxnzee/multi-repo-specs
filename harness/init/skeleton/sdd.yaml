@@ -1,0 +1,7 @@
+version: 1
+
+versions:
+  process: draft
+  openspec: "1.7.0"
+
+repositories: []

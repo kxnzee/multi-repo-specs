@@ -1,0 +1,20 @@
+# Replace the placeholder owners and uncomment the applicable rules.
+# Every unresolved ownership decision belongs in an inline TODO in the matching context file.
+
+# /openspec/specs/** @spec-owner
+# /openspec/changes/** @spec-owner
+# /openspec/schemas/** @spec-owner @apply-owner
+# /openspec/context/00-start-here.md @spec-owner
+# /openspec/context/01-product-context.md @change-owner
+# /openspec/context/02-domain-glossary.md @change-owner
+# /openspec/context/03-architecture.md @technical-owner
+# /openspec/context/04-domain-model.md @change-owner
+# /openspec/context/05-security-and-compliance.md @security-owner
+# /openspec/context/06-cross-system-invariants.md @technical-owner
+# /openspec/context/07-quality-gates.md @qa-owner
+# /openspec/context/08-release-process.md @release-owner
+# /openspec/context/system-map.yaml @technical-owner
+# /openspec/context/ADR/README.md @spec-owner
+# /openspec/context/_raw/README.md @spec-owner
+# /.qwen/commands/sdd-*.md @apply-owner @technical-owner
+# /sdd.yaml @apply-owner @technical-owner
