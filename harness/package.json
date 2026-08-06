@@ -5,6 +5,7 @@
   "type": "module",
   "files": [
     "bin",
+    "explore",
     "init"
   ],
   "bin": {
@@ -12,7 +13,7 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check bin/sdd.js && node --check init/index.js"
+    "check": "node --check bin/sdd.js && node --check explore/index.js && node --check init/index.js"
   },
   "engines": {
     "node": ">=20"

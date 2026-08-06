@@ -18,7 +18,7 @@ const REPOSITORY_PATTERN = /^([a-z0-9][a-z0-9-]*)=(.+)#([^#]+)$/;
 const TEMPLATE_SUFFIX = ".template";
 
 function run(command, ...args) {
-  const result = spawnSync(command, args, { encoding: "utf8" });
+  const result = spawnSync(command, args, { encoding: "utf8", shell: true });
 
   if (result.error) {
     throw new Error(`Не удалось запустить ${command}: ${result.error.message}`);
