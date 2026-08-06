@@ -2,21 +2,25 @@
 
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
+import { connectProject } from "../connect/index.js";
 import { buildExploreInvocation, prepareExplore, validateTicket } from "../explore/index.js";
 import { initProject, parseRepository } from "../init/index.js";
 
 const HELP = `Использование:
-  sdd init [path] [--force] [--repo <id=url#branch>]...
+  sdd init [path] --store <store-id> [--repo <id=url#branch>]...
+  sdd connect [--workspace <path>]
   sdd explore --ticket <ticket-id>
 
 Команды:
-  init    Создать или обновить управляемый каркас SDD + OpenSpec
+  init    Один раз создать OpenSpec Store и каркас центрального проекта
+  connect Подключить рабочую машину и загрузить Code Repositories
   explore Подготовить read-only workspace и перейти к /opsx-explore
 
 Параметры:
-  --force         Перезаписать все файлы, управляемые каркасом
+  --store <id>    Store ID и repository-id центрального репозитория
   --repo <value>  Добавить известный репозиторий с кодом; параметр можно повторять
                   Пример: --repo ui=https://example.test/ui.git#main
+  --workspace     Явно задать корень workspace для sdd connect
   --ticket <key>  Jira ticket key в формате PAY-412
   -h, --help      Показать эту справку
 `;
@@ -24,18 +28,28 @@ const HELP = `Использование:
 function parseInitArgs(args) {
   let target = ".";
   let targetWasSet = false;
-  let force = false;
+  let storeId;
   const repositories = [];
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
 
     if (arg === "-h" || arg === "--help") {
-      return { help: true, target, force, repositories };
+      return { help: true, target, storeId, repositories };
     }
 
-    if (arg === "--force") {
-      force = true;
+    if (arg === "--store") {
+      const value = args[index + 1];
+      if (!value) throw new Error("для --store требуется Store ID");
+      if (storeId) throw new Error("--store можно указать только один раз");
+      storeId = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--store=")) {
+      if (storeId) throw new Error("--store можно указать только один раз");
+      storeId = arg.slice("--store=".length);
       continue;
     }
 
@@ -66,7 +80,31 @@ function parseInitArgs(args) {
     targetWasSet = true;
   }
 
-  return { help: false, target, force, repositories };
+  if (!storeId) throw new Error("для sdd init требуется --store <store-id>");
+  return { help: false, target, storeId, repositories };
+}
+
+function parseConnectArgs(args) {
+  let workspace;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "-h" || arg === "--help") return { help: true };
+    if (arg === "--workspace") {
+      const value = args[index + 1];
+      if (!value) throw new Error("для --workspace требуется путь");
+      if (workspace) throw new Error("--workspace можно указать только один раз");
+      workspace = value;
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--workspace=")) {
+      if (workspace) throw new Error("--workspace можно указать только один раз");
+      workspace = arg.slice("--workspace=".length);
+      continue;
+    }
+    throw new Error(`Неизвестный параметр connect: ${arg}`);
+  }
+  return { help: false, workspace };
 }
 
 function parseExploreArgs(args) {
@@ -144,7 +182,7 @@ async function selectRepositories(prompt, repositories) {
 
   while (true) {
     const answer = await prompt.question(
-      "Введите номера через запятую; Enter — Explore только по project-specs: ",
+      "Введите номера через запятую; Enter — Explore только по Spec Root: ",
     );
     let selected;
     try {
@@ -155,7 +193,7 @@ async function selectRepositories(prompt, repositories) {
     }
 
     const description =
-      selected.length === 0 ? "только project-specs" : selected.join(", ");
+      selected.length === 0 ? "только Spec Root" : selected.join(", ");
     if (await confirm(prompt, `Подтвердить область Explore: ${description}?`)) return selected;
   }
 }
@@ -165,7 +203,7 @@ function printExploreResult(result) {
   console.log(`Spec Root: ${result.projectRoot}`);
   console.log(`Workspace: ${result.workspace}`);
   if (result.projectSpecsOnly) {
-    console.log("Code Repositories: нет, Explore только по project-specs");
+    console.log(`Code Repositories: нет, Explore только по ${result.storeRepositoryId}`);
   } else {
     console.log(`Code Repositories (${result.repositories.length}):`);
     for (const repository of result.repositories) {
@@ -206,6 +244,29 @@ async function runExplore(args) {
   }
 }
 
+async function runConnect(args) {
+  const options = parseConnectArgs(args);
+  if (options.help) {
+    console.log(HELP);
+    return;
+  }
+  const result = await connectProject({ workspace: options.workspace });
+  console.log(`Store: ${result.storeId} (${result.storeRoot})`);
+  console.log(`Workspace: ${result.workspace}`);
+  console.log("Локальная регистрация Store проверена OpenSpec.");
+  for (const repository of result.repositories) {
+    console.log(
+      `${repository.id}: ${repository.status}${repository.cloned ? ", cloned" : ", existing"}`,
+    );
+    console.log(`  ${repository.path}`);
+    if (repository.pointerCreated) {
+      console.log("  создан openspec/config.yaml; требуется setup PR");
+    }
+  }
+  console.log(`connect_status: ${result.status}`);
+  if (result.status === "ready") console.log("Локальное подключение готово.");
+}
+
 async function main() {
   const [command, ...args] = process.argv.slice(2);
 
@@ -216,6 +277,11 @@ async function main() {
 
   if (command === "explore") {
     await runExplore(args);
+    return;
+  }
+
+  if (command === "connect") {
+    await runConnect(args);
     return;
   }
 
@@ -231,16 +297,18 @@ async function main() {
 
   const result = await initProject({
     target: options.target,
-    force: options.force,
+    storeId: options.storeId,
     repositories: options.repositories,
   });
 
-  console.log(`Каркас SDD: ${result.target}`);
-  console.log(`Корень OpenSpec: ${result.openSpecInitialized ? "создан" : "сохранён"}`);
+  if (result.alreadyInitialized) {
+    console.log(`Store ${result.storeId} уже инициализирован; файлы не изменены.`);
+    console.log("Далее: выполните sdd connect");
+    return;
+  }
+  console.log(`Store ${result.storeId}: ${result.target}`);
   printPaths("Создано", result.created);
-  printPaths("Перезаписано", result.overwritten);
-  printPaths("Существующие файлы сохранены", result.skipped);
-  console.log("Далее: запустите /sdd-context в Qwen Code");
+  console.log("Далее: выполните sdd connect");
 }
 
 main().catch((error) => {

@@ -1,0 +1,228 @@
+import assert from "node:assert/strict";
+import fsSync from "node:fs";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+
+import { connectProject } from "../connect/index.js";
+import { serializeRepositories } from "../config/index.js";
+import { runCommand } from "../shared/command.js";
+
+async function temporaryWorkspace(t) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "multi-repo-sdd-connect-"));
+  const canonicalRoot = await fs.realpath(root);
+  t.after(async () => fs.rm(canonicalRoot, { recursive: true, force: true }));
+  return canonicalRoot;
+}
+
+function configureGit(repository) {
+  runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
+  runCommand("git", ["-C", repository, "config", "user.name", "SDD Tests"]);
+}
+
+async function createBareRemote(root, name, files = {}) {
+  const source = path.join(root, `${name}-source`);
+  const remote = path.join(root, `${name}.git`);
+  runCommand("git", ["init", "--initial-branch", "main", source]);
+  configureGit(source);
+  for (const [relativePath, contents] of Object.entries(files)) {
+    const target = path.join(source, relativePath);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, contents, "utf8");
+  }
+  runCommand("git", ["-C", source, "add", "."]);
+  runCommand("git", ["-C", source, "commit", "--allow-empty", "-m", "initial"]);
+  runCommand("git", ["clone", "--bare", source, remote]);
+  return remote;
+}
+
+async function createScenario(t, { pointer = false } = {}) {
+  const root = await temporaryWorkspace(t);
+  const codeFiles = pointer ? { "openspec/config.yaml": "store: payments-specs\n" } : {};
+  const codeRemote = await createBareRemote(root, "api", codeFiles);
+  const centralSource = path.join(root, "central-source");
+  runCommand("git", ["init", "--initial-branch", "main", centralSource]);
+  configureGit(centralSource);
+
+  const centralRemote = path.join(root, "payments-specs.git");
+  const sddTemplate = 'version: 1\n\nversions:\n  process: draft\n  openspec: "1.7.0"\n\nrepositories: []\n';
+  const centralFiles = {
+    ".openspec-store/store.yaml": `version: 1\nid: payments-specs\nremote: ${JSON.stringify(centralRemote)}\n`,
+    "openspec/config.yaml": "schema: multi-repo-sdd\n",
+    "openspec/specs/.gitkeep": "",
+    "openspec/changes/.gitkeep": "",
+    "sdd.yaml": serializeRepositories(sddTemplate, [
+      {
+        id: "payments-specs",
+        role: "store",
+        url: centralRemote,
+        defaultBranch: "main",
+      },
+      { id: "api", role: "code", url: codeRemote, defaultBranch: "main" },
+    ]),
+  };
+  for (const [relativePath, contents] of Object.entries(centralFiles)) {
+    const target = path.join(centralSource, relativePath);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, contents, "utf8");
+  }
+  runCommand("git", ["-C", centralSource, "add", "."]);
+  runCommand("git", ["-C", centralSource, "commit", "-m", "initialize store"]);
+  runCommand("git", ["clone", "--bare", centralSource, centralRemote]);
+
+  const workspace = path.join(root, "workspace");
+  const storeRoot = path.join(workspace, "openspec", "payments-specs");
+  await fs.mkdir(path.dirname(storeRoot), { recursive: true });
+  runCommand("git", ["clone", centralRemote, storeRoot]);
+  return { root, workspace, storeRoot, centralRemote, codeRemote };
+}
+
+function fakeOpenSpec(storeRoot, initialStores = []) {
+  let stores = [...initialStores];
+  const calls = [];
+  const runner = (command, args, options = {}) => {
+    if (command === "git") return runCommand(command, args, options);
+    assert.equal(command, "openspec");
+    calls.push({ args, cwd: options.cwd });
+
+    if (args.join(" ") === "--version") return "1.7.0";
+    if (args.join(" ") === "store list --json") {
+      return JSON.stringify({ stores, status: [] });
+    }
+    if (args[0] === "store" && args[1] === "register") {
+      if (stores.some(({ id, root }) => id === "payments-specs" && root !== storeRoot)) {
+        throw new Error("OpenSpec: Store payments-specs уже зарегистрирован по другому пути");
+      }
+      stores = [{ id: "payments-specs", root: storeRoot }];
+      return JSON.stringify({
+        store: stores[0],
+        registry: { registered: true, already_registered: false },
+        git: { is_repository: true, initialized: false, committed: false },
+        created_files: [],
+        status: [],
+      });
+    }
+    if (args[0] === "store" && args[1] === "doctor") {
+      return JSON.stringify({
+        stores: [
+          {
+            id: "payments-specs",
+            root: storeRoot,
+            metadata: { present: true, valid: true },
+            openspec_root: { present: true, healthy: true, status: [] },
+            status: [],
+          },
+        ],
+        status: [],
+      });
+    }
+
+    const explicit = args.includes("--store");
+    const root = {
+      path: storeRoot,
+      source: explicit ? "store" : "declared",
+      store_id: "payments-specs",
+    };
+    if (args[0] === "doctor") {
+      return JSON.stringify({
+        root: { ...root, healthy: true, status: [] },
+        store: { id: "payments-specs", status: [] },
+        references: [],
+        status: [],
+      });
+    }
+    if (args[0] === "context") {
+      return JSON.stringify({ root: { ...root, role: "openspec_root" }, members: [], status: [] });
+    }
+    if (args[0] === "list") return JSON.stringify({ specs: [], root });
+    throw new Error(`Unexpected OpenSpec call: ${args.join(" ")}`);
+  };
+  return { calls, runner, stores: () => stores };
+}
+
+test("connectProject registers Store, clones a missing repository and creates its pointer", async (t) => {
+  const scenario = await createScenario(t);
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+  const result = await connectProject({
+    start: scenario.storeRoot,
+    commandRunner: openSpec.runner,
+  });
+
+  assert.equal(result.status, "needs_setup_pr");
+  assert.deepEqual(openSpec.stores(), [{ id: "payments-specs", root: scenario.storeRoot }]);
+  assert.equal(result.repositories.length, 1);
+  assert.equal(result.repositories[0].cloned, true);
+  assert.equal(result.repositories[0].pointerCreated, true);
+  assert.equal(
+    await fs.readFile(path.join(scenario.workspace, "src/api/openspec/config.yaml"), "utf8"),
+    "store: payments-specs\n",
+  );
+  assert.match(
+    runCommand("git", ["-C", path.join(scenario.workspace, "src/api"), "status", "--porcelain"]),
+    /openspec\//,
+  );
+});
+
+test("connectProject is idempotent for an accepted pointer and existing checkout", async (t) => {
+  const scenario = await createScenario(t, { pointer: true });
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+  const first = await connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner });
+  const second = await connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner });
+
+  assert.equal(first.status, "ready");
+  assert.equal(first.repositories[0].cloned, true);
+  assert.equal(second.status, "ready");
+  assert.equal(second.repositories[0].cloned, false);
+  assert.equal(second.repositories[0].pointerCreated, false);
+});
+
+test("connectProject preserves and blocks a dirty existing Code Repository", async (t) => {
+  const scenario = await createScenario(t, { pointer: true });
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  await connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner });
+  const checkout = path.join(scenario.workspace, "src", "api");
+  await fs.writeFile(path.join(checkout, "local.txt"), "do not touch\n", "utf8");
+
+  await assert.rejects(
+    connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner }),
+    /api: рабочее дерево должно быть чистым/,
+  );
+  assert.equal(await fs.readFile(path.join(checkout, "local.txt"), "utf8"), "do not touch\n");
+});
+
+test("connectProject refuses a registry conflict without unregistering it", async (t) => {
+  const scenario = await createScenario(t, { pointer: true });
+  const conflictingPath = path.join(scenario.root, "other-checkout");
+  const openSpec = fakeOpenSpec(scenario.storeRoot, [
+    { id: "payments-specs", root: conflictingPath },
+  ]);
+
+  await assert.rejects(
+    connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner }),
+    /уже зарегистрирован по другому пути/,
+  );
+  assert.equal(
+    openSpec.calls.some(({ args }) => args[0] === "store" && args[1] === "unregister"),
+    false,
+  );
+  assert.equal(fsSync.existsSync(path.join(scenario.workspace, "src")), false);
+});
+
+test("connectProject validates Store ID before changing the local registry", async (t) => {
+  const scenario = await createScenario(t, { pointer: true });
+  const metadataPath = path.join(scenario.storeRoot, ".openspec-store", "store.yaml");
+  await fs.writeFile(
+    metadataPath,
+    `version: 1\nid: another-store\nremote: ${JSON.stringify(scenario.centralRemote)}\n`,
+  );
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+  await assert.rejects(
+    connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner }),
+    /Store ID в sdd.yaml не совпадает/,
+  );
+  assert.deepEqual(openSpec.calls, []);
+});

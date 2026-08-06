@@ -1,10 +1,13 @@
-import { spawnSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { parseSddConfig } from "../config/index.js";
+import { runCommand } from "../shared/command.js";
+
+export { parseSddConfig } from "../config/index.js";
+export { runCommand } from "../shared/command.js";
 
 const OPEN_SPEC_VERSION = "1.7.0";
-const PROJECT_SPECS_REPOSITORY_ID = "project-specs";
 const ARCHIVE_DIRECTORY_NAME = "archive";
 const GITIGNORE_CHECKOUTS_RULE = ".sdd/checkouts/";
 
@@ -65,17 +68,6 @@ const ERROR_CODES = Object.freeze({
 });
 
 const TEXT_ENCODING = "utf8";
-const COMMAND_ENV = Object.freeze({
-  GIT_OPTIONAL_LOCKS: "0",
-  GIT_TERMINAL_PROMPT: "0",
-});
-
-const SDD_CONFIG = Object.freeze({
-  versionsSection: "versions",
-  repositoriesSection: "repositories",
-  openSpecKey: "openspec",
-  defaultBranchKey: "default_branch",
-});
 
 const WORKSPACE_NAMING = Object.freeze({
   lockSuffix: ".lock",
@@ -95,44 +87,14 @@ const EXPLORE_ACTION = Object.freeze({
 });
 
 const TICKET_PATTERN = /^[A-Z][A-Z0-9]*-[1-9][0-9]*$/;
-const REPOSITORY_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const GIT_REVISION_PATTERN = /^[0-9a-f]{40}$/;
 const STATE_TICKET_PATTERN = /^ticket\s*:\s*(.+?)\s*$/gm;
-const HTTP_PROTOCOLS = Object.freeze(["http:", "https:"]);
 const REQUIRED_ROOT_PATHS = Object.freeze([
   PATHS.sddConfig,
   PATHS.openSpecConfig,
   PATHS.openSpecContextStart,
   PATHS.openSpecSystemMap,
 ]);
-
-function commandError(command, result, sensitiveValues = []) {
-  let details = [result.stderr, result.stdout].filter(Boolean).join("\n").trim();
-  for (const value of sensitiveValues) {
-    if (value) details = details.split(value).join("<repository-url>");
-  }
-  return new Error(
-    `${command} завершилась с ошибкой${details ? `:\n${details}` : ""}`,
-  );
-}
-
-export function runCommand(command, args, { cwd, sensitiveValues = [] } = {}) {
-  const result = spawnSync(command, args, {
-    cwd,
-    encoding: TEXT_ENCODING,
-    env: {
-      ...process.env,
-      ...COMMAND_ENV,
-    },
-  });
-
-  if (result.error) {
-    throw new Error(`Не удалось запустить ${command}: ${result.error.message}`);
-  }
-  if (result.status !== 0) throw commandError(command, result, sensitiveValues);
-
-  return result.stdout.trim();
-}
 
 function parseScalar(value, label) {
   const trimmed = value.trim();
@@ -156,94 +118,6 @@ function parseScalar(value, label) {
   }
 
   return trimmed.replace(/\s+#.*$/, "").trim();
-}
-
-function sectionLines(source, name) {
-  const lines = source.split(/\r?\n/);
-  const start = lines.findIndex((line) => new RegExp(`^${name}:`).test(line));
-  if (start === -1) throw new Error(`В sdd.yaml отсутствует секция ${name}`);
-
-  const result = [];
-  for (let index = start + 1; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (/^[A-Za-z0-9_-]+:/.test(line)) break;
-    result.push(line);
-  }
-  return { header: lines[start], lines: result };
-}
-
-function containsEmbeddedHttpCredential(value) {
-  try {
-    const url = new URL(value);
-    return HTTP_PROTOCOLS.includes(url.protocol) && Boolean(url.username || url.password);
-  } catch {
-    return false;
-  }
-}
-
-export function parseSddConfig(source) {
-  const versions = sectionLines(source, SDD_CONFIG.versionsSection);
-  const openSpecLinePattern = new RegExp(`^\\s+${SDD_CONFIG.openSpecKey}\\s*:`);
-  const openSpecLine = versions.lines.find((line) => openSpecLinePattern.test(line));
-  if (!openSpecLine) throw new Error("В sdd.yaml отсутствует versions.openspec");
-  const openSpecVersion = parseScalar(
-    openSpecLine.replace(openSpecLinePattern, ""),
-    "versions.openspec",
-  );
-
-  const repositorySection = sectionLines(source, SDD_CONFIG.repositoriesSection);
-  const repositories = [];
-  let current = null;
-
-  if (!/^repositories:\s*\[\s*\]\s*(?:#.*)?$/.test(repositorySection.header)) {
-    for (const line of repositorySection.lines) {
-      if (!line.trim() || /^\s*#/.test(line)) continue;
-
-      const idMatch = line.match(/^\s*-\s+id\s*:\s*(.+)$/);
-      if (idMatch) {
-        if (current) repositories.push(current);
-        current = { id: parseScalar(idMatch[1], "repositories[].id") };
-        continue;
-      }
-
-      const fieldMatch = line.match(/^\s+(url|default_branch)\s*:\s*(.+)$/);
-      if (fieldMatch && current) {
-        const field = fieldMatch[1] === SDD_CONFIG.defaultBranchKey ? "defaultBranch" : "url";
-        if (current[field] !== undefined) {
-          throw new Error(`Повторяющееся поле repositories[].${fieldMatch[1]} в sdd.yaml`);
-        }
-        current[field] = parseScalar(fieldMatch[2], `repositories[].${fieldMatch[1]}`);
-        continue;
-      }
-
-      throw new Error(`Неподдерживаемая строка в секции repositories sdd.yaml: ${line.trim()}`);
-    }
-    if (current) repositories.push(current);
-  }
-
-  const ids = new Set();
-  for (const repository of repositories) {
-    if (!REPOSITORY_ID_PATTERN.test(repository.id)) {
-      throw new Error(`Некорректный repository-id в sdd.yaml: ${repository.id}`);
-    }
-    if (!repository.url || !repository.defaultBranch) {
-      throw new Error(`Для repository-id ${repository.id} требуются url и default_branch`);
-    }
-    if (repository.url.startsWith("-") || repository.defaultBranch.startsWith("-")) {
-      throw new Error(`Некорректные Git-параметры для repository-id ${repository.id}`);
-    }
-    if (containsEmbeddedHttpCredential(repository.url)) {
-      throw new Error(
-        `URL repository-id ${repository.id} содержит credential; используйте внешний Git credential helper`,
-      );
-    }
-    if (ids.has(repository.id)) {
-      throw new Error(`Повторяющийся repository-id в sdd.yaml: ${repository.id}`);
-    }
-    ids.add(repository.id);
-  }
-
-  return { openSpecVersion, repositories };
 }
 
 async function isFile(filePath) {
@@ -581,7 +455,7 @@ export function validateTicket(ticket) {
 
 export function buildExploreInvocation(result) {
   const repositoryScope = result.projectSpecsOnly
-    ? `Code Repositories не выбраны: исследуй только ${PROJECT_SPECS_REPOSITORY_ID}`
+    ? `Code Repositories не выбраны: исследуй только ${result.storeRepositoryId}`
     : `Code Repositories: ${result.repositories
         .map(
           (repository) =>
@@ -614,14 +488,6 @@ export async function prepareExplore({
   const config = parseSddConfig(
     await fs.readFile(path.join(projectRoot, PATHS.sddConfig), TEXT_ENCODING),
   );
-  const projectRepositories = config.repositories.filter(
-    (repository) => repository.id === PROJECT_SPECS_REPOSITORY_ID,
-  );
-  if (projectRepositories.length !== 1) {
-    throw new Error(
-      `${PATHS.sddConfig} должен содержать ровно один repository-id ${PROJECT_SPECS_REPOSITORY_ID}`,
-    );
-  }
 
   await validateOpenSpecAction(projectRoot);
   await validateGitIgnore(projectRoot);
@@ -642,9 +508,7 @@ export async function prepareExplore({
     if (!confirmed) throw new Error("Explore отменён: архивный Change не подтверждён");
   }
 
-  const available = config.repositories.filter(
-    (repository) => repository.id !== PROJECT_SPECS_REPOSITORY_ID,
-  );
+  const available = config.codeRepositories;
   const selected = validateSelection(available, await selectRepositories(available));
 
   const exploreRoot = path.join(projectRoot, PATHS.exploreRoot);
@@ -681,6 +545,7 @@ export async function prepareExplore({
     return {
       ticket,
       projectRoot,
+      storeRepositoryId: config.storeRepository.id,
       workspace,
       projectSpecsOnly: prepared.length === 0,
       repositories: prepared.map((repository) => ({

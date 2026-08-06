@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { serializeRepositories } from "../config/index.js";
 import {
   buildExploreInvocation,
   findSpecRoot,
@@ -14,7 +15,7 @@ import {
   runCommand,
   validateTicket,
 } from "../explore/index.js";
-import { initProject, parseRepository } from "../init/index.js";
+import { parseRepository } from "../init/index.js";
 
 const HARNESS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -44,22 +45,25 @@ async function temporaryDirectory(t, prefix = "multi-repo-sdd-explore-") {
   return directory;
 }
 
-async function fakeOpenSpecInit(target) {
-  await fs.mkdir(path.join(target, "openspec/specs"), { recursive: true });
-  await fs.mkdir(path.join(target, "openspec/changes/archive"), { recursive: true });
-  await fs.writeFile(path.join(target, "openspec/config.yaml"), "schema: spec-driven\n", "utf8");
-}
-
 async function createProject(t, codeRepositories = []) {
   const target = await temporaryDirectory(t);
-  await initProject({
-    target,
-    repositories: [
-      parseRepository("project-specs=https://example.test/project-specs.git#main"),
+  const skeleton = path.join(HARNESS_ROOT, "init", "skeleton");
+  await fs.cp(skeleton, target, { recursive: true });
+  await fs.rename(path.join(target, ".gitignore.template"), path.join(target, ".gitignore"));
+  const template = await fs.readFile(path.join(target, "sdd.yaml"), "utf8");
+  await fs.writeFile(
+    path.join(target, "sdd.yaml"),
+    serializeRepositories(template, [
+      {
+        id: "project-specs",
+        role: "store",
+        url: "https://example.test/project-specs.git",
+        defaultBranch: "main",
+      },
       ...codeRepositories,
-    ],
-    openSpecRunner: fakeOpenSpecInit,
-  });
+    ]),
+    "utf8",
+  );
   await fs.writeFile(
     path.join(target, ".qwen", "commands", "opsx-explore.md"),
     "---\ndescription: Original OpenSpec explore action\n---\n",
@@ -96,18 +100,20 @@ async function writeChange(projectRoot, relativeDirectory, state) {
   if (state !== null) await fs.writeFile(path.join(directory, "state.yaml"), state, "utf8");
 }
 
-test("parseSddConfig reads the managed repository registry", () => {
-  const config = parseSddConfig(`versions:\n  openspec: "1.7.0"\nrepositories:\n  - id: project-specs\n    url: "https://example.test/specs.git"\n    default_branch: main\n  - id: api\n    url: "ssh://git@example.test/api.git"\n    default_branch: develop\n`);
+test("parseSddConfig reads Store and Code Repository roles", () => {
+  const config = parseSddConfig(`versions:\n  openspec: "1.7.0"\nrepositories:\n  - id: project-specs\n    role: store\n    url: "https://example.test/specs.git"\n    default_branch: main\n  - id: api\n    role: code\n    url: "ssh://git@example.test/api.git"\n    default_branch: develop\n`);
 
   assert.equal(config.openSpecVersion, "1.7.0");
   assert.deepEqual(config.repositories.map(({ id }) => id), ["project-specs", "api"]);
+  assert.equal(config.storeRepository.id, "project-specs");
+  assert.deepEqual(config.codeRepositories.map(({ id }) => id), ["api"]);
   assert.equal(config.repositories[1].defaultBranch, "develop");
 });
 
 test("parseSddConfig rejects credentials embedded in HTTP repository URLs", () => {
   assert.throws(
     () =>
-      parseSddConfig(`versions:\n  openspec: "1.7.0"\nrepositories:\n  - id: project-specs\n    url: "https://token@example.test/specs.git"\n    default_branch: main\n`),
+      parseSddConfig(`versions:\n  openspec: "1.7.0"\nrepositories:\n  - id: project-specs\n    role: store\n    url: "https://token@example.test/specs.git"\n    default_branch: main\n`),
     /содержит credential/,
   );
 });
@@ -175,6 +181,7 @@ test("buildExploreInvocation passes the SDD contract to the original action", ()
     ticket: "PAY-420",
     projectRoot: "/tmp/project-specs",
     workspace: "/tmp/project-specs/.sdd/checkouts/explore/pay-420",
+    storeRepositoryId: "project-specs",
     projectSpecsOnly: false,
     repositories: [
       {
@@ -200,6 +207,7 @@ test("buildExploreInvocation describes project-specs-only scope", () => {
     ticket: "PAY-421",
     projectRoot: "/tmp/project-specs",
     workspace: "/tmp/project-specs/.sdd/checkouts/explore/pay-421",
+    storeRepositoryId: "project-specs",
     projectSpecsOnly: true,
     repositories: [],
   });

@@ -1,65 +1,35 @@
-import { spawnSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  assertRepositoryId,
+  parseSddConfig,
+  parseStoreMetadata,
+  serializeRepositories,
+} from "../config/index.js";
+import { runCommand } from "../shared/command.js";
+
 const MODULE_ROOT = path.dirname(fileURLToPath(import.meta.url));
+const OPEN_SPEC_VERSION = "1.7.0";
+const AGENT_ADAPTER = "qwen";
+const TEMPLATE_SUFFIX = ".template";
+const REPOSITORY_PATTERN = /^([a-z0-9]+(?:-[a-z0-9]+)*)=(.+)#([^#]+)$/;
+
 const PATHS = Object.freeze({
   skeleton: path.join(MODULE_ROOT, "skeleton"),
+  metadata: path.join(".openspec-store", "store.yaml"),
+  openSpec: "openspec",
   openSpecConfig: path.join("openspec", "config.yaml"),
   sddConfig: "sdd.yaml",
-  emptyDirectories: [
-    path.join("openspec", "specs"),
-    path.join("openspec", "changes"),
-  ],
+  agentDirectory: ".qwen",
 });
 
-const REPOSITORY_PATTERN = /^([a-z0-9][a-z0-9-]*)=(.+)#([^#]+)$/;
-const TEMPLATE_SUFFIX = ".template";
-
-function run(command, ...args) {
-  const result = spawnSync(command, args, { encoding: "utf8", shell: true });
-
-  if (result.error) {
-    throw new Error(`Не удалось запустить ${command}: ${result.error.message}`);
-  }
-  if (result.status !== 0) {
-    const details = [result.stderr, result.stdout].filter(Boolean).join("\n").trim();
-    throw new Error(
-      `${command} ${args.join(" ")} завершилась с ошибкой${details ? `:\n${details}` : ""}`,
-    );
-  }
-
-  return result.stdout.trim();
-}
-
-function tryRun(command, ...args) {
+async function pathState(target) {
   try {
-    return run(command, ...args);
-  } catch {
-    return "";
-  }
-}
-
-function initializeOpenSpec(target) {
-  run(
-    "openspec",
-    "init",
-    target,
-    "--tools",
-    "none",
-    "--profile",
-    "custom",
-    "--no-animation",
-  );
-}
-
-async function exists(filePath) {
-  try {
-    await fs.lstat(filePath);
-    return true;
+    return await fs.lstat(target);
   } catch (error) {
-    if (error.code === "ENOENT") return false;
+    if (error.code === "ENOENT") return null;
     throw error;
   }
 }
@@ -69,16 +39,11 @@ async function listFiles(root, relativeDirectory = "") {
     withFileTypes: true,
   });
   const files = [];
-
   for (const entry of entries) {
     const relativePath = path.join(relativeDirectory, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...(await listFiles(root, relativePath)));
-    } else if (entry.isFile()) {
-      files.push(relativePath);
-    }
+    if (entry.isDirectory()) files.push(...(await listFiles(root, relativePath)));
+    else if (entry.isFile()) files.push(relativePath);
   }
-
   return files.sort();
 }
 
@@ -88,121 +53,211 @@ function bundleTarget(relativePath) {
     : relativePath;
 }
 
-function detectCurrentRepository(target) {
-  const url = tryRun("git", "-C", target, "remote", "get-url", "origin");
-  if (!url) return null;
-
-  return {
-    id: "project-specs",
-    url,
-    defaultBranch: tryRun("git", "-C", target, "branch", "--show-current") || "main",
-  };
+function installOpenSpec(projectRoot, agentAdapter, commandRunner) {
+  commandRunner(
+    "openspec",
+    ["init", projectRoot, "--tools", agentAdapter, "--profile", "core", "--no-animation"],
+    { cwd: projectRoot },
+  );
 }
 
-function mergeRepositories(detectedRepository, configuredRepositories) {
-  const repositories = [detectedRepository, ...configuredRepositories].filter(Boolean);
-  const ids = new Set();
+function setupStore(projectRoot, storeId, remote, commandRunner) {
+  commandRunner(
+    "openspec",
+    [
+      "store",
+      "setup",
+      storeId,
+      "--path",
+      projectRoot,
+      "--no-init-git",
+      "--remote",
+      remote,
+      "--json",
+    ],
+    { cwd: projectRoot, sensitiveValues: [remote] },
+  );
+}
 
-  for (const repository of repositories) {
-    if (ids.has(repository.id)) {
-      throw new Error(`Повторяющийся идентификатор репозитория: ${repository.id}`);
-    }
-    ids.add(repository.id);
+async function inspectGit(projectRoot, commandRunner) {
+  const gitRoot = path.resolve(
+    commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd: projectRoot }),
+  );
+  if (gitRoot !== projectRoot) {
+    throw new Error("sdd init нужно запускать из корня центрального Git-репозитория");
+  }
+  if (
+    commandRunner("git", ["status", "--porcelain", "--untracked-files=all"], {
+      cwd: projectRoot,
+    })
+  ) {
+    throw new Error("sdd init требует чистое рабочее дерево Git");
   }
 
-  return repositories;
+  const remote = commandRunner("git", ["remote", "get-url", "origin"], {
+    cwd: projectRoot,
+  });
+  const defaultBranch = commandRunner("git", ["branch", "--show-current"], {
+    cwd: projectRoot,
+  });
+  if (!defaultBranch) throw new Error("sdd init нельзя запускать в detached HEAD");
+  return { remote, defaultBranch };
 }
 
-function fillRepositories(template, repositories) {
-  if (repositories.length === 0) return template;
+async function assertSkeletonDoesNotExist(projectRoot, bundleFiles) {
+  const conflicts = [];
+  for (const relativePath of [PATHS.openSpec, ...bundleFiles.map(({ target }) => target)]) {
+    if (await pathState(path.join(projectRoot, relativePath))) conflicts.push(relativePath);
+  }
+  if (conflicts.length > 0) {
+    throw new Error(`Инициализации мешают существующие SDD/OpenSpec-пути: ${conflicts.join(", ")}`);
+  }
 
-  const entries = repositories
-    .flatMap(({ id, url, defaultBranch }) => [
-      `  - id: ${JSON.stringify(id)}`,
-      `    url: ${JSON.stringify(url)}`,
-      `    default_branch: ${JSON.stringify(defaultBranch)}`,
-    ])
-    .join("\n");
-
-  return template.replace("repositories: []", `repositories:\n${entries}`);
+  const agentDirectory = await pathState(path.join(projectRoot, PATHS.agentDirectory));
+  if (agentDirectory && (!agentDirectory.isDirectory() || agentDirectory.isSymbolicLink())) {
+    throw new Error(`${PATHS.agentDirectory}/ должна быть обычным каталогом`);
+  }
 }
 
+async function installSkeleton({ projectRoot, skeletonRoot, bundleFiles, sddContents }) {
+  const created = [];
+  for (const file of bundleFiles) {
+    const destination = path.join(projectRoot, file.target);
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+
+    if (file.target === PATHS.sddConfig) {
+      await fs.writeFile(destination, sddContents, "utf8");
+    } else if (file.target === PATHS.openSpecConfig) {
+      // `openspec init` создаёт базовый config, а SDD заменяет его командным шаблоном.
+      await fs.copyFile(path.join(skeletonRoot, file.source), destination);
+    } else {
+      if (await pathState(destination)) {
+        throw new Error(`OpenSpec создал конфликтующий файл skeleton: ${file.target}`);
+      }
+      await fs.copyFile(path.join(skeletonRoot, file.source), destination);
+    }
+    created.push(file.target);
+  }
+  return created;
+}
+
+/**
+ * Разбирает значение CLI-флага `--repo <id=url#branch>`.
+ *
+ * @param {string} value
+ * @returns {{id: string, role: "code", url: string, defaultBranch: string}}
+ */
 export function parseRepository(value) {
   const match = value.match(REPOSITORY_PATTERN);
   if (!match) {
     throw new Error(`Некорректный репозиторий '${value}'. Ожидается <id=url#branch>`);
   }
-
   const [, id, url, defaultBranch] = match;
-  return { id, url, defaultBranch };
+  if (url.startsWith("-") || defaultBranch.startsWith("-")) {
+    throw new Error(`Некорректный репозиторий '${value}'. Ожидается <id=url#branch>`);
+  }
+  return { id, role: "code", url, defaultBranch };
 }
 
+/**
+ * Один раз подготавливает центральный репозиторий как OpenSpec Store.
+ * Команда повторно безопасна только для Store с тем же ID; подключение новых
+ * рабочих машин и code-репозиториев выполняет `sdd connect`.
+ *
+ * @param {object} [options]
+ * @param {string} [options.target] Корень центрального Git-репозитория.
+ * @param {string} options.storeId Общий ID Store и центрального репозитория.
+ * @param {Array<{id: string, role: "code", url: string, defaultBranch: string}>} [options.repositories]
+ * @param {string} [options.skeletonRoot] Переопределяется только в тестах.
+ * @param {typeof runCommand} [options.commandRunner] Переопределяется только в тестах.
+ * @param {string} [options.agentAdapter] Адаптер OpenSpec для текущего агента.
+ * @returns {Promise<{
+ *   target: string,
+ *   storeId: string,
+ *   alreadyInitialized: boolean,
+ *   created: string[]
+ * }>}
+ */
 export async function initProject({
   target = ".",
+  storeId,
   repositories = [],
-  force = false,
   skeletonRoot = PATHS.skeleton,
-  openSpecRunner = initializeOpenSpec,
+  commandRunner = runCommand,
+  agentAdapter = AGENT_ADAPTER,
 } = {}) {
-  const projectRoot = path.resolve(target);
-  await fs.mkdir(projectRoot, { recursive: true });
+  assertRepositoryId(storeId, "Store ID");
+  const requestedRoot = path.resolve(target);
+  const rootStat = await pathState(requestedRoot);
+  if (!rootStat?.isDirectory() || rootStat.isSymbolicLink()) {
+    throw new Error(`sdd init требует существующий обычный каталог: ${requestedRoot}`);
+  }
+  const projectRoot = await fs.realpath(requestedRoot);
+
+  const metadataStat = await pathState(path.join(projectRoot, PATHS.metadata));
+  if (metadataStat) {
+    if (!metadataStat.isFile() || metadataStat.isSymbolicLink()) {
+      throw new Error(`${PATHS.metadata} должна быть обычным файлом`);
+    }
+    const metadata = parseStoreMetadata(
+      await fs.readFile(path.join(projectRoot, PATHS.metadata), "utf8"),
+    );
+    if (metadata.id !== storeId) {
+      throw new Error(`Store уже инициализирован с ID ${metadata.id}, а не ${storeId}`);
+    }
+    // Identity уже зафиксирована OpenSpec: повторный init ничего не переписывает.
+    return { target: projectRoot, storeId, alreadyInitialized: true, created: [] };
+  }
 
   const bundleFiles = (await listFiles(skeletonRoot)).map((source) => ({
     source,
     target: bundleTarget(source),
   }));
-  const existingFiles = new Set();
+  const git = await inspectGit(projectRoot, commandRunner);
+  await assertSkeletonDoesNotExist(projectRoot, bundleFiles);
 
-  for (const file of bundleFiles) {
-    if (await exists(path.join(projectRoot, file.target))) {
-      existingFiles.add(file.target);
-    }
+  const ids = new Set([storeId]);
+  for (const repository of repositories) {
+    assertRepositoryId(repository.id);
+    if (ids.has(repository.id)) throw new Error(`Повторяющийся repository-id: ${repository.id}`);
+    ids.add(repository.id);
   }
 
-  const openSpecInitialized = !existingFiles.has(PATHS.openSpecConfig);
-  if (openSpecInitialized) await openSpecRunner(projectRoot);
-
-  await Promise.all(
-    PATHS.emptyDirectories.map((directory) =>
-      fs.mkdir(path.join(projectRoot, directory), { recursive: true }),
-    ),
-  );
-
-  const created = [];
-  const overwritten = [];
-  const skipped = [];
-
-  for (const file of bundleFiles) {
-    const existed = existingFiles.has(file.target);
-    if (existed && !force) {
-      skipped.push(file.target);
-      continue;
-    }
-
-    const source = path.join(skeletonRoot, file.source);
-    const destination = path.join(projectRoot, file.target);
-    await fs.mkdir(path.dirname(destination), { recursive: true });
-
-    if (file.target === PATHS.sddConfig) {
-      const template = await fs.readFile(source, "utf8");
-      const detectedRepository = detectCurrentRepository(projectRoot);
-      await fs.writeFile(
-        destination,
-        fillRepositories(template, mergeRepositories(detectedRepository, repositories)),
-        "utf8",
-      );
-    } else {
-      await fs.copyFile(source, destination);
-    }
-
-    (existed ? overwritten : created).push(file.target);
+  const installedVersion = commandRunner("openspec", ["--version"], { cwd: projectRoot });
+  if (installedVersion !== OPEN_SPEC_VERSION) {
+    throw new Error(`Установлен OpenSpec ${installedVersion}, ожидается ${OPEN_SPEC_VERSION}`);
   }
 
+  const configuredRepositories = [
+    {
+      id: storeId,
+      role: "store",
+      url: git.remote,
+      defaultBranch: git.defaultBranch,
+    },
+    ...repositories,
+  ];
+  const sddTemplate = await fs.readFile(path.join(skeletonRoot, PATHS.sddConfig), "utf8");
+  const sddContents = serializeRepositories(sddTemplate, configuredRepositories);
+  parseSddConfig(sddContents);
+
+  const hasProjectFiles = (await fs.readdir(projectRoot)).some((entry) => entry !== ".git");
+  // Для существующего проекта OpenSpec root нужен до Store setup; для пустого
+  // репозитория Store setup сначала создаёт root, который затем принимает init.
+  if (hasProjectFiles) installOpenSpec(projectRoot, agentAdapter, commandRunner);
+  setupStore(projectRoot, storeId, git.remote, commandRunner);
+  if (!hasProjectFiles) installOpenSpec(projectRoot, agentAdapter, commandRunner);
+
+  const created = await installSkeleton({
+    projectRoot,
+    skeletonRoot,
+    bundleFiles,
+    sddContents,
+  });
   return {
     target: projectRoot,
-    openSpecInitialized,
-    created,
-    overwritten,
-    skipped,
+    storeId,
+    alreadyInitialized: false,
+    created: [PATHS.metadata, ...created],
   };
 }

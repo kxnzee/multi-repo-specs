@@ -3,6 +3,7 @@
 
 # /openspec/specs/** @spec-owner
 # /openspec/changes/** @spec-owner
+# /.openspec-store/** @spec-owner @technical-owner
 # /openspec/schemas/** @spec-owner @apply-owner
 # /openspec/context/00-start-here.md @spec-owner
 # /openspec/context/01-product-context.md @change-owner
@@ -17,4 +18,6 @@
 # /openspec/context/ADR/README.md @spec-owner
 # /openspec/context/_raw/README.md @spec-owner
 # /.qwen/commands/sdd-*.md @apply-owner @technical-owner
+# /.qwen/commands/opsx-*.md @apply-owner
+# /.qwen/skills/openspec-*/** @apply-owner
 # /sdd.yaml @apply-owner @technical-owner

@@ -5,15 +5,22 @@
   "type": "module",
   "files": [
     "bin",
+    "config",
+    "connect",
     "explore",
-    "init"
+    "init",
+    "shared"
   ],
   "bin": {
     "sdd": "./bin/sdd.js"
   },
+  "dependencies": {
+    "cross-spawn": "7.0.6",
+    "yaml": "2.9.0"
+  },
   "scripts": {
     "test": "node --test",
-    "check": "node --check bin/sdd.js && node --check explore/index.js && node --check init/index.js"
+    "check": "node --check bin/sdd.js && node --check config/index.js && node --check connect/index.js && node --check explore/index.js && node --check init/index.js && node --check shared/command.js"
   },
   "engines": {
     "node": ">=20"
