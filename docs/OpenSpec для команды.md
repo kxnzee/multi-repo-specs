@@ -15,10 +15,11 @@
 2. Создать change
 
    ```bash
+   cd "$storePath"
    openspec new change PAY-412-team-update
    ```
 
-   Один идентификатор для Jira, веток, PR.
+   Change создаётся только в центральном OpenSpec store. Один идентификатор используется для Jira, веток и PR.
 
 3. Проверить
 
@@ -26,20 +27,39 @@
    openspec validate --all --store sdd-specs --strict
    ```
 
-   До начала разработки и перед push.
+   До начала разработки и перед созданием PR.
 
 4. Архивировать
 
    ```bash
+   cd "$storePath"
    openspec archive PAY-412-team-update --yes
    ```
 
-   Только после завершения всех сервисов.
+   Только после завершения backend и frontend и ручной проверки всей цепочки.
 
 ## Жизненный цикл
 
 ```text
-Jira Story (PAY-412) -> OpenSpec change (proposal, specs, design, tasks) -> Реализация (api-server + web-app ...) -> Composite verification (контракт + система целиком) -> Мастер-спека (фактическое состояние)
+Jira Story
+↓
+Create OpenSpec change (sdd-specs)
+↓
+Proposal, Design, Specs, Tasks
+↓
+OpenSpec validation
+↓
+Backend implementation
+↓
+Frontend implementation
+↓
+Manual verification
+↓
+Merge PR
+↓
+Archive change
+↓
+Update master specs
 ```
 
 В гайде используются:
@@ -62,7 +82,27 @@ api-server ← реализация backend
 web-app ← реализация frontend
 ```
 
-Главный принцип. Требование описывается один раз в sdd-specs, а затем реализуется во всех затронутых сервисах
+Главный принцип. Требование описывается один раз в sdd-specs, а затем реализуется во всех затронутых сервисах.
+
+OpenSpec change принадлежит только центральному store:
+
+```text
+sdd-specs
+└── openspec
+    ├── specs
+    └── changes
+        └── PAY-412-update
+```
+
+В кодовых репозиториях собственные changes запрещены:
+
+```text
+api-server
+└── openspec/changes  ← запрещено
+
+web-app
+└── openspec/changes  ← запрещено
+```
 
 Репозитории api-server и web-app не должны хранить собственные независимые версии общего контракта. Оба сервиса используют спецификации из одного OpenSpec store.
 
@@ -126,26 +166,78 @@ openspec/changes/
 ## 3. Общий жизненный цикл изменения
 
 ```text
-Идея или Jira Story
+Jira Story
 ↓
-Создание OpenSpec change
+Create OpenSpec change (sdd-specs)
 ↓
-Proposal, design, specs и tasks
+Proposal, Design, Specs, Tasks
 ↓
-Проверка OpenSpec
+OpenSpec validation
 ↓
-Реализация в api-server и web-app
+Backend implementation
 ↓
-Проверка общего контракта
+Frontend implementation
 ↓
-Merge связанных PR
+Manual verification
+↓
+Merge PR
 ↓
 Archive change
 ↓
-Обновлённая мастер-спека
+Update master specs
 ```
 
 Главное правило. Сначала команда согласует изменение поведения системы, затем меняет код.
+
+## Ownership model in multi-repo projects
+
+### sdd-specs
+
+Центральный store отвечает за:
+
+- requirements;
+- contracts;
+- architecture decisions;
+- changes;
+- master specs.
+
+Это единственный источник требований и единственное место, которому принадлежат OpenSpec changes.
+
+### Backend repository
+
+Backend-репозиторий отвечает за:
+
+- реализацию backend-части;
+- API;
+- contract tests.
+
+Он реализует существующий change и не содержит `openspec/changes`.
+
+### Frontend repository
+
+Frontend-репозиторий отвечает за:
+
+- UI implementation;
+- API client;
+- frontend tests.
+
+Он реализует существующий change и не содержит `openspec/changes`.
+
+## Archive ownership
+
+Archive выполняется только владельцем change — центральным OpenSpec store.
+
+Backend и frontend repositories не выполняют archive.
+
+```text
+sdd-specs
+|
++-- create change
+|
++-- validate
+|
++-- archive
+```
 
 ## 4. Тестовые репозитории PoC
 
@@ -232,6 +324,10 @@ openspec context --json
 openspec status --change team-update
 ```
 
+Команды выполняются из кодовых репозиториев только после регистрации центрального OpenSpec store.
+
+Backend и frontend используют существующий change из sdd-specs. Они не создают и не хранят собственные changes.
+
 # Часть II. Как команда работает с изменением
 
 ## 11. Пример. Изменение общей авторизации
@@ -251,6 +347,22 @@ pay-412-team-update
 ```
 
 Один change объединяет общее понимание изменения, но каждый сервис реализует собственную часть.
+
+### PAY-412 example
+
+1. В Jira создаётся задача `PAY-412`.
+2. Architect или Product создаёт центральный change `sdd-specs/openspec/changes/PAY-412-update`.
+3. Команда проверяет и согласует `proposal.md`, `design.md`, delta spec в `specs/*/spec.md` и `tasks.md`.
+4. Backend-разработчик реализует свою часть в ветке `feature/PAY-412-update` репозитория `api-server`.
+5. Frontend-разработчик реализует свою часть в ветке `feature/PAY-412-update` репозитория `web-app`.
+6. Команда вручную проверяет общий пользовательский сценарий и соответствие контракту.
+7. После завершения реализации backend и frontend, ручной проверки общего сценария и merge связанных PR change архивируется только из центрального OpenSpec store:
+
+   ```bash
+   cd "$storePath"
+
+   openspec archive PAY-412-team-update --yes
+   ```
 
 ## 12. Шаг 1. Зафиксировать change-id
 
@@ -292,11 +404,11 @@ PR в web-app
 Создание change:
 
 ```bash
-cd "$src/api-server"
+cd "$storePath"
 openspec new change PAY-412-team-update
 ```
 
-Через настроенную привязку change должен появиться в центральном store:
+Change создаётся только из центрального OpenSpec store. Кодовые репозитории не создают собственные изменения. После выполнения команды change должен появиться здесь:
 
 ```text
 sdd-specs/
@@ -563,7 +675,7 @@ Frontend не должен ожидать поля, которого ещё не
 
 Backend не должен удалять поле, которое продолжает использовать frontend.
 
-## 18. Шаг 6. Выполнить составную проверку
+## 18. Шаг 6. Выполнить ручную составную проверку
 
 Поскольку изменение затрагивает несколько репозиториев, проверки одного сервиса недостаточно. Нужны три уровня проверки.
 
@@ -596,7 +708,7 @@ npm run build
 
 Конкретные команды зависят от проекта.
 
-### Уровень 3. Composite verification
+### Уровень 3. Manual composite verification
 
 Проверяется вся цепочка:
 
@@ -612,7 +724,7 @@ web-app
 пользовательский сценарий
 ```
 
-Composite verification подтверждает, что:
+Ручная составная проверка подтверждает, что:
 
 - backend реализовал контракт;
 - frontend правильно использует контракт;
@@ -620,7 +732,7 @@ Composite verification подтверждает, что:
 - интеграционный сценарий работает целиком;
 - порядок rollout не создаёт несовместимого состояния.
 
-Это шире обычного контрактного тестирования. Контрактный тест проверяет границу между компонентами, а composite verification — итоговое поведение всей затронутой цепочки.
+Это шире обычного контрактного тестирования. Контрактный тест проверяет границу между компонентами, а manual composite verification — итоговое поведение всей затронутой цепочки.
 
 ## 19. Шаг 7. Завершить связанные задачи
 
@@ -630,6 +742,7 @@ Composite verification подтверждает, что:
 - PR в sdd-specs принят;
 - backend реализован и проверен;
 - frontend реализован и проверен;
+- ручная составная проверка завершена;
 - связанные PR смержены;
 - интеграционные тесты проходят;
 - rollout выполнен или подтверждён;
@@ -663,7 +776,7 @@ Composite verification подтверждает, что:
 - [x] Проверить совместимость.
 - [x] Проверить обратную совместимость.
 - [x] Проверить rollout.
-- [x] Выполнить composite verification.
+- [x] Выполнить manual composite verification.
 ```
 
 ## 20. Шаг 8. Архивировать change
@@ -671,6 +784,7 @@ Composite verification подтверждает, что:
 Команда одинакова для Windows PowerShell и Linux/macOS Bash (выполняется в терминале):
 
 ```bash
+cd "$storePath"
 openspec archive pay-412-team-update --yes
 ```
 
@@ -683,7 +797,7 @@ openspec archive pay-412-team-update --yes
 
 После этого мастер-спека становится источником текущего состояния системы.
 
-Change следует архивировать только после завершения всех затронутых компонентов. Архивирование не должно происходить сразу после завершения одного из сервисов.
+Change следует архивировать только после завершения backend, frontend и ручной проверки всей затронутой цепочки. Архивирование не должно происходить сразу после завершения одного из сервисов.
 
 ## 21. Шаг 9. Проверить мастер-спеку
 
@@ -756,11 +870,10 @@ version: 1.2.0
 1. Согласовать OpenSpec change.
 2. Подготовить реализацию backend.
 3. Подготовить реализацию frontend.
-4. Проверить совместимость компонентов.
+4. Выполнить manual composite verification и проверить совместимость компонентов.
 5. Смержить изменения в безопасном порядке.
 6. Выполнить rollout.
-7. Выполнить composite verification.
-8. Архивировать OpenSpec change.
+7. Архивировать OpenSpec change.
 
 Порядок rollout зависит от совместимости. Например, при добавлении нового необязательного поля:
 
@@ -798,7 +911,7 @@ openspec context --json
 openspec list
 ```
 
-## 30. Что делать перед push
+## 30. Что делать перед созданием PR
 
 1. Проверьте конкретный change:
 
@@ -839,12 +952,13 @@ openspec list
    - frontend PR смержен;
    - интеграционные проверки проходят;
    - rollout завершён;
-   - composite verification выполнена;
+   - manual composite verification выполнена;
    - мастер-спека после archive отражает фактическое состояние системы.
 
 2. Только после этого (в терминале):
 
    ```bash
+   cd "$storePath"
    openspec archive pay-412-team-update --yes
    ```
 
@@ -854,7 +968,7 @@ openspec list
 2. Один change описывает одно законченное изменение поведения системы.
 3. Сначала change, затем реализация.
 4. Все связанные репозитории используют одинаковый change-id.
-5. Change нельзя архивировать, пока не завершены все затронутые сервисы.
+5. Change нельзя архивировать, пока не завершены backend, frontend и ручная проверка всей цепочки.
 6. OpenSpec validation проверяет требования, но не заменяет тестирование кода.
 7. Для мультирепозиторного изменения обязательна проверка системы целиком.
 8. Мастер-спека должна описывать фактически работающую систему, а не планы на будущее.
