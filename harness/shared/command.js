@@ -1,3 +1,5 @@
+/** @fileoverview Кроссплатформенный безопасный запуск внешних CLI без shell. */
+
 import process from "node:process";
 import crossSpawn from "cross-spawn";
 
@@ -6,6 +8,13 @@ const COMMAND_ENV = Object.freeze({
   GIT_TERMINAL_PROMPT: "0",
 });
 
+/**
+ * Скрывает переданные секретные значения в диагностическом тексте команды.
+ *
+ * @param {string} value Исходная строка команды или её вывода.
+ * @param {string[]} sensitiveValues Значения, которые нельзя показывать пользователю.
+ * @returns {string} Строка с заменёнными чувствительными фрагментами.
+ */
 function redact(value, sensitiveValues) {
   let result = value;
   for (const sensitive of sensitiveValues) {

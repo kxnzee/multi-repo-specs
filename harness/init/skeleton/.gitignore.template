@@ -1,9 +1,6 @@
-# SDD runtime-only data. Do not ignore openspec/, .qwen/, or .sdd/ as a whole.
-.sdd/runtime/
+# SDD local data. Do not ignore openspec/, .qwen/, or .sdd/ as a whole.
 .sdd/cache/
 .sdd/logs/
-.sdd/checkouts/
-.sdd/verification-workspaces/
 
 # Local credentials
 .sdd/credentials/

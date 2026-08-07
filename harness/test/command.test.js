@@ -1,3 +1,5 @@
+/** @fileoverview Проверка кроссплатформенного запуска внешних команд. */
+
 import assert from "node:assert/strict";
 import test from "node:test";
 

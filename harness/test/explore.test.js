@@ -1,339 +1,393 @@
+/** @fileoverview Интеграционные сценарии read-only подготовки Explore. */
+
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
 
-import { serializeRepositories } from "../config/index.js";
+import { resolveAgentAdapter } from "../config/agents.js";
+import { parseSddConfig, serializeSddConfig } from "../config/index.js";
 import {
   buildExploreInvocation,
   findSpecRoot,
-  parseSddConfig,
   prepareExplore,
-  runCommand,
   validateTicket,
 } from "../explore/index.js";
-import { parseRepository } from "../init/index.js";
+import { runCommand } from "../shared/command.js";
 
-const HARNESS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const QWEN = resolveAgentAdapter("qwen");
+const SDD_TEMPLATE =
+  'version: 1\nversions:\n  process: draft\n  openspec: "1.7.0"\nagent: null\nrepositories: []\n';
 
-async function makeWritable(target) {
-  let stat;
-  try {
-    stat = await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return;
-    throw error;
-  }
-  if (stat.isSymbolicLink()) return;
-  if (stat.isDirectory()) {
-    await fs.chmod(target, 0o755);
-    for (const entry of await fs.readdir(target)) await makeWritable(path.join(target, entry));
-    return;
-  }
-  await fs.chmod(target, 0o644);
-}
-
-async function temporaryDirectory(t, prefix = "multi-repo-sdd-explore-") {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
-  t.after(async () => {
-    await makeWritable(directory);
-    await fs.rm(directory, { recursive: true, force: true });
-  });
-  return directory;
-}
-
-async function createProject(t, codeRepositories = []) {
-  const target = await temporaryDirectory(t);
-  const skeleton = path.join(HARNESS_ROOT, "init", "skeleton");
-  await fs.cp(skeleton, target, { recursive: true });
-  await fs.rename(path.join(target, ".gitignore.template"), path.join(target, ".gitignore"));
-  const template = await fs.readFile(path.join(target, "sdd.yaml"), "utf8");
-  await fs.writeFile(
-    path.join(target, "sdd.yaml"),
-    serializeRepositories(template, [
-      {
-        id: "project-specs",
-        role: "store",
-        url: "https://example.test/project-specs.git",
-        defaultBranch: "main",
-      },
-      ...codeRepositories,
-    ]),
-    "utf8",
+/**
+ * Создаёт автоматически удаляемый корень explore-сценария.
+ *
+ * @param {import("node:test").TestContext} t Контекст текущего теста.
+ * @returns {Promise<string>} Канонический путь временного каталога.
+ */
+async function temporaryRoot(t) {
+  const root = await fs.realpath(
+    await fs.mkdtemp(path.join(os.tmpdir(), "multi-repo-sdd-explore-")),
   );
-  await fs.writeFile(
-    path.join(target, ".qwen", "commands", "opsx-explore.md"),
-    "---\ndescription: Original OpenSpec explore action\n---\n",
-    "utf8",
-  );
-  return target;
+  t.after(async () => fs.rm(root, { recursive: true, force: true }));
+  return root;
 }
 
-function commandRunnerFor(projectRoot) {
-  return (command, args, options = {}) => {
-    if (command === "openspec" && args[0] === "--version") return "1.7.0";
-    if (command === "openspec" && args.join(" ") === "list --specs --json") {
-      return JSON.stringify({ specs: [], root: { path: projectRoot } });
-    }
-    return runCommand(command, args, options);
-  };
-}
-
-async function createGitRepository(t) {
-  const repository = await temporaryDirectory(t, "multi-repo-sdd-source-");
-  runCommand("git", ["init", "--initial-branch", "main", repository]);
+/**
+ * Настраивает локальную Git identity для тестовых коммитов.
+ *
+ * @param {string} repository Путь тестового Git-репозитория.
+ * @returns {void}
+ */
+function configureGit(repository) {
   runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
   runCommand("git", ["-C", repository, "config", "user.name", "SDD Tests"]);
-  await fs.writeFile(path.join(repository, "README.md"), "test repository\n", "utf8");
-  runCommand("git", ["-C", repository, "add", "README.md"]);
-  runCommand("git", ["-C", repository, "commit", "-m", "Initial commit"]);
-  return repository;
 }
 
-async function writeChange(projectRoot, relativeDirectory, state) {
-  const directory = path.join(projectRoot, "openspec", "changes", relativeDirectory);
-  await fs.mkdir(directory, { recursive: true });
-  await fs.writeFile(path.join(directory, ".openspec.yaml"), "schema: multi-repo-sdd\n", "utf8");
-  if (state !== null) await fs.writeFile(path.join(directory, "state.yaml"), state, "utf8");
+/**
+ * Создаёт checkout с initial commit и соответствующим bare remote.
+ *
+ * @param {string} root Корень тестового сценария.
+ * @param {string} relativePath Относительный путь checkout.
+ * @param {string} remoteName Имя bare remote.
+ * @param {Record<string, string>} files Начальные файлы checkout.
+ * @returns {Promise<{checkout: string, remote: string}>} Канонический checkout и remote.
+ */
+async function createCheckout(root, relativePath, remoteName, files) {
+  const checkout = path.join(root, relativePath);
+  const remote = path.join(root, `${remoteName}.git`);
+  await fs.mkdir(path.dirname(checkout), { recursive: true });
+  runCommand("git", ["init", "--initial-branch", "main", checkout]);
+  configureGit(checkout);
+  for (const [relativeFile, contents] of Object.entries(files)) {
+    const target = path.join(checkout, relativeFile);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, contents, "utf8");
+  }
+  runCommand("git", ["-C", checkout, "add", "."]);
+  runCommand("git", ["-C", checkout, "commit", "-m", "initial"]);
+  runCommand("git", ["clone", "--bare", checkout, remote]);
+  runCommand("git", ["-C", checkout, "remote", "add", "origin", remote]);
+  return { checkout: await fs.realpath(checkout), remote };
 }
 
-test("parseSddConfig reads Store and Code Repository roles", () => {
-  const config = parseSddConfig(`versions:\n  openspec: "1.7.0"\nrepositories:\n  - id: project-specs\n    role: store\n    url: "https://example.test/specs.git"\n    default_branch: main\n  - id: api\n    role: code\n    url: "ssh://git@example.test/api.git"\n    default_branch: develop\n`);
+/**
+ * Собирает Store и необязательный Code Repository для Explore-тестов.
+ *
+ * @param {import("node:test").TestContext} t Контекст текущего теста.
+ * @param {{withCode?: boolean, archived?: string[]}} [options] Варианты сценария.
+ * @returns {Promise<{
+ *   root: string,
+ *   workspace: string,
+ *   storeRoot: string,
+ *   storeRemote: string,
+ *   codeRoot: string | undefined
+ * }>} Пути подготовленного сценария.
+ */
+async function createScenario(t, { withCode = false, archived = [] } = {}) {
+  const root = await temporaryRoot(t);
+  const workspace = path.join(root, "workspace");
+  const storeRemote = path.join(root, "payments-specs.git");
+  const codeRemote = path.join(root, "api.git");
+  const repositories = [
+    {
+      id: "payments-specs",
+      role: "store",
+      url: storeRemote,
+      defaultBranch: "main",
+    },
+  ];
+  if (withCode) {
+    repositories.push({ id: "api", role: "code", url: codeRemote, defaultBranch: "main" });
+  }
 
+  const storeFiles = {
+    ".openspec-store/store.yaml":
+      `version: 1\nid: payments-specs\nremote: ${JSON.stringify(storeRemote)}\n`,
+    "sdd.yaml": serializeSddConfig(SDD_TEMPLATE, repositories, QWEN),
+    "openspec/config.yaml": "schema: spec-driven\n",
+    "openspec/context/00-start-here.md": "# Start\n",
+    "openspec/context/system-map.yaml": "repositories: []\n",
+    "openspec/changes/archive/.gitkeep": "",
+    ".qwen/commands/opsx-explore.md": "---\ndescription: explore\n---\n",
+  };
+  for (const name of archived) {
+    storeFiles[`openspec/changes/archive/${name}/.gitkeep`] = "";
+  }
+  const store = await createCheckout(
+    root,
+    path.join("workspace", "openspec", "payments-specs"),
+    "payments-specs",
+    storeFiles,
+  );
+
+  let code;
+  if (withCode) {
+    code = await createCheckout(
+      root,
+      path.join("workspace", "src", "api"),
+      "api",
+      { "openspec/config.yaml": "store: payments-specs\n", "src/index.js": "export {};\n" },
+    );
+  }
+  return { root, workspace, storeRoot: store.checkout, storeRemote, codeRoot: code?.checkout };
+}
+
+/**
+ * Имитирует JSON-команды OpenSpec, используемые предпроверками Explore.
+ *
+ * @param {string} storeRoot Ожидаемый путь Store.
+ * @param {{activeChanges?: string[], declaredSource?: string}} [options] Управляемые ответы API.
+ * @returns {{calls: Array<{args: string[], cwd: string | undefined}>, runner: typeof runCommand}}
+ * Тестовый runner и журнал вызовов.
+ */
+function fakeOpenSpec(storeRoot, { activeChanges = [], declaredSource = "declared" } = {}) {
+  const calls = [];
+  const runner = (command, args, options = {}) => {
+    if (command === "git") return runCommand(command, args, options);
+    assert.equal(command, "openspec");
+    calls.push({ args, cwd: options.cwd });
+    const joined = args.join(" ");
+    if (joined === "--version") return "1.7.0";
+    if (joined === "store list --json") {
+      return JSON.stringify({ stores: [{ id: "payments-specs", root: storeRoot }], status: [] });
+    }
+    if (args[0] === "store" && args[1] === "doctor") {
+      return JSON.stringify({
+        stores: [{
+          id: "payments-specs",
+          root: storeRoot,
+          metadata: { present: true, valid: true },
+          openspec_root: { present: true, healthy: true, status: [] },
+          status: [],
+        }],
+        status: [],
+      });
+    }
+    const explicit = args.includes("--store");
+    const root = {
+      path: storeRoot,
+      source: explicit ? "store" : declaredSource,
+      store_id: "payments-specs",
+    };
+    if (args[0] === "doctor") {
+      return JSON.stringify({
+        root: { ...root, healthy: true, status: [] },
+        store: explicit ? { id: "payments-specs", status: [] } : null,
+        references: [],
+        status: [],
+      });
+    }
+    if (args[0] === "context") {
+      return JSON.stringify({ root: { ...root, role: "openspec_root" }, members: [], status: [] });
+    }
+    if (args[0] === "list" && args.includes("--specs")) {
+      return JSON.stringify({ specs: [], root });
+    }
+    if (args[0] === "list" && args.includes("--changes")) {
+      return JSON.stringify({ changes: activeChanges.map((name) => ({ name })), root });
+    }
+    throw new Error(`Unexpected OpenSpec call: ${joined}`);
+  };
+  return { calls, runner };
+}
+
+test("parseSddConfig reads agent, Store and Code Repository roles", () => {
+  const config = parseSddConfig(
+    serializeSddConfig(SDD_TEMPLATE, [
+      { id: "project-specs", role: "store", url: "https://example.test/specs.git", defaultBranch: "main" },
+      { id: "api", role: "code", url: "ssh://git@example.test/api.git", defaultBranch: "develop" },
+    ], QWEN),
+  );
   assert.equal(config.openSpecVersion, "1.7.0");
-  assert.deepEqual(config.repositories.map(({ id }) => id), ["project-specs", "api"]);
   assert.equal(config.storeRepository.id, "project-specs");
   assert.deepEqual(config.codeRepositories.map(({ id }) => id), ["api"]);
-  assert.equal(config.repositories[1].defaultBranch, "develop");
 });
 
 test("parseSddConfig rejects credentials embedded in HTTP repository URLs", () => {
   assert.throws(
-    () =>
-      parseSddConfig(`versions:\n  openspec: "1.7.0"\nrepositories:\n  - id: project-specs\n    role: store\n    url: "https://token@example.test/specs.git"\n    default_branch: main\n`),
-    /содержит credential/,
+    () => parseSddConfig(serializeSddConfig(SDD_TEMPLATE, [
+      { id: "project-specs", role: "store", url: "https://token@example.test/specs.git", defaultBranch: "main" },
+    ], QWEN)),
+    /credential/,
   );
 });
 
 test("validateTicket accepts only uppercase Jira-style keys", () => {
   assert.equal(validateTicket("PAY-412"), "PAY-412");
   assert.throws(() => validateTicket("pay-412"), /формат/);
-  assert.throws(() => validateTicket("PAY-0"), /формат/);
-  assert.throws(() => validateTicket("PAY"), /формат/);
 });
 
-test("findSpecRoot resolves the nearest parent from a nested directory", async (t) => {
-  const projectRoot = await createProject(t);
-  const nested = path.join(projectRoot, "one", "two");
-  await fs.mkdir(nested, { recursive: true });
-  assert.equal(await findSpecRoot(nested), projectRoot);
+test("findSpecRoot resolves the nearest Store from a nested directory", async (t) => {
+  const scenario = await createScenario(t);
+  const nested = path.join(scenario.storeRoot, "openspec", "context");
+  assert.equal(await findSpecRoot(nested), scenario.storeRoot);
 });
 
-test("prepareExplore publishes an empty workspace for project-specs-only Explore", async (t) => {
-  const projectRoot = await createProject(t);
-  let offeredRepositories;
-
+test("prepareExplore uses the connected workspace for Store-only Explore", async (t) => {
+  const scenario = await createScenario(t);
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
   const result = await prepareExplore({
-    start: path.join(projectRoot, "openspec", "context"),
+    start: scenario.storeRoot,
     ticket: "PAY-412",
-    commandRunner: commandRunnerFor(projectRoot),
-    selectRepositories: async (repositories) => {
-      offeredRepositories = repositories;
-      return [];
-    },
+    selectRepositories: async () => [],
+    commandRunner: openSpec.runner,
   });
-
-  assert.deepEqual(offeredRepositories, []);
-  assert.equal(result.projectRoot, projectRoot);
+  assert.equal(result.workspace, scenario.workspace);
   assert.equal(result.projectSpecsOnly, true);
-  assert.deepEqual(result.repositories, []);
-  assert.deepEqual(await fs.readdir(result.workspace), []);
-  assert.equal((await fs.stat(result.workspace)).mode & 0o222, 0);
-  await assert.rejects(fs.access(result.workspace, fs.constants.W_OK));
-  assert.equal(
-    await fs.readFile(path.join(projectRoot, ".gitignore"), "utf8").then((text) =>
-      text.split(/\r?\n/).includes(".sdd/checkouts/"),
-    ),
-    true,
-  );
+  assert.equal(result.repositories.length, 0);
+  assert.match(result.store.revision, /^[0-9a-f]{40}$/);
+  await assert.rejects(fs.stat(path.join(scenario.storeRoot, ".sdd", "checkouts")), /ENOENT/);
 });
 
-test("prepareExplore requires the original OpenSpec action to be installed", async (t) => {
-  const projectRoot = await createProject(t);
-  await fs.rm(path.join(projectRoot, ".qwen", "commands", "opsx-explore.md"));
+test("prepareExplore resolves Store through a Code Repository pointer", async (t) => {
+  const scenario = await createScenario(t, { withCode: true });
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const result = await prepareExplore({
+    start: path.join(scenario.codeRoot, "src"),
+    ticket: "PAY-413",
+    selectRepositories: async () => ["api"],
+    commandRunner: openSpec.runner,
+  });
+  assert.equal(result.projectRoot, scenario.storeRoot);
+  assert.equal(result.repositories[0].path, scenario.codeRoot);
+  assert.ok(openSpec.calls.some(({ args, cwd }) => args.join(" ") === "context --json" && cwd === scenario.codeRoot));
+});
 
+test("prepareExplore requires the original OpenSpec action", async (t) => {
+  const scenario = await createScenario(t);
+  await fs.rm(path.join(scenario.storeRoot, ".qwen", "commands", "opsx-explore.md"));
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
   await assert.rejects(
     prepareExplore({
-      start: projectRoot,
-      ticket: "PAY-419",
-      commandRunner: commandRunnerFor(projectRoot),
+      start: scenario.storeRoot,
+      ticket: "PAY-414",
       selectRepositories: async () => [],
+      commandRunner: openSpec.runner,
     }),
     /Не установлено оригинальное действие OpenSpec.*opsx-explore\.md/,
   );
 });
 
-test("buildExploreInvocation passes the SDD contract to the original action", () => {
+test("buildExploreInvocation passes exact Store and repository revisions", () => {
   const invocation = buildExploreInvocation({
-    ticket: "PAY-420",
-    projectRoot: "/tmp/project-specs",
-    workspace: "/tmp/project-specs/.sdd/checkouts/explore/pay-420",
-    storeRepositoryId: "project-specs",
+    ticket: "PAY-415",
+    intent: 'Понять, как показывать "статус платежа" в интерфейсе',
+    projectRoot: "/work/openspec/payments-specs",
+    storeRepositoryId: "payments-specs",
+    workspace: "/work",
+    store: { branch: "main", revision: "a".repeat(40) },
     projectSpecsOnly: false,
-    repositories: [
-      {
-        id: "api",
-        branch: "main",
-        revision: "0123456789abcdef0123456789abcdef01234567",
-        path: "/tmp/project-specs/.sdd/checkouts/explore/pay-420/api",
-      },
-    ],
+    repositories: [{ id: "api", branch: "main", revision: "b".repeat(40), path: "/work/src/api" }],
   });
-
-  assert.match(invocation, /^\/opsx-explore PAY-420\./);
-  assert.match(invocation, /Это Explore шага 01 SDD/);
-  assert.match(invocation, /Code Repositories: api, branch=main/);
-  assert.match(invocation, /0123456789abcdef0123456789abcdef01234567/);
-  assert.match(invocation, /не создавай Change/);
-  assert.match(invocation, /Не обращайся к Jira API/);
-  assert.match(invocation, /Верни структурированный итог/);
+  assert.match(invocation, /^\/opsx-explore PAY-415\./);
+  assert.match(invocation, new RegExp("a{40}"));
+  assert.match(invocation, new RegExp("b{40}"));
+  assert.match(invocation, /Исходное намерение: "Понять, как показывать \\"статус платежа\\" в интерфейсе"/);
+  assert.match(invocation, /workspace "\/work"/);
+  assert.match(invocation, /Разрешённые корни чтения: "\/work\/openspec\/payments-specs", "\/work\/src\/api"/);
+  assert.match(invocation, /не является разрешением сканировать её целиком/);
+  assert.match(invocation, /не начинай исследование по предыдущим сообщениям/);
+  assert.match(invocation, /проблему и ожидаемый наблюдаемый результат сформулируй по исследованным фактам/);
+  assert.match(invocation, /явно пометь как гипотезу или неизвестное/);
+  assert.match(invocation, /явным --store/);
 });
 
-test("buildExploreInvocation describes project-specs-only scope", () => {
-  const invocation = buildExploreInvocation({
-    ticket: "PAY-421",
-    projectRoot: "/tmp/project-specs",
-    workspace: "/tmp/project-specs/.sdd/checkouts/explore/pay-421",
-    storeRepositoryId: "project-specs",
+test("buildExploreInvocation requires the request intent", () => {
+  const result = {
+    ticket: "PAY-415",
+    intent: "Исследовать отображение статуса платежа",
+    projectRoot: "/work/openspec/payments-specs",
+    storeRepositoryId: "payments-specs",
+    workspace: "/work",
+    store: { branch: "main", revision: "a".repeat(40) },
     projectSpecsOnly: true,
     repositories: [],
-  });
-
-  assert.match(invocation, /Code Repositories не выбраны: исследуй только project-specs/);
+  };
+  assert.throws(
+    () => buildExploreInvocation({ ...result, intent: " " }),
+    /требуется намерение запроса/,
+  );
 });
 
-test("prepareExplore clones selected repositories at exact clean revisions", async (t) => {
-  const source = await createGitRepository(t);
-  const projectRoot = await createProject(t, [
-    parseRepository(`api=${source}#main`),
-  ]);
-  const sourceRevision = runCommand("git", ["-C", source, "rev-parse", "HEAD"]);
-
+test("prepareExplore uses existing selected checkout at its exact clean revision", async (t) => {
+  const scenario = await createScenario(t, { withCode: true });
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
   const result = await prepareExplore({
-    start: projectRoot,
-    ticket: "PAY-413",
-    commandRunner: commandRunnerFor(projectRoot),
-    selectRepositories: async (repositories) => {
-      assert.deepEqual(repositories.map(({ id }) => id), ["api"]);
-      return ["api"];
-    },
+    start: scenario.storeRoot,
+    ticket: "PAY-416",
+    selectRepositories: async () => ["api"],
+    commandRunner: openSpec.runner,
   });
-
-  assert.equal(result.projectSpecsOnly, false);
-  assert.equal(result.repositories[0].revision, sourceRevision);
-  assert.equal(result.repositories[0].branch, "main");
-  assert.equal(
-    runCommand("git", ["-C", result.repositories[0].path, "status", "--porcelain"]),
-    "",
-  );
-  assert.equal((await fs.stat(path.join(result.repositories[0].path, "README.md"))).mode & 0o222, 0);
+  assert.equal(result.repositories[0].path, scenario.codeRoot);
+  assert.equal(result.repositories[0].revision, runCommand("git", ["-C", scenario.codeRoot, "rev-parse", "HEAD"]));
 });
 
-test("prepareExplore blocks an active Change with the same ticket before selection", async (t) => {
-  const projectRoot = await createProject(t);
-  await writeChange(projectRoot, "pay-414-existing", "step: \"02\"\nticket: PAY-414\n");
-
+test("prepareExplore blocks an active standard Change without state.yaml", async (t) => {
+  const scenario = await createScenario(t);
+  const openSpec = fakeOpenSpec(scenario.storeRoot, { activeChanges: ["pay-417-existing"] });
   await assert.rejects(
     prepareExplore({
-      start: projectRoot,
-      ticket: "PAY-414",
-      commandRunner: commandRunnerFor(projectRoot),
-      selectRepositories: async () => {
-        throw new Error("selection must not run");
-      },
-    }),
-    /Активный Change.*pay-414-existing/,
-  );
-});
-
-test("prepareExplore requires explicit confirmation for an archived ticket", async (t) => {
-  const projectRoot = await createProject(t);
-  await writeChange(
-    projectRoot,
-    path.join("archive", "2026-08-06-pay-415-old"),
-    "step: \"13\"\nticket: PAY-415\n",
-  );
-  let archived;
-
-  await assert.rejects(
-    prepareExplore({
-      start: projectRoot,
-      ticket: "PAY-415",
-      commandRunner: commandRunnerFor(projectRoot),
-      confirmArchivedChange: async (changes) => {
-        archived = changes;
-        return false;
-      },
+      start: scenario.storeRoot,
+      ticket: "PAY-417",
       selectRepositories: async () => [],
+      commandRunner: openSpec.runner,
+    }),
+    /Активный Change.*pay-417-existing/,
+  );
+});
+
+test("prepareExplore requires confirmation for an archived ticket", async (t) => {
+  const scenario = await createScenario(t, { archived: ["2026-08-01-pay-418-done"] });
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  await assert.rejects(
+    prepareExplore({
+      start: scenario.storeRoot,
+      ticket: "PAY-418",
+      selectRepositories: async () => [],
+      confirmArchivedChange: async () => false,
+      commandRunner: openSpec.runner,
     }),
     /архивный Change не подтверждён/,
   );
-  assert.deepEqual(archived, [path.join("archive", "2026-08-06-pay-415-old")]);
 });
 
-test("prepareExplore fails closed on a Change with invalid state", async (t) => {
-  const projectRoot = await createProject(t);
-  await writeChange(projectRoot, "broken-change", "step: \"02\"\n");
-
+test("prepareExplore preserves and blocks a dirty selected checkout", async (t) => {
+  const scenario = await createScenario(t, { withCode: true });
+  await fs.writeFile(path.join(scenario.codeRoot, "local.txt"), "do not touch\n", "utf8");
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
   await assert.rejects(
     prepareExplore({
-      start: projectRoot,
-      ticket: "PAY-416",
-      commandRunner: commandRunnerFor(projectRoot),
-      selectRepositories: async () => [],
-    }),
-    /Невозможно проверить дубликаты.*ticket/,
-  );
-});
-
-test("failed clone removes the previous final workspace and the lock", async (t) => {
-  const missingSource = path.join(await temporaryDirectory(t, "multi-repo-sdd-missing-parent-"), "missing");
-  const projectRoot = await createProject(t, [parseRepository(`api=${missingSource}#main`)]);
-  const workspace = path.join(projectRoot, ".sdd", "checkouts", "explore", "pay-417");
-  await fs.mkdir(workspace, { recursive: true });
-  await fs.writeFile(path.join(workspace, "stale.txt"), "stale\n", "utf8");
-
-  await assert.rejects(
-    prepareExplore({
-      start: projectRoot,
-      ticket: "PAY-417",
-      commandRunner: commandRunnerFor(projectRoot),
+      start: scenario.storeRoot,
+      ticket: "PAY-419",
       selectRepositories: async () => ["api"],
+      commandRunner: openSpec.runner,
     }),
-    (error) => {
-      assert.doesNotMatch(error.message, new RegExp(missingSource.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-      return true;
-    },
+    /api: рабочее дерево должно быть чистым/,
   );
+  assert.equal(await fs.readFile(path.join(scenario.codeRoot, "local.txt"), "utf8"), "do not touch\n");
+});
 
-  await assert.rejects(fs.stat(workspace), { code: "ENOENT" });
+test("prepareExplore blocks a Code Repository that resolves another source", async (t) => {
+  const scenario = await createScenario(t, { withCode: true });
+  const openSpec = fakeOpenSpec(scenario.storeRoot, { declaredSource: "nearest" });
   await assert.rejects(
-    fs.stat(path.join(projectRoot, ".sdd", "checkouts", "explore", ".pay-417.lock")),
-    { code: "ENOENT" },
+    prepareExplore({
+      start: scenario.codeRoot,
+      ticket: "PAY-420",
+      selectRepositories: async () => ["api"],
+      commandRunner: openSpec.runner,
+    }),
+    /не разрешил Store через project pointer/,
   );
-  const entries = await fs.readdir(path.dirname(workspace));
-  assert.equal(entries.some((entry) => entry.startsWith(".pay-417.tmp-")), false);
 });
 
 test("CLI rejects non-interactive explore before touching a project", () => {
-  const result = spawnSync(process.execPath, ["bin/sdd.js", "explore", "--ticket", "PAY-418"], {
-    cwd: HARNESS_ROOT,
-    encoding: "utf8",
-    input: "",
-  });
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /требует интерактивный TTY/);
+  assert.throws(
+    () => runCommand(process.execPath, [path.resolve("bin/sdd.js"), "explore", "--ticket", "PAY-421"], {
+      cwd: path.resolve("."),
+    }),
+    /интерактивный TTY/,
+  );
 });

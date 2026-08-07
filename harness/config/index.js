@@ -1,7 +1,11 @@
+/** @fileoverview Разбор и строгая проверка принадлежащей SDD конфигурации. */
+
 import { parse, stringify } from "yaml";
+import { resolveAgentAdapter } from "./agents.js";
 
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ROLES = new Set(["store", "code"]);
+export const OPEN_SPEC_VERSION = "1.7.0";
 
 /**
  * Репозиторий в нормализованном внутреннем формате CLI.
@@ -13,6 +17,13 @@ const ROLES = new Set(["store", "code"]);
  * @property {string} defaultBranch
  */
 
+/**
+ * Разбирает YAML и требует объект верхнего уровня.
+ *
+ * @param {string} source Исходный YAML.
+ * @param {string} label Название источника для сообщения об ошибке.
+ * @returns {Record<string, any>} Разобранный YAML-объект.
+ */
 function parseYaml(source, label) {
   let value;
   try {
@@ -26,6 +37,12 @@ function parseYaml(source, label) {
   return value;
 }
 
+/**
+ * Проверяет, содержит ли HTTP(S)-URL встроенные логин или пароль.
+ *
+ * @param {string} value Проверяемый Git URL.
+ * @returns {boolean} `true`, если credential встроен непосредственно в URL.
+ */
 function hasHttpCredentials(value) {
   try {
     const url = new URL(value);
@@ -36,8 +53,10 @@ function hasHttpCredentials(value) {
 }
 
 /**
- * @param {unknown} value
- * @returns {Repository}
+ * Нормализует одну запись repositories из внешнего YAML-формата.
+ *
+ * @param {unknown} value Необработанная запись из sdd.yaml.
+ * @returns {Repository} Проверенная запись во внутреннем формате CLI.
  */
 function normalizeRepository(value) {
   const repository = {
@@ -69,6 +88,7 @@ function normalizeRepository(value) {
  * @param {string} source Содержимое sdd.yaml.
  * @returns {{
  *   openSpecVersion: string,
+ *   agent: ReturnType<typeof resolveAgentAdapter>,
  *   repositories: Repository[],
  *   storeRepository: Repository,
  *   codeRepositories: Repository[]
@@ -83,6 +103,16 @@ export function parseSddConfig(source) {
     throw new Error("В sdd.yaml отсутствует список repositories");
   }
 
+  const agent = resolveAgentAdapter(value.agent?.id);
+  if (
+    value.agent.openspec_adapter !== agent.openSpecId ||
+    value.agent.architecture !== agent.architecture ||
+    value.agent.commands_directory !== agent.commandsDirectory ||
+    value.agent.instructions_file !== agent.instructionsFile
+  ) {
+    throw new Error(`Конфигурация agent '${agent.id}' в sdd.yaml не совпадает с адаптером SDD`);
+  }
+
   const repositories = value.repositories.map(normalizeRepository);
   const ids = new Set(repositories.map(({ id }) => id));
   if (ids.size !== repositories.length) {
@@ -94,6 +124,7 @@ export function parseSddConfig(source) {
   }
   return {
     openSpecVersion: value.versions.openspec,
+    agent,
     repositories,
     storeRepository: stores[0],
     codeRepositories: repositories.filter(({ role }) => role === "code"),
@@ -101,14 +132,27 @@ export function parseSddConfig(source) {
 }
 
 /**
- * Заполняет встроенный шаблон sdd.yaml известными репозиториями.
+ * Заполняет встроенный шаблон sdd.yaml выбранным агентом и репозиториями.
  *
  * @param {string} template YAML-шаблон из skeleton.
  * @param {Repository[]} repositories
+ * @param {ReturnType<typeof resolveAgentAdapter>} agent
+ * @param {string} [openSpecVersion] Версия OpenSpec, которую требуется зафиксировать.
  * @returns {string}
  */
-export function serializeRepositories(template, repositories) {
+export function serializeSddConfig(template, repositories, agent, openSpecVersion) {
   const value = parseYaml(template, "Некорректный шаблон sdd.yaml");
+  value.versions ??= {};
+  value.versions.openspec = assertSupportedOpenSpecVersion(
+    openSpecVersion ?? value.versions.openspec,
+  );
+  value.agent = {
+    id: agent.id,
+    openspec_adapter: agent.openSpecId,
+    architecture: agent.architecture,
+    commands_directory: agent.commandsDirectory,
+    instructions_file: agent.instructionsFile,
+  };
   value.repositories = repositories.map(({ id, role, url, defaultBranch }) => ({
     id,
     role,
@@ -116,6 +160,19 @@ export function serializeRepositories(template, repositories) {
     default_branch: defaultBranch,
   }));
   return stringify(value, { lineWidth: 0 });
+}
+
+/**
+ * Проверяет закреплённую версию OpenSpec.
+ *
+ * @param {unknown} version
+ * @returns {string}
+ */
+export function assertSupportedOpenSpecVersion(version) {
+  if (version !== OPEN_SPEC_VERSION) {
+    throw new Error(`SDD требует OpenSpec ${OPEN_SPEC_VERSION}`);
+  }
+  return version;
 }
 
 /**
@@ -136,13 +193,25 @@ export function parseStoreMetadata(source) {
 }
 
 /**
- * @param {unknown} id
- * @param {string} [label]
- * @returns {string}
+ * Проверяет устойчивый ID Store или репозитория.
+ *
+ * @param {unknown} id Проверяемое значение.
+ * @param {string} [label] Название поля для сообщения об ошибке.
+ * @returns {string} Проверенный lowercase kebab-case ID.
  */
 export function assertRepositoryId(id, label = "repository-id") {
   if (!ID_PATTERN.test(id ?? "")) throw new Error(`${label} должен быть в lowercase kebab-case`);
   return id;
+}
+
+/**
+ * Убирает незначимые завершающие слеши из Git URL перед сравнением.
+ *
+ * @param {string} value Git URL.
+ * @returns {string} Нормализованный URL.
+ */
+function normalizeGitRemote(value) {
+  return value.trim().replace(/\/+$/, "");
 }
 
 /**
@@ -153,6 +222,5 @@ export function assertRepositoryId(id, label = "repository-id") {
  * @returns {boolean}
  */
 export function sameGitRemote(actual, expected) {
-  const normalize = (value) => value.trim().replace(/\/+$/, "");
-  return normalize(actual) === normalize(expected);
+  return normalizeGitRemote(actual) === normalizeGitRemote(expected);
 }

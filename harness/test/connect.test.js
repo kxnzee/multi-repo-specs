@@ -1,3 +1,5 @@
+/** @fileoverview Интеграционные сценарии подключения Store и Code Repositories. */
+
 import assert from "node:assert/strict";
 import fsSync from "node:fs";
 import { promises as fs } from "node:fs";
@@ -6,9 +8,18 @@ import path from "node:path";
 import test from "node:test";
 
 import { connectProject } from "../connect/index.js";
-import { serializeRepositories } from "../config/index.js";
+import { resolveAgentAdapter } from "../config/agents.js";
+import { serializeSddConfig } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
 
+const QWEN_AGENT = resolveAgentAdapter("qwen");
+
+/**
+ * Создаёт удаляемый после теста корень multi-repo workspace.
+ *
+ * @param {import("node:test").TestContext} t Контекст текущего теста.
+ * @returns {Promise<string>} Канонический путь временного каталога.
+ */
 async function temporaryWorkspace(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "multi-repo-sdd-connect-"));
   const canonicalRoot = await fs.realpath(root);
@@ -16,11 +27,25 @@ async function temporaryWorkspace(t) {
   return canonicalRoot;
 }
 
+/**
+ * Настраивает локальную Git identity для тестовых коммитов.
+ *
+ * @param {string} repository Путь тестового Git-репозитория.
+ * @returns {void}
+ */
 function configureGit(repository) {
   runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
   runCommand("git", ["-C", repository, "config", "user.name", "SDD Tests"]);
 }
 
+/**
+ * Создаёт тестовый source-репозиторий и соответствующий bare remote.
+ *
+ * @param {string} root Корень тестового сценария.
+ * @param {string} name Базовое имя репозитория.
+ * @param {Record<string, string>} [files] Начальные файлы source-репозитория.
+ * @returns {Promise<string>} Путь созданного bare remote.
+ */
 async function createBareRemote(root, name, files = {}) {
   const source = path.join(root, `${name}-source`);
   const remote = path.join(root, `${name}.git`);
@@ -37,6 +62,19 @@ async function createBareRemote(root, name, files = {}) {
   return remote;
 }
 
+/**
+ * Собирает центральный Store, Code remote и локальный workspace для connect-тестов.
+ *
+ * @param {import("node:test").TestContext} t Контекст текущего теста.
+ * @param {{pointer?: boolean}} [options] Нужно ли заранее принять project pointer.
+ * @returns {Promise<{
+ *   root: string,
+ *   workspace: string,
+ *   storeRoot: string,
+ *   centralRemote: string,
+ *   codeRemote: string
+ * }>} Пути подготовленного сценария.
+ */
 async function createScenario(t, { pointer = false } = {}) {
   const root = await temporaryWorkspace(t);
   const codeFiles = pointer ? { "openspec/config.yaml": "store: payments-specs\n" } : {};
@@ -46,13 +84,17 @@ async function createScenario(t, { pointer = false } = {}) {
   configureGit(centralSource);
 
   const centralRemote = path.join(root, "payments-specs.git");
-  const sddTemplate = 'version: 1\n\nversions:\n  process: draft\n  openspec: "1.7.0"\n\nrepositories: []\n';
+  const sddTemplate = 'version: 1\n\nversions:\n  process: draft\n  openspec: "1.7.0"\n\nagent: null\n\nrepositories: []\n';
   const centralFiles = {
     ".openspec-store/store.yaml": `version: 1\nid: payments-specs\nremote: ${JSON.stringify(centralRemote)}\n`,
-    "openspec/config.yaml": "schema: multi-repo-sdd\n",
+    "openspec/config.yaml": "schema: spec-driven\n",
     "openspec/specs/.gitkeep": "",
     "openspec/changes/.gitkeep": "",
-    "sdd.yaml": serializeRepositories(sddTemplate, [
+    ".qwen/commands/opsx-explore.md": "---\ndescription: explore\n---\n",
+    ".qwen/commands/sdd-context.md": "---\ndescription: context\n---\n",
+    ".qwen/commands/sdd-apply.md": "---\ndescription: apply\n---\n",
+    ".qwen/commands/sdd-verify.md": "---\ndescription: verify\n---\n",
+    "sdd.yaml": serializeSddConfig(sddTemplate, [
       {
         id: "payments-specs",
         role: "store",
@@ -60,7 +102,7 @@ async function createScenario(t, { pointer = false } = {}) {
         defaultBranch: "main",
       },
       { id: "api", role: "code", url: codeRemote, defaultBranch: "main" },
-    ]),
+    ], QWEN_AGENT),
   };
   for (const [relativePath, contents] of Object.entries(centralFiles)) {
     const target = path.join(centralSource, relativePath);
@@ -78,6 +120,17 @@ async function createScenario(t, { pointer = false } = {}) {
   return { root, workspace, storeRoot, centralRemote, codeRemote };
 }
 
+/**
+ * Создаёт управляемую имитацию OpenSpec Store API для connect-тестов.
+ *
+ * @param {string} storeRoot Ожидаемый путь Store.
+ * @param {Array<{id: string, root: string}>} [initialStores] Начальное состояние registry.
+ * @returns {{
+ *   calls: Array<{args: string[], cwd: string | undefined}>,
+ *   runner: typeof runCommand,
+ *   stores: () => Array<{id: string, root: string}>
+ * }} Тестовый runner и накопленное состояние вызовов.
+ */
 function fakeOpenSpec(storeRoot, initialStores = []) {
   let stores = [...initialStores];
   const calls = [];
@@ -170,6 +223,7 @@ test("connectProject is idempotent for an accepted pointer and existing checkout
   const openSpec = fakeOpenSpec(scenario.storeRoot);
 
   const first = await connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner });
+  runCommand("git", ["-C", path.join(scenario.workspace, "src/api"), "add", "openspec/config.yaml"]);
   const second = await connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner });
 
   assert.equal(first.status, "ready");
@@ -177,6 +231,38 @@ test("connectProject is idempotent for an accepted pointer and existing checkout
   assert.equal(second.status, "ready");
   assert.equal(second.repositories[0].cloned, false);
   assert.equal(second.repositories[0].pointerCreated, false);
+});
+
+test("connectProject keeps an uncommitted generated pointer as needs_setup_pr", async (t) => {
+  const scenario = await createScenario(t);
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+  const first = await connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner });
+  const second = await connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner });
+
+  assert.equal(first.status, "needs_setup_pr");
+  assert.equal(second.status, "needs_setup_pr");
+  assert.equal(second.repositories[0].pointerCreated, false);
+  assert.equal(second.repositories[0].pointerPending, true);
+});
+
+test("connectProject blocks an OpenSpec diagnostic returned in JSON", async (t) => {
+  const scenario = await createScenario(t, { pointer: true });
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const runner = (command, args, options) => {
+    if (command === "openspec" && args[0] === "store" && args[1] === "doctor") {
+      return JSON.stringify({
+        stores: [],
+        status: [{ severity: "error", code: "broken_store", message: "Store повреждён" }],
+      });
+    }
+    return openSpec.runner(command, args, options);
+  };
+
+  await assert.rejects(
+    connectProject({ start: scenario.storeRoot, commandRunner: runner }),
+    /broken_store: Store повреждён/,
+  );
 });
 
 test("connectProject preserves and blocks a dirty existing Code Repository", async (t) => {

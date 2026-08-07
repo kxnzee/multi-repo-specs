@@ -1,10 +1,11 @@
 # Replace the placeholder owners and uncomment the applicable rules.
 # Every unresolved ownership decision belongs in an inline TODO in the matching context file.
+# Replace <agent-commands-directory> with agent.commands_directory from sdd.yaml.
 
 # /openspec/specs/** @spec-owner
 # /openspec/changes/** @spec-owner
 # /.openspec-store/** @spec-owner @technical-owner
-# /openspec/schemas/** @spec-owner @apply-owner
+# /openspec/config.yaml @spec-owner @apply-owner
 # /openspec/context/00-start-here.md @spec-owner
 # /openspec/context/01-product-context.md @change-owner
 # /openspec/context/02-domain-glossary.md @change-owner
@@ -17,7 +18,7 @@
 # /openspec/context/system-map.yaml @technical-owner
 # /openspec/context/ADR/README.md @spec-owner
 # /openspec/context/_raw/README.md @spec-owner
-# /.qwen/commands/sdd-*.md @apply-owner @technical-owner
-# /.qwen/commands/opsx-*.md @apply-owner
-# /.qwen/skills/openspec-*/** @apply-owner
+# /<agent-commands-directory>/sdd-*.md @apply-owner @technical-owner
+# /<agent-commands-directory>/opsx-*.md @apply-owner
+# <provider-specific OpenSpec skills> @apply-owner
 # /sdd.yaml @apply-owner @technical-owner

@@ -20,7 +20,7 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check bin/sdd.js && node --check config/index.js && node --check connect/index.js && node --check explore/index.js && node --check init/index.js && node --check shared/command.js"
+    "check": "node --check bin/sdd.js && node --check config/agents.js && node --check config/index.js && node --check connect/index.js && node --check explore/index.js && node --check init/index.js && node --check shared/command.js && node --check shared/openspec.js"
   },
   "engines": {
     "node": ">=20"
