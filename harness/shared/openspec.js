@@ -1,6 +1,24 @@
 /** @fileoverview Общая структурная проверка машинных JSON-ответов OpenSpec. */
 
 import path from "node:path";
+import {
+  isOpenSpecDiagnostic,
+  isOpenSpecResponse,
+  isOpenSpecRoot,
+} from "./schema.js";
+
+/**
+ * Запускает OpenSpec через переданный runner и разбирает JSON-ответ.
+ *
+ * @param {typeof import("./command.js").runCommand} commandRunner Исполнитель внешних команд.
+ * @param {string[]} args Аргументы OpenSpec.
+ * @param {string} cwd Рабочий каталог.
+ * @returns {import("./types.js").OpenSpecResponse} Проверенный ответ.
+ */
+export function runOpenSpecJson(commandRunner, args, cwd) {
+  const command = `openspec ${args.join(" ")}`;
+  return parseOpenSpecJson(commandRunner("openspec", args, { cwd }), command);
+}
 
 /**
  * Разбирает машинный ответ OpenSpec и не позволяет потерять диагностику,
@@ -8,7 +26,7 @@ import path from "node:path";
  *
  * @param {string} output
  * @param {string} command
- * @returns {Record<string, any>} Проверенный JSON-объект OpenSpec.
+ * @returns {import("./types.js").OpenSpecResponse} Проверенный JSON-объект OpenSpec.
  */
 export function parseOpenSpecJson(output, command) {
   let value;
@@ -17,8 +35,8 @@ export function parseOpenSpecJson(output, command) {
   } catch {
     throw new Error(`${command} вернула невалидный JSON`);
   }
-  if (!value || typeof value !== "object") {
-    throw new Error(`${command} вернула некорректный JSON-объект`);
+  if (!isOpenSpecResponse(value)) {
+    throw new Error(`${command} вернула некорректный OpenSpec JSON response`);
   }
   assertNoOpenSpecErrors(value, command);
   return value;
@@ -50,7 +68,10 @@ export function assertNoOpenSpecErrors(value, command) {
     for (const [key, item] of Object.entries(current)) {
       if (key === "status" && Array.isArray(item)) {
         for (const diagnostic of item) {
-          if (diagnostic?.severity === "error") errors.push(diagnostic);
+          if (!isOpenSpecDiagnostic(diagnostic)) {
+            throw new Error(`${command} вернула некорректную OpenSpec diagnostic`);
+          }
+          if (diagnostic.severity === "error") errors.push(diagnostic);
         }
       } else {
         visit(item);
@@ -69,14 +90,14 @@ export function assertNoOpenSpecErrors(value, command) {
 /**
  * Проверяет, что OpenSpec разрешил ожидаемый Store, а не nearest/default root.
  *
- * @param {Record<string, any>} root Разрешённый OpenSpec root из JSON-ответа.
+ * @param {unknown} root Разрешённый OpenSpec root из JSON-ответа.
  * @param {{path: string, storeId: string, source: string}} expected Ожидаемая identity root.
  * @param {string} command Название команды для диагностического сообщения.
  * @returns {void}
  */
 export function assertOpenSpecRoot(root, expected, command) {
-  if (!root || typeof root !== "object") {
-    throw new Error(`${command} не вернула OpenSpec root`);
+  if (!isOpenSpecRoot(root)) {
+    throw new Error(`${command} не вернула корректный OpenSpec root`);
   }
   if (path.resolve(root.path ?? "") !== path.resolve(expected.path)) {
     throw new Error(`${command} разрешила другой OpenSpec root: ${root.path ?? "не указан"}`);

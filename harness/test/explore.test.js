@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import process from "node:process";
 import test from "node:test";
 
 import { resolveAgentAdapter } from "../config/agents.js";
@@ -138,11 +139,19 @@ async function createScenario(t, { withCode = false, archived = [] } = {}) {
  * Имитирует JSON-команды OpenSpec, используемые предпроверками Explore.
  *
  * @param {string} storeRoot Ожидаемый путь Store.
- * @param {{activeChanges?: string[], declaredSource?: string}} [options] Управляемые ответы API.
+ * @param {{activeChanges?: string[], declaredSource?: string, declaredStoreId?: string}} [options]
+ * Управляемые ответы API.
  * @returns {{calls: Array<{args: string[], cwd: string | undefined}>, runner: typeof runCommand}}
  * Тестовый runner и журнал вызовов.
  */
-function fakeOpenSpec(storeRoot, { activeChanges = [], declaredSource = "declared" } = {}) {
+function fakeOpenSpec(
+  storeRoot,
+  {
+    activeChanges = [],
+    declaredSource = "declared",
+    declaredStoreId = "payments-specs",
+  } = {},
+) {
   const calls = [];
   const runner = (command, args, options = {}) => {
     if (command === "git") return runCommand(command, args, options);
@@ -169,7 +178,7 @@ function fakeOpenSpec(storeRoot, { activeChanges = [], declaredSource = "declare
     const root = {
       path: storeRoot,
       source: explicit ? "store" : declaredSource,
-      store_id: "payments-specs",
+      store_id: explicit ? "payments-specs" : declaredStoreId,
     };
     if (args[0] === "doctor") {
       return JSON.stringify({
@@ -324,6 +333,25 @@ test("prepareExplore uses existing selected checkout at its exact clean revision
   assert.equal(result.repositories[0].revision, runCommand("git", ["-C", scenario.codeRoot, "rev-parse", "HEAD"]));
 });
 
+test("prepareExplore rejects an invalid Git revision", async (t) => {
+  const scenario = await createScenario(t);
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const runner = (command, args, options) => {
+    if (command === "git" && args.join(" ") === "rev-parse HEAD") return "not-a-sha";
+    return openSpec.runner(command, args, options);
+  };
+
+  await assert.rejects(
+    prepareExplore({
+      start: scenario.storeRoot,
+      ticket: "PAY-422",
+      selectRepositories: async () => [],
+      commandRunner: runner,
+    }),
+    /Git вернул некорректную ревизию/,
+  );
+});
+
 test("prepareExplore blocks an active standard Change without state.yaml", async (t) => {
   const scenario = await createScenario(t);
   const openSpec = fakeOpenSpec(scenario.storeRoot, { activeChanges: ["pay-417-existing"] });
@@ -380,6 +408,46 @@ test("prepareExplore blocks a Code Repository that resolves another source", asy
       commandRunner: openSpec.runner,
     }),
     /не разрешил Store через project pointer/,
+  );
+});
+
+test("prepareExplore requires context.root.path from a Code Repository", async (t) => {
+  const scenario = await createScenario(t, { withCode: true });
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const runner = (command, args, options) => {
+    if (
+      command === "openspec" &&
+      args.join(" ") === "context --json" &&
+      options.cwd === scenario.codeRoot
+    ) {
+      return JSON.stringify({ status: [] });
+    }
+    return openSpec.runner(command, args, options);
+  };
+
+  await assert.rejects(
+    prepareExplore({
+      start: scenario.codeRoot,
+      ticket: "PAY-423",
+      selectRepositories: async () => ["api"],
+      commandRunner: runner,
+    }),
+    /OpenSpec context не содержит root\.path/,
+  );
+});
+
+test("prepareExplore blocks a Code Repository that resolves another Store ID", async (t) => {
+  const scenario = await createScenario(t, { withCode: true });
+  const openSpec = fakeOpenSpec(scenario.storeRoot, { declaredStoreId: "other-store" });
+
+  await assert.rejects(
+    prepareExplore({
+      start: scenario.codeRoot,
+      ticket: "PAY-424",
+      selectRepositories: async () => ["api"],
+      commandRunner: openSpec.runner,
+    }),
+    /Store ID other-store, ожидался payments-specs/,
   );
 });
 

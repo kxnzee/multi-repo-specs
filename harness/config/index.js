@@ -2,6 +2,7 @@
 
 import { parse, stringify } from "yaml";
 import { resolveAgentAdapter } from "./agents.js";
+import { assertSddConfigSchema, assertStoreMetadataSchema } from "./schema.js";
 
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ROLES = new Set(["store", "code"]);
@@ -22,7 +23,7 @@ export const OPEN_SPEC_VERSION = "1.7.0";
  *
  * @param {string} source Исходный YAML.
  * @param {string} label Название источника для сообщения об ошибке.
- * @returns {Record<string, any>} Разобранный YAML-объект.
+ * @returns {Record<string, unknown>} Разобранный YAML-объект.
  */
 function parseYaml(source, label) {
   let value;
@@ -96,12 +97,7 @@ function normalizeRepository(value) {
  */
 export function parseSddConfig(source) {
   const value = parseYaml(source, "Некорректный sdd.yaml");
-  if (typeof value.versions?.openspec !== "string") {
-    throw new Error("В sdd.yaml отсутствует versions.openspec");
-  }
-  if (!Array.isArray(value.repositories)) {
-    throw new Error("В sdd.yaml отсутствует список repositories");
-  }
+  assertSddConfigSchema(value);
 
   const agent = resolveAgentAdapter(value.agent?.id);
   if (
@@ -184,6 +180,7 @@ export function assertSupportedOpenSpecVersion(version) {
  */
 export function parseStoreMetadata(source) {
   const value = parseYaml(source, "Некорректная .openspec-store/store.yaml");
+  assertStoreMetadataSchema(value);
   if (value.version !== 1) throw new Error("Store metadata должна иметь version: 1");
   assertRepositoryId(value.id, "Store ID");
   if (value.remote !== undefined && typeof value.remote !== "string") {

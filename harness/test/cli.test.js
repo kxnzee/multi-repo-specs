@@ -1,0 +1,82 @@
+/** @fileoverview Проверка ветвлений парсера аргументов SDD CLI. */
+
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import process from "node:process";
+import test from "node:test";
+import { pathToFileURL } from "node:url";
+import { parseConnectArgs, parseExploreArgs, parseInitArgs } from "../cli/args.js";
+
+test("rejects unsupported Node versions", () => {
+  const entrypoint = pathToFileURL(path.resolve("bin/sdd.js")).href;
+  const script = `
+    Object.defineProperty(process.versions, "node", { value: "18.20.0" });
+    await import(${JSON.stringify(entrypoint)});
+  `;
+  const result = spawnSync(
+    process.execPath,
+    ["--input-type=module", "--eval", script],
+    { cwd: path.resolve("."), encoding: "utf8" },
+  );
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Node\.js 20/);
+});
+
+test("parseInitArgs accepts positional and inline options", () => {
+  assert.deepEqual(
+    parseInitArgs([
+      "project",
+      "--store=specs",
+      "--agent=qwen",
+      "--repo=api=https://example.test/api.git#main",
+    ]),
+    {
+      help: false,
+      target: "project",
+      storeId: "specs",
+      agentId: "qwen",
+      repositories: [{
+        id: "api",
+        role: "code",
+        url: "https://example.test/api.git",
+        defaultBranch: "main",
+      }],
+    },
+  );
+  assert.equal(parseInitArgs(["--help"]).help, true);
+});
+
+test("parseInitArgs accepts split options and rejects ambiguous input", () => {
+  assert.equal(parseInitArgs(["--store", "specs", "--agent", "qwen"]).storeId, "specs");
+  assert.throws(() => parseInitArgs(["--agent", "qwen"]), /требуется --store/);
+  assert.throws(() => parseInitArgs(["--store", "specs"]), /требуется --agent/);
+  assert.throws(() => parseInitArgs(["--store", "specs", "--store=other", "--agent=qwen"]), /только один раз/);
+  assert.throws(() => parseInitArgs(["--store=specs", "--agent=qwen", "one", "two"]), /Неожиданный аргумент/);
+  assert.throws(() => parseInitArgs(["--store=specs", "--agent=qwen", "--unknown"]), /Неизвестный параметр/);
+});
+
+test("parseConnectArgs covers help, split and inline workspace", () => {
+  assert.deepEqual(parseConnectArgs(["--help"]), { help: true });
+  assert.deepEqual(parseConnectArgs(["--workspace", "/tmp/work"]), { help: false, workspace: "/tmp/work" });
+  assert.deepEqual(parseConnectArgs(["--workspace=/tmp/work"]), { help: false, workspace: "/tmp/work" });
+  assert.throws(() => parseConnectArgs(["--workspace=/a", "--workspace=/b"]), /только один раз/);
+  assert.throws(() => parseConnectArgs(["unexpected"]), /Неизвестный параметр connect/);
+});
+
+test("parseExploreArgs covers ticket and workspace variants", () => {
+  assert.deepEqual(parseExploreArgs(["--help"]), { help: true });
+  assert.deepEqual(
+    parseExploreArgs(["--ticket", "PAY-412", "--workspace", "/tmp/work"]),
+    { help: false, ticket: "PAY-412", workspace: "/tmp/work" },
+  );
+  assert.deepEqual(
+    parseExploreArgs(["--ticket=PAY-412", "--workspace=/tmp/work"]),
+    { help: false, ticket: "PAY-412", workspace: "/tmp/work" },
+  );
+  assert.throws(() => parseExploreArgs([]), /требуется --ticket/);
+  assert.throws(() => parseExploreArgs(["--ticket=pay-412"]), /Ticket key/);
+  assert.throws(() => parseExploreArgs(["--ticket=PAY-412", "--ticket=PAY-413"]), /только один раз/);
+  assert.throws(() => parseExploreArgs(["--ticket=PAY-412", "--workspace=/a", "--workspace=/b"]), /только один раз/);
+  assert.throws(() => parseExploreArgs(["--ticket=PAY-412", "unexpected"]), /Неизвестный параметр explore/);
+});

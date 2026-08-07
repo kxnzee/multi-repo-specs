@@ -246,6 +246,20 @@ test("connectProject keeps an uncommitted generated pointer as needs_setup_pr", 
   assert.equal(second.repositories[0].pointerPending, true);
 });
 
+test("connectProject rejects an invalid Git revision", async (t) => {
+  const scenario = await createScenario(t, { pointer: true });
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const runner = (command, args, options) => {
+    if (command === "git" && args.join(" ") === "rev-parse HEAD") return "not-a-sha";
+    return openSpec.runner(command, args, options);
+  };
+
+  await assert.rejects(
+    connectProject({ start: scenario.storeRoot, commandRunner: runner }),
+    /Git вернул некорректную ревизию/,
+  );
+});
+
 test("connectProject blocks an OpenSpec diagnostic returned in JSON", async (t) => {
   const scenario = await createScenario(t, { pointer: true });
   const openSpec = fakeOpenSpec(scenario.storeRoot);

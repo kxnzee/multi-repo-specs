@@ -7,6 +7,7 @@ const COMMAND_ENV = Object.freeze({
   GIT_OPTIONAL_LOCKS: "0",
   GIT_TERMINAL_PROMPT: "0",
 });
+export const DEFAULT_TIMEOUT = 120_000;
 
 /**
  * Скрывает переданные секретные значения в диагностическом тексте команды.
@@ -34,15 +35,27 @@ function redact(value, sensitiveValues) {
  * @param {object} [options]
  * @param {string} [options.cwd]
  * @param {string[]} [options.sensitiveValues]
+ * @param {number} [options.timeout] Максимальное время выполнения в миллисекундах.
  * @returns {string} stdout без пробелов по краям.
  */
-export function runCommand(command, args, { cwd, sensitiveValues = [] } = {}) {
+export function runCommand(
+  command,
+  args,
+  { cwd, sensitiveValues = [], timeout = DEFAULT_TIMEOUT } = {},
+) {
+  if (!Number.isFinite(timeout) || timeout <= 0) {
+    throw new Error("Timeout внешней команды должен быть положительным числом");
+  }
   const result = crossSpawn.sync(command, args, {
     cwd,
     encoding: "utf8",
     env: { ...process.env, ...COMMAND_ENV },
+    timeout,
   });
 
+  if (result.signal) {
+    throw new Error(`${command} terminated by ${result.signal}`);
+  }
   if (result.error) {
     throw new Error(`Не удалось запустить ${command}: ${result.error.message}`);
   }
