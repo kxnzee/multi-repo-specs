@@ -16,6 +16,14 @@ owner: Technical Owner
 expected_source: Код, контракты, deployment configuration и принятые ADR
 -->
 
+## Технические ограничения
+
+<!-- TODO
+question: Какие подтверждённые технические ограничения влияют на выбор решений?
+owner: Technical Owner
+expected_source: Код, deployment configuration, принятые ADR и подтверждение Technical Owner
+-->
+
 ## Интеграционные стили
 
 <!-- TODO

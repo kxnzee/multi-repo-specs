@@ -6,7 +6,7 @@
 
 <!-- TODO
 question: Какие категории данных обрабатываются и как они классифицируются?
-owner: Ответственный по ИБ
+owner: Security Owner
 expected_source: Data inventory и политики ИБ
 -->
 
@@ -14,7 +14,7 @@ expected_source: Data inventory и политики ИБ
 
 <!-- TODO
 question: Какие правила доступа, журналирования и аудита обязательны?
-owner: Ответственный по ИБ
+owner: Security Owner
 expected_source: Security policies и конфигурация
 -->
 
@@ -22,7 +22,7 @@ expected_source: Security policies и конфигурация
 
 <!-- TODO
 question: Какие регуляторные и privacy-ограничения применимы?
-owner: Ответственный по ИБ
+owner: Security Owner
 expected_source: Утверждённые compliance-требования
 -->
 
@@ -30,14 +30,14 @@ expected_source: Утверждённые compliance-требования
 
 <!-- TODO
 question: Какие данные и действия запрещено сохранять, логировать, передавать или возвращать наружу?
-owner: Ответственный по ИБ
-expected_source: Security policies, data handling policy и подтверждение ответственного по ИБ
+owner: Security Owner
+expected_source: Security policies, data handling policy и подтверждение Security Owner
 -->
 
 ## Зоны без автономии агента
 
 <!-- TODO
 question: Какие компоненты, данные и операции агент может изменять только после явного человеческого решения или ревью?
-owner: Ответственный по ИБ
-expected_source: Security policies, CODEOWNERS и подтверждение ответственного по ИБ
+owner: Security Owner
+expected_source: Security policies, CODEOWNERS и подтверждение Security Owner
 -->

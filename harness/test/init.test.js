@@ -214,8 +214,30 @@ test("initProject creates Store, official core pack and the complete skeleton", 
   assert.match(contextCommand, /Не придумывай за пользователя/);
   assert.match(contextCommand, /не читались и не изменялись Code Repositories/);
   assert.match(contextCommand, /Статус описывает только соответствие центрального context pack/);
+  assert.match(contextCommand, /`system-map\.yaml` прочитай до обработки `_raw\/` и интервью/);
+  assert.match(contextCommand, /активное, не закомментированное правило CODEOWNERS/);
   assert.doesNotMatch(contextCommand, /получи временную Git-копию/);
   assert.doesNotMatch(contextCommand, /Сверь контекст со свежим состоянием систем/);
+
+  const [startHere, productContext, architectureContext, securityContext, releaseContext, codeOwners] =
+    await Promise.all([
+      fs.readFile(path.join(target, "openspec/context/00-start-here.md"), "utf8"),
+      fs.readFile(path.join(target, "openspec/context/01-product-context.md"), "utf8"),
+      fs.readFile(path.join(target, "openspec/context/03-architecture.md"), "utf8"),
+      fs.readFile(path.join(target, "openspec/context/05-security-and-compliance.md"), "utf8"),
+      fs.readFile(path.join(target, "openspec/context/08-release-process.md"), "utf8"),
+      fs.readFile(path.join(target, "CODEOWNERS"), "utf8"),
+    ]);
+  assert.match(startHere, /Explore, Proposal, Delta Specs.*`03-architecture\.md`/);
+  assert.match(startHere, /Explore, Proposal, Delta Specs.*`system-map\.yaml`/);
+  assert.doesNotMatch(productContext, /технические ограничения/iu);
+  assert.match(architectureContext, /## Технические ограничения/);
+  assert.match(securityContext, /owner: Security Owner/);
+  assert.doesNotMatch(securityContext, /Ответственный по ИБ/);
+  assert.match(releaseContext, /owner: Technical Owner/);
+  assert.doesNotMatch(releaseContext, /owner: Release Owner/);
+  assert.match(codeOwners, /# \/openspec\/context\/08-release-process\.md @technical-owner/);
+  assert.doesNotMatch(codeOwners, /@release-owner/);
 });
 
 test("initProject persists GigaCode through the Qwen OpenSpec adapter", async (t) => {

@@ -14,7 +14,7 @@
 
 | Артефакт | Обязательный контекст |
 |---|---|
-| Research, Proposal, Delta Specs | `01-product-context.md`, `02-domain-glossary.md`, `04-domain-model.md`, `06-cross-system-invariants.md`, подходящие Master Specs |
+| Explore, Proposal, Delta Specs | `01-product-context.md`, `02-domain-glossary.md`, `03-architecture.md`, `04-domain-model.md`, `05-security-and-compliance.md`, `06-cross-system-invariants.md`, `system-map.yaml`, релевантные ADR и подходящие Master Specs |
 | System Impact, Design | `03-architecture.md`, `05-security-and-compliance.md`, `06-cross-system-invariants.md`, `system-map.yaml`, релевантные ADR |
 | Tasks, Verification | `07-quality-gates.md`, принятые артефакты Change |
 | Delivery | `05-security-and-compliance.md`, `08-release-process.md`, принятый Design |

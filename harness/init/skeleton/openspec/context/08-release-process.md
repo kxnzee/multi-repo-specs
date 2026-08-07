@@ -4,7 +4,7 @@
 
 <!-- TODO
 question: Какие среды существуют и как изменение продвигается между ними?
-owner: Release Owner
+owner: Technical Owner
 expected_source: Deployment pipelines и release policy
 -->
 
@@ -12,7 +12,7 @@ expected_source: Deployment pipelines и release policy
 
 <!-- TODO
 question: Как выполняются миграции и управление release flags?
-owner: Release Owner
+owner: Technical Owner
 expected_source: Runbooks и deployment configuration
 -->
 
@@ -20,6 +20,6 @@ expected_source: Runbooks и deployment configuration
 
 <!-- TODO
 question: Какие сигналы останавливают поставку и как выполняется откат?
-owner: Release Owner
+owner: Technical Owner
 expected_source: Monitoring, runbooks и подтверждение владельца
 -->
