@@ -1,6 +1,7 @@
 /** @fileoverview Разбор аргументов команд SDD CLI. */
 
 import { supportedAgentIds } from "../config/agents.js";
+import { validateChangeName } from "../change/index.js";
 import { validateTicket } from "../explore/index.js";
 import { parseRepository } from "../init/index.js";
 
@@ -8,11 +9,13 @@ export const HELP = `Использование:
   sdd init [path] --store <store-id> --agent <agent-id> [--repo <id=url#branch>]...
   sdd connect [--workspace <path>]
   sdd explore --ticket <ticket-id> [--workspace <path>]
+  sdd change --ticket <ticket-id> --name <short-name>
 
 Команды:
   init    Один раз создать OpenSpec Store и каркас центрального проекта
   connect Подключить рабочую машину и загрузить Code Repositories
   explore Проверить workspace и подготовить единый вызов /opsx-explore
+  change  Создать или безопасно продолжить OpenSpec Change в planning-ветке
 
 Параметры:
   --store <id>    Store ID и repository-id центрального репозитория
@@ -21,6 +24,7 @@ export const HELP = `Использование:
                   Пример: --repo ui=https://example.test/ui.git#main
   --workspace     Явно задать корень workspace для sdd connect или sdd explore
   --ticket <key>  Jira ticket key в формате PAY-412
+  --name <value>  Короткое имя Change в lowercase kebab-case
   -h, --help      Показать эту справку
 `;
 
@@ -132,4 +136,39 @@ export function parseExploreArgs(args) {
   }
   if (!ticket) throw new Error("для sdd explore требуется --ticket <ticket-id>");
   return { help: false, ticket, workspace };
+}
+
+/**
+ * Разбирает ticket и короткое имя для `sdd change`.
+ *
+ * @param {string[]} args Аргументы после имени команды `change`.
+ * @returns {{help: boolean, ticket?: string, name?: string}} Нормализованные параметры запуска.
+ */
+export function parseChangeArgs(args) {
+  let ticket;
+  let name;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "-h" || arg === "--help") return { help: true };
+    if (arg === "--ticket" || arg.startsWith("--ticket=")) {
+      const value = arg === "--ticket" ? args[index + 1] : arg.slice("--ticket=".length);
+      if (!value) throw new Error("для --ticket требуется Jira key");
+      if (ticket) throw new Error("--ticket можно указать только один раз");
+      ticket = validateTicket(value);
+      if (arg === "--ticket") index += 1;
+      continue;
+    }
+    if (arg === "--name" || arg.startsWith("--name=")) {
+      const value = arg === "--name" ? args[index + 1] : arg.slice("--name=".length);
+      if (!value) throw new Error("для --name требуется короткое имя Change");
+      if (name) throw new Error("--name можно указать только один раз");
+      name = validateChangeName(value);
+      if (arg === "--name") index += 1;
+      continue;
+    }
+    throw new Error(`Неизвестный параметр change: ${arg}`);
+  }
+  if (!ticket) throw new Error("для sdd change требуется --ticket <ticket-id>");
+  if (!name) throw new Error("для sdd change требуется --name <short-name>");
+  return { help: false, ticket, name };
 }

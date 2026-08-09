@@ -114,4 +114,22 @@
  * @property {Array<{id: string, path: string, branch: string, revision: string}>} repositories
  */
 
+/**
+ * Результат создания или безопасного продолжения каркаса Change.
+ *
+ * @typedef {object} ChangePreparation
+ * @property {"created" | "existing"} changeStatus
+ * @property {string} storeId
+ * @property {string} storeRoot
+ * @property {string} ticket
+ * @property {string} changeId
+ * @property {string} branch
+ * @property {string} baseRevision
+ * @property {string} changePath
+ * @property {"spec-driven"} schema
+ * @property {"missing" | "present"} proposalStatus
+ * @property {"create_proposal" | "review_proposal"} nextAction
+ * @property {OpenSpecResponse} openSpecStatus
+ */
+
 export {};

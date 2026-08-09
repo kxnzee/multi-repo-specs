@@ -4,6 +4,7 @@
 
 import process from "node:process";
 import { HELP } from "../cli/args.js";
+import { runChange } from "../cli/change.js";
 import { runConnect } from "../cli/connect.js";
 import { runExplore } from "../cli/explore.js";
 import { runInit } from "../cli/init.js";
@@ -36,6 +37,7 @@ async function main() {
     return;
   }
   if (command === "explore") return runExplore(args);
+  if (command === "change") return runChange(args);
   if (command === "connect") return runConnect(args);
   if (command === "init") return runInit(args);
   throw new Error(`Неизвестная команда: ${command}\n\n${HELP}`);

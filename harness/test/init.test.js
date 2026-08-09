@@ -168,6 +168,7 @@ test("initProject creates Store, official core pack and the complete skeleton", 
   const expectedFiles = [
     ".openspec-store/store.yaml",
     ".qwen/commands/opsx-explore.md",
+    ".qwen/commands/sdd-change.md",
     ".qwen/commands/sdd-context.md",
     ".qwen/skills/openspec-explore/SKILL.md",
     "openspec/config.yaml",
@@ -264,6 +265,10 @@ test("initProject persists GigaCode through the Qwen OpenSpec adapter", async (t
   assert.deepEqual(config.agent, resolveAgentAdapter("gigacode"));
   assert.equal(
     (await fs.stat(path.join(target, ".gigacode", "commands", "sdd-context.md"))).isFile(),
+    true,
+  );
+  assert.equal(
+    (await fs.stat(path.join(target, ".gigacode", "commands", "sdd-change.md"))).isFile(),
     true,
   );
   const gigaContextCommand = await fs.readFile(

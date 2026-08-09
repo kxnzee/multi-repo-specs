@@ -53,3 +53,16 @@ test("сформированные команды SDD требуют валид�
   assert.match(verify, /не принимай финальное решение `Verified` от имени QA/);
   assert.doesNotMatch(verify, /verification\.md|delivery\.md/);
 });
+
+test("sdd-change создаёт только Change и Proposal из текущего Explore", async () => {
+  const command = await read("init/commands/sdd-change.md");
+
+  assert.match(command, /sdd change --ticket <ticket-id> --name <short-name>/);
+  assert.match(command, /openspec instructions proposal/);
+  assert.match(command, /полного результата.*повторить `sdd explore`/s);
+  assert.match(command, /proposal_status: needs_confirmation/);
+  assert.match(command, /step_status: proposal_accepted/);
+  assert.match(command, /не перечитывай Code Repositories/i);
+  assert.match(command, /`\/opsx-propose` не вызывай/);
+  assert.doesNotMatch(command, /\/opsx-propose` не вызывай[\s\S]*\/opsx-propose` не вызывай/);
+});
