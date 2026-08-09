@@ -93,8 +93,8 @@
 ## BL-004 — Полнота проверки agent pack в `sdd connect`
 
 - **Приоритет:** P2
-- **Статус:** `ready`
-- **Затронутые шаги:** 00, 02
+- **Статус:** `done`
+- **Затронутые шаги:** 00, 02, 03
 
 ### Проблема
 
@@ -106,10 +106,14 @@
 
 ### Критерии закрытия
 
-- `sdd connect` проверяет как минимум `opsx-explore.md`, `sdd-context.md` и `sdd-change.md`;
+- `sdd connect` проверяет как минимум `opsx-explore.md`, `opsx-continue.md`, `sdd-context.md` и `sdd-change.md`;
 - отсутствующая команда блокирует `ready` с точным путём и инструкцией восстановления;
 - проверки одинаково работают для Qwen и GigaCode adapters;
 - тесты покрывают отсутствие каждой обязательной команды.
+
+### Решение
+
+`sdd connect` требует `opsx-explore.md`, `opsx-continue.md`, `sdd-context.md` и `sdd-change.md` как обычные файлы внутри настроенного `commands_directory`. Новая инициализация устанавливает официальный expanded agent pack OpenSpec; отсутствие любой обязательной команды блокирует `ready` до изменения registry или workspace.
 
 ## BL-005 — Роль Spec Owner в гейте шага 02
 

@@ -18,6 +18,17 @@ test("runCommand includes stderr from a failed process", () => {
   );
 });
 
+test("runCommand passes an isolated environment override", () => {
+  assert.equal(
+    runCommand(
+      process.execPath,
+      ["-e", "process.stdout.write(process.env.SDD_TEST_ENVIRONMENT ?? '')"],
+      { environment: { SDD_TEST_ENVIRONMENT: "expanded" } },
+    ),
+    "expanded",
+  );
+});
+
 test("runCommand redacts sensitive values from invocation and stderr", () => {
   const secret = "https://user:pass@example.test/repository.git";
   assert.throws(

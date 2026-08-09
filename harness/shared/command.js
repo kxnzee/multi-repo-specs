@@ -34,6 +34,7 @@ function redact(value, sensitiveValues) {
  * @param {string[]} args
  * @param {object} [options]
  * @param {string} [options.cwd]
+ * @param {Record<string, string>} [options.environment] Дополнительное окружение процесса.
  * @param {string[]} [options.sensitiveValues]
  * @param {number} [options.timeout] Максимальное время выполнения в миллисекундах.
  * @returns {string} stdout без пробелов по краям.
@@ -41,7 +42,7 @@ function redact(value, sensitiveValues) {
 export function runCommand(
   command,
   args,
-  { cwd, sensitiveValues = [], timeout = DEFAULT_TIMEOUT } = {},
+  { cwd, environment = {}, sensitiveValues = [], timeout = DEFAULT_TIMEOUT } = {},
 ) {
   if (!Number.isFinite(timeout) || timeout <= 0) {
     throw new Error("Timeout внешней команды должен быть положительным числом");
@@ -49,7 +50,7 @@ export function runCommand(
   const result = crossSpawn.sync(command, args, {
     cwd,
     encoding: "utf8",
-    env: { ...process.env, ...COMMAND_ENV },
+    env: { ...process.env, ...environment, ...COMMAND_ENV },
     timeout,
   });
 

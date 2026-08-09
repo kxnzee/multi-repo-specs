@@ -67,12 +67,36 @@ function fakeOpenSpec(projectRoot) {
       });
     }
     if (args[0] === "init") {
+      assert.equal(args[args.indexOf("--profile") + 1], "custom");
+      const profileRoot = options.environment?.XDG_CONFIG_HOME;
+      assert.equal(typeof profileRoot, "string");
+      const profile = JSON.parse(
+        fsSync.readFileSync(path.join(profileRoot, "openspec", "config.json"), "utf8"),
+      );
+      assert.equal(profile.profile, "custom");
+      assert.equal(profile.delivery, "both");
+      assert.deepEqual(profile.workflows, [
+        "propose",
+        "explore",
+        "new",
+        "continue",
+        "apply",
+        "update",
+        "ff",
+        "sync",
+        "archive",
+        "bulk-archive",
+        "verify",
+        "onboard",
+      ]);
       const agent = resolveAgentAdapter(args[args.indexOf("--tools") + 1]);
       fsSync.mkdirSync(path.join(projectRoot, agent.commandsDirectory), { recursive: true });
-      fsSync.writeFileSync(
-        path.join(projectRoot, agent.commandsDirectory, "opsx-explore.md"),
-        "original OpenSpec action\n",
-      );
+      for (const action of ["explore", "continue"]) {
+        fsSync.writeFileSync(
+          path.join(projectRoot, agent.commandsDirectory, `opsx-${action}.md`),
+          "original OpenSpec action\n",
+        );
+      }
       if (agent.id === "qwen") {
         fsSync.mkdirSync(path.join(projectRoot, ".qwen", "skills", "openspec-explore"), {
           recursive: true,
@@ -138,7 +162,7 @@ test("parseRepository rejects ambiguous repository input", () => {
   assert.throws(() => parseRepository("ui=https://example.test/ui.git"), /Ожидается <id=url#branch>/);
 });
 
-test("initProject creates Store, official core pack and the complete skeleton", async (t) => {
+test("initProject creates Store, official expanded pack and the complete skeleton", async (t) => {
   const target = await temporaryProject(t);
   const openSpec = fakeOpenSpec(target);
   const result = await initProject({
@@ -161,12 +185,13 @@ test("initProject creates Store, official core pack and the complete skeleton", 
   );
   assert.ok(
     openSpec.calls.some(
-      (args) => args[0] === "init" && args.includes("qwen") && args.includes("core"),
+      (args) => args[0] === "init" && args.includes("qwen") && args.includes("custom"),
     ),
   );
 
   const expectedFiles = [
     ".openspec-store/store.yaml",
+    ".qwen/commands/opsx-continue.md",
     ".qwen/commands/opsx-explore.md",
     ".qwen/commands/sdd-change.md",
     ".qwen/commands/sdd-context.md",

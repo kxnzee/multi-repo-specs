@@ -1,6 +1,7 @@
 /** @fileoverview Сборка и установка центрального SDD/OpenSpec skeleton. */
 
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,6 +20,20 @@ import { inspectGit } from "./validation.js";
 
 const MODULE_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_SUFFIX = ".template";
+const EXPANDED_WORKFLOWS = Object.freeze([
+  "propose",
+  "explore",
+  "new",
+  "continue",
+  "apply",
+  "update",
+  "ff",
+  "sync",
+  "archive",
+  "bulk-archive",
+  "verify",
+  "onboard",
+]);
 
 const PATHS = Object.freeze({
   skeleton: path.join(MODULE_ROOT, "skeleton"),
@@ -90,19 +105,35 @@ function bundleTarget(relativePath) {
 }
 
 /**
- * Устанавливает официальный OpenSpec pack профиля core в центральный проект.
+ * Устанавливает официальный expanded agent pack без изменения глобального профиля пользователя.
  *
  * @param {string} projectRoot Абсолютный путь центрального репозитория.
  * @param {string} agentAdapter ID официального OpenSpec adapter.
  * @param {typeof runCommand} commandRunner Исполнитель внешних команд.
- * @returns {void}
+ * @returns {Promise<void>}
  */
-function installOpenSpec(projectRoot, agentAdapter, commandRunner) {
-  commandRunner(
-    "openspec",
-    ["init", projectRoot, "--tools", agentAdapter, "--profile", "core", "--no-animation"],
-    { cwd: projectRoot },
-  );
+async function installOpenSpec(projectRoot, agentAdapter, commandRunner) {
+  const configRoot = await fs.mkdtemp(path.join(os.tmpdir(), "multi-repo-sdd-openspec-profile-"));
+  const openSpecConfigRoot = path.join(configRoot, "openspec");
+  try {
+    await fs.mkdir(openSpecConfigRoot, { recursive: true });
+    await fs.writeFile(
+      path.join(openSpecConfigRoot, "config.json"),
+      `${JSON.stringify({
+        profile: "custom",
+        delivery: "both",
+        workflows: EXPANDED_WORKFLOWS,
+      }, null, 2)}\n`,
+      "utf8",
+    );
+    commandRunner(
+      "openspec",
+      ["init", projectRoot, "--tools", agentAdapter, "--profile", "custom", "--no-animation"],
+      { cwd: projectRoot, environment: { XDG_CONFIG_HOME: configRoot } },
+    );
+  } finally {
+    await fs.rm(configRoot, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -357,9 +388,9 @@ export async function initProject({
   const hasProjectFiles = (await fs.readdir(projectRoot)).some((entry) => entry !== ".git");
   // Для существующего проекта OpenSpec root нужен до Store setup; для пустого
   // репозитория Store setup сначала создаёт root, который затем принимает init.
-  if (hasProjectFiles) installOpenSpec(projectRoot, agent.openSpecId, commandRunner);
+  if (hasProjectFiles) await installOpenSpec(projectRoot, agent.openSpecId, commandRunner);
   setupStore(projectRoot, storeId, git.remote, commandRunner);
-  if (!hasProjectFiles) installOpenSpec(projectRoot, agent.openSpecId, commandRunner);
+  if (!hasProjectFiles) await installOpenSpec(projectRoot, agent.openSpecId, commandRunner);
   await adaptGeneratedAgentPack(projectRoot, agent);
 
   const installed = await installSkeleton({

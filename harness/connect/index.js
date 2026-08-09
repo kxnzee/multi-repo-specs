@@ -14,7 +14,12 @@ import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
 import { connectRepository } from "./repository.js";
 import { pathState, resolveWorkspace } from "./workspace.js";
 
-const REQUIRED_AGENT_COMMANDS = Object.freeze(["opsx-explore.md", "sdd-context.md"]);
+const REQUIRED_AGENT_COMMANDS = Object.freeze([
+  "opsx-explore.md",
+  "opsx-continue.md",
+  "sdd-context.md",
+  "sdd-change.md",
+]);
 const PATHS = Object.freeze({
   metadata: path.join(".openspec-store", "store.yaml"),
   sddConfig: "sdd.yaml",

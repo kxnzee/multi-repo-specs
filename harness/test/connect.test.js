@@ -13,6 +13,7 @@ import { serializeSddConfig } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
 
 const QWEN_AGENT = resolveAgentAdapter("qwen");
+const GIGACODE_AGENT = resolveAgentAdapter("gigacode");
 
 /**
  * Создаёт удаляемый после теста корень multi-repo workspace.
@@ -66,7 +67,8 @@ async function createBareRemote(root, name, files = {}) {
  * Собирает центральный Store, Code remote и локальный workspace для connect-тестов.
  *
  * @param {import("node:test").TestContext} t Контекст текущего теста.
- * @param {{pointer?: boolean}} [options] Нужно ли заранее принять project pointer.
+ * @param {{pointer?: boolean, agent?: typeof QWEN_AGENT}} [options]
+ * Нужно ли заранее принять project pointer и какой adapter записать в Store.
  * @returns {Promise<{
  *   root: string,
  *   workspace: string,
@@ -75,7 +77,7 @@ async function createBareRemote(root, name, files = {}) {
  *   codeRemote: string
  * }>} Пути подготовленного сценария.
  */
-async function createScenario(t, { pointer = false } = {}) {
+async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
   const root = await temporaryWorkspace(t);
   const codeFiles = pointer ? { "openspec/config.yaml": "store: payments-specs\n" } : {};
   const codeRemote = await createBareRemote(root, "api", codeFiles);
@@ -90,10 +92,12 @@ async function createScenario(t, { pointer = false } = {}) {
     "openspec/config.yaml": "schema: spec-driven\n",
     "openspec/specs/.gitkeep": "",
     "openspec/changes/.gitkeep": "",
-    ".qwen/commands/opsx-explore.md": "---\ndescription: explore\n---\n",
-    ".qwen/commands/sdd-context.md": "---\ndescription: context\n---\n",
-    ".qwen/commands/sdd-apply.md": "---\ndescription: apply\n---\n",
-    ".qwen/commands/sdd-verify.md": "---\ndescription: verify\n---\n",
+    [path.join(agent.commandsDirectory, "opsx-continue.md")]: "---\ndescription: continue\n---\n",
+    [path.join(agent.commandsDirectory, "opsx-explore.md")]: "---\ndescription: explore\n---\n",
+    [path.join(agent.commandsDirectory, "sdd-change.md")]: "---\ndescription: change\n---\n",
+    [path.join(agent.commandsDirectory, "sdd-context.md")]: "---\ndescription: context\n---\n",
+    [path.join(agent.commandsDirectory, "sdd-apply.md")]: "---\ndescription: apply\n---\n",
+    [path.join(agent.commandsDirectory, "sdd-verify.md")]: "---\ndescription: verify\n---\n",
     "sdd.yaml": serializeSddConfig(sddTemplate, [
       {
         id: "payments-specs",
@@ -102,7 +106,7 @@ async function createScenario(t, { pointer = false } = {}) {
         defaultBranch: "main",
       },
       { id: "api", role: "code", url: codeRemote, defaultBranch: "main" },
-    ], QWEN_AGENT),
+    ], agent),
   };
   for (const [relativePath, contents] of Object.entries(centralFiles)) {
     const target = path.join(centralSource, relativePath);
@@ -232,6 +236,32 @@ test("connectProject is idempotent for an accepted pointer and existing checkout
   assert.equal(second.repositories[0].cloned, false);
   assert.equal(second.repositories[0].pointerCreated, false);
 });
+
+for (const agent of [QWEN_AGENT, GIGACODE_AGENT]) {
+  for (const requiredCommand of [
+    "opsx-explore.md",
+    "opsx-continue.md",
+    "sdd-context.md",
+    "sdd-change.md",
+  ]) {
+    test(`connectProject requires ${requiredCommand} for ${agent.id}`, async (t) => {
+      const scenario = await createScenario(t, { pointer: true, agent });
+      const missing = path.join(
+        scenario.storeRoot,
+        agent.commandsDirectory,
+        requiredCommand,
+      );
+      await fs.rm(missing);
+      const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+      await assert.rejects(
+        connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner }),
+        new RegExp(`Отсутствует обычный файл .*${requiredCommand.replace(".", "\\.")}`),
+      );
+      assert.deepEqual(openSpec.calls.map(({ args }) => args), [["--version"]]);
+    });
+  }
+}
 
 test("connectProject keeps an uncommitted generated pointer as needs_setup_pr", async (t) => {
   const scenario = await createScenario(t);
