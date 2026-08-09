@@ -11,6 +11,7 @@ import {
   parseConnectArgs,
   parseExploreArgs,
   parseInitArgs,
+  parseLoadArgs,
 } from "../cli/args.js";
 
 test("rejects unsupported Node versions", () => {
@@ -107,5 +108,63 @@ test("parseChangeArgs requires a canonical ticket and short name", () => {
   assert.throws(
     () => parseChangeArgs(["--ticket=PAY-412", "--name=one", "unexpected"]),
     /Неизвестный параметр change/,
+  );
+});
+
+test("parseLoadArgs requires exact baseline and explicit unique Work Packages", () => {
+  const baseline = "0123456789abcdef0123456789abcdef01234567";
+  assert.deepEqual(parseLoadArgs(["--help"]), { help: true });
+  assert.deepEqual(
+    parseLoadArgs([
+      "--store=payments-specs",
+      "--repo",
+      "payments-api",
+      "--change=pay-412-payment-status",
+      `--baseline=${baseline}`,
+      "--work-package=1",
+      "--work-package",
+      "task-a",
+      "--json",
+    ]),
+    {
+      help: false,
+      storeId: "payments-specs",
+      repositoryId: "payments-api",
+      change: "pay-412-payment-status",
+      baseline,
+      workPackages: ["1", "task-a"],
+      json: true,
+    },
+  );
+  assert.throws(() => parseLoadArgs([]), /требуется --store/);
+  assert.throws(
+    () => parseLoadArgs([
+      "--store=payments-specs", "--repo=payments-api", "--change=x", `--baseline=${baseline}`,
+    ]),
+    /хотя бы один --work-package/,
+  );
+  assert.throws(
+    () => parseLoadArgs([
+      "--store=payments-specs", "--repo=payments-api", "--change=x", "--baseline=HEAD", "--work-package=1",
+    ]),
+    /40-символьной SHA/,
+  );
+  assert.throws(
+    () => parseLoadArgs([
+      "--change=x",
+      "--store=payments-specs",
+      "--repo=payments-api",
+      `--baseline=${baseline}`,
+      "--work-package=1",
+      "--work-package=1",
+    ]),
+    /передан дважды/,
+  );
+  assert.throws(
+    () => parseLoadArgs([
+      "--store=payments-specs", "--repo=payments-api", "--change=x", `--baseline=${baseline}`,
+      "--work-package", "--json",
+    ]),
+    /требуется task.id/,
   );
 });

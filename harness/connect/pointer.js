@@ -7,6 +7,26 @@ import { pathState } from "./workspace.js";
 const POINTER_PATH = path.join("openspec", "config.yaml");
 
 /**
+ * Читает строгий config-only pointer Code Repository.
+ *
+ * @param {string} repositoryRoot Абсолютный путь Code Repository.
+ * @returns {Promise<string>} Store ID из pointer.
+ */
+export async function readPointer(repositoryRoot) {
+  const pointerPath = path.join(repositoryRoot, POINTER_PATH);
+  const pointerStat = await pathState(pointerPath);
+  if (!pointerStat?.isFile() || pointerStat.isSymbolicLink()) {
+    throw new Error(`${POINTER_PATH} должна быть обычным файлом`);
+  }
+  const source = (await fs.readFile(pointerPath, "utf8")).replaceAll("\r\n", "\n");
+  const match = /^store: ([a-z0-9]+(?:-[a-z0-9]+)*)\n$/.exec(source);
+  if (!match) {
+    throw new Error(`${POINTER_PATH} должна содержать только 'store: <store-id>'`);
+  }
+  return match[1];
+}
+
+/**
  * Создаёт или проверяет минимальный pointer Code Repository.
  *
  * @param {string} repositoryRoot Абсолютный путь Code Repository.
@@ -32,7 +52,7 @@ export async function ensurePointer(repositoryRoot, storeId) {
   if (!pointerStat.isFile() || pointerStat.isSymbolicLink()) {
     throw new Error(`${POINTER_PATH} должна быть обычным файлом`);
   }
-  if ((await fs.readFile(pointerPath, "utf8")).replaceAll("\r\n", "\n") !== `store: ${storeId}\n`) {
+  if (await readPointer(repositoryRoot) !== storeId) {
     throw new Error(`${POINTER_PATH} должна содержать только 'store: ${storeId}'`);
   }
   return false;

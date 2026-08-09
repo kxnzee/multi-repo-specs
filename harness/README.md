@@ -120,9 +120,27 @@ CLI разрешает только центральный Store, проверя
 
 После завершения Proposal, Delta Specs, Design и Tasks шаг 04 не вызывает отдельную команду SDD. Change Owner выполняет штатные `openspec status`, `openspec show` и строгий `openspec validate`, синхронизирует `feature/<change-id>` через rebase и открывает единый Planning PR средствами Git-провайдера. Полный пользовательский процесс описан в [`docs/steps/04.md`](../docs/steps/04.md).
 
-Содержательные замечания Planning PR передаются агенту точным списком через официальный `/opsx-update <change-id>`. Project instructions ограничивают исправление существующими planning-артефактами текущего Change и не позволяют команде перейти к Apply или Archive. Commit, push, закрытие threads, approvals и merge остаются действиями Change Owner и владельцев в Git-провайдере. Каждый Work Package остаётся стандартным checkbox `tasks.md` с числовым ID вида `1.1`; наличие цели и запрет перенумерации после Planning PR проверяются в ревью. Стандартный `openspec validate` не обеспечивает этот проектный контракт, а отдельный SDD-валидатор не вводится.
+Содержательные замечания Planning PR передаются агенту точным списком через официальный `/opsx-update <change-id>`. Project instructions ограничивают исправление существующими planning-артефактами текущего Change и не позволяют команде перейти к Apply или Archive. Commit, push, закрытие threads, approvals и merge остаются действиями Change Owner и владельцев в Git-провайдере. Каждый Work Package остаётся стандартным checkbox `tasks.md` с явной целью; машинный ID берётся только из `tasks[].id` структурированного `openspec instructions apply` на принятом Baseline. Стандартный `openspec validate` не проверяет проектную цель Work Package, а отдельный SDD-валидатор не вводится.
 
 Spec Baseline равен полной Git SHA, принятой в основной ветке Store после merge. Harness не создаёт `sdd review`, `sdd baseline`, Git tag или state-файл. После merge Change Owner вручную создаёт в исходной Story по одной parameter-only implementation subtask на каждый окончательно затронутый `repository-id`; отдельная QA-subtask пока не является обязательным гейтом.
+
+## Подготовка реализации
+
+Из корня Code Repository перенесите параметры принятой implementation subtask в команду:
+
+```bash
+sdd load \
+  --store payments-specs \
+  --repo payments-api \
+  --change pay-412-payment-status \
+  --baseline 0123456789abcdef0123456789abcdef01234567 \
+  --work-package 1 \
+  --work-package 2
+```
+
+Команда принимает Store ID, repository-id, Change, Baseline и Work Package ID непосредственно из актуальной implementation subtask. Она сверяет Store с project pointer, repository-id — с cwd, `origin` и `sdd.yaml`, проверяет существование точной Store commit, открывает её в отдельном detached worktree, вызывает штатные OpenSpec validation и apply instructions, показывает descriptions, создаёт или возобновляет локальную `feature/<change-id>` и записывает минимальный `context.json` без descriptions.
+
+`sdd load` не читает tracker, не доказывает историю Planning PR или amendment, не сравнивает параметры с прежним runtime, не копирует Tasks, не меняет код или planning-артефакты и не запускает Apply. Каждый запуск полностью определяется текущими параметрами subtask. После `implementation_ready` начните новую агентскую сессию из того же Code Repository и передайте ей готовое первое сообщение `next_action`: оно указывает на `sdd-apply.md` внутри точного runtime Store и содержит те же Store, repository, Change, Baseline и Work Packages. Копировать slash-команду в Code Repository не требуется. Подробности находятся в [`docs/steps/05.md`](../docs/steps/05.md).
 
 ## Границы
 
@@ -132,6 +150,7 @@ Spec Baseline равен полной Git SHA, принятой в основн�
 - `change/index.js` — создание и безопасное продолжение Change шага 02.
 - `explore/index.js` — read-only-проверки уже подключённого workspace шага 01.
 - `init/index.js` — техническая логика `sdd init`.
+- `load/index.js` — подготовка implementation-ветки и runtime точного Spec Baseline.
 - `shared/` — единый безопасный запуск внешних команд.
 - `init/skeleton/` — декларативный версионируемый каркас шага 00 без исполняемой логики.
 - `test/` — тесты технической обвязки, не входящие в публикуемый пакет.

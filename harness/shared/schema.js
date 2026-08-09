@@ -20,7 +20,7 @@ export function isOpenSpecRoot(value) {
   return (
     isRecord(value) &&
     typeof value.path === "string" &&
-    typeof value.store_id === "string" &&
+    (value.store_id === undefined || typeof value.store_id === "string") &&
     typeof value.source === "string" &&
     (value.healthy === undefined || typeof value.healthy === "boolean")
   );

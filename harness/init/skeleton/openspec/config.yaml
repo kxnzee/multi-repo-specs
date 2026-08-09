@@ -45,8 +45,8 @@ rules:
     - Считай репозитории Proposal кандидатами. Если subagent обнаружил дополнительный зарегистрированный repository-id с чистым checkout того же Store без изменения бизнесовых capabilities, поведения, внешних систем и scope, выполни для него отдельный pass и добавь межсистемный impact и точную ревизию в design.md без возврата в Explore.
   tasks:
     - Раздели работу на проверяемые Work Packages уровня OpenSpec Store, отдельных repository-id и межрепозиторной интеграции.
-    - Представь каждый Work Package отдельным стандартным checkbox tasks.md с уникальным внутри Change числовым ID вида 1.1 и явно укажи одну из целей — store, конкретный repository-id либо composite-verification.
-    - Не перенумеровывай существующие ID Work Packages после принятия Planning PR; для нового пакета используй новый ID.
+    - Представь каждый Work Package отдельным стандартным checkbox tasks.md и явно укажи одну из целей — store, конкретный repository-id либо composite-verification.
+    - Для передачи реализации используй только task.id из структурированного ответа openspec instructions apply на принятом Spec Baseline; не создавай собственный формат ID и не извлекай ID из текста checkbox.
     - Включи строгую валидацию OpenSpec, компонентные и контрактные проверки, composite verification и условия Archive.
     - Описывай результат, зависимости и проверку пакета, но не файлы, классы, функции и локальные implementation steps; они принадлежат implementation PR Code Repository.
     - Если при адресном чтении обнаружены устойчивые технические знания, добавь outcome-based Work Package на обновление Repository Knowledge Pack в implementation PR этого репозитория.

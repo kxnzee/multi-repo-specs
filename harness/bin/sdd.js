@@ -8,6 +8,7 @@ import { runChange } from "../cli/change.js";
 import { runConnect } from "../cli/connect.js";
 import { runExplore } from "../cli/explore.js";
 import { runInit } from "../cli/init.js";
+import { runLoad } from "../cli/load.js";
 
 /**
  * Проверяет минимальную версию Node.js.
@@ -40,6 +41,7 @@ async function main() {
   if (command === "change") return runChange(args);
   if (command === "connect") return runConnect(args);
   if (command === "init") return runInit(args);
+  if (command === "load") return runLoad(args);
   throw new Error(`Неизвестная команда: ${command}\n\n${HELP}`);
 }
 

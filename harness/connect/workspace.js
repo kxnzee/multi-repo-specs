@@ -42,3 +42,24 @@ export async function resolveWorkspace(storeRoot, requestedWorkspace) {
   }
   return fs.realpath(workspace);
 }
+
+/**
+ * Определяет workspace по стандартному checkout `<workspace>/src/<repository-id>`.
+ * `sdd connect` всегда размещает Code Repositories именно в этой структуре, включая
+ * сценарий с явно заданным workspace и Store вне `<workspace>/openspec/`.
+ *
+ * @param {string} repositoryRoot Канонический корень Code Repository.
+ * @returns {Promise<string>} Канонический абсолютный путь workspace.
+ */
+export async function resolveCodeWorkspace(repositoryRoot) {
+  const sourceRoot = path.dirname(repositoryRoot);
+  if (path.basename(sourceRoot) !== "src") {
+    throw new Error(`Code Repository должен находиться в <workspace>/src/: ${repositoryRoot}`);
+  }
+  const workspace = path.dirname(sourceRoot);
+  const stat = await pathState(workspace);
+  if (!stat?.isDirectory() || stat.isSymbolicLink()) {
+    throw new Error(`Workspace должен быть обычным каталогом: ${workspace}`);
+  }
+  return fs.realpath(workspace);
+}

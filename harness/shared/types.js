@@ -5,7 +5,7 @@
  *
  * @typedef {object} OpenSpecRoot
  * @property {string} path
- * @property {string} store_id
+ * @property {string} [store_id]
  * @property {string} source
  * @property {boolean} [healthy]
  */
@@ -130,6 +130,25 @@
  * @property {"missing" | "present"} proposalStatus
  * @property {"create_proposal" | "review_proposal"} nextAction
  * @property {OpenSpecResponse} openSpecStatus
+ */
+
+/**
+ * Результат подготовки одного Code Repository к реализации.
+ *
+ * @typedef {object} LoadPreparation
+ * @property {"implementation_ready"} stepStatus
+ * @property {string} storeId
+ * @property {string} changeId
+ * @property {string} specBaseline
+ * @property {string} repositoryId
+ * @property {string} implementationBranch
+ * @property {"created" | "tracking" | "existing"} branchStatus
+ * @property {string} codeBaseRevision
+ * @property {string[]} workPackages
+ * @property {Array<{id: string, description: string}>} selectedTasks
+ * @property {"06"} nextStep
+ * @property {string} nextAction
+ * @property {string} runtimePath
  */
 
 export {};

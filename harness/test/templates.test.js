@@ -58,9 +58,9 @@ test("OpenSpec использует встроенную схему и толь�
   assert.match(config.rules.design.join("\n"), /стратегию отката/);
   assert.match(config.rules.tasks.join("\n"), /composite verification/);
   assert.match(config.rules.tasks.join("\n"), /стандартным checkbox tasks\.md/);
-  assert.match(config.rules.tasks.join("\n"), /числовым ID вида 1\.1/);
+  assert.match(config.rules.tasks.join("\n"), /task\.id из структурированного ответа openspec instructions apply/);
   assert.match(config.rules.tasks.join("\n"), /store, конкретный repository-id либо composite-verification/);
-  assert.match(config.rules.tasks.join("\n"), /Не перенумеровывай существующие ID Work Packages/);
+  assert.match(config.rules.tasks.join("\n"), /не создавай собственный формат ID/);
   assert.match(config.rules.tasks.join("\n"), /implementation PR Code Repository/);
   assert.match(config.rules.tasks.join("\n"), /обновление Repository Knowledge Pack/);
   assert.match(config.rules.tasks.join("\n"), /окончательного технического impact design.md/);
@@ -91,7 +91,14 @@ test("сформированные команды SDD требуют валид�
     read("init/commands/sdd-verify.md"),
   ]);
 
-  assert.match(apply, /строгой OpenSpec-валидации/);
+  assert.match(apply, /openspec validate <change-id> --type change --strict --no-interactive --json/);
+  assert.match(apply, /<repository-id>\/context\.json/);
+  assert.match(apply, /`openspec instructions apply --change <change-id> --json`/);
+  assert.match(apply, /--store <store-id> --repo <repository-id> --change <change-id> --baseline <sha> --work-package <id>\.\.\./);
+  assert.match(apply, /готовым первым сообщением `next_action`/);
+  assert.match(apply, /Используй тот же набор значений, который был передан в успешный `sdd load`/);
+  assert.match(apply, /не вычисляй Store, repository, Baseline или Work Packages автоматически/);
+  assert.doesNotMatch(apply, /sdd open|sdd instructions apply|digest Work Package/);
   assert.match(verify, /archive_readiness: ready/);
   assert.match(verify, /archive_readiness: blocked/);
   assert.match(verify, /не принимай финальное решение `Verified` от имени QA/);
@@ -123,10 +130,16 @@ test("инструкции агентов направляют завершён�
     assert.match(contents, /точный текст замечаний.*threads либо `file:line`/);
     assert.match(contents, /Не закрывай review threads, не создавай commit, не выполняй push/);
     assert.match(contents, /по одной implementation subtask на каждый.*repository-id/);
-    assert.match(contents, /parent_ticket, change_id, store_id, spec_path, spec_baseline/);
-    assert.match(contents, /checkbox-ID вида 1\.1/);
-    assert.match(contents, /не перенумеровывай существующие ID/);
+    assert.match(contents, /parent_ticket, change_id, store_id, spec_baseline/);
+    assert.doesNotMatch(contents, /spec_path/);
+    assert.match(contents, /точными task\.id из структурированного/);
+    assert.match(contents, /не извлекай ID из описаний Tasks/);
     assert.match(contents, /QA-subtask остаётся открытым решением/);
+    assert.match(contents, /`sdd load --store <store-id> --repo <repository-id> --change <change-id> --baseline <sha> --work-package <id>\.\.\.`/);
+    assert.match(contents, /При повторном load всегда передавай текущие параметры implementation subtask/);
+    assert.match(contents, /не пытайся выводить их из Git-ветки или прежнего runtime/);
+    assert.match(contents, /готовое первое сообщение указывает на `sdd-apply\.md` внутри runtime Store/);
+    assert.match(contents, /Не требуй обнаружения slash-команды в Code Repository/);
   }
 });
 
@@ -138,8 +151,9 @@ test("шаг 04 не вводит собственные команды review �
     assert.rejects(fs.stat(path.join(HARNESS_ROOT, "init/commands/sdd-baseline.md")), /ENOENT/),
   ]);
 
-  assert.match(step04, /не гарантирует, что каждый Work Package.*checkbox.*ID вида `1\.1`/s);
-  assert.match(step04, /пакет без ID или цели блокирует merge/);
+  assert.match(step04, /не гарантирует, что каждый Work Package.*checkbox с явной целью/s);
+  assert.match(step04, /пакет без цели блокирует merge/);
+  assert.match(step04, /Машинный ID предоставляет сам OpenSpec в `tasks\[\]\.id`/);
   assert.match(step04, /Отдельный SDD-валидатор и собственный формат `tasks\.md`.*не вводятся/);
   assert.doesNotMatch(step04, /WP-PAYMENTS-API/);
   assert.match(step03, /`sdd connect`.*`opsx-update\.md`/);

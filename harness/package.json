@@ -11,6 +11,7 @@
     "change",
     "explore",
     "init",
+    "load",
     "shared"
   ],
   "bin": {
@@ -24,7 +25,7 @@
     "test": "node --test",
     "test:coverage": "node --experimental-test-coverage --test",
     "lint": "eslint .",
-    "check": "node --check bin/sdd.js && node --check cli/args.js && node --check cli/change.js && node --check cli/connect.js && node --check cli/explore.js && node --check cli/init.js && node --check change/git.js && node --check change/id.js && node --check change/index.js && node --check change/store.js && node --check config/agents.js && node --check config/index.js && node --check config/schema.js && node --check connect/index.js && node --check connect/pointer.js && node --check connect/repository.js && node --check connect/workspace.js && node --check explore/index.js && node --check explore/invocation.js && node --check explore/validation.js && node --check explore/validation/git.js && node --check explore/validation/repository.js && node --check explore/validation/store.js && node --check explore/validation/ticket.js && node --check explore/workspace.js && node --check init/index.js && node --check init/merge.js && node --check init/skeleton.js && node --check init/validation.js && node --check shared/command.js && node --check shared/openspec.js && node --check shared/schema.js && node --check shared/types.js"
+    "check": "node --check bin/sdd.js && node --check cli/args.js && node --check cli/change.js && node --check cli/connect.js && node --check cli/explore.js && node --check cli/init.js && node --check cli/load.js && node --check change/git.js && node --check change/id.js && node --check change/index.js && node --check change/store.js && node --check config/agents.js && node --check config/index.js && node --check config/schema.js && node --check connect/index.js && node --check connect/pointer.js && node --check connect/repository.js && node --check connect/workspace.js && node --check explore/index.js && node --check explore/invocation.js && node --check explore/validation.js && node --check explore/validation/git.js && node --check explore/validation/repository.js && node --check explore/validation/store.js && node --check explore/validation/ticket.js && node --check explore/workspace.js && node --check init/index.js && node --check init/merge.js && node --check init/skeleton.js && node --check init/validation.js && node --check load/git.js && node --check load/index.js && node --check load/openspec.js && node --check load/runtime.js && node --check shared/command.js && node --check shared/openspec.js && node --check shared/schema.js && node --check shared/types.js"
   },
   "engines": {
     "node": ">=20"
