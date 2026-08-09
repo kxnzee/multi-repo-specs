@@ -58,7 +58,7 @@ sdd connect
 sdd connect --workspace /absolute/path/to/workspace
 ```
 
-Команда передаёт Store identity официальным `store register`, `store doctor`, `doctor --store` и `context --store`, структурно проверяет их JSON, затем загружает все записи `role: code` из `sdd.yaml` в `<workspace>/src/<repository-id>`. Существующие checkout не обновляются и не перезаписываются: проверяются только их `origin`, ветка и чистота.
+Команда проверяет наличие обязательных agent actions `/opsx-explore`, `/opsx-continue`, `/opsx-update`, `/sdd-context` и `/sdd-change`, передаёт Store identity официальным `store register`, `store doctor`, `doctor --store` и `context --store`, структурно проверяет их JSON, затем загружает все записи `role: code` из `sdd.yaml` в `<workspace>/src/<repository-id>`. Существующие checkout не обновляются и не перезаписываются: проверяются только их `origin`, ветка и чистота.
 
 Если в Code Repository отсутствует единственный допустимый `openspec/config.yaml`, команда создаёт pointer `store: <store-id>` и возвращает `needs_setup_pr`. Она не делает commit, push или PR. После принятия setup PR обновите checkout и повторите `sdd connect`.
 
@@ -115,6 +115,14 @@ sdd change --ticket PAY-412 --name payment-status
 CLI разрешает только центральный Store, проверяет его регистрацию и identity, активные и архивные Changes, чистую актуальную основную ветку, отсутствие локальной и remote planning-ветки, затем создаёт `feature/pay-412-payment-status` и вызывает официальный `openspec new change`. При повторном запуске допускаются изменения только внутри того же Change; существующий Proposal продолжается без перезаписи. Ветка без Change, другая schema, commit или изменения вне Change возвращают `needs_recovery`.
 
 После JSON-результата agent command получает официальные `openspec instructions proposal`, создаёт только `proposal.md` из подтверждённого Explore и завершает шаг лишь после явного подтверждения Change Owner. Delta Specs, `design.md`, `tasks.md`, commit, push и PR на этом этапе не создаются. `/opsx-propose` не вызывается, встроенные команды и skills OpenSpec не изменяются.
+
+## Planning PR и Spec Baseline
+
+После завершения Proposal, Delta Specs, Design и Tasks шаг 04 не вызывает отдельную команду SDD. Change Owner выполняет штатные `openspec status`, `openspec show` и строгий `openspec validate`, синхронизирует `feature/<change-id>` через rebase и открывает единый Planning PR средствами Git-провайдера. Полный пользовательский процесс описан в [`docs/steps/04.md`](../docs/steps/04.md).
+
+Содержательные замечания Planning PR передаются агенту точным списком через официальный `/opsx-update <change-id>`. Project instructions ограничивают исправление существующими planning-артефактами текущего Change и не позволяют команде перейти к Apply или Archive. Commit, push, закрытие threads, approvals и merge остаются действиями Change Owner и владельцев в Git-провайдере. Каждый Work Package остаётся стандартным checkbox `tasks.md` с числовым ID вида `1.1`; наличие цели и запрет перенумерации после Planning PR проверяются в ревью. Стандартный `openspec validate` не обеспечивает этот проектный контракт, а отдельный SDD-валидатор не вводится.
+
+Spec Baseline равен полной Git SHA, принятой в основной ветке Store после merge. Harness не создаёт `sdd review`, `sdd baseline`, Git tag или state-файл. После merge Change Owner вручную создаёт в исходной Story по одной parameter-only implementation subtask на каждый окончательно затронутый `repository-id`; отдельная QA-subtask пока не является обязательным гейтом.
 
 ## Границы
 

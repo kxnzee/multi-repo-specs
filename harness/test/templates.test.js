@@ -57,6 +57,10 @@ test("OpenSpec использует встроенную схему и толь�
   assert.match(config.rules.design.join("\n"), /без возврата в Explore/);
   assert.match(config.rules.design.join("\n"), /стратегию отката/);
   assert.match(config.rules.tasks.join("\n"), /composite verification/);
+  assert.match(config.rules.tasks.join("\n"), /стандартным checkbox tasks\.md/);
+  assert.match(config.rules.tasks.join("\n"), /числовым ID вида 1\.1/);
+  assert.match(config.rules.tasks.join("\n"), /store, конкретный repository-id либо composite-verification/);
+  assert.match(config.rules.tasks.join("\n"), /Не перенумеровывай существующие ID Work Packages/);
   assert.match(config.rules.tasks.join("\n"), /implementation PR Code Repository/);
   assert.match(config.rules.tasks.join("\n"), /обновление Repository Knowledge Pack/);
   assert.match(config.rules.tasks.join("\n"), /окончательного технического impact design.md/);
@@ -112,7 +116,33 @@ test("инструкции агентов направляют завершён�
     assert.match(contents, /`archive_readiness: ready`/);
     assert.match(contents, /backend, frontend, Composite Verification и ручная проверка/);
     assert.match(contents, /подсказку built-in `\/opsx-continue`.*замени маршрутом на шаг 04/);
+    assert.match(contents, /Не предлагай отдельные `sdd review`, `sdd baseline`/);
+    assert.match(contents, /Не считай HEAD ветки `feature\/<change-id>` Spec Baseline/);
+    assert.match(contents, /Baseline появляется только после merge Planning PR/);
+    assert.match(contents, /`\/opsx-update <change-id>`.*только.*unresolved comments/s);
+    assert.match(contents, /точный текст замечаний.*threads либо `file:line`/);
+    assert.match(contents, /Не закрывай review threads, не создавай commit, не выполняй push/);
+    assert.match(contents, /по одной implementation subtask на каждый.*repository-id/);
+    assert.match(contents, /parent_ticket, change_id, store_id, spec_path, spec_baseline/);
+    assert.match(contents, /checkbox-ID вида 1\.1/);
+    assert.match(contents, /не перенумеровывай существующие ID/);
+    assert.match(contents, /QA-subtask остаётся открытым решением/);
   }
+});
+
+test("шаг 04 не вводит собственные команды review и baseline", async () => {
+  const [step03, step04] = await Promise.all([
+    read("../docs/steps/03.md"),
+    read("../docs/steps/04.md"),
+    assert.rejects(fs.stat(path.join(HARNESS_ROOT, "init/commands/sdd-review.md")), /ENOENT/),
+    assert.rejects(fs.stat(path.join(HARNESS_ROOT, "init/commands/sdd-baseline.md")), /ENOENT/),
+  ]);
+
+  assert.match(step04, /не гарантирует, что каждый Work Package.*checkbox.*ID вида `1\.1`/s);
+  assert.match(step04, /пакет без ID или цели блокирует merge/);
+  assert.match(step04, /Отдельный SDD-валидатор и собственный формат `tasks\.md`.*не вводятся/);
+  assert.doesNotMatch(step04, /WP-PAYMENTS-API/);
+  assert.match(step03, /`sdd connect`.*`opsx-update\.md`/);
 });
 
 test("sdd-change создаёт только Change и Proposal из текущего Explore", async () => {

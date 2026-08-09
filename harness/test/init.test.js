@@ -91,7 +91,7 @@ function fakeOpenSpec(projectRoot) {
       ]);
       const agent = resolveAgentAdapter(args[args.indexOf("--tools") + 1]);
       fsSync.mkdirSync(path.join(projectRoot, agent.commandsDirectory), { recursive: true });
-      for (const action of ["explore", "continue"]) {
+      for (const action of ["explore", "continue", "update"]) {
         fsSync.writeFileSync(
           path.join(projectRoot, agent.commandsDirectory, `opsx-${action}.md`),
           "original OpenSpec action\n",
@@ -193,6 +193,7 @@ test("initProject creates Store, official expanded pack and the complete skeleto
     ".openspec-store/store.yaml",
     ".qwen/commands/opsx-continue.md",
     ".qwen/commands/opsx-explore.md",
+    ".qwen/commands/opsx-update.md",
     ".qwen/commands/sdd-change.md",
     ".qwen/commands/sdd-context.md",
     ".qwen/skills/openspec-explore/SKILL.md",
@@ -215,6 +216,11 @@ test("initProject creates Store, official expanded pack and the complete skeleto
     await fs.readFile(path.join(target, ".qwen", "commands", "opsx-explore.md"), "utf8"),
     "original OpenSpec action\n",
   );
+  const qwenInstructions = await fs.readFile(path.join(target, "QWEN.md"), "utf8");
+  assert.match(qwenInstructions, /## Planning PR/);
+  assert.match(qwenInstructions, /`\/opsx-update <change-id>`/);
+  assert.match(qwenInstructions, /Не предлагай отдельные `sdd review`, `sdd baseline`/);
+  assert.match(qwenInstructions, /QA-subtask остаётся открытым решением/);
   const config = parseSddConfig(await fs.readFile(path.join(target, "sdd.yaml"), "utf8"));
   assert.deepEqual(config.storeRepository, {
     id: "payments-specs",
@@ -319,6 +325,11 @@ test("initProject persists GigaCode through the Qwen OpenSpec adapter", async (t
     "existing official action\n",
   );
   assert.equal((await fs.stat(path.join(target, "GIGACODE.md"))).isFile(), true);
+  const gigaInstructions = await fs.readFile(path.join(target, "GIGACODE.md"), "utf8");
+  assert.match(gigaInstructions, /## Planning PR/);
+  assert.match(gigaInstructions, /`\/opsx-update <change-id>`/);
+  assert.match(gigaInstructions, /Не предлагай отдельные `sdd review`, `sdd baseline`/);
+  assert.match(gigaInstructions, /QA-subtask остаётся открытым решением/);
   assert.equal(fsSync.existsSync(path.join(target, ".qwen")), false);
   assert.equal(fsSync.existsSync(path.join(target, "QWEN.md")), false);
   assert.ok(

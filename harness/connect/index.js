@@ -17,6 +17,7 @@ import { pathState, resolveWorkspace } from "./workspace.js";
 const REQUIRED_AGENT_COMMANDS = Object.freeze([
   "opsx-explore.md",
   "opsx-continue.md",
+  "opsx-update.md",
   "sdd-context.md",
   "sdd-change.md",
 ]);

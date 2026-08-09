@@ -94,6 +94,7 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
     "openspec/changes/.gitkeep": "",
     [path.join(agent.commandsDirectory, "opsx-continue.md")]: "---\ndescription: continue\n---\n",
     [path.join(agent.commandsDirectory, "opsx-explore.md")]: "---\ndescription: explore\n---\n",
+    [path.join(agent.commandsDirectory, "opsx-update.md")]: "---\ndescription: update\n---\n",
     [path.join(agent.commandsDirectory, "sdd-change.md")]: "---\ndescription: change\n---\n",
     [path.join(agent.commandsDirectory, "sdd-context.md")]: "---\ndescription: context\n---\n",
     [path.join(agent.commandsDirectory, "sdd-apply.md")]: "---\ndescription: apply\n---\n",
@@ -241,6 +242,7 @@ for (const agent of [QWEN_AGENT, GIGACODE_AGENT]) {
   for (const requiredCommand of [
     "opsx-explore.md",
     "opsx-continue.md",
+    "opsx-update.md",
     "sdd-context.md",
     "sdd-change.md",
   ]) {

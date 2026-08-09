@@ -22,3 +22,13 @@ GigaCode загружает этот файл при старте сессии, 
 - Не предлагай и не запускай `/opsx-apply`, пока Planning PR не принят и Spec Baseline не зафиксирован.
 - Не предлагай и не запускай `/opsx-archive` до шага 09 и результата `archive_readiness: ready`; к этому моменту должны быть завершены backend, frontend, Composite Verification и ручная проверка.
 - Универсальную подсказку built-in `/opsx-continue` о немедленном Apply или Archive замени маршрутом на шаг 04.
+
+## Planning PR
+
+- Шаг 04 выполняется штатными командами OpenSpec, Git и интерфейсом Git-провайдера. Не предлагай отдельные `sdd review`, `sdd baseline`, собственный state-файл или Git tag.
+- Не считай HEAD ветки `feature/<change-id>` Spec Baseline. Baseline появляется только после merge Planning PR и равен полной принятой Git SHA основной ветки Store.
+- Если Change Owner передал замечания Planning PR через `/opsx-update <change-id>`, изменяй только уже существующие planning-артефакты текущего Change и только в границах переданных unresolved comments. Не создавай код, новый Change, Apply или Archive.
+- Если интерфейс Git-провайдера недоступен, потребуй точный текст замечаний и ссылки на threads либо `file:line`; не восстанавливай замечания по пересказу или догадке.
+- Перед записью покажи предложенные изменения по артефактам и получи подтверждение Change Owner. Не закрывай review threads, не создавай commit, не выполняй push и не подтверждай PR от имени владельцев.
+- После принятия Planning PR напомни Change Owner создать в исходной Story по одной implementation subtask на каждый окончательно затронутый repository-id. Передавай в неё только parent_ticket, change_id, store_id, spec_path, spec_baseline, planning_pr, repository_id и work_packages с числовыми checkbox-ID вида 1.1 из принятого tasks.md; не копируй текст спецификации или локальный implementation plan и не перенумеровывай существующие ID.
+- Отдельная QA-subtask остаётся открытым решением: не создавай и не требуй её как гейт до принятия отдельного правила.
