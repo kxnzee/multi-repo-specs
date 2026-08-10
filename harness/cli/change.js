@@ -40,6 +40,7 @@ export async function runChange(args) {
     const result = await prepareChange({
       ticket: options.ticket,
       name: options.name,
+      storeId: options.storeId,
       confirmArchivedChange: prompt
         ? async (changes) => {
             console.error(`Найдены архивные Changes с ticket ${options.ticket}:`);

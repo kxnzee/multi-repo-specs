@@ -197,7 +197,8 @@ test("шаг 04 не вводит собственные команды review �
 test("sdd-change создаёт только Change и Proposal из текущего Explore", async () => {
   const command = await read("init/commands/sdd-change.md");
 
-  assert.match(command, /sdd change --ticket <ticket-id> --name <short-name>/);
+  assert.match(command, /sdd change --ticket <ticket-id> --name <short-name> --store <store-id>/);
+  assert.match(command, /проверяет, что он совпадает с текущим центральным checkout/);
   assert.match(command, /openspec instructions proposal/);
   assert.match(command, /полного результата.*повторить `sdd explore`/s);
   assert.match(command, /proposal_status: needs_confirmation/);

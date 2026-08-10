@@ -123,16 +123,20 @@ test("parseChangeArgs requires a canonical ticket and short name", () => {
   assert.deepEqual(parseChangeArgs(["--help"]), { help: true });
   assert.deepEqual(
     parseChangeArgs(["--ticket", "PAY-412", "--name", "payment-status"]),
-    { help: false, ticket: "PAY-412", name: "payment-status" },
+    { help: false, ticket: "PAY-412", name: "payment-status", storeId: undefined },
   );
   assert.deepEqual(
-    parseChangeArgs(["--ticket=PAY-412", "--name=payment-status"]),
-    { help: false, ticket: "PAY-412", name: "payment-status" },
+    parseChangeArgs(["--ticket=PAY-412", "--name=payment-status", "--store=payments-specs"]),
+    { help: false, ticket: "PAY-412", name: "payment-status", storeId: "payments-specs" },
   );
   assert.throws(() => parseChangeArgs([]), /требуется --ticket/);
   assert.throws(() => parseChangeArgs(["--ticket=PAY-412"]), /требуется --name/);
   assert.throws(() => parseChangeArgs(["--ticket=pay-412", "--name=payment-status"]), /Ticket key/);
   assert.throws(() => parseChangeArgs(["--ticket=PAY-412", "--name=PaymentStatus"]), /lowercase kebab-case/);
+  assert.throws(
+    () => parseChangeArgs(["--ticket=PAY-412", "--name=one", "--store=one", "--store=two"]),
+    /только один раз/,
+  );
   assert.throws(
     () => parseChangeArgs(["--ticket=PAY-412", "--name=one", "--name=two"]),
     /только один раз/,

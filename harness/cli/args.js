@@ -11,7 +11,7 @@ export const HELP = `Использование:
   sdd init [path] --store <store-id> --agent <agent-id> [--repo <id=url#branch>]...
   sdd connect [--workspace <path>]
   sdd explore --ticket <ticket-id> [--workspace <path>]
-  sdd change --ticket <ticket-id> --name <short-name>
+  sdd change --ticket <ticket-id> --name <short-name> [--store <store-id>]
   sdd load --store <store-id> --repo <repository-id> --change <change-id> --baseline <40-char-sha> --work-package <id>... [--json]
 
 Команды:
@@ -22,7 +22,7 @@ export const HELP = `Использование:
   load    Подготовить Code Repository к реализации на принятом Spec Baseline
 
 Параметры:
-  --store <id>    Store ID для sdd init или sdd load
+  --store <id>    Store ID для sdd init, sdd change или sdd load
   --agent <id>    Agent adapter: ${supportedAgentIds().join(", ")}
   --repo <value>  Для init: добавить id=url#branch; для load: указать repository-id
                   Пример init: --repo ui=https://example.test/ui.git#main
@@ -160,11 +160,12 @@ export function parseExploreArgs(args) {
  * Разбирает ticket и короткое имя для `sdd change`.
  *
  * @param {string[]} args Аргументы после имени команды `change`.
- * @returns {{help: boolean, ticket?: string, name?: string}} Нормализованные параметры запуска.
+ * @returns {{help: boolean, ticket?: string, name?: string, storeId?: string}} Нормализованные параметры запуска.
  */
 export function parseChangeArgs(args) {
   let ticket;
   let name;
+  let storeId;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "-h" || arg === "--help") return { help: true };
@@ -182,11 +183,18 @@ export function parseChangeArgs(args) {
       if (arg === "--name") index += 1;
       continue;
     }
+    if (arg === "--store" || arg.startsWith("--store=")) {
+      const value = readOptionValue(args, index, "--store", "для --store требуется Store ID");
+      if (storeId) throw new Error("--store можно указать только один раз");
+      storeId = assertRepositoryId(value, "Store ID");
+      if (arg === "--store") index += 1;
+      continue;
+    }
     throw new Error(`Неизвестный параметр change: ${arg}`);
   }
   if (!ticket) throw new Error("для sdd change требуется --ticket <ticket-id>");
   if (!name) throw new Error("для sdd change требуется --name <short-name>");
-  return { help: false, ticket, name };
+  return { help: false, ticket, name, storeId };
 }
 
 /**
