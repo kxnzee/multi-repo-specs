@@ -1,4 +1,24 @@
 # CODEOWNERS
 # Будет перенесен в Bitbcket, не перемещать
+# На пилоте все роли выполняет один владелец.
 
-openspec/specs/** @209854
+/openspec/specs/** @209854
+/openspec/changes/** @209854
+/.openspec-store/** @209854
+/openspec/config.yaml @209854
+/openspec/context/00-start-here.md @209854
+/openspec/context/01-product-context.md @209854
+/openspec/context/02-domain-glossary.md @209854
+/openspec/context/03-architecture.md @209854
+/openspec/context/04-domain-model.md @209854
+/openspec/context/05-security-and-compliance.md @209854
+/openspec/context/06-cross-system-invariants.md @209854
+/openspec/context/07-quality-gates.md @209854
+/openspec/context/08-release-process.md @209854
+/openspec/context/system-map.yaml @209854
+/openspec/context/ADR/README.md @209854
+/openspec/context/_raw/README.md @209854
+/.qwen/commands/sdd-*.md @209854
+/.qwen/commands/opsx-*.md @209854
+/.qwen/skills/openspec-*/** @209854
+/sdd.yaml @209854

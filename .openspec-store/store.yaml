@@ -1,0 +1,3 @@
+version: 1
+id: test-store
+remote: https://github.com/kxnzee/multi-repo-specs.git

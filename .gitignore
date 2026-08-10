@@ -1,1 +1,6 @@
 harness/node_modules/
+
+# SDD local data
+.sdd/cache/
+.sdd/logs/
+.sdd/credentials/

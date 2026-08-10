@@ -1,0 +1,23 @@
+version: 1
+versions:
+  process: draft
+  openspec: 1.7.0
+agent:
+  id: qwen
+  openspec_adapter: qwen
+  architecture: markdown-commands
+  commands_directory: .qwen/commands
+  instructions_file: QWEN.md
+repositories:
+  - id: test-store
+    role: store
+    url: https://github.com/kxnzee/multi-repo-specs.git
+    default_branch: test
+  - id: page
+    role: code
+    url: git@github.com:kxnzee/page.git
+    default_branch: main
+  - id: learning-method-framework
+    role: code
+    url: https://github.com/kxnzee/learning-method-framework.git
+    default_branch: main
