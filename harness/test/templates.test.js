@@ -49,6 +49,9 @@ test("OpenSpec использует встроенную схему и толь�
   assert.match(config.rules.proposal.join("\n"), /не создавай раздел, если вопросов нет/);
   assert.match(config.rules.specs.join("\n"), /межрепозиторный контракт/);
   assert.match(config.rules.specs.join("\n"), /классы.*хуки/);
+  assert.match(config.rules.specs.join("\n"), /Каждый Requirement и Scenario должен прямо следовать из подтверждённого Proposal/);
+  assert.match(config.rules.specs.join("\n"), /Не добавляй новые наблюдаемые состояния, значения, внешние системы или scope/);
+  assert.match(config.rules.specs.join("\n"), /верни решение Change Owner на шаг Proposal/);
   assert.match(config.rules.design.join("\n"), /обязателен для каждого Change/);
   assert.match(config.rules.design.join("\n"), /только межсистемный уровень/);
   assert.match(config.rules.design.join("\n"), /окончательный технический impact.*точным ревизиям/);
