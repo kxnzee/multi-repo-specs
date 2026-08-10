@@ -1,16 +1,16 @@
-/** @fileoverview Проверки identity и точной ревизии Git checkout для Explore. */
+/** @fileoverview Общие проверки identity и точной ревизии Git checkout. */
 
 import path from "node:path";
 
-import { sameGitRemote } from "../../config/index.js";
-import { isGitRevision } from "../../shared/schema.js";
+import { sameGitRemote } from "../config/index.js";
+import { isGitRevision } from "./schema.js";
 
 /**
  * Сверяет корень и origin локального checkout с записью `sdd.yaml`.
  *
  * @param {string} repositoryRoot Абсолютный путь checkout.
- * @param {import("../../shared/types.js").RegisteredRepository} repository Ожидаемая identity.
- * @param {typeof import("../../shared/command.js").runCommand} commandRunner Исполнитель Git.
+ * @param {import("./types.js").RegisteredRepository} repository Ожидаемая identity.
+ * @param {typeof import("./command.js").runCommand} commandRunner Исполнитель Git.
  * @returns {void}
  */
 export function inspectRepositoryIdentity(repositoryRoot, repository, commandRunner) {
@@ -32,9 +32,9 @@ export function inspectRepositoryIdentity(repositoryRoot, repository, commandRun
  * Проверяет чистоту, ветку и свежесть Git checkout относительно origin.
  *
  * @param {string} repositoryRoot Абсолютный путь checkout.
- * @param {import("../../shared/types.js").RegisteredRepository} repository Ожидаемая identity.
- * @param {typeof import("../../shared/command.js").runCommand} commandRunner Исполнитель Git.
- * @returns {import("../../shared/types.js").GitState} Проверенные ветка и точная ревизия.
+ * @param {import("./types.js").RegisteredRepository} repository Ожидаемая identity.
+ * @param {typeof import("./command.js").runCommand} commandRunner Исполнитель Git.
+ * @returns {import("./types.js").GitState} Проверенные ветка и точная ревизия.
  */
 export function inspectFreshCheckout(repositoryRoot, repository, commandRunner) {
   inspectRepositoryIdentity(repositoryRoot, repository, commandRunner);

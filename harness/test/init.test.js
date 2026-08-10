@@ -368,7 +368,7 @@ test("initProject refuses a dirty repository before invoking OpenSpec", async (t
   assert.equal(fsSync.existsSync(path.join(target, ".openspec-store")), false);
 });
 
-test("initProject treats existing Store metadata as completed initialization", async (t) => {
+test("initProject reports recovery for Store metadata without the remaining initialization", async (t) => {
   const target = await temporaryProject(t);
   await fs.mkdir(path.join(target, ".openspec-store"));
   await fs.writeFile(
@@ -377,14 +377,15 @@ test("initProject treats existing Store metadata as completed initialization", a
   );
   const openSpec = fakeOpenSpec(target);
 
-  const result = await initProject({
-    target,
-    storeId: "payments-specs",
-    agentId: "qwen",
-    commandRunner: openSpec.runner,
-  });
-  assert.equal(result.alreadyInitialized, true);
-  assert.deepEqual(result.created, []);
+  await assert.rejects(
+    initProject({
+      target,
+      storeId: "payments-specs",
+      agentId: "qwen",
+      commandRunner: openSpec.runner,
+    }),
+    /needs_recovery:.*отсутствует sdd\.yaml.*Автоматический ремонт не выполняется/s,
+  );
   assert.deepEqual(openSpec.calls, []);
   await assert.rejects(fs.stat(path.join(target, "sdd.yaml")), /ENOENT/);
 });
@@ -429,6 +430,32 @@ test("initProject does not modify a complete initialized Store", async (t) => {
   assert.equal(result.alreadyInitialized, true);
   assert.deepEqual(result.created, []);
   assert.equal(openSpec.calls.length, callsBeforeRepeat);
+});
+
+test("initProject reports recovery when a completed Store loses a required command", async (t) => {
+  const target = await temporaryProject(t);
+  const openSpec = fakeOpenSpec(target);
+  await initProject({
+    target,
+    storeId: "payments-specs",
+    agentId: "qwen",
+    commandRunner: openSpec.runner,
+  });
+  const callsBeforeRepeat = openSpec.calls.length;
+  const missingCommand = path.join(target, ".qwen", "commands", "sdd-apply.md");
+  await fs.unlink(missingCommand);
+
+  await assert.rejects(
+    initProject({
+      target,
+      storeId: "payments-specs",
+      agentId: "qwen",
+      commandRunner: openSpec.runner,
+    }),
+    /needs_recovery:.*отсутствует \.qwen\/commands\/sdd-apply\.md/s,
+  );
+  assert.equal(openSpec.calls.length, callsBeforeRepeat);
+  await assert.rejects(fs.stat(missingCommand), /ENOENT/);
 });
 
 test("initProject blocks conflicting skeleton paths instead of overwriting them", async (t) => {

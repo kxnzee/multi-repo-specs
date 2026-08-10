@@ -5,9 +5,9 @@ import path from "node:path";
 import { parse as parseYaml } from "yaml";
 
 import { parseSddConfig, parseStoreMetadata, sameGitRemote } from "../config/index.js";
-import { validateOpenSpec } from "../explore/validation/store.js";
 import { findSpecRoot } from "../explore/workspace.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
+import { validateOpenSpec } from "../shared/store.js";
 
 const PATHS = Object.freeze({
   metadata: path.join(".openspec-store", "store.yaml"),

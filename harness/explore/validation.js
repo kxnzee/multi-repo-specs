@@ -6,19 +6,18 @@ import process from "node:process";
 
 import { parseSddConfig, parseStoreMetadata, sameGitRemote } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
+import { inspectFreshCheckout } from "../shared/git.js";
 import { assertOpenSpecRoot } from "../shared/openspec.js";
-import { inspectFreshCheckout } from "./validation/git.js";
+import { validateOpenSpec } from "../shared/store.js";
 import {
   resolveCodeRepositories,
   validatePointer,
   validateSelection,
 } from "./validation/repository.js";
-import { validateOpenSpec, validateOpenSpecAction } from "./validation/store.js";
+import { validateOpenSpecAction } from "./validation/store.js";
 import { findDuplicates, validateTicket } from "./validation/ticket.js";
 import { resolveStart, resolveWorkspace } from "./workspace.js";
 
-export { parseSddConfig } from "../config/index.js";
-export { runCommand } from "../shared/command.js";
 export { validateTicket } from "./validation/ticket.js";
 
 const PATHS = Object.freeze({

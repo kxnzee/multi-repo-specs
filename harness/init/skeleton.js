@@ -10,6 +10,7 @@ import {
   assertSupportedOpenSpecVersion,
   parseSddConfig,
   parseStoreMetadata,
+  sameGitRemote,
   serializeSddConfig,
 } from "../config/index.js";
 import { resolveAgentAdapter } from "../config/agents.js";
@@ -48,6 +49,18 @@ const PATHS = Object.freeze({
 });
 
 const SHARED_PROJECT_FILES = new Set([PATHS.gitIgnore, PATHS.codeOwners]);
+const REQUIRED_AGENT_COMMANDS = Object.freeze([
+  "opsx-explore.md",
+  "opsx-continue.md",
+  "opsx-update.md",
+  "sdd-context.md",
+  "sdd-change.md",
+  "sdd-apply.md",
+]);
+const REQUIRED_OPEN_SPEC_DIRECTORIES = Object.freeze([
+  path.join("openspec", "specs"),
+  path.join("openspec", "changes", "archive"),
+]);
 
 /**
  * Файл встроенного bundle и его итоговый путь в проекте.
@@ -215,6 +228,75 @@ async function assertSkeletonDoesNotExist(projectRoot, bundleFiles, agent) {
 }
 
 /**
+ * Проверяет, что Store metadata относится к полностью завершённому `sdd init`.
+ * Проверка только читает проект и не пытается продолжить или откатить частичный запуск.
+ *
+ * @param {object} options Параметры проверки.
+ * @param {string} options.projectRoot Абсолютный путь центрального репозитория.
+ * @param {string} options.storeId Ожидаемый Store ID.
+ * @param {{remote: string | undefined}} options.metadata Прочитанная Store metadata.
+ * @param {BundleFile[]} options.bundleFiles Полный проектный bundle.
+ * @param {ReturnType<typeof resolveAgentAdapter>} options.agent Выбранный agent adapter.
+ * @returns {Promise<void>}
+ */
+async function assertInitializationComplete({
+  projectRoot,
+  storeId,
+  metadata,
+  bundleFiles,
+  agent,
+}) {
+  const issues = [];
+  const requiredFiles = new Set(bundleFiles.map(({ target }) => target));
+  for (const command of REQUIRED_AGENT_COMMANDS) {
+    requiredFiles.add(path.join(agent.commandsDirectory, command));
+  }
+
+  for (const relativePath of [...requiredFiles].sort()) {
+    const stat = await pathState(path.join(projectRoot, relativePath));
+    if (!stat) issues.push(`отсутствует ${relativePath}`);
+    else if (!stat.isFile() || stat.isSymbolicLink()) {
+      issues.push(`${relativePath} не является обычным файлом`);
+    }
+  }
+  for (const relativePath of REQUIRED_OPEN_SPEC_DIRECTORIES) {
+    const stat = await pathState(path.join(projectRoot, relativePath));
+    if (!stat) issues.push(`отсутствует ${relativePath}/`);
+    else if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      issues.push(`${relativePath}/ не является обычным каталогом`);
+    }
+  }
+
+  const configStat = await pathState(path.join(projectRoot, PATHS.sddConfig));
+  if (configStat?.isFile() && !configStat.isSymbolicLink()) {
+    try {
+      const config = parseSddConfig(
+        await fs.readFile(path.join(projectRoot, PATHS.sddConfig), "utf8"),
+      );
+      assertSupportedOpenSpecVersion(config.openSpecVersion);
+      if (config.storeRepository.id !== storeId) {
+        issues.push(`Store ID в ${PATHS.sddConfig} не совпадает с Store metadata`);
+      }
+      if (config.agent.id !== agent.id) {
+        issues.push(`agent в ${PATHS.sddConfig} не совпадает с аргументом sdd init`);
+      }
+      if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
+        issues.push(`URL role: store в ${PATHS.sddConfig} не совпадает с Store metadata`);
+      }
+    } catch (error) {
+      issues.push(`${PATHS.sddConfig}: ${error.message}`);
+    }
+  }
+
+  if (issues.length > 0) {
+    throw new Error(
+      `needs_recovery: Store metadata существует, но sdd init не завершён: ${issues.join("; ")}. ` +
+        "Автоматический ремонт не выполняется; файлы проекта не изменены",
+    );
+  }
+}
+
+/**
  * Переносит совместимый Qwen pack в provider-specific каталог GigaCode.
  *
  * @param {string} projectRoot Абсолютный путь центрального репозитория.
@@ -355,6 +437,13 @@ export async function initProject({
     if (metadata.id !== storeId) {
       throw new Error(`Store уже инициализирован с ID ${metadata.id}, а не ${storeId}`);
     }
+    await assertInitializationComplete({
+      projectRoot,
+      storeId,
+      metadata,
+      bundleFiles,
+      agent,
+    });
     return {
       target: projectRoot,
       storeId,

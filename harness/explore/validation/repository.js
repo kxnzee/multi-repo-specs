@@ -3,8 +3,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { inspectRepositoryIdentity } from "../../shared/git.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../../shared/openspec.js";
-import { inspectRepositoryIdentity } from "./git.js";
 
 const OPEN_SPEC_CONFIG = path.join("openspec", "config.yaml");
 

@@ -1,6 +1,6 @@
 /** @fileoverview Git-инварианты первого и повторного запуска `sdd change`. */
 
-import { inspectFreshCheckout, inspectRepositoryIdentity } from "../explore/validation/git.js";
+import { inspectFreshCheckout, inspectRepositoryIdentity } from "../shared/git.js";
 import { isGitRevision } from "../shared/schema.js";
 
 /**

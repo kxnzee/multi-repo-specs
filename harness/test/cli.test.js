@@ -13,6 +13,29 @@ import {
   parseInitArgs,
   parseLoadArgs,
 } from "../cli/args.js";
+import { runChange } from "../cli/change.js";
+import { runConnect } from "../cli/connect.js";
+import { runExplore } from "../cli/explore.js";
+import { runInit } from "../cli/init.js";
+import { runLoad } from "../cli/load.js";
+
+/**
+ * Перехватывает строки `console.log` только на время одного последовательного smoke-сценария.
+ *
+ * @param {() => Promise<void>} action Проверяемый вызов CLI.
+ * @returns {Promise<string[]>} Напечатанные строки.
+ */
+async function captureLogs(action) {
+  const original = console.log;
+  const lines = [];
+  console.log = (...values) => lines.push(values.join(" "));
+  try {
+    await action();
+  } finally {
+    console.log = original;
+  }
+  return lines;
+}
 
 test("rejects unsupported Node versions", () => {
   const entrypoint = pathToFileURL(path.resolve("bin/sdd.js")).href;
@@ -27,6 +50,15 @@ test("rejects unsupported Node versions", () => {
   );
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Node\.js 20/);
+});
+
+test("all CLI runners expose the common help without starting project operations", async () => {
+  for (const runner of [runInit, runConnect, runExplore, runChange, runLoad]) {
+    const lines = await captureLogs(() => runner(["--help"]));
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /^Использование:/);
+    assert.match(lines[0], /sdd load/);
+  }
 });
 
 test("parseInitArgs accepts positional and inline options", () => {
@@ -166,5 +198,24 @@ test("parseLoadArgs requires exact baseline and explicit unique Work Packages", 
       "--work-package", "--json",
     ]),
     /требуется task.id/,
+  );
+});
+
+test("split CLI options reject another long option instead of consuming it as a value", () => {
+  assert.throws(
+    () => parseInitArgs(["--store", "--agent", "qwen"]),
+    /для --store требуется Store ID/,
+  );
+  assert.throws(
+    () => parseConnectArgs(["--workspace", "--help"]),
+    /для --workspace требуется путь/,
+  );
+  assert.throws(
+    () => parseExploreArgs(["--ticket", "--workspace", "/tmp/work"]),
+    /для --ticket требуется Jira key/,
+  );
+  assert.throws(
+    () => parseChangeArgs(["--ticket=PAY-412", "--name", "--help"]),
+    /для --name требуется короткое имя Change/,
   );
 });

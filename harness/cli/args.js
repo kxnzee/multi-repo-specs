@@ -37,6 +37,22 @@ export const HELP = `Использование:
 `;
 
 /**
+ * Читает значение опции в формах `--option value` и `--option=value`.
+ *
+ * @param {string[]} args Все аргументы команды.
+ * @param {number} index Индекс опции.
+ * @param {string} option Полное имя опции с `--`.
+ * @param {string} errorMessage Ошибка для отсутствующего значения.
+ * @returns {string} Значение опции.
+ */
+function readOptionValue(args, index, option, errorMessage) {
+  const split = args[index] === option;
+  const value = split ? args[index + 1] : args[index].slice(`${option}=`.length);
+  if (!value || (split && value.startsWith("--"))) throw new Error(errorMessage);
+  return value;
+}
+
+/**
  * Разбирает аргументы `sdd init` и проверяет обязательные одиночные флаги.
  *
  * @param {string[]} args Аргументы после имени команды `init`.
@@ -55,24 +71,21 @@ export function parseInitArgs(args) {
       return { help: true, target, storeId, agentId, repositories };
     }
     if (arg === "--store" || arg.startsWith("--store=")) {
-      const value = arg === "--store" ? args[index + 1] : arg.slice("--store=".length);
-      if (!value) throw new Error("для --store требуется Store ID");
+      const value = readOptionValue(args, index, "--store", "для --store требуется Store ID");
       if (storeId) throw new Error("--store можно указать только один раз");
       storeId = value;
       if (arg === "--store") index += 1;
       continue;
     }
     if (arg === "--agent" || arg.startsWith("--agent=")) {
-      const value = arg === "--agent" ? args[index + 1] : arg.slice("--agent=".length);
-      if (!value) throw new Error("для --agent требуется agent ID");
+      const value = readOptionValue(args, index, "--agent", "для --agent требуется agent ID");
       if (agentId) throw new Error("--agent можно указать только один раз");
       agentId = value;
       if (arg === "--agent") index += 1;
       continue;
     }
     if (arg === "--repo" || arg.startsWith("--repo=")) {
-      const value = arg === "--repo" ? args[index + 1] : arg.slice("--repo=".length);
-      if (!value) throw new Error("для --repo требуется <id=url#branch>");
+      const value = readOptionValue(args, index, "--repo", "для --repo требуется <id=url#branch>");
       repositories.push(parseRepository(value));
       if (arg === "--repo") index += 1;
       continue;
@@ -100,8 +113,7 @@ export function parseConnectArgs(args) {
     const arg = args[index];
     if (arg === "-h" || arg === "--help") return { help: true };
     if (arg === "--workspace" || arg.startsWith("--workspace=")) {
-      const value = arg === "--workspace" ? args[index + 1] : arg.slice("--workspace=".length);
-      if (!value) throw new Error("для --workspace требуется путь");
+      const value = readOptionValue(args, index, "--workspace", "для --workspace требуется путь");
       if (workspace) throw new Error("--workspace можно указать только один раз");
       workspace = value;
       if (arg === "--workspace") index += 1;
@@ -125,16 +137,14 @@ export function parseExploreArgs(args) {
     const arg = args[index];
     if (arg === "-h" || arg === "--help") return { help: true };
     if (arg === "--ticket" || arg.startsWith("--ticket=")) {
-      const value = arg === "--ticket" ? args[index + 1] : arg.slice("--ticket=".length);
-      if (!value) throw new Error("для --ticket требуется Jira key");
+      const value = readOptionValue(args, index, "--ticket", "для --ticket требуется Jira key");
       if (ticket) throw new Error("--ticket можно указать только один раз");
       ticket = validateTicket(value);
       if (arg === "--ticket") index += 1;
       continue;
     }
     if (arg === "--workspace" || arg.startsWith("--workspace=")) {
-      const value = arg === "--workspace" ? args[index + 1] : arg.slice("--workspace=".length);
-      if (!value) throw new Error("для --workspace требуется путь");
+      const value = readOptionValue(args, index, "--workspace", "для --workspace требуется путь");
       if (workspace) throw new Error("--workspace можно указать только один раз");
       workspace = value;
       if (arg === "--workspace") index += 1;
@@ -159,16 +169,14 @@ export function parseChangeArgs(args) {
     const arg = args[index];
     if (arg === "-h" || arg === "--help") return { help: true };
     if (arg === "--ticket" || arg.startsWith("--ticket=")) {
-      const value = arg === "--ticket" ? args[index + 1] : arg.slice("--ticket=".length);
-      if (!value) throw new Error("для --ticket требуется Jira key");
+      const value = readOptionValue(args, index, "--ticket", "для --ticket требуется Jira key");
       if (ticket) throw new Error("--ticket можно указать только один раз");
       ticket = validateTicket(value);
       if (arg === "--ticket") index += 1;
       continue;
     }
     if (arg === "--name" || arg.startsWith("--name=")) {
-      const value = arg === "--name" ? args[index + 1] : arg.slice("--name=".length);
-      if (!value) throw new Error("для --name требуется короткое имя Change");
+      const value = readOptionValue(args, index, "--name", "для --name требуется короткое имя Change");
       if (name) throw new Error("--name можно указать только один раз");
       name = validateChangeName(value);
       if (arg === "--name") index += 1;
@@ -203,40 +211,28 @@ export function parseLoadArgs(args) {
       continue;
     }
     if (arg === "--store" || arg.startsWith("--store=")) {
-      const value = arg === "--store" ? args[index + 1] : arg.slice("--store=".length);
-      if (!value || (arg === "--store" && value.startsWith("--"))) {
-        throw new Error("для --store требуется Store ID");
-      }
+      const value = readOptionValue(args, index, "--store", "для --store требуется Store ID");
       if (storeId) throw new Error("--store можно указать только один раз");
       storeId = assertRepositoryId(value, "Store ID");
       if (arg === "--store") index += 1;
       continue;
     }
     if (arg === "--repo" || arg.startsWith("--repo=")) {
-      const value = arg === "--repo" ? args[index + 1] : arg.slice("--repo=".length);
-      if (!value || (arg === "--repo" && value.startsWith("--"))) {
-        throw new Error("для --repo требуется repository-id");
-      }
+      const value = readOptionValue(args, index, "--repo", "для --repo требуется repository-id");
       if (repositoryId) throw new Error("--repo можно указать только один раз");
       repositoryId = assertRepositoryId(value);
       if (arg === "--repo") index += 1;
       continue;
     }
     if (arg === "--change" || arg.startsWith("--change=")) {
-      const value = arg === "--change" ? args[index + 1] : arg.slice("--change=".length);
-      if (!value || (arg === "--change" && value.startsWith("--"))) {
-        throw new Error("для --change требуется Change ID");
-      }
+      const value = readOptionValue(args, index, "--change", "для --change требуется Change ID");
       if (change) throw new Error("--change можно указать только один раз");
       change = validateChangeName(value);
       if (arg === "--change") index += 1;
       continue;
     }
     if (arg === "--baseline" || arg.startsWith("--baseline=")) {
-      const value = arg === "--baseline" ? args[index + 1] : arg.slice("--baseline=".length);
-      if (!value || (arg === "--baseline" && value.startsWith("--"))) {
-        throw new Error("для --baseline требуется полная Git SHA");
-      }
+      const value = readOptionValue(args, index, "--baseline", "для --baseline требуется полная Git SHA");
       if (baseline) throw new Error("--baseline можно указать только один раз");
       if (!isGitRevision(value)) throw new Error("--baseline должен быть полной lowercase 40-символьной SHA");
       baseline = value;
@@ -244,10 +240,7 @@ export function parseLoadArgs(args) {
       continue;
     }
     if (arg === "--work-package" || arg.startsWith("--work-package=")) {
-      const value = arg === "--work-package" ? args[index + 1] : arg.slice("--work-package=".length);
-      if (!value || (arg === "--work-package" && value.startsWith("--"))) {
-        throw new Error("для --work-package требуется task.id из OpenSpec");
-      }
+      const value = readOptionValue(args, index, "--work-package", "для --work-package требуется task.id из OpenSpec");
       if (workPackages.includes(value)) throw new Error(`Work Package ${value} передан дважды`);
       workPackages.push(value);
       if (arg === "--work-package") index += 1;
