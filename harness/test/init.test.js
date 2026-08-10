@@ -212,6 +212,10 @@ test("initProject creates Store, official expanded pack and the complete skeleto
   for (const relativePath of expectedFiles) {
     assert.equal((await fs.stat(path.join(target, relativePath))).isFile(), true, relativePath);
   }
+  await assert.rejects(
+    fs.stat(path.join(target, ".qwen", "commands", "sdd-verify.md")),
+    /ENOENT/,
+  );
 
   assert.equal(
     await fs.readFile(path.join(target, ".qwen", "commands", "opsx-explore.md"), "utf8"),

@@ -98,7 +98,6 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
     [path.join(agent.commandsDirectory, "sdd-change.md")]: "---\ndescription: change\n---\n",
     [path.join(agent.commandsDirectory, "sdd-context.md")]: "---\ndescription: context\n---\n",
     [path.join(agent.commandsDirectory, "sdd-apply.md")]: "---\ndescription: apply\n---\n",
-    [path.join(agent.commandsDirectory, "sdd-verify.md")]: "---\ndescription: verify\n---\n",
     "sdd.yaml": serializeSddConfig(sddTemplate, [
       {
         id: "payments-specs",
@@ -245,6 +244,7 @@ for (const agent of [QWEN_AGENT, GIGACODE_AGENT]) {
     "opsx-update.md",
     "sdd-context.md",
     "sdd-change.md",
+    "sdd-apply.md",
   ]) {
     test(`connectProject requires ${requiredCommand} for ${agent.id}`, async (t) => {
       const scenario = await createScenario(t, { pointer: true, agent });

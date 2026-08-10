@@ -20,6 +20,7 @@ const REQUIRED_AGENT_COMMANDS = Object.freeze([
   "opsx-update.md",
   "sdd-context.md",
   "sdd-change.md",
+  "sdd-apply.md",
 ]);
 const PATHS = Object.freeze({
   metadata: path.join(".openspec-store", "store.yaml"),

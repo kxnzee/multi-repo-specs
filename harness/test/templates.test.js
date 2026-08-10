@@ -86,10 +86,7 @@ test("OpenSpec использует встроенную схему и толь�
 });
 
 test("sdd-apply реализует шаг 06 в границах одного Code Repository", async () => {
-  const [apply, verify] = await Promise.all([
-    read("init/commands/sdd-apply.md"),
-    read("init/commands/sdd-verify.md"),
-  ]);
+  const apply = await read("init/commands/sdd-apply.md");
 
   assert.match(apply, /openspec validate <change-id> --type change --strict --no-interactive --json/);
   assert.match(apply, /<repository-id>\/context\.json/);
@@ -129,10 +126,10 @@ test("sdd-apply реализует шаг 06 в границах одного Co
   assert.match(apply, /Никогда не указывай Archive следующим шагом/);
   assert.doesNotMatch(apply, /sdd open|sdd instructions apply|digest Work Package/);
 
-  assert.match(verify, /archive_readiness: ready/);
-  assert.match(verify, /archive_readiness: blocked/);
-  assert.match(verify, /не принимай финальное решение `Verified` от имени QA/);
-  assert.doesNotMatch(verify, /verification\.md|delivery\.md/);
+  await assert.rejects(
+    fs.stat(path.join(HARNESS_ROOT, "init/commands/sdd-verify.md")),
+    /ENOENT/,
+  );
 });
 
 test("инструкции агентов направляют завершённый Planning на шаг 04", async () => {
@@ -147,11 +144,16 @@ test("инструкции агентов направляют завершён�
     assert.match(contents, /`isComplete: true`.*до вызова `openspec instructions`/s);
     assert.match(contents, /Правила содержимого Proposal, Specs, Design[\s\S]*остаются в `openspec\/config.yaml`/);
     assert.match(contents, /`isComplete: true`.*только завершение Proposal, Specs, Design и Tasks/);
+    assert.match(contents, /новой сессии.*до первого `\/opsx-continue`.*полный `proposal\.md`/s);
+    assert.match(contents, /явное подтверждение.*принятый вход/s);
+    assert.match(contents, /Не выводи подтверждение из наличия файла или статуса OpenSpec `done`/);
+    assert.match(contents, /Не создавай для этого approval-файл/);
     assert.match(contents, /следующий этап — шаг 04, Planning PR и фиксация Spec Baseline/);
     assert.match(contents, /Не предлагай и не запускай `\/opsx-apply`/);
     assert.match(contents, /Не предлагай и не запускай `\/opsx-archive` до шага 09/);
-    assert.match(contents, /`archive_readiness: ready`/);
-    assert.match(contents, /backend, frontend, Composite Verification и ручная проверка/);
+    assert.match(contents, /backend, frontend, Composite Verification, ручная проверка, merge и rollout/);
+    assert.match(contents, /не выдумывай статус готовности/);
+    assert.doesNotMatch(contents, /archive_readiness/);
     assert.match(contents, /подсказку built-in `\/opsx-continue`.*замени маршрутом на шаг 04/);
     assert.match(contents, /Не предлагай отдельные `sdd review`, `sdd baseline`/);
     assert.match(contents, /Не считай HEAD ветки `feature\/<change-id>` Spec Baseline/);

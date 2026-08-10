@@ -58,7 +58,7 @@ sdd connect
 sdd connect --workspace /absolute/path/to/workspace
 ```
 
-Команда проверяет наличие обязательных agent actions `/opsx-explore`, `/opsx-continue`, `/opsx-update`, `/sdd-context` и `/sdd-change`, передаёт Store identity официальным `store register`, `store doctor`, `doctor --store` и `context --store`, структурно проверяет их JSON, затем загружает все записи `role: code` из `sdd.yaml` в `<workspace>/src/<repository-id>`. Существующие checkout не обновляются и не перезаписываются: проверяются только их `origin`, ветка и чистота.
+Команда проверяет наличие обязательных agent actions `/opsx-explore`, `/opsx-continue`, `/opsx-update`, `/sdd-context`, `/sdd-change` и runtime-инструкции `sdd-apply.md`, передаёт Store identity официальным `store register`, `store doctor`, `doctor --store` и `context --store`, структурно проверяет их JSON, затем загружает все записи `role: code` из `sdd.yaml` в `<workspace>/src/<repository-id>`. Существующие checkout не обновляются и не перезаписываются: проверяются только их `origin`, ветка и чистота.
 
 Если в Code Repository отсутствует единственный допустимый `openspec/config.yaml`, команда создаёт pointer `store: <store-id>` и возвращает `needs_setup_pr`. Она не делает commit, push или PR. После принятия setup PR обновите checkout и повторите `sdd connect`.
 
