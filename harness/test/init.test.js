@@ -33,9 +33,9 @@ async function temporaryProject(t) {
  * @param {string} projectRoot Корень тестового проекта.
  * @returns {{calls: string[][], runner: typeof runCommand}} Тестовый runner и журнал аргументов.
  */
-function fakeOpenSpec(projectRoot) {
+function fakeOpenSpec(projectRoot, { registeredStoreId } = {}) {
   const calls = [];
-  let storeId;
+  let storeId = registeredStoreId;
   const runner = (command, args, options = {}) => {
     if (command === "git") return runCommand(command, args, options);
     assert.equal(command, "openspec");
@@ -366,6 +366,34 @@ test("initProject refuses a dirty repository before invoking OpenSpec", async (t
   );
   assert.deepEqual(openSpec.calls, []);
   assert.equal(fsSync.existsSync(path.join(target, ".openspec-store")), false);
+});
+
+test("initProject explains how to remove a stale local Store registration", async (t) => {
+  const target = await temporaryProject(t);
+  const openSpec = fakeOpenSpec(target, { registeredStoreId: "rum-specs" });
+
+  await assert.rejects(
+    initProject({
+      target,
+      storeId: "test-store",
+      agentId: "qwen",
+      commandRunner: openSpec.runner,
+    }),
+    (error) => {
+      assert.match(error.message, /Локальный registry OpenSpec уже регистрирует путь/);
+      assert.match(error.message, /openspec store unregister rum-specs --json/);
+      assert.match(error.message, /не удаляет файлы/);
+      assert.match(error.message, /повторите sdd init/);
+      return true;
+    },
+  );
+  assert.equal(
+    openSpec.calls.some((args) => args[0] === "store" && args[1] === "setup"),
+    false,
+  );
+  assert.equal(fsSync.existsSync(path.join(target, ".openspec-store")), false);
+  assert.equal(fsSync.existsSync(path.join(target, ".qwen")), false);
+  assert.equal(fsSync.existsSync(path.join(target, "openspec")), false);
 });
 
 test("initProject reports recovery for Store metadata without the remaining initialization", async (t) => {
