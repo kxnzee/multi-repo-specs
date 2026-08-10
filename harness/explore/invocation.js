@@ -51,5 +51,6 @@ export function buildExploreInvocation(result) {
     `${repositoryScope}.`,
     `Разрешённые корни чтения: ${allowedRoots.map((value) => JSON.stringify(value)).join(", ")}.`,
     ...EXPLORE_ACTION.instructions,
+    `После структурированного итога, если нет блокирующих вопросов, попроси Change Owner подтвердить завершение Explore и выбрать <short-name>; следующим действием назови только \`/sdd-change ${result.ticket} <short-name>\`. Сам команду не вызывай. Не предлагай \`/opsx-new\`, \`/opsx-propose\`, Apply или Archive.`,
   ].join(" ");
 }

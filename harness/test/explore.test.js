@@ -301,6 +301,9 @@ test("buildExploreInvocation passes exact Store and repository revisions", () =>
   assert.match(invocation, /проблему и ожидаемый наблюдаемый результат сформулируй по исследованным фактам/);
   assert.match(invocation, /явно пометь как гипотезу или неизвестное/);
   assert.match(invocation, /явным --store/);
+  assert.match(invocation, /следующим действием назови только `\/sdd-change PAY-415 <short-name>`/);
+  assert.match(invocation, /Не предлагай `\/opsx-new`, `\/opsx-propose`, Apply или Archive/);
+  assert.match(invocation, /Сам команду не вызывай/);
 });
 
 test("buildExploreInvocation requires the request intent", () => {
