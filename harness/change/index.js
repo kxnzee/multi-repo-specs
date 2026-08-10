@@ -28,6 +28,7 @@ export { buildChangeId, validateChangeName } from "./id.js";
  * @param {string} [options.start] Текущий каталог внутри центрального Store.
  * @param {string} options.ticket Jira ticket key.
  * @param {string} options.name Короткое lowercase kebab-case имя.
+ * @param {string} [options.storeId] Явно переданный Store ID, который должен совпасть с текущим checkout.
  * @param {(changes: string[]) => Promise<boolean> | boolean} [options.confirmArchivedChange]
  * Подтверждение повторной работы по архивному ticket.
  * @param {typeof runCommand} [options.commandRunner] Исполнитель команд; переопределяется в тестах.
@@ -37,12 +38,16 @@ export async function prepareChange({
   start = process.cwd(),
   ticket,
   name,
+  storeId: requestedStoreId,
   confirmArchivedChange,
   commandRunner = runCommand,
 } = {}) {
   const changeId = buildChangeId(ticket, name);
   const branch = `feature/${changeId}`;
   const store = await resolveChangeStore(start, commandRunner);
+  if (requestedStoreId !== undefined && requestedStoreId !== store.storeId) {
+    throw new Error(`Указан Store ${requestedStoreId}, текущий checkout принадлежит Store ${store.storeId}`);
+  }
   const duplicates = await findDuplicates(store.projectRoot, ticket, store.activeChanges);
   const exact = duplicates.active.filter((candidate) => candidate === changeId);
   const conflicting = duplicates.active.filter((candidate) => candidate !== changeId);

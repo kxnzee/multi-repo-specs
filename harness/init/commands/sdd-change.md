@@ -22,13 +22,16 @@ description: "Создать OpenSpec Change и согласовать Proposal 
 Выполни только детерминированную команду:
 
 ```bash
-sdd change --ticket <ticket-id> --name <short-name>
+sdd change --ticket <ticket-id> --name <short-name> --store <store-id>
 ```
+
+`<store-id>` возьми только из структурированного итога Explore. CLI не переключает Store по этому параметру, а проверяет, что он совпадает с текущим центральным checkout.
 
 Разбери единственный JSON из stdout. Требуй:
 
 - `changeStatus` равен `created` или `existing`;
 - `storeId`, `storeRoot`, `changeId`, `branch`, `baseRevision` и `changePath` непусты;
+- `storeId` совпадает со Store структурированного итога Explore;
 - `changeId` равен `<ticket-lowercase>-<short-name>`;
 - `branch` равна `feature/<changeId>`;
 - `schema` равна `spec-driven`;

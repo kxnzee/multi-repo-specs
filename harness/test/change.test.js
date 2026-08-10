@@ -168,6 +168,7 @@ test("prepareChange creates a planning branch and standard OpenSpec Change", asy
     start: scenario.storeRoot,
     ticket: "PAY-412",
     name: "payment-status",
+    storeId: "payments-specs",
     commandRunner: openSpec.runner,
   });
 
@@ -202,6 +203,22 @@ test("prepareChange creates a planning branch and standard OpenSpec Change", asy
     "payments-specs",
     "--json",
   ].join(" ")));
+});
+
+test("prepareChange rejects an explicit Store ID from another checkout", async (t) => {
+  const scenario = await createScenario(t);
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  await assert.rejects(
+    prepareChange({
+      start: scenario.storeRoot,
+      ticket: "PAY-412",
+      name: "payment-status",
+      storeId: "other-specs",
+      commandRunner: openSpec.runner,
+    }),
+    /текущий checkout принадлежит Store payments-specs/,
+  );
+  assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.storeRoot }), "main");
 });
 
 test("prepareChange safely resumes an existing Proposal without recreating Change", async (t) => {
