@@ -150,6 +150,38 @@ async function installOpenSpec(projectRoot, agentAdapter, commandRunner) {
 }
 
 /**
+ * Блокирует `sdd init`, если текущий путь уже зарегистрирован как Store.
+ *
+ * @param {string} projectRoot Абсолютный путь центрального репозитория.
+ * @param {typeof runCommand} commandRunner Исполнитель внешних команд.
+ * @returns {void}
+ */
+function assertStorePathAvailable(projectRoot, commandRunner) {
+  const registry = parseOpenSpecJson(
+    commandRunner("openspec", ["store", "list", "--json"], { cwd: projectRoot }),
+    "openspec store list --json",
+  );
+  const registrations = Array.isArray(registry.stores)
+    ? registry.stores.filter(({ root }) => path.resolve(root ?? "") === projectRoot)
+    : [];
+  if (registrations.length > 0) {
+    const registeredIds = registrations.map(({ id }) => {
+      assertRepositoryId(id, "Store ID в локальном registry OpenSpec");
+      return id;
+    });
+    const commands = registeredIds
+      .map((registeredId) => `openspec store unregister ${registeredId} --json`)
+      .join("\n");
+    throw new Error(
+      `Локальный registry OpenSpec уже регистрирует путь ${projectRoot} как Store: ` +
+        `${registeredIds.join(", ")}. Для чистого первого запуска выполните:\n${commands}\n` +
+        "Команда unregister удаляет только локальную регистрацию и не удаляет файлы. " +
+        "После этого повторите sdd init",
+    );
+  }
+}
+
+/**
  * Создаёт Store официальной командой OpenSpec и проверяет её identity.
  *
  * @param {string} projectRoot Абсолютный путь центрального репозитория.
@@ -466,6 +498,7 @@ export async function initProject({
   await assertSkeletonDoesNotExist(projectRoot, bundleFiles, agent);
   const installedVersion = commandRunner("openspec", ["--version"], { cwd: projectRoot });
   assertSupportedOpenSpecVersion(installedVersion);
+  assertStorePathAvailable(projectRoot, commandRunner);
   const sddTemplate = await fs.readFile(path.join(skeletonRoot, PATHS.sddConfig), "utf8");
   const sddContents = serializeSddConfig(
     sddTemplate,
