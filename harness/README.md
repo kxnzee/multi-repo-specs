@@ -142,6 +142,12 @@ sdd load \
 
 `sdd load` не читает tracker, не доказывает историю Planning PR или amendment, не сравнивает параметры с прежним runtime, не копирует Tasks, не меняет код или planning-артефакты и не запускает Apply. Каждый запуск полностью определяется текущими параметрами subtask. После `implementation_ready` начните новую агентскую сессию из того же Code Repository и передайте ей готовое первое сообщение `next_action`: оно указывает на `sdd-apply.md` внутри точного runtime Store и содержит те же Store, repository, Change, Baseline и Work Packages. Копировать slash-команду в Code Repository не требуется. Подробности находятся в [`docs/steps/05.md`](../docs/steps/05.md).
 
+## Реализация
+
+Шаг 06 не добавляет исполняемую команду harness. Агент читает `sdd-apply.md` из immutable Store worktree, проверяет точное совпадение параметров с `context.json`, повторяет штатные `openspec validate` и `openspec instructions apply`, затем изменяет только текущий Code Repository и выполняет его локальные проверки.
+
+Инструкция поддерживает обычное продолжение с тем же runtime, не создаёт собственный progress-state и не блокируется отсутствием Repository Knowledge Pack: в этом случае агент адресно читает необходимые код и тесты. Commit, rebase, push, PR и tracker выполняются только по отдельному явному поручению пользователя. Центральный `tasks.md` не меняется, implementation PR не сливается, а успешная реализация передаётся в Composite Verification шага 07. Полный контракт находится в [`docs/steps/06.md`](../docs/steps/06.md).
+
 ## Границы
 
 - `bin/` — минимальные точки входа командной строки.

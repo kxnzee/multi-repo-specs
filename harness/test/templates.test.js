@@ -85,7 +85,7 @@ test("OpenSpec использует встроенную схему и толь�
   );
 });
 
-test("сформированные команды SDD требуют валидацию и подтверждения для Archive", async () => {
+test("sdd-apply реализует шаг 06 в границах одного Code Repository", async () => {
   const [apply, verify] = await Promise.all([
     read("init/commands/sdd-apply.md"),
     read("init/commands/sdd-verify.md"),
@@ -93,12 +93,42 @@ test("сформированные команды SDD требуют валид�
 
   assert.match(apply, /openspec validate <change-id> --type change --strict --no-interactive --json/);
   assert.match(apply, /<repository-id>\/context\.json/);
-  assert.match(apply, /`openspec instructions apply --change <change-id> --json`/);
+  assert.match(apply, /openspec instructions apply --change <change-id> --json/);
   assert.match(apply, /--store <store-id> --repo <repository-id> --change <change-id> --baseline <sha> --work-package <id>\.\.\./);
   assert.match(apply, /готовым первым сообщением `next_action`/);
   assert.match(apply, /Используй тот же набор значений, который был передан в успешный `sdd load`/);
-  assert.match(apply, /не вычисляй Store, repository, Baseline или Work Packages автоматически/);
+  assert.match(apply, /не вычисляй Store, repository, Baseline или Work Packages автоматически/i);
+  assert.match(apply, /один или несколько уникальных `--work-package`/);
+  assert.match(apply, /`allowed_edit_roots` не содержит ровно один `code_root`/);
+  assert.match(apply, /`immutable_roots` не содержит ровно один `spec_root`/);
+  assert.match(apply, /точные пары `id → description`/);
+  assert.match(apply, /Каждый `task\.id` означает один checkbox OpenSpec/);
+  assert.match(apply, /Число в начале `description`.*не `task\.id`/s);
+  assert.match(apply, /Не объединяй несколько ID в один пакет/);
+  assert.match(apply, /Отсутствие Knowledge Pack не является ошибкой/);
+  assert.match(apply, /Локальный technical design, implementation plan или checklist.*необязателен/s);
+  assert.match(apply, /нельзя завершить без записи в другой Code Repository, Composite Verification или недоступного внешнего окружения/);
+  assert.match(apply, /Не заменяй проверку указанного в Work Package другого репозитория или точной ревизии локальной имитацией/);
+  assert.match(apply, /При повторном запуске с теми же параметрами.*Новый progress-state не создавай/s);
+  assert.match(apply, /Используй только уже существующие в репозитории инструменты и конфигурацию проверок/);
+  assert.match(apply, /Не добавляй package manager, зависимости, test runner, build-конфигурацию или отдельные скомпилированные файлы только ради запуска проверки/);
+  assert.match(apply, /`passed` допустимо только для действительно выполненной команды с успешным exit code/);
+  assert.match(apply, /отсутствие инструмента, конфигурации или test runner никогда не является `passed`/);
+  assert.match(apply, /Невыполненную проверку укажи как `Not run` с причиной/);
+  assert.match(apply, /Созданный, но не запущенный тест не завершает такой Work Package/);
+  assert.match(apply, /сначала сравни результат с `code_base_revision`/);
+  assert.match(apply, /Не создавай commit, не выполняй push или rebase, не открывай и не изменяй PR или tracker без отдельного явного поручения пользователя/);
+  assert.match(apply, /Implementation PR на шаге 06 не сливай/);
+  assert.match(apply, /Не отмечай checkbox в центральном `tasks\.md`/);
+  assert.match(apply, /work_package_results:/);
+  assert.match(apply, /status: completed \| incomplete \| blocked/);
+  assert.match(apply, /только если каждый переданный ID имеет статус `completed`/);
+  assert.match(apply, /обязательная проверка `Not run` требует `implementation_in_progress` либо `blocked`/);
+  assert.match(apply, /next_step: complete_checks \| implementation_pr \| 07 \| blocked/);
+  assert.match(apply, /`next_step: implementation_pr` — только для `implementation_ready_for_pr`/);
+  assert.match(apply, /Никогда не указывай Archive следующим шагом/);
   assert.doesNotMatch(apply, /sdd open|sdd instructions apply|digest Work Package/);
+
   assert.match(verify, /archive_readiness: ready/);
   assert.match(verify, /archive_readiness: blocked/);
   assert.match(verify, /не принимай финальное решение `Verified` от имени QA/);
@@ -140,6 +170,9 @@ test("инструкции агентов направляют завершён�
     assert.match(contents, /не пытайся выводить их из Git-ветки или прежнего runtime/);
     assert.match(contents, /готовое первое сообщение указывает на `sdd-apply\.md` внутри runtime Store/);
     assert.match(contents, /Не требуй обнаружения slash-команды в Code Repository/);
+    assert.match(contents, /выполняй точную runtime-инструкцию `sdd-apply\.md`, а не built-in `\/opsx-apply`/);
+    assert.match(contents, /не отмечай центральный `tasks\.md` и не переходи к Archive/);
+    assert.match(contents, /Commit, push, PR и tracker изменяй только по отдельному явному поручению пользователя/);
   }
 });
 
