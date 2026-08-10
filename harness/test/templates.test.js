@@ -42,6 +42,10 @@ test("OpenSpec использует встроенную схему и толь�
   assert.match(config.rules.proposal.join("\n"), /repository-id/);
   assert.match(config.rules.proposal.join("\n"), /Code Repositories, известные по итогам Explore как кандидаты/);
   assert.match(config.rules.proposal.join("\n"), /окончательный технический impact.*design.md/);
+  assert.match(config.rules.proposal.join("\n"), /What Changes и Capabilities только через наблюдаемое поведение/);
+  assert.match(config.rules.proposal.join("\n"), /Не фиксируй файлы, каталоги, классы, функции/);
+  assert.match(config.rules.proposal.join("\n"), /Технические идентификаторы допустимы только.*источников.*evidence/);
+  assert.match(config.rules.proposal.join("\n"), /Открытые вопросы не должны противоречить/);
   assert.match(config.rules.specs.join("\n"), /межрепозиторный контракт/);
   assert.match(config.rules.specs.join("\n"), /классы.*хуки/);
   assert.match(config.rules.design.join("\n"), /обязателен для каждого Change/);
@@ -201,6 +205,11 @@ test("sdd-change создаёт только Change и Proposal из текущ�
   assert.match(command, /проверяет, что он совпадает с текущим центральным checkout/);
   assert.match(command, /openspec instructions proposal/);
   assert.match(command, /полного результата.*повторить `sdd explore`/s);
+  assert.match(command, /Why, What Changes, Capabilities, Impact, рисках и открытых вопросах.*наблюдаемое поведение/s);
+  assert.match(command, /Не указывай файлы, каталоги, классы, функции/);
+  assert.match(command, /Технические имена.*только в отдельном разделе источников как evidence/s);
+  assert.match(command, /Открытый вопрос не должен повторять или опровергать/);
+  assert.match(command, /перечитай все разделы и перепиши найденные технические решения и противоречия/);
   assert.match(command, /proposal_status: needs_confirmation/);
   assert.match(command, /step_status: proposal_accepted/);
   assert.match(command, /не перечитывай Code Repositories/i);
