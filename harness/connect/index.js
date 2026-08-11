@@ -88,14 +88,17 @@ function validateStoreDoctor(payload, storeId, storeRoot) {
  * @param {object} [options] Параметры подключения.
  * @param {string} [options.start] Корень Store.
  * @param {string} [options.workspace] Корень workspace.
+ * @param {(message: string) => void} [options.onProgress] Пользовательский вывод прогресса.
  * @param {typeof runCommand} [options.commandRunner] Исполнитель команд.
  * @returns {Promise<import("../shared/types.js").ConnectResult>} Проверенное состояние workspace.
  */
 export async function connectProject({
   start = process.cwd(),
   workspace: requestedWorkspace,
+  onProgress = () => {},
   commandRunner = runCommand,
 } = {}) {
+  onProgress("Проверка Store и OpenSpec...");
   const storeRoot = await fs.realpath(path.resolve(start));
   const metadata = parseStoreMetadata(await readFile(storeRoot, PATHS.metadata));
   const config = parseSddConfig(await readFile(storeRoot, PATHS.sddConfig));
@@ -131,8 +134,18 @@ export async function connectProject({
   const sourceRoot = path.join(workspace, "src");
   await fs.mkdir(sourceRoot, { recursive: true });
   const repositories = [];
-  for (const repository of config.codeRepositories) {
-    repositories.push(await connectRepository({ repository, sourceRoot, storeId: metadata.id, storeRoot, commandRunner }));
+  for (const [index, repository] of config.codeRepositories.entries()) {
+    const prefix = `[${index + 1}/${config.codeRepositories.length}] ${repository.id}`;
+    const connected = await connectRepository({
+      repository,
+      sourceRoot,
+      storeId: metadata.id,
+      storeRoot,
+      onProgress: (message) => onProgress(`${prefix}: ${message}`),
+      commandRunner,
+    });
+    repositories.push(connected);
+    onProgress(`${prefix}: готово`);
   }
   if (requestedWorkspace) rememberWorkspace(storeRoot, workspace, commandRunner);
   return {

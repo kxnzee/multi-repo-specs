@@ -52,6 +52,7 @@ async function readStoreFile(projectRoot, relativePath) {
  * Интерактивный выбор Code Repositories.
  * @param {(changes: string[]) => Promise<boolean> | boolean} [options.confirmArchivedChange]
  * Подтверждение повторного Explore для архивного ticket.
+ * @param {(message: string) => void} [options.onProgress] Пользовательский вывод прогресса.
  * @param {typeof runCommand} [options.commandRunner] Исполнитель команд; переопределяется в тестах.
  * @returns {Promise<import("../shared/types.js").ExplorePreparation>} Проверенная область.
  */
@@ -61,6 +62,7 @@ export async function prepareExplore({
   ticket,
   selectRepositories,
   confirmArchivedChange,
+  onProgress = () => {},
   commandRunner = runCommand,
 } = {}) {
   validateTicket(ticket);
@@ -140,10 +142,13 @@ export async function prepareExplore({
 
   const selected = validateSelection(available, await selectRepositories(available));
   const repositories = [];
-  for (const repository of selected) {
+  for (const [index, repository] of selected.entries()) {
+    const prefix = `[${index + 1}/${selected.length}] ${repository.id}`;
+    onProgress(`${prefix}: проверка актуальности...`);
     const git = inspectFreshCheckout(repository.path, repository, commandRunner);
     await validatePointer(repository, metadata.id, projectRoot, commandRunner);
     repositories.push({ id: repository.id, path: repository.path, ...git });
+    onProgress(`${prefix}: готово`);
   }
 
   return {

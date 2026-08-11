@@ -201,9 +201,11 @@ function fakeOpenSpec(storeRoot, initialStores = []) {
 test("connectProject registers Store, clones a missing repository and creates its pointer", async (t) => {
   const scenario = await createScenario(t);
   const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const progress = [];
 
   const result = await connectProject({
     start: scenario.storeRoot,
+    onProgress: (message) => progress.push(message),
     commandRunner: openSpec.runner,
   });
 
@@ -220,6 +222,12 @@ test("connectProject registers Store, clones a missing repository and creates it
     runCommand("git", ["-C", path.join(scenario.workspace, "src/api"), "status", "--porcelain"]),
     /openspec\//,
   );
+  assert.deepEqual(progress, [
+    "Проверка Store и OpenSpec...",
+    "[1/1] api: клонирование...",
+    "[1/1] api: проверка OpenSpec pointer...",
+    "[1/1] api: готово",
+  ]);
 });
 
 test("connectProject is idempotent for an accepted pointer and existing checkout", async (t) => {

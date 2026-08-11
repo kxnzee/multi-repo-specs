@@ -45,14 +45,23 @@ function inspectCheckout(repositoryRoot, repository, commandRunner) {
  * @param {string} options.sourceRoot Каталог `<workspace>/src`.
  * @param {string} options.storeId ID центрального Store.
  * @param {string} options.storeRoot Абсолютный путь Store.
+ * @param {(message: string) => void} options.onProgress Пользовательский вывод прогресса.
  * @param {typeof import("../shared/command.js").runCommand} options.commandRunner Исполнитель команд.
  * @returns {Promise<import("../shared/types.js").ConnectedRepository>} Проверенное состояние подключения.
  */
-export async function connectRepository({ repository, sourceRoot, storeId, storeRoot, commandRunner }) {
+export async function connectRepository({
+  repository,
+  sourceRoot,
+  storeId,
+  storeRoot,
+  onProgress,
+  commandRunner,
+}) {
   const repositoryRoot = path.join(sourceRoot, repository.id);
   const existing = await pathState(repositoryRoot);
   let cloned = false;
   if (!existing) {
+    onProgress("клонирование...");
     commandRunner("git", ["clone", "--single-branch", "--no-tags", "--branch", repository.defaultBranch, "--", repository.url, repositoryRoot], {
       cwd: sourceRoot,
       sensitiveValues: [repository.url],
@@ -60,10 +69,13 @@ export async function connectRepository({ repository, sourceRoot, storeId, store
     cloned = true;
   } else if (!existing.isDirectory() || existing.isSymbolicLink()) {
     throw new Error(`${repository.id}: checkout должен быть обычным каталогом`);
+  } else {
+    onProgress("проверка существующего checkout...");
   }
   const git = inspectCheckout(repositoryRoot, repository, commandRunner);
   const pointerCreated = await ensurePointer(repositoryRoot, storeId);
   const pointerPending = Boolean(commandRunner("git", ["status", "--porcelain", "--untracked-files=all", "--", GIT_POINTER_PATH], { cwd: repositoryRoot }));
+  onProgress("проверка OpenSpec pointer...");
   const doctor = runOpenSpecJson(commandRunner, ["doctor", "--json"], repositoryRoot);
   assertOpenSpecRoot(doctor.root, { path: storeRoot, storeId, source: "declared" }, "openspec doctor --json");
   if (doctor.root.healthy !== true) throw new Error(`${repository.id}: openspec doctor не подтвердила исправный Store`);

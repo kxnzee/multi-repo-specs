@@ -2,6 +2,7 @@
 
 import { connectProject } from "../connect/index.js";
 import { HELP, parseConnectArgs } from "./args.js";
+import { reportProgress } from "./progress.js";
 
 /**
  * Выполняет `sdd connect` и печатает состояние каждого Code Repository.
@@ -15,7 +16,10 @@ export async function runConnect(args) {
     console.log(HELP);
     return;
   }
-  const result = await connectProject({ workspace: options.workspace });
+  const result = await connectProject({
+    workspace: options.workspace,
+    onProgress: reportProgress,
+  });
   console.log(`Store: ${result.storeId} (${result.storeRoot})`);
   console.log(`Workspace: ${result.workspace}`);
   if (options.workspace) console.log("Workspace сохранён локально для следующих команд SDD.");

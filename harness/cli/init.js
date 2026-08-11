@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { initProject } from "../init/index.js";
 import { HELP, parseInitArgs } from "./args.js";
+import { reportProgress } from "./progress.js";
 
 /**
  * Печатает именованный список созданных или дополненных файлов.
@@ -49,6 +50,7 @@ export async function runInit(args) {
     console.log(HELP);
     return;
   }
+  reportProgress("Инициализация Store...");
   const result = await initProject({
     target: options.target,
     storeId: options.storeId,

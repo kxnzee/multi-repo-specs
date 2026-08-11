@@ -2,6 +2,7 @@
 
 import { prepareLoad } from "../load/index.js";
 import { HELP, parseLoadArgs } from "./args.js";
+import { reportProgress } from "./progress.js";
 
 /**
  * Выполняет `sdd load` и печатает машинный или компактный человекочитаемый результат.
@@ -15,6 +16,7 @@ export async function runLoad(args) {
     console.log(HELP);
     return;
   }
+  reportProgress("Подготовка контекста реализации...");
   const result = await prepareLoad({
     storeId: options.storeId,
     repositoryId: options.repositoryId,

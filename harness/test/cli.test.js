@@ -18,6 +18,7 @@ import { runConnect } from "../cli/connect.js";
 import { runExplore } from "../cli/explore.js";
 import { buildConnectHint, runInit } from "../cli/init.js";
 import { runLoad } from "../cli/load.js";
+import { reportProgress } from "../cli/progress.js";
 
 /**
  * Перехватывает строки `console.log` только на время одного последовательного smoke-сценария.
@@ -108,6 +109,16 @@ test("buildConnectHint distinguishes standard and custom Store layouts", () => {
     buildConnectHint(path.join(workspace, "openspec", "specs"), "specs"),
     `Далее: выполните sdd connect --workspace ${JSON.stringify(path.join(workspace, "openspec"))}`,
   );
+});
+
+test("reportProgress writes one line to the selected output", () => {
+  let written = "";
+  reportProgress("Проверка...", {
+    write(chunk) {
+      written += chunk;
+    },
+  });
+  assert.equal(written, "Проверка...\n");
 });
 
 test("parseConnectArgs covers help, split and inline workspace", () => {

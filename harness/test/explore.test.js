@@ -356,10 +356,12 @@ test("prepareExplore uses existing selected checkout at its exact clean revision
   runCommand("git", ["-C", scenario.codeRoot, "config", "remote.origin.fetch", "+refs/heads/other:refs/remotes/origin/other"]);
   runCommand("git", ["-C", scenario.codeRoot, "update-ref", "-d", "refs/remotes/origin/main"]);
   const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const progress = [];
   const result = await prepareExplore({
     start: scenario.storeRoot,
     ticket: "PAY-416",
     selectRepositories: async () => ["api"],
+    onProgress: (message) => progress.push(message),
     commandRunner: openSpec.runner,
   });
   assert.equal(result.repositories[0].path, scenario.codeRoot);
@@ -368,6 +370,10 @@ test("prepareExplore uses existing selected checkout at its exact clean revision
     runCommand("git", ["-C", scenario.codeRoot, "rev-parse", "origin/main"]),
     result.repositories[0].revision,
   );
+  assert.deepEqual(progress, [
+    "[1/1] api: проверка актуальности...",
+    "[1/1] api: готово",
+  ]);
 });
 
 test("prepareExplore explains how to publish a missing remote branch", async (t) => {

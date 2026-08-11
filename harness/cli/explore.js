@@ -4,6 +4,7 @@ import process from "node:process";
 import { createInterface } from "node:readline/promises";
 import { buildExploreInvocation, prepareExplore } from "../explore/index.js";
 import { HELP, parseExploreArgs } from "./args.js";
+import { reportProgress } from "./progress.js";
 
 /**
  * Минимальный интерфейс интерактивного терминала.
@@ -142,6 +143,7 @@ export async function runExplore(args) {
   }
   const prompt = createInterface({ input: process.stdin, output: process.stdout });
   try {
+    reportProgress("Проверка Store и Code Repositories...");
     const result = await prepareExplore({
       ticket: options.ticket,
       workspace: options.workspace,
@@ -151,6 +153,7 @@ export async function runExplore(args) {
         for (const change of changes) console.log(`  ${change}`);
         return confirm(prompt, "Продолжить новый Explore для этого ticket?");
       },
+      onProgress: reportProgress,
     });
     const intent = await askRequiredText(prompt, "Кратко опишите намерение запроса: ");
     printExploreResult({ ...result, intent });

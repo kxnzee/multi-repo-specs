@@ -5,6 +5,7 @@ import { createInterface } from "node:readline/promises";
 
 import { prepareChange } from "../change/index.js";
 import { HELP, parseChangeArgs } from "./args.js";
+import { reportProgress } from "./progress.js";
 
 /**
  * Запрашивает подтверждение повторной работы по архивному ticket.
@@ -37,6 +38,7 @@ export async function runChange(args) {
     ? createInterface({ input: process.stdin, output: process.stderr })
     : null;
   try {
+    reportProgress("Подготовка Change...");
     const result = await prepareChange({
       ticket: options.ticket,
       name: options.name,
