@@ -1,5 +1,7 @@
 /** @fileoverview Пользовательский сценарий команды `sdd init`. */
 
+import path from "node:path";
+
 import { initProject } from "../init/index.js";
 import { HELP, parseInitArgs } from "./args.js";
 
@@ -13,6 +15,26 @@ import { HELP, parseInitArgs } from "./args.js";
 function printPaths(title, paths) {
   console.log(`${title} (${paths.length})`);
   for (const filePath of paths) console.log(`  ${filePath}`);
+}
+
+/**
+ * Формирует следующую команду с учётом расположения Store.
+ *
+ * @param {string} storeRoot Канонический путь Store.
+ * @param {string} storeId Store ID.
+ * @returns {string} Готовая пользовательская подсказка.
+ */
+export function buildConnectHint(storeRoot, storeId) {
+  const workspace = path.dirname(storeRoot);
+  const standardLayout = (
+    path.basename(storeRoot) === storeId &&
+    path.basename(workspace) !== "openspec" &&
+    path.dirname(workspace) !== workspace
+  );
+  const command = standardLayout
+    ? "sdd connect"
+    : `sdd connect --workspace ${JSON.stringify(workspace)}`;
+  return `Далее: выполните ${command}`;
 }
 
 /**
@@ -35,12 +57,12 @@ export async function runInit(args) {
   });
   if (result.alreadyInitialized) {
     console.log(`Store ${result.storeId} уже инициализирован; файлы не изменены.`);
-    console.log("Далее: выполните sdd connect");
+    console.log(buildConnectHint(result.target, result.storeId));
     return;
   }
   console.log(`Store ${result.storeId}: ${result.target}`);
   console.log(`Agent: ${options.agentId}`);
   printPaths("Создано", result.created);
   if (result.updated.length > 0) printPaths("Дополнено", result.updated);
-  console.log("Далее: выполните sdd connect");
+  console.log(buildConnectHint(result.target, result.storeId));
 }

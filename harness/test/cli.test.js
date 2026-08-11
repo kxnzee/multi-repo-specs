@@ -16,7 +16,7 @@ import {
 import { runChange } from "../cli/change.js";
 import { runConnect } from "../cli/connect.js";
 import { runExplore } from "../cli/explore.js";
-import { runInit } from "../cli/init.js";
+import { buildConnectHint, runInit } from "../cli/init.js";
 import { runLoad } from "../cli/load.js";
 
 /**
@@ -92,6 +92,22 @@ test("parseInitArgs accepts split options and rejects ambiguous input", () => {
   assert.throws(() => parseInitArgs(["--store", "specs", "--store=other", "--agent=qwen"]), /только один раз/);
   assert.throws(() => parseInitArgs(["--store=specs", "--agent=qwen", "one", "two"]), /Неожиданный аргумент/);
   assert.throws(() => parseInitArgs(["--store=specs", "--agent=qwen", "--unknown"]), /Неизвестный параметр/);
+});
+
+test("buildConnectHint distinguishes standard and custom Store layouts", () => {
+  const workspace = path.resolve("workspace");
+  assert.equal(
+    buildConnectHint(path.join(workspace, "specs"), "specs"),
+    "Далее: выполните sdd connect",
+  );
+  assert.equal(
+    buildConnectHint(path.join(workspace, "central-specifications"), "specs"),
+    `Далее: выполните sdd connect --workspace ${JSON.stringify(workspace)}`,
+  );
+  assert.equal(
+    buildConnectHint(path.join(workspace, "openspec", "specs"), "specs"),
+    `Далее: выполните sdd connect --workspace ${JSON.stringify(path.join(workspace, "openspec"))}`,
+  );
 });
 
 test("parseConnectArgs covers help, split and inline workspace", () => {
