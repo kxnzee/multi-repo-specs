@@ -125,6 +125,8 @@ test("sdd-apply реализует шаг 06 в границах одного Co
   assert.match(apply, /Не создавай commit, не выполняй push или rebase, не открывай и не изменяй PR или tracker без отдельного явного поручения пользователя/);
   assert.match(apply, /Implementation PR на шаге 06 не сливай/);
   assert.match(apply, /Не отмечай checkbox в центральном `tasks\.md`/);
+  assert.match(apply, /provider-specific agent pack/);
+  assert.doesNotMatch(apply, /\.(?:qwen|gigacode)\/.*(?:openspec-|opsx-)/);
   assert.match(apply, /work_package_results:/);
   assert.match(apply, /status: completed \| incomplete \| blocked/);
   assert.match(apply, /только если каждый переданный ID имеет статус `completed`/);

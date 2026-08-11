@@ -1,4 +1,4 @@
-# SDD local data. Do not ignore openspec/, .qwen/, or .sdd/ as a whole.
+# SDD local data. Do not ignore openspec/, the provider-specific agent directory, or .sdd/ as a whole.
 .sdd/cache/
 .sdd/logs/
 

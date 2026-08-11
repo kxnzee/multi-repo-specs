@@ -24,7 +24,7 @@ Archive is allowed only after:
 - frontend implementation is completed;
 - manual verification is completed.
 
-Do not modify built-in OpenSpec skills or commands under `.qwen/skills/openspec-*` and `.qwen/commands/opsx-*`. Keep project-specific process rules in `AGENTS.md` and project documentation.
+Do not modify built-in OpenSpec `openspec-*` skills or `opsx-*` commands in the provider-specific agent directory selected in `sdd.yaml`. Keep project-specific process rules in `AGENTS.md` and project documentation.
 
 ## Reference flow document
 

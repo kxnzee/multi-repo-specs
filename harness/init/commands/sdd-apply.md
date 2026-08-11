@@ -81,7 +81,7 @@ openspec instructions apply --change <change-id> --json
 - другие Code Repositories;
 - Work Packages, назначенные другим репозиториям;
 - Repository Knowledge Pack, если его обновление прямо не входит в назначенную работу;
-- встроенные `.qwen/skills/openspec-*` и `.qwen/commands/opsx-*`.
+- встроенные skills `openspec-*` и команды `opsx-*` provider-specific agent pack.
 
 Не расширяй scope найденными сопутствующими проблемами. Перечисли их отдельно в отчёте или PR.
 
