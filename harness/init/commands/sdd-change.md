@@ -10,7 +10,7 @@ description: "Создать OpenSpec Change и согласовать Proposal 
 
 До запуска потребуй одновременно:
 
-- ровно два аргумента: Jira ticket key в верхнем регистре и короткое имя в lowercase kebab-case;
+- ровно два аргумента: внешний ticket key из двух uppercase alphanumeric частей через дефис и короткое имя в lowercase kebab-case;
 - полный структурированный итог `/opsx-explore` в текущей агентской сессии;
 - явное решение Change Owner, что Explore завершён и можно создать Change и Proposal;
 - отсутствие блокирующих вопросов.

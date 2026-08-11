@@ -223,9 +223,13 @@ test("parseSddConfig rejects credentials embedded in HTTP repository URLs", () =
   );
 });
 
-test("validateTicket accepts only uppercase Jira-style keys", () => {
+test("validateTicket accepts uppercase alphanumeric ticket parts", () => {
   assert.equal(validateTicket("PAY-412"), "PAY-412");
+  assert.equal(validateTicket("TEST-001"), "TEST-001");
+  assert.equal(validateTicket("TEST1-TEST0"), "TEST1-TEST0");
   assert.throws(() => validateTicket("pay-412"), /формат/);
+  assert.throws(() => validateTicket("TEST1-"), /формат/);
+  assert.throws(() => validateTicket("TEST1-TEST-0"), /формат/);
 });
 
 test("findSpecRoot resolves the nearest Store from a nested directory", async (t) => {
@@ -325,6 +329,8 @@ test("buildExploreInvocation requires the request intent", () => {
 
 test("prepareExplore uses existing selected checkout at its exact clean revision", async (t) => {
   const scenario = await createScenario(t, { withCode: true });
+  runCommand("git", ["-C", scenario.codeRoot, "config", "remote.origin.fetch", "+refs/heads/other:refs/remotes/origin/other"]);
+  runCommand("git", ["-C", scenario.codeRoot, "update-ref", "-d", "refs/remotes/origin/main"]);
   const openSpec = fakeOpenSpec(scenario.storeRoot);
   const result = await prepareExplore({
     start: scenario.storeRoot,
@@ -334,6 +340,33 @@ test("prepareExplore uses existing selected checkout at its exact clean revision
   });
   assert.equal(result.repositories[0].path, scenario.codeRoot);
   assert.equal(result.repositories[0].revision, runCommand("git", ["-C", scenario.codeRoot, "rev-parse", "HEAD"]));
+  assert.equal(
+    runCommand("git", ["-C", scenario.codeRoot, "rev-parse", "origin/main"]),
+    result.repositories[0].revision,
+  );
+});
+
+test("prepareExplore explains how to publish a missing remote branch", async (t) => {
+  const scenario = await createScenario(t, { withCode: true });
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const runner = (command, args, options) => {
+    if (
+      command === "git" &&
+      options?.cwd === scenario.codeRoot &&
+      args.join(" ") === "ls-remote --heads origin refs/heads/main"
+    ) return "";
+    return openSpec.runner(command, args, options);
+  };
+
+  await assert.rejects(
+    prepareExplore({
+      start: scenario.storeRoot,
+      ticket: "PAY-425",
+      selectRepositories: async () => ["api"],
+      commandRunner: runner,
+    }),
+    /api: ветка main отсутствует в origin;.*git push -u origin main/,
+  );
 });
 
 test("prepareExplore rejects an invalid Git revision", async (t) => {

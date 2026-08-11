@@ -1,4 +1,4 @@
-/** @fileoverview Формирование канонического Change ID из Jira ticket и короткого имени. */
+/** @fileoverview Формирование канонического Change ID из внешнего ticket и короткого имени. */
 
 import { assertRepositoryId } from "../config/index.js";
 import { validateTicket } from "../explore/validation/ticket.js";
@@ -21,7 +21,7 @@ export function validateChangeName(name) {
 /**
  * Строит единый идентификатор `<ticket-lowercase>-<name>`.
  *
- * @param {string} ticket Jira ticket key.
+ * @param {string} ticket Внешний ticket key.
  * @param {string} name Короткое имя Change.
  * @returns {string} Канонический Change ID.
  */

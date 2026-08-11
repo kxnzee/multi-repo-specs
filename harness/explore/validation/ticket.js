@@ -4,17 +4,17 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 const ARCHIVE_PREFIX = /^\d{4}-\d{2}-\d{2}-(.+)$/;
-const TICKET_PATTERN = /^[A-Z][A-Z0-9]*-[1-9][0-9]*$/;
+const TICKET_PATTERN = /^[A-Z][A-Z0-9]*-[A-Z0-9]+$/;
 
 /**
- * Проверяет Jira-style ticket key, используемый как внешний ID процесса.
+ * Проверяет внешний ticket key, используемый как ID процесса.
  *
  * @param {unknown} ticket Проверяемое значение.
  * @returns {string} Ticket в исходном верхнем регистре.
  */
 export function validateTicket(ticket) {
   if (typeof ticket !== "string" || !TICKET_PATTERN.test(ticket)) {
-    throw new Error("Ticket key должен иметь формат <PROJECT>-<number>, например PAY-412");
+    throw new Error("Ticket key должен иметь формат из двух uppercase alphanumeric частей через дефис, например PAY-412 или TEST1-TEST0");
   }
   return ticket;
 }

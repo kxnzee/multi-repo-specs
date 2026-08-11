@@ -112,6 +112,10 @@ test("parseExploreArgs covers ticket and workspace variants", () => {
     parseExploreArgs(["--ticket=PAY-412", "--workspace=/tmp/work"]),
     { help: false, ticket: "PAY-412", workspace: "/tmp/work" },
   );
+  assert.deepEqual(
+    parseExploreArgs(["--ticket=TEST1-TEST0", "--workspace=/tmp/work"]),
+    { help: false, ticket: "TEST1-TEST0", workspace: "/tmp/work" },
+  );
   assert.throws(() => parseExploreArgs([]), /требуется --ticket/);
   assert.throws(() => parseExploreArgs(["--ticket=pay-412"]), /Ticket key/);
   assert.throws(() => parseExploreArgs(["--ticket=PAY-412", "--ticket=PAY-413"]), /только один раз/);

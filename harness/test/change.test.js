@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { prepareChange } from "../change/index.js";
+import { buildChangeId, prepareChange } from "../change/index.js";
 import { resolveAgentAdapter } from "../config/agents.js";
 import { serializeSddConfig } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
@@ -160,6 +160,11 @@ function fakeOpenSpec(storeRoot, initialChanges = []) {
   };
   return { calls, runner };
 }
+
+test("buildChangeId keeps an alphanumeric ticket compatible with OpenSpec naming", () => {
+  assert.equal(buildChangeId("TEST1-TEST0", "pilot"), "test1-test0-pilot");
+  assert.throws(() => buildChangeId("TEST--1", "pilot"), /Ticket key/);
+});
 
 test("prepareChange creates a planning branch and standard OpenSpec Change", async (t) => {
   const scenario = await createScenario(t);

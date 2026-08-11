@@ -48,7 +48,24 @@ export function inspectFreshCheckout(repositoryRoot, repository, commandRunner) 
   if (branch !== repository.defaultBranch) {
     throw new Error(`${repository.id}: ожидается ветка ${repository.defaultBranch}`);
   }
-  commandRunner("git", ["fetch", "origin", repository.defaultBranch], { cwd: repositoryRoot });
+  const remoteBranch = `refs/heads/${repository.defaultBranch}`;
+  const trackingBranch = `refs/remotes/origin/${repository.defaultBranch}`;
+  const advertisedBranch = commandRunner(
+    "git",
+    ["ls-remote", "--heads", "origin", remoteBranch],
+    { cwd: repositoryRoot },
+  );
+  if (!advertisedBranch) {
+    throw new Error(
+      `${repository.id}: ветка ${repository.defaultBranch} отсутствует в origin; ` +
+      `если это нужная ветка, опубликуйте её: git push -u origin ${repository.defaultBranch}`,
+    );
+  }
+  commandRunner(
+    "git",
+    ["fetch", "origin", `+${remoteBranch}:${trackingBranch}`],
+    { cwd: repositoryRoot },
+  );
   const revision = commandRunner("git", ["rev-parse", "HEAD"], { cwd: repositoryRoot });
   const remoteRevision = commandRunner(
     "git",

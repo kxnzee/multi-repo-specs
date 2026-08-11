@@ -26,7 +26,7 @@ export { buildChangeId, validateChangeName } from "./id.js";
  *
  * @param {object} [options] Параметры команды.
  * @param {string} [options.start] Текущий каталог внутри центрального Store.
- * @param {string} options.ticket Jira ticket key.
+ * @param {string} options.ticket Внешний ticket key.
  * @param {string} options.name Короткое lowercase kebab-case имя.
  * @param {string} [options.storeId] Явно переданный Store ID, который должен совпасть с текущим checkout.
  * @param {(changes: string[]) => Promise<boolean> | boolean} [options.confirmArchivedChange]
