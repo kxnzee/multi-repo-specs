@@ -73,17 +73,9 @@ test("OpenSpec использует встроенную схему и толь�
   assert.match(config.rules.tasks.join("\n"), /обновление Repository Knowledge Pack/);
   assert.match(config.rules.tasks.join("\n"), /окончательного технического impact design.md/);
 
-  const configSection = step00.indexOf("### Конфигурация OpenSpec");
-  const fenceMarker = "```yaml\n";
-  const fenceStart = step00.indexOf(fenceMarker, configSection);
-  const fenceEnd = step00.indexOf("\n```", fenceStart + fenceMarker.length);
-  assert.notEqual(configSection, -1);
-  assert.notEqual(fenceStart, -1);
-  assert.notEqual(fenceEnd, -1);
-  assert.equal(
-    step00.slice(fenceStart + fenceMarker.length, fenceEnd).trimEnd(),
-    contents.trimEnd(),
-  );
+  assert.match(step00, /sdd init/);
+  assert.match(step00, /sdd connect/);
+  assert.doesNotMatch(step00, /Техническая спецификация/);
 
   await assert.rejects(
     fs.stat(
@@ -188,7 +180,7 @@ test("инструкции агентов направляют завершён�
   }
 });
 
-test("шаг 04 не вводит собственные команды review и baseline", async () => {
+test("шаги 03 и 04 содержат только пользовательский маршрут OpenSpec", async () => {
   const [step03, step04] = await Promise.all([
     read("../docs/steps/03.md"),
     read("../docs/steps/04.md"),
@@ -196,12 +188,16 @@ test("шаг 04 не вводит собственные команды review �
     assert.rejects(fs.stat(path.join(HARNESS_ROOT, "init/commands/sdd-baseline.md")), /ENOENT/),
   ]);
 
-  assert.match(step04, /не гарантирует, что каждый Work Package.*checkbox с явной целью/s);
-  assert.match(step04, /пакет без цели блокирует merge/);
-  assert.match(step04, /Машинный ID предоставляет сам OpenSpec в `tasks\[\]\.id`/);
-  assert.match(step04, /Отдельный SDD-валидатор и собственный формат `tasks\.md`.*не вводятся/);
+  assert.match(step03, /\/opsx-continue <change-id>/);
+  assert.match(step04, /openspec status/);
+  assert.match(step04, /openspec show/);
+  assert.match(step04, /openspec validate/);
+  assert.match(step04, /\/opsx-update <change-id>/);
+  assert.match(step04, /openspec instructions apply/);
+  assert.doesNotMatch(step03, /Техническая спецификация/);
+  assert.doesNotMatch(step04, /Техническая спецификация/);
   assert.doesNotMatch(step04, /WP-PAYMENTS-API/);
-  assert.match(step03, /`sdd connect`.*`opsx-update\.md`/);
+  assert.doesNotMatch(step04, /sdd (?:review|baseline)/);
 });
 
 test("sdd-change создаёт только Change и Proposal из текущего Explore", async () => {
