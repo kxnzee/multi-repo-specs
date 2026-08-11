@@ -48,17 +48,28 @@ node harness/bin/sdd.js init --store payments-specs --agent qwen
 
 ## Подключение рабочей машины
 
-После клонирования центрального Store Repository выполните из его корня:
+Стандартная раскладка содержит один центральный Store рядом с каталогом Code Repositories:
+
+```text
+<workspace>/
+├── <store-id>/
+│   └── openspec/
+└── src/
+```
+
+Имя каталога Store должно совпадать с `store-id` из `.openspec-store/store.yaml`. После клонирования выполните из корня Store:
 
 ```bash
 sdd connect
 ```
 
-Для нестандартного расположения каталогов задайте workspace явно:
+Если имя каталога Store отличается от `store-id` или Store расположен отдельно, задайте workspace один раз:
 
 ```bash
 sdd connect --workspace /absolute/path/to/workspace
 ```
+
+`sdd connect` сохраняет канонический путь как локальную Git-настройку `sdd.workspace` центрального Store. Настройка не коммитится и используется последующими `sdd connect` и `sdd explore`; явный `--workspace` заменяет сохранённое значение.
 
 Команда проверяет наличие обязательных agent actions `/opsx-explore`, `/opsx-continue`, `/opsx-update`, `/sdd-context`, `/sdd-change` и runtime-инструкции `sdd-apply.md`, передаёт Store identity официальным `store register`, `store doctor`, `doctor --store` и `context --store`, структурно проверяет их JSON, затем загружает все записи `role: code` из `sdd.yaml` в `<workspace>/src/<repository-id>`. Существующие checkout не обновляются и не перезаписываются: проверяются только их `origin`, ветка и чистота.
 

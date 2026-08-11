@@ -12,7 +12,7 @@ import {
 import { runCommand } from "../shared/command.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
 import { connectRepository } from "./repository.js";
-import { pathState, resolveWorkspace } from "./workspace.js";
+import { pathState, rememberWorkspace, resolveWorkspace } from "./workspace.js";
 
 const REQUIRED_AGENT_COMMANDS = Object.freeze([
   "opsx-explore.md",
@@ -122,13 +122,19 @@ export async function connectProject({
   }
   const context = runOpenSpecJson(commandRunner, ["context", "--store", metadata.id, "--json"], storeRoot);
   assertOpenSpecRoot(context.root, { path: storeRoot, storeId: metadata.id, source: "store" }, `openspec context --store ${metadata.id} --json`);
-  const workspace = await resolveWorkspace(storeRoot, requestedWorkspace);
+  const workspace = await resolveWorkspace(
+    storeRoot,
+    metadata.id,
+    requestedWorkspace,
+    commandRunner,
+  );
   const sourceRoot = path.join(workspace, "src");
   await fs.mkdir(sourceRoot, { recursive: true });
   const repositories = [];
   for (const repository of config.codeRepositories) {
     repositories.push(await connectRepository({ repository, sourceRoot, storeId: metadata.id, storeRoot, commandRunner }));
   }
+  if (requestedWorkspace) rememberWorkspace(storeRoot, workspace, commandRunner);
   return {
     storeId: metadata.id,
     storeRoot,

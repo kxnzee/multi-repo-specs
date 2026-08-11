@@ -26,7 +26,7 @@ export const HELP = `Использование:
   --agent <id>    Agent adapter: ${supportedAgentIds().join(", ")}
   --repo <value>  Для init: добавить id=url#branch; для load: указать repository-id
                   Пример init: --repo ui=https://example.test/ui.git#main
-  --workspace     Явно задать корень workspace для sdd connect или sdd explore
+  --workspace     Задать workspace; sdd connect запоминает его локально
   --ticket <key>  Ticket key, например PAY-412 или TEST1-TEST0
   --name <value>  Короткое имя Change в lowercase kebab-case
   --change <id>   Полный ID принятого OpenSpec Change

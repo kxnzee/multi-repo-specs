@@ -3,6 +3,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { resolveWorkspace as resolveConnectedWorkspace } from "../connect/workspace.js";
 import { runOpenSpecJson } from "../shared/openspec.js";
 
 const REQUIRED_ROOT_PATHS = Object.freeze([
@@ -118,21 +119,11 @@ export async function resolveStart(start, commandRunner) {
  * Определяет общий корень постоянного workspace.
  *
  * @param {string} projectRoot Абсолютный путь Store.
+ * @param {string} storeId Store ID из проверенных metadata.
  * @param {string | undefined} requestedWorkspace Явный workspace.
+ * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель Git.
  * @returns {Promise<string>} Канонический путь workspace.
  */
-export async function resolveWorkspace(projectRoot, requestedWorkspace) {
-  const workspace = requestedWorkspace
-    ? path.resolve(requestedWorkspace)
-    : path.basename(path.dirname(projectRoot)) === "openspec"
-      ? path.dirname(path.dirname(projectRoot))
-      : null;
-  if (!workspace) {
-    throw new Error("Не удалось определить workspace; разместите Store в <workspace>/openspec/ или передайте --workspace");
-  }
-  const stat = await pathState(workspace);
-  if (!stat?.isDirectory() || stat.isSymbolicLink()) {
-    throw new Error(`Workspace должен быть обычным каталогом: ${workspace}`);
-  }
-  return fs.realpath(workspace);
+export async function resolveWorkspace(projectRoot, storeId, requestedWorkspace, commandRunner) {
+  return resolveConnectedWorkspace(projectRoot, storeId, requestedWorkspace, commandRunner);
 }

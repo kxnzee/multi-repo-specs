@@ -18,6 +18,7 @@ export async function runConnect(args) {
   const result = await connectProject({ workspace: options.workspace });
   console.log(`Store: ${result.storeId} (${result.storeRoot})`);
   console.log(`Workspace: ${result.workspace}`);
+  if (options.workspace) console.log("Workspace сохранён локально для следующих команд SDD.");
   console.log("Локальная регистрация Store проверена OpenSpec.");
   for (const repository of result.repositories) {
     console.log(`${repository.id}: ${repository.status}${repository.cloned ? ", cloned" : ", existing"}`);

@@ -118,8 +118,8 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
   runCommand("git", ["clone", "--bare", centralSource, centralRemote]);
 
   const workspace = path.join(root, "workspace");
-  const storeRoot = path.join(workspace, "openspec", "payments-specs");
-  await fs.mkdir(path.dirname(storeRoot), { recursive: true });
+  const storeRoot = path.join(workspace, "payments-specs");
+  await fs.mkdir(workspace, { recursive: true });
   runCommand("git", ["clone", centralRemote, storeRoot]);
   return { root, workspace, storeRoot, centralRemote, codeRemote };
 }
@@ -235,6 +235,40 @@ test("connectProject is idempotent for an accepted pointer and existing checkout
   assert.equal(second.status, "ready");
   assert.equal(second.repositories[0].cloned, false);
   assert.equal(second.repositories[0].pointerCreated, false);
+});
+
+test("connectProject remembers an explicit workspace for a nonstandard Store path", async (t) => {
+  const scenario = await createScenario(t, { pointer: true });
+  const customStoreRoot = path.join(scenario.root, "custom-store");
+  await fs.rename(scenario.storeRoot, customStoreRoot);
+  const openSpec = fakeOpenSpec(customStoreRoot);
+
+  const first = await connectProject({
+    start: customStoreRoot,
+    workspace: scenario.workspace,
+    commandRunner: openSpec.runner,
+  });
+  const second = await connectProject({ start: customStoreRoot, commandRunner: openSpec.runner });
+
+  assert.equal(first.workspace, scenario.workspace);
+  assert.equal(second.workspace, scenario.workspace);
+  assert.equal(
+    runCommand("git", ["-C", customStoreRoot, "config", "--local", "--get", "sdd.workspace"]),
+    scenario.workspace,
+  );
+});
+
+test("connectProject does not infer workspace from the legacy openspec container", async (t) => {
+  const scenario = await createScenario(t, { pointer: true });
+  const legacyStoreRoot = path.join(scenario.workspace, "openspec", "payments-specs");
+  await fs.mkdir(path.dirname(legacyStoreRoot), { recursive: true });
+  await fs.rename(scenario.storeRoot, legacyStoreRoot);
+  const openSpec = fakeOpenSpec(legacyStoreRoot);
+
+  await assert.rejects(
+    connectProject({ start: legacyStoreRoot, commandRunner: openSpec.runner }),
+    /разместите Store как <workspace>\/payments-specs/,
+  );
 });
 
 for (const agent of [QWEN_AGENT, GIGACODE_AGENT]) {

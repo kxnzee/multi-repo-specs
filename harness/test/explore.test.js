@@ -118,7 +118,7 @@ async function createScenario(t, { withCode = false, archived = [] } = {}) {
   }
   const store = await createCheckout(
     root,
-    path.join("workspace", "openspec", "payments-specs"),
+    path.join("workspace", "payments-specs"),
     "payments-specs",
     storeFiles,
   );
@@ -252,6 +252,30 @@ test("prepareExplore uses the connected workspace for Store-only Explore", async
   assert.equal(result.repositories.length, 0);
   assert.match(result.store.revision, /^[0-9a-f]{40}$/);
   await assert.rejects(fs.stat(path.join(scenario.storeRoot, ".sdd", "checkouts")), /ENOENT/);
+});
+
+test("prepareExplore uses the workspace remembered by connect", async (t) => {
+  const scenario = await createScenario(t);
+  const customStoreRoot = path.join(scenario.root, "custom-store");
+  await fs.rename(scenario.storeRoot, customStoreRoot);
+  runCommand("git", [
+    "-C",
+    customStoreRoot,
+    "config",
+    "--local",
+    "sdd.workspace",
+    scenario.workspace,
+  ]);
+  const openSpec = fakeOpenSpec(customStoreRoot);
+
+  const result = await prepareExplore({
+    start: customStoreRoot,
+    ticket: "PAY-426",
+    selectRepositories: async () => [],
+    commandRunner: openSpec.runner,
+  });
+
+  assert.equal(result.workspace, scenario.workspace);
 });
 
 test("prepareExplore resolves Store through a Code Repository pointer", async (t) => {

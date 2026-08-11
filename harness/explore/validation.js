@@ -104,7 +104,12 @@ export async function prepareExplore({
     );
   }
 
-  const workspace = await resolveWorkspace(projectRoot, requestedWorkspace);
+  const workspace = await resolveWorkspace(
+    projectRoot,
+    metadata.id,
+    requestedWorkspace,
+    commandRunner,
+  );
   const available = await resolveCodeRepositories(
     workspace,
     config.codeRepositories,

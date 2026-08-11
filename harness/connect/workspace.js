@@ -3,6 +3,10 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { runCommand } from "../shared/command.js";
+
+const WORKSPACE_CONFIG_KEY = "sdd.workspace";
+
 /**
  * Возвращает состояние пути, не считая отсутствие ошибкой.
  *
@@ -19,28 +23,71 @@ export async function pathState(target) {
 }
 
 /**
- * Определяет общий workspace по стандартной раскладке или явному аргументу.
+ * Определяет общий workspace по явному аргументу, локальной Git-настройке
+ * или стандартной раскладке `<workspace>/<store-id>`.
  *
  * @param {string} storeRoot Абсолютный путь центрального Store.
+ * @param {string} storeId Store ID из проверенных metadata.
  * @param {string | undefined} requestedWorkspace Явно переданный workspace.
+ * @param {typeof runCommand} [commandRunner] Исполнитель Git.
  * @returns {Promise<string>} Канонический абсолютный путь workspace.
  */
-export async function resolveWorkspace(storeRoot, requestedWorkspace) {
+export async function resolveWorkspace(
+  storeRoot,
+  storeId,
+  requestedWorkspace,
+  commandRunner = runCommand,
+) {
+  const configuredWorkspace = requestedWorkspace
+    ? ""
+    : commandRunner(
+      "git",
+      ["config", "--local", "--get", "--default", "", WORKSPACE_CONFIG_KEY],
+      { cwd: storeRoot },
+    );
+  const storeParent = path.dirname(storeRoot);
+  const standardWorkspace = (
+    path.basename(storeRoot) === storeId &&
+    path.basename(storeParent) !== "openspec" &&
+    path.dirname(storeParent) !== storeParent
+  ) ? storeParent : null;
   const workspace = requestedWorkspace
     ? path.resolve(requestedWorkspace)
-    : path.basename(path.dirname(storeRoot)) === "openspec"
-      ? path.dirname(path.dirname(storeRoot))
-      : null;
+    : configuredWorkspace
+      ? path.resolve(configuredWorkspace)
+      : standardWorkspace;
   if (!workspace) {
     throw new Error(
-      "Не удалось определить workspace; разместите Store в <workspace>/openspec/ или передайте --workspace",
+      `Не удалось определить workspace; разместите Store как <workspace>/${storeId} ` +
+      "или один раз выполните sdd connect --workspace <path>",
     );
   }
   const stat = await pathState(workspace);
   if (!stat?.isDirectory() || stat.isSymbolicLink()) {
+    if (configuredWorkspace) {
+      throw new Error(
+        `Сохранённый workspace недоступен: ${workspace}; повторите sdd connect --workspace <path>`,
+      );
+    }
     throw new Error(`Workspace должен быть обычным каталогом: ${workspace}`);
   }
   return fs.realpath(workspace);
+}
+
+/**
+ * Запоминает проверенный workspace только в локальной Git-конфигурации Store.
+ *
+ * @param {string} storeRoot Абсолютный путь центрального Store.
+ * @param {string} workspace Канонический абсолютный путь workspace.
+ * @param {typeof runCommand} [commandRunner] Исполнитель Git.
+ * @returns {void}
+ */
+export function rememberWorkspace(storeRoot, workspace, commandRunner = runCommand) {
+  commandRunner(
+    "git",
+    ["config", "--local", "--replace-all", WORKSPACE_CONFIG_KEY, workspace],
+    { cwd: storeRoot },
+  );
 }
 
 /**
