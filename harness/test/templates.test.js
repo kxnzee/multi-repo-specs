@@ -109,10 +109,8 @@ test("OpenSpec использует встроенную схему и native su
 test("sdd-apply реализует шаг 06 в границах одного Code Repository", async () => {
   const apply = await read("init/commands/sdd-apply.md");
 
-  assert.match(apply, /standalone-инструкция.*Code Repository.*может отсутствовать/s);
-  assert.match(apply, /языковой контракт.*обязательным локальным fallback/);
-  assert.match(apply, /Первое сообщение.*на русском языке/);
-  assert.match(apply, /Не переводи только код, команды, пути, идентификаторы/);
+  assert.match(apply, /сначала указывает на файл инструкций выбранного агента из runtime Store/);
+  assert.doesNotMatch(apply, /Первое сообщение|на русском языке|языковой контракт/);
   assert.match(apply, /openspec validate <change-id> --type change --strict --no-interactive --json/);
   assert.match(apply, /<repository-id>\/context\.json/);
   assert.match(apply, /openspec instructions apply --change <change-id> --json/);

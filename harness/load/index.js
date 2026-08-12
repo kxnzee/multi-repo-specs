@@ -32,8 +32,9 @@ import {
 } from "./runtime.js";
 
 /**
- * Формирует первое сообщение Apply с точной инструкцией и тем же контрактом, что и load.
+ * Формирует первое сообщение Apply с точными provider- и runtime-инструкциями.
  *
+ * @param {string} agentInstructionsPath
  * @param {string} instructionPath
  * @param {string} storeId
  * @param {string} repositoryId
@@ -42,9 +43,18 @@ import {
  * @param {string[]} workPackages
  * @returns {string}
  */
-function buildApplyPrompt(instructionPath, storeId, repositoryId, changeId, baseline, workPackages) {
+function buildApplyPrompt(
+  agentInstructionsPath,
+  instructionPath,
+  storeId,
+  repositoryId,
+  changeId,
+  baseline,
+  workPackages,
+) {
   return [
-    `Прочитай и выполни инструкцию ${JSON.stringify(instructionPath)} с параметрами:`,
+    `Сначала прочитай файл инструкций агента ${JSON.stringify(agentInstructionsPath)}.`,
+    `Затем прочитай и выполни инструкцию ${JSON.stringify(instructionPath)} с параметрами:`,
     `--store ${storeId}`,
     `--repo ${repositoryId}`,
     `--change ${changeId}`,
@@ -226,7 +236,12 @@ export async function prepareLoad({
     baselineStore.config.agent.commandsDirectory,
     "sdd-apply.md",
   );
-  await readStoreFile(worktreeRoot, applyInstructionRelativePath);
+  const agentInstructionsRelativePath = baselineStore.config.agent.instructionsFile;
+  await Promise.all([
+    readStoreFile(worktreeRoot, agentInstructionsRelativePath),
+    readStoreFile(worktreeRoot, applyInstructionRelativePath),
+  ]);
+  const agentInstructionsPath = path.join(worktreeRoot, agentInstructionsRelativePath);
   const applyInstructionPath = path.join(worktreeRoot, applyInstructionRelativePath);
   const selectedTasks = validateImplementationInput({
     worktreeRoot,
@@ -271,6 +286,7 @@ export async function prepareLoad({
     selectedTasks,
     nextStep: "06",
     nextAction: buildApplyPrompt(
+      agentInstructionsPath,
       applyInstructionPath,
       storeId,
       repositoryId,

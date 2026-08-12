@@ -37,10 +37,14 @@ async function commitFiles(repository, files) {
 
 /**
  * @param {import("node:test").TestContext} t
- * @param {{storeInsideWorkspace?: boolean}} [options]
+ * @param {{storeInsideWorkspace?: boolean, agentId?: "qwen" | "gigacode", includeAgentInstructions?: boolean}} [options]
  * @returns {Promise<{workspace: string, storeRoot: string, codeRoot: string, storeRemote: string, codeRemote: string, baseline: string}>}
  */
-async function createScenario(t, { storeInsideWorkspace = true } = {}) {
+async function createScenario(t, {
+  storeInsideWorkspace = true,
+  agentId = "qwen",
+  includeAgentInstructions = true,
+} = {}) {
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "multi-repo-sdd-load-")));
   t.after(async () => fs.rm(root, { recursive: true, force: true }));
   const workspace = path.join(root, "workspace");
@@ -61,15 +65,20 @@ async function createScenario(t, { storeInsideWorkspace = true } = {}) {
     { id: "payments-specs", role: "store", url: storeRemote, defaultBranch: "main" },
     { id: "payments-api", role: "code", url: codeRemote, defaultBranch: "main" },
   ];
-  await commitFiles(storeRoot, {
+  const agent = resolveAgentAdapter(agentId);
+  const storeFiles = {
     ".openspec-store/store.yaml":
       `version: 1\nid: payments-specs\nremote: ${JSON.stringify(storeRemote)}\n`,
-    "sdd.yaml": serializeSddConfig(TEMPLATE, repositories, resolveAgentAdapter("qwen")),
+    "sdd.yaml": serializeSddConfig(TEMPLATE, repositories, agent),
     "openspec/config.yaml": "schema: spec-driven\n",
-    ".qwen/commands/sdd-apply.md": "Apply from verified runtime.\n",
+    [path.join(agent.commandsDirectory, "sdd-apply.md")]: "Apply from verified runtime.\n",
     "openspec/changes/pay-412-payment-status/proposal.md": "# Proposal\n",
     "openspec/changes/pay-412-payment-status/tasks.md": "- [ ] 2.1 API\n- [ ] 2.2 tests\n",
-  });
+  };
+  if (includeAgentInstructions) {
+    storeFiles[agent.instructionsFile] = `# Instructions for ${agent.id}\n`;
+  }
+  await commitFiles(storeRoot, storeFiles);
   await commitFiles(codeRoot, {
     "README.md": "# API\n",
     "openspec/config.yaml": "store: payments-specs\n",
@@ -141,17 +150,19 @@ function fakeOpenSpec(storeRoot) {
   return { calls, runner };
 }
 
-/** @param {string} runtimePath @param {string} baseline @param {string[]} workPackages */
-function expectedApplyPrompt(runtimePath, baseline, workPackages) {
+/** @param {string} runtimePath @param {string} baseline @param {string[]} workPackages @param {"qwen" | "gigacode"} [agentId] */
+function expectedApplyPrompt(runtimePath, baseline, workPackages, agentId = "qwen") {
+  const agent = resolveAgentAdapter(agentId);
+  const storePath = path.join(path.dirname(runtimePath), "store");
+  const agentInstructionsPath = path.join(storePath, agent.instructionsFile);
   const instructionPath = path.join(
-    path.dirname(runtimePath),
-    "store",
-    ".qwen",
-    "commands",
+    storePath,
+    agent.commandsDirectory,
     "sdd-apply.md",
   );
   return [
-    `Прочитай и выполни инструкцию ${JSON.stringify(instructionPath)} с параметрами:`,
+    `Сначала прочитай файл инструкций агента ${JSON.stringify(agentInstructionsPath)}.`,
+    `Затем прочитай и выполни инструкцию ${JSON.stringify(instructionPath)} с параметрами:`,
     "--store payments-specs",
     "--repo payments-api",
     "--change pay-412-payment-status",
@@ -159,6 +170,44 @@ function expectedApplyPrompt(runtimePath, baseline, workPackages) {
     ...workPackages.map((id) => `--work-package ${JSON.stringify(id)}`),
   ].join(" ");
 }
+
+test("prepareLoad puts provider instructions before Apply for GigaCode", async (t) => {
+  const scenario = await createScenario(t, { agentId: "gigacode" });
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const result = await prepareLoad({
+    start: scenario.codeRoot,
+    storeId: "payments-specs",
+    repositoryId: "payments-api",
+    changeId: "pay-412-payment-status",
+    baseline: scenario.baseline,
+    workPackages: ["1"],
+    commandRunner: openSpec.runner,
+  });
+
+  assert.equal(
+    result.nextAction,
+    expectedApplyPrompt(result.runtimePath, scenario.baseline, ["1"], "gigacode"),
+  );
+  assert.ok(result.nextAction.indexOf("GIGACODE.md") < result.nextAction.indexOf("sdd-apply.md"));
+});
+
+test("prepareLoad requires provider instructions on the accepted Baseline", async (t) => {
+  const scenario = await createScenario(t, { includeAgentInstructions: false });
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+  await assert.rejects(
+    prepareLoad({
+      start: scenario.codeRoot,
+      storeId: "payments-specs",
+      repositoryId: "payments-api",
+      changeId: "pay-412-payment-status",
+      baseline: scenario.baseline,
+      workPackages: ["1"],
+      commandRunner: openSpec.runner,
+    }),
+    /QWEN\.md/,
+  );
+});
 
 test("prepareLoad creates an exact Store worktree, implementation branch and minimal runtime", async (t) => {
   const scenario = await createScenario(t);
