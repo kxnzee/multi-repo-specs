@@ -197,6 +197,7 @@ test("initProject creates Store, official expanded pack and the complete skeleto
     ".qwen/commands/sdd-apply.md",
     ".qwen/commands/sdd-change.md",
     ".qwen/commands/sdd-context.md",
+    ".qwen/agents/repository-context-pass.md",
     ".qwen/skills/openspec-explore/SKILL.md",
     "openspec/config.yaml",
     "openspec/context/00-start-here.md",
@@ -204,7 +205,6 @@ test("initProject creates Store, official expanded pack and the complete skeleto
     "openspec/context/system-map.yaml",
     "openspec/context/ADR/README.md",
     "openspec/context/_raw/README.md",
-    "openspec/context/repository-context-pass.md",
     "QWEN.md",
     "sdd.yaml",
     "CODEOWNERS",
@@ -213,14 +213,9 @@ test("initProject creates Store, official expanded pack and the complete skeleto
   for (const relativePath of expectedFiles) {
     assert.equal((await fs.stat(path.join(target, relativePath))).isFile(), true, relativePath);
   }
-  const installedSubagentContract = await fs.readFile(
-    path.join(target, "openspec", "context", "repository-context-pass.md"),
-    "utf8",
-  );
-  assert.match(installedSubagentContract, /Основной агент обязан использовать следующий шаблон/);
   assert.match(
-    installedSubagentContract,
-    /родитель `agent\.commands_directory` из `sdd\.yaml`/,
+    await fs.readFile(path.join(target, ".qwen/agents/repository-context-pass.md"), "utf8"),
+    /name: repository-context-pass/,
   );
   await assert.rejects(
     fs.stat(path.join(target, ".qwen", "commands", "sdd-verify.md")),
@@ -264,12 +259,7 @@ test("initProject creates Store, official expanded pack and the complete skeleto
   assert.match(contextCommand, /Статус описывает только соответствие центрального context pack/);
   assert.match(contextCommand, /`system-map\.yaml` прочитай до обработки `_raw\/` и интервью/);
   assert.match(contextCommand, /активное, не закомментированное правило CODEOWNERS/);
-  assert.match(
-    contextCommand,
-    /`openspec\/context\/repository-context-pass\.md` является неизменяемым process contract/,
-  );
-  assert.match(contextCommand, /неизменяемый process contract `repository-context-pass\.md`/);
-  assert.match(contextCommand, /`repository-context-pass\.md` не изменён/);
+  assert.doesNotMatch(contextCommand, /repository-context-pass\.md/);
   assert.doesNotMatch(contextCommand, /получи временную Git-копию/);
   assert.doesNotMatch(contextCommand, /Сверь контекст со свежим состоянием систем/);
 
@@ -284,7 +274,7 @@ test("initProject creates Store, official expanded pack and the complete skeleto
     ]);
   assert.match(startHere, /Explore, Proposal, Delta Specs.*`03-architecture\.md`/);
   assert.match(startHere, /Explore, Proposal, Delta Specs.*`system-map\.yaml`/);
-  assert.match(startHere, /`repository-context-pass\.md` является agent-facing процессным контрактом/);
+  assert.doesNotMatch(startHere, /repository-context-pass\.md/);
   assert.doesNotMatch(productContext, /технические ограничения/iu);
   assert.match(architectureContext, /## Технические ограничения/);
   assert.match(securityContext, /owner: Security Owner/);
@@ -327,6 +317,14 @@ test("initProject persists GigaCode through the Qwen OpenSpec adapter", async (t
   );
   assert.equal(
     (await fs.stat(path.join(target, ".gigacode", "commands", "sdd-apply.md"))).isFile(),
+    true,
+  );
+  assert.equal(
+    (
+      await fs.stat(
+        path.join(target, ".gigacode", "agents", "repository-context-pass.md"),
+      )
+    ).isFile(),
     true,
   );
   const gigaContextCommand = await fs.readFile(
@@ -510,7 +508,7 @@ test("initProject reports recovery when a completed Store loses a required comma
   await assert.rejects(fs.stat(missingCommand), /ENOENT/);
 });
 
-test("initProject reports recovery when a completed Store loses the subagent contract", async (t) => {
+test("initProject reports recovery when a completed Store loses a native subagent", async (t) => {
   const target = await temporaryProject(t);
   const openSpec = fakeOpenSpec(target);
   await initProject({
@@ -520,12 +518,7 @@ test("initProject reports recovery when a completed Store loses the subagent con
     commandRunner: openSpec.runner,
   });
   const callsBeforeRepeat = openSpec.calls.length;
-  const missingContract = path.join(
-    target,
-    "openspec",
-    "context",
-    "repository-context-pass.md",
-  );
+  const missingContract = path.join(target, ".qwen", "agents", "repository-context-pass.md");
   await fs.unlink(missingContract);
 
   await assert.rejects(
@@ -535,7 +528,7 @@ test("initProject reports recovery when a completed Store loses the subagent con
       agentId: "qwen",
       commandRunner: openSpec.runner,
     }),
-    /needs_recovery:.*отсутствует openspec\/context\/repository-context-pass\.md/s,
+    /needs_recovery:.*отсутствует \.qwen\/agents\/repository-context-pass\.md/s,
   );
   assert.equal(openSpec.calls.length, callsBeforeRepeat);
   await assert.rejects(fs.stat(missingContract), /ENOENT/);

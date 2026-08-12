@@ -129,7 +129,7 @@ CLI разрешает только центральный Store, проверя
 
 После JSON-результата agent command получает официальные `openspec instructions proposal`, создаёт только `proposal.md` из подтверждённого Explore и завершает шаг лишь после явного подтверждения Change Owner. Delta Specs, `design.md`, `tasks.md`, commit, push и PR на этом этапе не создаются. `/opsx-propose` не вызывается, встроенные команды и skills OpenSpec не изменяются.
 
-При последующих `/opsx-continue` правила `openspec/config.yaml` определяют, когда основному planning-agent нужен read-only Repository Context Pass. Перед первым таким pass в сессии агент обязан прочитать установленный agent-facing контракт `openspec/context/repository-context-pass.md`; отдельного пользовательского вызова и автоматического запуска со стороны Harness нет. Человеческое объяснение механизма находится в корневом `docs/subagents.md` и агенту не передаётся.
+При последующих `/opsx-continue` правила `openspec/config.yaml` определяют, когда основному planning-agent нужен read-only Repository Context Pass. `sdd init` устанавливает обязательный базовый `repository-context-pass` и доступные optional специализации из шаблонов в provider-specific каталог `agents/`; основной агент подбирает профиль по `description` и запускает его штатным инструментом runtime. `sdd connect` и recovery-проверка требуют только базовый профиль, поэтому optional subagents можно добавлять и удалять независимо. Отдельного пользовательского вызова и автоматического запуска со стороны Harness нет. Человеческое объяснение механизма и пример расширения находятся в корневом `docs/subagents.md` и агенту не передаются.
 
 ## Planning PR и Spec Baseline
 

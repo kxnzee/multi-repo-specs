@@ -19,12 +19,10 @@ async function read(relativePath) {
   return fs.readFile(path.join(HARNESS_ROOT, relativePath), "utf8");
 }
 
-test("OpenSpec использует встроенную схему и только дополнительные правила SDD", async () => {
-  const [contents, step00, subagentContract, humanSubagentGuide] = await Promise.all([
+test("OpenSpec использует встроенную схему и native subagents SDD", async () => {
+  const [contents, subagent] = await Promise.all([
     read("init/skeleton/openspec/config.yaml"),
-    read("../docs/steps/00.md"),
-    read("init/skeleton/openspec/context/repository-context-pass.md"),
-    read("../docs/subagents.md"),
+    read("init/subagents/repository-context-pass.md"),
   ]);
   const config = parseYaml(contents);
 
@@ -33,36 +31,31 @@ test("OpenSpec использует встроенную схему и толь�
   assert.match(config.context, /центральном Store Repository/);
   assert.match(config.context, /Не требуй knowledge_path/);
   assert.match(config.context, /родитель agent\.commands_directory/);
-  assert.match(config.context, /технический контекст нескольких Code Repositories или одного крупного/);
-  assert.match(config.context, /независимая проверка вывода/);
-  assert.match(config.context, /разрешение противоречия/);
   assert.match(
     config.context,
-    /полностью прочитай\s+openspec\/context\/repository-context-pass\.md/,
+    /технический контекст нескольких Code Repositories\s+или одного крупного/,
   );
-  assert.doesNotMatch(config.context, /docs\/subagents\.md/);
-  assert.match(config.context, /обязательным условиям запуска, шаблону задания/);
-  assert.match(config.context, /fallback для runtime без native subagents/);
+  assert.match(config.context, /независимая проверка вывода/);
+  assert.match(config.context, /разрешение противоречия/);
+  assert.match(config.context, /подбери\s+специализацию по её `description`/);
+  assert.match(config.context, /не поддерживай\s+фиксированный список optional subagents/);
+  assert.match(config.context, /обязательный базовый subagent type `repository-context-pass`/);
+  assert.match(config.context, /полный автономный prompt/);
+  assert.match(config.context, /change_id, artifact, repository_id/);
+  assert.match(config.context, /не объявляй контекст изолированным/);
   assert.match(config.context, /Единственный основной агент/);
-  assert.match(subagentContract, /обязательный agent-facing контракт/);
-  assert.match(subagentContract, /Основной агент обязан использовать следующий шаблон/);
-  assert.match(subagentContract, /один `repository-id` и один конкретный вопрос/);
-  assert.match(subagentContract, /Change: <change-id>/);
-  assert.match(subagentContract, /Целевой артефакт: <specs\|design\|tasks>/);
-  assert.match(subagentContract, /repository_id: payments-backend/);
-  assert.match(subagentContract, /facts:/);
-  assert.match(subagentContract, /system_impact:/);
-  assert.match(subagentContract, /verification_implications:/);
-  assert.match(subagentContract, /confidence: high/);
-  assert.match(subagentContract, /open_questions: \[\]/);
-  assert.match(subagentContract, /reference: path\/to\/file:line/);
-  assert.match(subagentContract, /родитель `agent\.commands_directory` из `sdd\.yaml`/);
-  assert.doesNotMatch(subagentContract, /например, `\.qwen\/` или `\.gigacode\/`/);
-  assert.match(humanSubagentGuide, /Оно не передаётся агенту/);
-  assert.match(
-    humanSubagentGuide,
-    /Agent-facing контракт находится в .*repository-context-pass\.md/,
-  );
+  assert.match(subagent, /^---\nname: repository-context-pass$/m);
+  assert.match(subagent, /model: inherit/);
+  assert.match(subagent, /tools:\n {2}- read_file/);
+  assert.doesNotMatch(subagent, /write_file|run_shell_command/);
+  assert.match(subagent, /одного Code Repository и одного конкретного вопроса/);
+  assert.match(subagent, /repository_id: <repository-id>/);
+  assert.match(subagent, /facts:/);
+  assert.match(subagent, /system_impact:/);
+  assert.match(subagent, /verification_implications:/);
+  assert.match(subagent, /confidence: high/);
+  assert.match(subagent, /open_questions: \[\]/);
+  assert.match(subagent, /reference: path\/to\/file:line/);
   assert.match(config.rules.proposal.join("\n"), /Jira\/SberTrack key/);
   assert.match(config.rules.proposal.join("\n"), /repository-id/);
   assert.match(config.rules.proposal.join("\n"), /Code Repositories, известные по итогам Explore как кандидаты/);
@@ -97,10 +90,6 @@ test("OpenSpec использует встроенную схему и толь�
   assert.match(config.rules.tasks.join("\n"), /implementation PR Code Repository/);
   assert.match(config.rules.tasks.join("\n"), /обновление Repository Knowledge Pack/);
   assert.match(config.rules.tasks.join("\n"), /окончательного технического impact design.md/);
-
-  assert.match(step00, /sdd init/);
-  assert.match(step00, /sdd connect/);
-  assert.doesNotMatch(step00, /Техническая спецификация/);
 
   await assert.rejects(
     fs.stat(
@@ -203,31 +192,11 @@ test("инструкции агентов направляют завершён�
     assert.match(contents, /не отмечай центральный `tasks\.md` и не переходи к Archive/);
     assert.match(contents, /Commit, push, PR и tracker изменяй только по отдельному явному поручению пользователя/);
   }
-});
 
-test("шаги 03 и 04 содержат только пользовательский маршрут OpenSpec", async () => {
-  const [step03, step04] = await Promise.all([
-    read("../docs/steps/03.md"),
-    read("../docs/steps/04.md"),
+  await Promise.all([
     assert.rejects(fs.stat(path.join(HARNESS_ROOT, "init/commands/sdd-review.md")), /ENOENT/),
     assert.rejects(fs.stat(path.join(HARNESS_ROOT, "init/commands/sdd-baseline.md")), /ENOENT/),
   ]);
-
-  assert.match(step03, /\/opsx-continue <change-id>/);
-  assert.match(
-    step03,
-    /основной агент самостоятельно прочитает `openspec\/context\/repository-context-pass\.md`/,
-  );
-  assert.match(step03, /Передавать контракт агенту вручную не нужно/);
-  assert.match(step04, /openspec status/);
-  assert.match(step04, /openspec show/);
-  assert.match(step04, /openspec validate/);
-  assert.match(step04, /\/opsx-update <change-id>/);
-  assert.match(step04, /openspec instructions apply/);
-  assert.doesNotMatch(step03, /Техническая спецификация/);
-  assert.doesNotMatch(step04, /Техническая спецификация/);
-  assert.doesNotMatch(step04, /WP-PAYMENTS-API/);
-  assert.doesNotMatch(step04, /sdd (?:review|baseline)/);
 });
 
 test("sdd-change создаёт только Change и Proposal из текущего Explore", async () => {

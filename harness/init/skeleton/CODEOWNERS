@@ -2,6 +2,7 @@
 # Context role names, such as Security Owner, map to real account handles here; a handle is not an alternative role name.
 # Every unresolved ownership decision belongs in an inline TODO in the matching context file.
 # Replace <agent-commands-directory> with agent.commands_directory from sdd.yaml.
+# Replace <provider-specific-agent-directory> with the parent directory of agent.commands_directory.
 
 # /openspec/specs/** @spec-owner
 # /openspec/changes/** @spec-owner
@@ -19,8 +20,8 @@
 # /openspec/context/system-map.yaml @technical-owner
 # /openspec/context/ADR/README.md @spec-owner
 # /openspec/context/_raw/README.md @spec-owner
-# /openspec/context/repository-context-pass.md @apply-owner @technical-owner
 # /<agent-commands-directory>/sdd-*.md @apply-owner @technical-owner
 # /<agent-commands-directory>/opsx-*.md @apply-owner
+# /<provider-specific-agent-directory>/agents/*.md @apply-owner @technical-owner
 # <provider-specific OpenSpec skills> @apply-owner
 # /sdd.yaml @apply-owner @technical-owner

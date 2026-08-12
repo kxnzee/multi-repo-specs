@@ -14,14 +14,23 @@ context: |
   Не требуй knowledge_path. Для каждого затронутого Code Repository сначала исследуй
   provider-specific каталог агента, определённый как родитель agent.commands_directory
   из sdd.yaml, и только затем используй адресное чтение исходного кода.
-  Используй read-only Repository Context Pass, когда для текущего артефакта
-  требуется технический контекст нескольких Code Repositories или одного крупного,
-  независимая проверка вывода, разрешение противоречия либо исследование
-  дополнительного зарегистрированного repository-id в прежнем бизнесовом scope.
-  До создания первого Repository Context Pass в planning-сессии полностью прочитай
-  openspec/context/repository-context-pass.md и следуй его обязательным условиям запуска, шаблону задания,
-  контракту результата, правилам синтеза и fallback для runtime без native subagents.
-  Повторно читай контракт только после потери сессии или изменения его ревизии.
+  Используй штатный инструмент subagents для read-only Repository Context Pass, когда
+  для текущего артефакта требуется технический контекст нескольких Code Repositories
+  или одного крупного, независимая проверка вывода, разрешение противоречия либо
+  исследование дополнительного зарегистрированного repository-id в прежнем бизнесовом scope.
+  Перед запуском используй доступные project-level native subagents выбранного runtime и подбери
+  специализацию по её `description`, только если она соответствует подтверждённой ответственности
+  репозитория и текущему вопросу. Не определяй специализацию по имени repository-id и не поддерживай
+  фиксированный список optional subagents. Если подходящей специализации нет или выбор неоднозначен,
+  используй обязательный базовый subagent type `repository-context-pass`.
+  Перед каждым pass основной агент проверяет role: code, чистоту checkout и точную 40-символьную
+  Git revision, определяет provider-specific agent context root как родитель agent.commands_directory
+  из sdd.yaml и передаёт subagent полный автономный prompt: change_id, artifact, repository_id,
+  checkout, agent_context_root, revision, один question, business_boundaries и system_context.
+  Не создавай артефакт до получения и проверки repository_id, revision, question и evidence
+  всех нужных результатов. При конфликте запускай только узкий follow-up. Если runtime не
+  поддерживает native subagents, не объявляй контекст изолированным и выполни один ограниченный
+  pass в основном контексте только когда это безопасно для его размера.
   Единственный основной агент создаёт и изменяет артефакты Change.
   Master Specs меняются только командой Archive на этапе Finalization.
 

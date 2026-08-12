@@ -108,6 +108,10 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
       { id: "api", role: "code", url: codeRemote, defaultBranch: "main" },
     ], agent),
   };
+  for (const subagent of agent.requiredSubagents) {
+    centralFiles[path.join(agent.agentsDirectory, subagent)] =
+      `---\nname: ${path.basename(subagent, ".md")}\n---\n`;
+  }
   for (const [relativePath, contents] of Object.entries(centralFiles)) {
     const target = path.join(centralSource, relativePath);
     await fs.mkdir(path.dirname(target), { recursive: true });
@@ -301,6 +305,20 @@ for (const agent of [QWEN_AGENT, GIGACODE_AGENT]) {
       await assert.rejects(
         connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner }),
         new RegExp(`Отсутствует обычный файл .*${requiredCommand.replace(".", "\\.")}`),
+      );
+      assert.deepEqual(openSpec.calls.map(({ args }) => args), [["--version"]]);
+    });
+  }
+  for (const requiredSubagent of agent.requiredSubagents) {
+    test(`connectProject requires ${requiredSubagent} for ${agent.id}`, async (t) => {
+      const scenario = await createScenario(t, { pointer: true, agent });
+      const missing = path.join(scenario.storeRoot, agent.agentsDirectory, requiredSubagent);
+      await fs.rm(missing);
+      const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+      await assert.rejects(
+        connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner }),
+        new RegExp(`Отсутствует обычный файл .*${requiredSubagent.replace(".", "\\.")}`),
       );
       assert.deepEqual(openSpec.calls.map(({ args }) => args), [["--version"]]);
     });

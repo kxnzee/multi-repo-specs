@@ -39,6 +39,7 @@ const EXPANDED_WORKFLOWS = Object.freeze([
 const PATHS = Object.freeze({
   skeleton: path.join(MODULE_ROOT, "skeleton"),
   commandTemplates: path.join(MODULE_ROOT, "commands"),
+  subagentTemplates: path.join(MODULE_ROOT, "subagents"),
   agentTemplates: path.join(MODULE_ROOT, "agents"),
   metadata: path.join(".openspec-store", "store.yaml"),
   openSpecConfig: path.join("openspec", "config.yaml"),
@@ -279,7 +280,18 @@ async function assertInitializationComplete({
   agent,
 }) {
   const issues = [];
-  const requiredFiles = new Set(bundleFiles.map(({ target }) => target));
+  const requiredSubagentTargets = new Set(
+    agent.requiredSubagents.map((name) => path.join(agent.agentsDirectory, name)),
+  );
+  const requiredFiles = new Set(
+    bundleFiles
+      .map(({ target }) => target)
+      .filter(
+        (target) =>
+          !target.startsWith(`${agent.agentsDirectory}${path.sep}`) ||
+          requiredSubagentTargets.has(target),
+      ),
+  );
   for (const command of REQUIRED_AGENT_COMMANDS) {
     requiredFiles.add(path.join(agent.commandsDirectory, command));
   }
@@ -443,6 +455,12 @@ export async function initProject({
     bundleFiles.push({
       source: path.join(PATHS.commandTemplates, source),
       target: path.join(agent.commandsDirectory, source),
+    });
+  }
+  for (const source of await listFiles(PATHS.subagentTemplates)) {
+    bundleFiles.push({
+      source: path.join(PATHS.subagentTemplates, source),
+      target: path.join(agent.agentsDirectory, source),
     });
   }
   if (agent.instructionsFile) {

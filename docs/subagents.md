@@ -1,71 +1,131 @@
 # Работа с subagents при планировании Change
 
-Это руководство объясняет человеку, как Repository Context Passes используются на шаге 03. Оно не передаётся агенту и не является источником его обязательных инструкций.
+Repository Context Pass помогает основному агенту собрать технический контекст из Code Repositories при подготовке Specs, Design и Tasks на шаге 03. Здесь описано, когда запускаются subagents, какие данные они получают и как добавить новую специализацию.
 
-Agent-facing контракт находится в [`harness/init/skeleton/openspec/context/repository-context-pass.md`](../harness/init/skeleton/openspec/context/repository-context-pass.md). `sdd init` устанавливает его в Store как `openspec/context/repository-context-pass.md`, а `openspec/config.yaml` требует прочитать его перед первым pass в planning-сессии.
+`sdd init` устанавливает project-level native subagents в provider-specific каталог `agents/`. Обязательным является только базовый профиль; frontend и backend входят в начальный набор как optional специализации:
 
-## Что такое Repository Context Pass
+| Subagent type | Назначение |
+|---|---|
+| `repository-context-pass` | Обязательный универсальный fallback, когда специализация не найдена или не подтверждена |
+| `frontend-context-pass` | Optional: пользовательские состояния, UI-границы, API-клиенты, rollout и frontend-проверки |
+| `backend-context-pass` | Optional: владение данными, API и события, совместимость, миграции и backend-проверки |
 
-Repository Context Pass — ограниченное read-only исследование одного Code Repository для ответа на один конкретный вопрос текущего Change.
+Для Qwen определения устанавливаются в `.qwen/agents/`, для GigaCode — в `.gigacode/agents/`. Доступные профили можно проверить штатной командой `/agents`.
+
+## Как запускается Repository Context Pass
+
+Отдельной пользовательской команды нет:
 
 ```text
 /opsx-continue <change-id>
         ↓
-основной planning-agent определяет вопрос
+openspec/config.yaml определяет необходимость технического исследования
         ↓
-Repository Context Pass для одного repository-id
+основной planning-agent подбирает native subagent по description
         ↓
-краткий проверяемый результат
+subagent исследует один repository-id и один вопрос
         ↓
-основной агент создаёт Specs, Design или Tasks
+основной агент проверяет и синтезирует результат
+        ↓
+создаётся стандартный OpenSpec-артефакт
 ```
 
-Subagent не создаёт отдельный Change, не изменяет код и не записывает центральные planning-артефакты. Единственной точкой синтеза и записи остаётся основной planning-agent.
+Harness устанавливает определения, но не запускает subagents самостоятельно и не хранит их ответы между сессиями.
 
-## Что делает `sdd init`
+## Как выбирается профиль
 
-Во время инициализации Repository Context Pass не запускается. Команда только:
+- Runtime обнаруживает project-level определения из provider-specific каталога `agents/`.
+- Основной агент подбирает специализацию по полю `description`, подтверждённой ответственности репозитория и текущему вопросу.
+- `repository-context-pass` используется по умолчанию и при любой неоднозначности.
+- Имя `repository-id` само по себе не доказывает специализацию.
+- `openspec/config.yaml` не содержит перечень optional subagents, поэтому их добавление или удаление не меняет общий routing.
 
-- устанавливает agent-facing контракт в `openspec/context/`;
-- устанавливает `openspec/config.yaml` с условиями его чтения;
-- включает контракт в проверку завершённой инициализации.
-
-Фактическое решение о pass принимает основной агент внутри `/opsx-continue`. Отдельной пользовательской команды для subagents нет.
-
-## Когда нужен pass
-
-Pass применяется, когда для текущего артефакта необходимо:
-
-- исследовать технический контекст нескольких Code Repositories или одного крупного;
-- независимо проверить вывод по другому репозиторию;
-- разрешить противоречие между репозиториями;
-- исследовать дополнительный зарегистрированный репозиторий в прежнем бизнесовом scope.
-
-Обычно основное место применения — `design.md`. Для Delta Specs pass нужен только при необходимости подтвердить существующее наблюдаемое поведение или границу совместимости. Для `tasks.md` он используется для проверки принадлежности Work Packages, зависимостей и способов проверки.
-
-Pass не нужен, если вопрос разрешается Proposal, Master Specs и context pack без чтения кода либо если небольшой Repository Knowledge Pack уже даёт достаточный ответ.
+Один профиль можно запускать несколькими независимыми экземплярами для разных репозиториев. Несколько независимых passes допускается выполнять параллельно, но основной агент не создаёт артефакт до получения и проверки всех необходимых результатов.
 
 ## Что получает subagent
 
-Основной агент формирует ограниченное задание, содержащее:
+Обычный именованный subagent начинает без planning-истории. Основной агент передаёт ему автономное ограниченное задание:
 
-- Change и целевой артефакт;
-- один `repository-id`;
-- абсолютный путь к checkout и точную Git-ревизию;
-- один конкретный вопрос;
-- относящиеся к вопросу бизнесовые границы и минимальный межсистемный контекст;
-- read-only ограничения и обязательный формат ответа.
+- `change_id` и целевой `artifact`;
+- один `repository_id`;
+- абсолютные `checkout` и `agent_context_root`;
+- точную 40-символьную Git revision;
+- один конкретный `question`;
+- минимальные `business_boundaries` и `system_context`.
 
-Полная planning-история, результаты других репозиториев и право изменять файлы subagent не передаются.
+До запуска и после результата основной агент проверяет repository identity, чистоту checkout и revision. Сами профили получают только read-only файловые инструменты без shell и средств записи.
 
-## Что возвращается основному агенту
+## Что возвращает subagent
 
-Результат содержит подтверждённые факты, межсистемное влияние, последствия для проверок, уровень уверенности, открытые вопросы и короткие evidence в формате `file:line`.
+Базовый и все optional профили возвращают единый контракт:
 
-Основной агент проверяет `repository-id`, revision и исходный вопрос, разрешает противоречия и переносит в центральные артефакты только бизнесовый и межсистемный результат. Файлы, классы, функции и локальные шаги реализации остаются за пределами Store.
+```yaml
+repository_id: payments-backend
+revision: 0123456789abcdef0123456789abcdef01234567
+question: Как репозиторий участвует в поставке нового статуса?
+status: complete # complete | needs_followup | blocked
+facts: []
+system_impact:
+  responsibilities: []
+  integrations: []
+  compatibility: []
+  rollout: []
+  rollback: []
+verification_implications: []
+confidence: high # high | medium | low
+open_questions: []
+evidence:
+  - reference: path/to/file:line
+    supports: Краткое указание подтверждаемого факта
+knowledge_pack_update_candidate: false
+```
 
-## Ограничения механизма
+Основной агент проверяет `repository_id`, revision и исходный вопрос, разрешает противоречия и переносит в центральные артефакты только бизнесовый и межсистемный результат. Файлы, классы, функции и локальные шаги реализации остаются transient evidence.
 
-Subagents являются возможностью выбранного agent runtime. Harness не запускает их самостоятельно и не хранит ответы между сессиями. Если runtime не поддерживает subagents, основной агент может выполнить только один ограниченный pass в своём контексте, если это безопасно для его размера.
+## Ограничения
 
-Тесты Harness подтверждают доставку контракта и наличие маршрута в `openspec/config.yaml`, но не доказывают, что конкретный runtime действительно создал subagent.
+- Subagent не создаёт Change и не изменяет Store или Code Repository.
+- Subagent сначала читает относящийся к вопросу Repository Knowledge Pack, затем адресно код и тесты.
+- Отсутствие Knowledge Pack не блокирует pass.
+- Если runtime не поддерживает native subagents, основной агент может выполнить один ограниченный pass в своём контексте, но не называет его изолированным.
+
+## Как добавить новую специализацию
+
+Новая специализация нужна только тогда, когда отличается предметный фокус или набор инструментов. Не создавайте профиль только для конкретного имени репозитория.
+
+Например, для security-исследования добавьте в provider-specific каталог файл `agents/security-context-pass.md`:
+
+```md
+---
+name: security-context-pass
+description: Использовать ПРОАКТИВНО для read-only исследования security и compliance границ Code Repository
+model: inherit
+tools:
+  - read_file
+  - read_many_files
+  - grep_search
+  - glob
+  - list_directory
+---
+
+Ты выполняешь security-специализацию Repository Context Pass.
+
+Работай с одним repository-id и одним вопросом. Не изменяй файлы.
+Сначала исследуй правила безопасности и compliance в Repository Knowledge Pack,
+затем адресно проверь относящиеся к вопросу код и тесты.
+
+Сохрани общий контракт результата: repository_id, revision, question, status,
+facts, system_impact, verification_implications, confidence, open_questions,
+evidence и knowledge_pack_update_candidate.
+```
+
+После добавления:
+
+1. убедитесь, что `name` уникален;
+2. опишите в `description`, когда основной агент должен выбрать профиль;
+3. не выдавайте инструменты записи без отдельной необходимости;
+4. сохраните общий контракт результата Repository Context Pass;
+5. проверьте обнаружение и понятность `description` через `/agents`;
+6. не добавляйте optional профиль в обязательные проверки `sdd init` и `sdd connect`.
+
+Для включения профиля в начальный набор новых Store добавьте его шаблон в `harness/init/subagents/`. Harness установит файл в каталог `agents/` выбранного adapter. Расширять `openspec/config.yaml` и список обязательных профилей при этом не нужно.

@@ -114,6 +114,9 @@ export async function connectProject({
   for (const command of REQUIRED_AGENT_COMMANDS) {
     await readFile(storeRoot, path.join(config.agent.commandsDirectory, command));
   }
+  for (const subagent of config.agent.requiredSubagents) {
+    await readFile(storeRoot, path.join(config.agent.agentsDirectory, subagent));
+  }
   const registration = runOpenSpecJson(commandRunner, ["store", "register", storeRoot, "--id", metadata.id, "--yes", "--json"], storeRoot);
   assertStoreIdentity(registration, metadata.id, storeRoot, "openspec store register");
   const storeDoctor = runOpenSpecJson(commandRunner, ["store", "doctor", metadata.id, "--json"], storeRoot);
