@@ -98,6 +98,7 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
     [path.join(agent.commandsDirectory, "sdd-change.md")]: "---\ndescription: change\n---\n",
     [path.join(agent.commandsDirectory, "sdd-context.md")]: "---\ndescription: context\n---\n",
     [path.join(agent.commandsDirectory, "sdd-apply.md")]: "---\ndescription: apply\n---\n",
+    [agent.instructionsFile]: `# Instructions for ${agent.id}\n`,
     [path.join(".sdd", "instructions", "explore.md")]: "# Explore contract\n",
     "sdd.yaml": serializeSddConfig(sddTemplate, [
       {
@@ -285,6 +286,19 @@ test("connectProject does not infer workspace from the legacy openspec container
 });
 
 for (const agent of [QWEN_AGENT, GIGACODE_AGENT]) {
+  test(`connectProject requires agent.instructions_file for ${agent.id}`, async (t) => {
+    const scenario = await createScenario(t, { pointer: true, agent });
+    const missing = path.join(scenario.storeRoot, agent.instructionsFile);
+    await fs.rm(missing);
+    const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+    await assert.rejects(
+      connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner }),
+      new RegExp(`Отсутствует обычный файл .*${path.basename(agent.instructionsFile).replace(".", "\\.")}`),
+    );
+    assert.deepEqual(openSpec.calls, []);
+  });
+
   for (const requiredCommand of [
     "opsx-explore.md",
     "opsx-continue.md",

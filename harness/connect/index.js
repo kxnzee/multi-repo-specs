@@ -104,6 +104,7 @@ export async function connectProject({
   const metadata = parseStoreMetadata(await readFile(storeRoot, PATHS.metadata));
   const config = parseSddConfig(await readFile(storeRoot, PATHS.sddConfig));
   await readFile(storeRoot, PATHS.exploreInstructions);
+  await readFile(storeRoot, config.agent.instructionsFile);
   if (config.storeRepository.id !== metadata.id) throw new Error("Store ID в sdd.yaml не совпадает с Store metadata");
   if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
     throw new Error("URL role: store не совпадает с Store metadata");
