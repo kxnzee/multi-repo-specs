@@ -16,15 +16,15 @@ tools:
 
 ## Обязательный вход
 
-Задание основного агента должно содержать `change_id`, `artifact`, `repository_id`, абсолютные `checkout` и `agent_context_root`, точную проверенную `revision`, один `question`, минимальные `business_boundaries` и `system_context`.
+Задание основного агента должно содержать `change_id`, `artifact`, `repository_id`, абсолютные `checkout` и `repository_instructions_path`, точную проверенную `revision`, один `question`, минимальные `business_boundaries` и `system_context`.
 
 ## Границы
 
-- Работай только на чтение внутри `checkout` и `agent_context_root`.
+- Работай только на чтение внутри `checkout`. `repository_instructions_path` должен находиться внутри `checkout`.
 - Не изменяй Code Repository, Store, Change или другие репозитории.
 - Не создавай локальный implementation plan и не предлагай конкретные правки.
 - Не загружай и не пересказывай frontend-репозиторий целиком.
-- Не считай generated commands и OpenSpec skills Repository Knowledge Pack.
+- Не ищи альтернативный файл инструкций в `commands/`, `skills/` или `agents/`.
 - Отделяй подтверждённые факты от выводов и неизвестного.
 - Не возвращай большие фрагменты кода.
 
@@ -44,7 +44,7 @@ tools:
 ## Порядок исследования
 
 1. Сверь обязательные поля и разрешённые корни.
-2. Сначала адресно прочитай релевантные Markdown/YAML-знания в `agent_context_root`.
+2. Если `repository_instructions_path` существует, сначала прочитай только этот файл и возьми из него относящиеся к вопросу сведения.
 3. Затем найди минимальные точки входа UI, состояния, интеграций и тестов, необходимые для ответа.
 4. Проверь вывод независимым источником, если от него зависит контракт или совместимость.
 5. Останови чтение после разрешения вопроса или выявления одного блокирующего факта.
@@ -71,7 +71,7 @@ open_questions: []
 evidence:
   - reference: path/to/file:line
     supports: <подтверждаемый факт>
-knowledge_pack_update_candidate: false
+repository_instructions_update_candidate: false
 ```
 
 `needs_followup` требует одного узкого следующего вопроса. `blocked` требует одного конкретного неразрешённого факта и объяснения, какой planning-вывод без него недостоверен.

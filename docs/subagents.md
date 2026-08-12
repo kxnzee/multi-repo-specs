@@ -48,7 +48,7 @@ Harness устанавливает определения, но не запус�
 
 - `change_id` и целевой `artifact`;
 - один `repository_id`;
-- абсолютные `checkout` и `agent_context_root`;
+- абсолютные `checkout` и `repository_instructions_path`;
 - точную 40-символьную Git revision;
 - один конкретный `question`;
 - минимальные `business_boundaries` и `system_context`.
@@ -77,7 +77,7 @@ open_questions: []
 evidence:
   - reference: path/to/file:line
     supports: Краткое указание подтверждаемого факта
-knowledge_pack_update_candidate: false
+repository_instructions_update_candidate: false
 ```
 
 Основной агент проверяет `repository_id`, revision и исходный вопрос, разрешает противоречия и переносит в центральные артефакты только бизнесовый и межсистемный результат. Файлы, классы, функции и локальные шаги реализации остаются transient evidence.
@@ -85,8 +85,11 @@ knowledge_pack_update_candidate: false
 ## Ограничения
 
 - Subagent не создаёт Change и не изменяет Store или Code Repository.
-- Subagent сначала читает относящийся к вопросу Repository Knowledge Pack, затем адресно код и тесты.
-- Отсутствие Knowledge Pack не блокирует pass.
+- `repository_instructions_path` вычисляется как `<checkout>/<agent.instructions_file>` из проверенного `sdd.yaml`.
+- Основной агент проверяет, что путь не выходит из `checkout`; существующий файл не должен разрешаться за его пределы или быть symlink в последнем сегменте.
+- Subagent сначала читает только этот файл инструкций, затем адресно код и тесты.
+- Отсутствие или неполнота файла инструкций не блокирует pass.
+- Каталоги `commands/`, `skills/` и `agents/` не сканируются в поиске другого файла инструкций.
 - Если runtime не поддерживает native subagents, основной агент может выполнить один ограниченный pass в своём контексте, но не называет его изолированным.
 
 ## Как добавить новую специализацию
@@ -111,12 +114,12 @@ tools:
 Ты выполняешь security-специализацию Repository Context Pass.
 
 Работай с одним repository-id и одним вопросом. Не изменяй файлы.
-Сначала исследуй правила безопасности и compliance в Repository Knowledge Pack,
+Сначала прочитай правила безопасности и compliance в `repository_instructions_path`,
 затем адресно проверь относящиеся к вопросу код и тесты.
 
 Сохрани общий контракт результата: repository_id, revision, question, status,
 facts, system_impact, verification_implications, confidence, open_questions,
-evidence и knowledge_pack_update_candidate.
+evidence и repository_instructions_update_candidate.
 ```
 
 После добавления:

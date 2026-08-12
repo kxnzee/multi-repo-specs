@@ -29,8 +29,10 @@ test("OpenSpec использует встроенную схему и native su
   assert.equal(config.schema, "spec-driven");
   assert.deepEqual(Object.keys(config.rules).sort(), ["design", "proposal", "specs", "tasks"]);
   assert.match(config.context, /центральном Store Repository/);
-  assert.match(config.context, /Не требуй knowledge_path/);
-  assert.match(config.context, /родитель agent\.commands_directory/);
+  assert.match(config.context, /agent\.instructions_file/);
+  assert.match(config.context, /repository_instructions_path/);
+  assert.match(config.context, /последний\s+сегмент не должен быть symlink/);
+  assert.doesNotMatch(config.context, /родитель agent\.commands_directory/);
   assert.match(
     config.context,
     /технический контекст нескольких Code Repositories\s+или одного крупного/,
@@ -49,6 +51,8 @@ test("OpenSpec использует встроенную схему и native su
   assert.match(subagent, /tools:\n {2}- read_file/);
   assert.doesNotMatch(subagent, /write_file|run_shell_command/);
   assert.match(subagent, /одного Code Repository и одного конкретного вопроса/);
+  assert.match(subagent, /абсолютные `checkout` и `repository_instructions_path`/);
+  assert.match(subagent, /сначала прочитай только этот файл/);
   assert.match(subagent, /repository_id: <repository-id>/);
   assert.match(subagent, /facts:/);
   assert.match(subagent, /system_impact:/);
@@ -73,7 +77,7 @@ test("OpenSpec использует встроенную схему и native su
   assert.match(config.rules.design.join("\n"), /обязателен для каждого Change/);
   assert.match(config.rules.design.join("\n"), /только межсистемный уровень/);
   assert.match(config.rules.design.join("\n"), /окончательный технический impact.*точным ревизиям/);
-  assert.match(config.rules.design.join("\n"), /Repository Knowledge Pack/);
+  assert.match(config.rules.design.join("\n"), /точный repository_instructions_path/);
   assert.match(config.rules.design.join("\n"), /не блокируют Change/);
   assert.match(config.rules.design.join("\n"), /блокирующим только конкретный неразрешённый факт/);
   assert.match(config.rules.design.join("\n"), /никогда не загружай репозиторий целиком/);
@@ -88,7 +92,7 @@ test("OpenSpec использует встроенную схему и native su
   assert.match(config.rules.tasks.join("\n"), /store, конкретный repository-id либо composite-verification/);
   assert.match(config.rules.tasks.join("\n"), /не создавай собственный формат ID/);
   assert.match(config.rules.tasks.join("\n"), /implementation PR Code Repository/);
-  assert.match(config.rules.tasks.join("\n"), /обновление Repository Knowledge Pack/);
+  assert.match(config.rules.tasks.join("\n"), /обновление файла инструкций агента/);
   assert.match(config.rules.tasks.join("\n"), /окончательного технического impact design.md/);
 
   await assert.rejects(
@@ -116,7 +120,7 @@ test("sdd-apply реализует шаг 06 в границах одного Co
   assert.match(apply, /Каждый `task\.id` означает один checkbox OpenSpec/);
   assert.match(apply, /Число в начале `description`.*не `task\.id`/s);
   assert.match(apply, /Не объединяй несколько ID в один пакет/);
-  assert.match(apply, /Отсутствие Knowledge Pack не является ошибкой/);
+  assert.match(apply, /Если файла нет или сведений недостаточно/);
   assert.match(apply, /Локальный technical design, implementation plan или checklist.*необязателен/s);
   assert.match(apply, /нельзя завершить без записи в другой Code Repository, Composite Verification или недоступного внешнего окружения/);
   assert.match(apply, /Не заменяй проверку указанного в Work Package другого репозитория или точной ревизии локальной имитацией/);
