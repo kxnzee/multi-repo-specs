@@ -98,6 +98,7 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
     [path.join(agent.commandsDirectory, "sdd-change.md")]: "---\ndescription: change\n---\n",
     [path.join(agent.commandsDirectory, "sdd-context.md")]: "---\ndescription: context\n---\n",
     [path.join(agent.commandsDirectory, "sdd-apply.md")]: "---\ndescription: apply\n---\n",
+    [path.join(".sdd", "instructions", "explore.md")]: "# Explore contract\n",
     "sdd.yaml": serializeSddConfig(sddTemplate, [
       {
         id: "payments-specs",
@@ -324,6 +325,18 @@ for (const agent of [QWEN_AGENT, GIGACODE_AGENT]) {
     });
   }
 }
+
+test("connectProject requires the non-command Explore instructions", async (t) => {
+  const scenario = await createScenario(t, { pointer: true });
+  await fs.rm(path.join(scenario.storeRoot, ".sdd", "instructions", "explore.md"));
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+  await assert.rejects(
+    connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner }),
+    /Отсутствует обычный файл .*\.sdd.*instructions.*explore\.md/,
+  );
+  assert.deepEqual(openSpec.calls, []);
+});
 
 test("connectProject keeps an uncommitted generated pointer as needs_setup_pr", async (t) => {
   const scenario = await createScenario(t);

@@ -22,6 +22,7 @@ export { validateTicket } from "./validation/ticket.js";
 
 const PATHS = Object.freeze({
   metadata: path.join(".openspec-store", "store.yaml"),
+  exploreInstructions: path.join(".sdd", "instructions", "explore.md"),
   sddConfig: "sdd.yaml",
 });
 
@@ -78,6 +79,8 @@ export async function prepareExplore({
   ]);
   const metadata = parseStoreMetadata(metadataSource);
   const config = parseSddConfig(configSource);
+  const exploreInstructionsPath = path.join(projectRoot, PATHS.exploreInstructions);
+  await readStoreFile(projectRoot, PATHS.exploreInstructions);
   if (config.storeRepository.id !== metadata.id) {
     throw new Error("Store ID в sdd.yaml не совпадает с Store metadata");
   }
@@ -159,5 +162,6 @@ export async function prepareExplore({
     workspace,
     projectSpecsOnly: repositories.length === 0,
     repositories,
+    exploreInstructionsPath,
   };
 }

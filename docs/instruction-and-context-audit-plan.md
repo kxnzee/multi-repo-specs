@@ -86,6 +86,8 @@ Repository Context Pass получал каталог, вычисленный к
 
 ## Этап 2. Explore как явная проектная инструкция
 
+Статус: выполнено.
+
 ### Проблема
 
 `harness/explore/invocation.js` содержит не только проверенные runtime-параметры, но и полный агентский процесс Explore:
@@ -96,11 +98,11 @@ Repository Context Pass получал каталог, вычисленный к
 - формат результата;
 - условия остановки и переход к Change.
 
-JS-код стал скрытым источником постоянных инструкций, хотя алгоритм конкретной задачи относится к зоне `commands/`.
+JS-код стал скрытым источником постоянных инструкций. При этом размещать контракт в provider-specific `commands/` тоже нельзя: любой Markdown-файл в этом каталоге регистрируется как slash-команда, а отдельная `/sdd-explore` не является точкой входа процесса.
 
 ### Требуемые изменения
 
-1. Добавить проектную инструкцию `sdd-explore.md` в каталог команд выбранного агента.
+1. Добавить невызваемую проектную инструкцию `.sdd/instructions/explore.md` вне provider-specific каталогов команд.
 2. Перенести в неё стабильный процессный контракт Explore из `invocation.js`.
 3. Оставить в JS только проверенные значения конкретного запуска:
 
@@ -109,22 +111,20 @@ JS-код стал скрытым источником постоянных ин
    - workspace;
    - выбранные repository-id, checkout, branch и revision;
    - разрешённые корни чтения;
-   - точный путь к `sdd-explore.md`.
+   - точный путь к `.sdd/instructions/explore.md`.
 
 4. Сохранить оригинальный OpenSpec `/opsx-explore` без изменений.
-5. До реализации выбрать и проверить один способ запуска:
-
-   - `/opsx-explore` получает runtime-параметры и точный путь к `sdd-explore.md`;
-   - либо `sdd-explore.md` становится проектной wrapper-командой, которая использует штатный Explore OpenSpec.
+5. Сохранить `/opsx-explore` единственной slash-точкой входа: он получает runtime-параметры и точный путь к `.sdd/instructions/explore.md`.
 
 6. Не копировать стабильный контракт обратно в generated prompt после переноса.
-7. Добавить `sdd-explore.md` в обязательные файлы init/connect/recovery только если без него `sdd explore` больше не может выполнить свой контракт.
+7. Добавить `.sdd/instructions/explore.md` в обязательные файлы init/connect/recovery, поскольку без него `sdd explore` не может выполнить свой контракт.
 
 ### Проверки
 
 - JS формирует только параметры и ссылку на инструкцию;
 - built-in `opsx-explore.md` не изменяется;
-- Qwen и GigaCode получают provider-specific путь;
+- Qwen и GigaCode получают один общий путь `.sdd/instructions/explore.md`;
+- в provider-specific `commands/` не появляется slash-команда `/sdd-explore`;
 - отсутствие обязательной проектной инструкции блокирует запуск до исследования;
 - тестируется структура runtime-вызова, а не русский текст документации.
 
@@ -207,7 +207,7 @@ JS-код стал скрытым источником постоянных ин
    |---|---|---|
    | Файл инструкций Code Repository | `agent.instructions_file` | адресное чтение кода при отсутствии |
    | Repository Context Pass | provider-specific `agents/` | условие применения в `openspec/config.yaml` |
-   | Explore | проектная инструкция в `commands/` | runtime-параметры из Harness |
+   | Explore | `.sdd/instructions/explore.md` | runtime-параметры из Harness и штатный `/opsx-explore` |
    | OpenSpec-артефакты | `openspec/config.yaml` | принятый проектный контекст |
    | Контекст проекта | `openspec/context/` | `00-start-here.md` как индекс |
    | Реализация Work Packages | `sdd-apply.md` | `next_action` и `context.json` как параметры |

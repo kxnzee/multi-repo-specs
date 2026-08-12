@@ -112,6 +112,7 @@
  * @property {string} workspace
  * @property {boolean} projectSpecsOnly
  * @property {Array<{id: string, path: string, branch: string, revision: string}>} repositories
+ * @property {string} exploreInstructionsPath
  */
 
 /**

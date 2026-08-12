@@ -112,6 +112,7 @@ async function createScenario(t, { withCode = false, archived = [] } = {}) {
     "openspec/context/system-map.yaml": "repositories: []\n",
     "openspec/changes/archive/.gitkeep": "",
     ".qwen/commands/opsx-explore.md": "---\ndescription: explore\n---\n",
+    ".sdd/instructions/explore.md": "# Explore contract\n",
   };
   for (const name of archived) {
     storeFiles[`openspec/changes/archive/${name}/.gitkeep`] = "";
@@ -250,6 +251,10 @@ test("prepareExplore uses the connected workspace for Store-only Explore", async
   assert.equal(result.workspace, scenario.workspace);
   assert.equal(result.projectSpecsOnly, true);
   assert.equal(result.repositories.length, 0);
+  assert.equal(
+    result.exploreInstructionsPath,
+    path.join(scenario.storeRoot, ".sdd", "instructions", "explore.md"),
+  );
   assert.match(result.store.revision, /^[0-9a-f]{40}$/);
   await assert.rejects(fs.stat(path.join(scenario.storeRoot, ".sdd", "checkouts")), /ENOENT/);
 });
@@ -307,6 +312,21 @@ test("prepareExplore requires the original OpenSpec action", async (t) => {
   );
 });
 
+test("prepareExplore requires the project Explore instructions", async (t) => {
+  const scenario = await createScenario(t);
+  await fs.rm(path.join(scenario.storeRoot, ".sdd", "instructions", "explore.md"));
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  await assert.rejects(
+    prepareExplore({
+      start: scenario.storeRoot,
+      ticket: "PAY-414",
+      selectRepositories: async () => [],
+      commandRunner: openSpec.runner,
+    }),
+    /\.sdd.*instructions.*explore\.md/,
+  );
+});
+
 test("buildExploreInvocation passes exact Store and repository revisions", () => {
   const invocation = buildExploreInvocation({
     ticket: "PAY-415",
@@ -317,6 +337,7 @@ test("buildExploreInvocation passes exact Store and repository revisions", () =>
     store: { branch: "main", revision: "a".repeat(40) },
     projectSpecsOnly: false,
     repositories: [{ id: "api", branch: "main", revision: "b".repeat(40), path: "/work/src/api" }],
+    exploreInstructionsPath: "/work/openspec/payments-specs/.sdd/instructions/explore.md",
   });
   assert.match(invocation, /^\/opsx-explore PAY-415\./);
   assert.match(invocation, new RegExp("a{40}"));
@@ -324,14 +345,9 @@ test("buildExploreInvocation passes exact Store and repository revisions", () =>
   assert.match(invocation, /Исходное намерение: "Понять, как показывать \\"статус платежа\\" в интерфейсе"/);
   assert.match(invocation, /workspace "\/work"/);
   assert.match(invocation, /Разрешённые корни чтения: "\/work\/openspec\/payments-specs", "\/work\/src\/api"/);
-  assert.match(invocation, /не является разрешением сканировать её целиком/);
-  assert.match(invocation, /не начинай исследование по предыдущим сообщениям/);
-  assert.match(invocation, /проблему и ожидаемый наблюдаемый результат сформулируй по исследованным фактам/);
-  assert.match(invocation, /явно пометь как гипотезу или неизвестное/);
-  assert.match(invocation, /явным --store/);
-  assert.match(invocation, /следующим действием назови только `\/sdd-change PAY-415 <short-name>`/);
-  assert.match(invocation, /Не предлагай `\/opsx-new`, `\/opsx-propose`, Apply или Archive/);
-  assert.match(invocation, /Сам команду не вызывай/);
+  assert.match(invocation, /\.sdd\/instructions\/explore\.md/);
+  assert.doesNotMatch(invocation, /\/sdd-explore/);
+  assert.doesNotMatch(invocation, /Jira API|гипотез|sdd-change|opsx-propose/);
 });
 
 test("buildExploreInvocation requires the request intent", () => {
@@ -344,6 +360,7 @@ test("buildExploreInvocation requires the request intent", () => {
     store: { branch: "main", revision: "a".repeat(40) },
     projectSpecsOnly: true,
     repositories: [],
+    exploreInstructionsPath: "/work/openspec/payments-specs/.sdd/instructions/explore.md",
   };
   assert.throws(
     () => buildExploreInvocation({ ...result, intent: " " }),

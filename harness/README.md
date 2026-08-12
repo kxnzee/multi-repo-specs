@@ -71,7 +71,7 @@ sdd connect --workspace /absolute/path/to/workspace
 
 `sdd connect` сохраняет канонический путь как локальную Git-настройку `sdd.workspace` центрального Store. Настройка не коммитится и используется последующими `sdd connect` и `sdd explore`; явный `--workspace` заменяет сохранённое значение.
 
-Команда проверяет наличие обязательных agent actions `/opsx-explore`, `/opsx-continue`, `/opsx-update`, `/sdd-context`, `/sdd-change` и runtime-инструкции `sdd-apply.md`, передаёт Store identity официальным `store register`, `store doctor`, `doctor --store` и `context --store`, структурно проверяет их JSON, затем загружает все записи `role: code` из `sdd.yaml` в `<workspace>/src/<repository-id>`. Существующие checkout не обновляются и не перезаписываются: проверяются только их `origin`, ветка и чистота.
+Команда проверяет наличие обязательных agent actions `/opsx-explore`, `/opsx-continue`, `/opsx-update`, `/sdd-context`, `/sdd-change`, невызваемой проектной инструкции `.sdd/instructions/explore.md` и runtime-инструкции `sdd-apply.md`, передаёт Store identity официальным `store register`, `store doctor`, `doctor --store` и `context --store`, структурно проверяет их JSON, затем загружает все записи `role: code` из `sdd.yaml` в `<workspace>/src/<repository-id>`. Существующие checkout не обновляются и не перезаписываются: проверяются только их `origin`, ветка и чистота.
 
 Если в Code Repository отсутствует единственный допустимый `openspec/config.yaml`, команда создаёт pointer `store: <store-id>` и возвращает `needs_setup_pr`. Она не делает commit, push или PR. После принятия setup PR обновите checkout и повторите `sdd connect`.
 
@@ -99,17 +99,17 @@ sdd explore --ticket PAY-412
 
 Explore не клонирует репозитории и не создаёт ticket-specific workspace. Для Store и выбранных постоянных checkout команда проверяет чистоту, `default_branch`, выполняет только `git fetch` и требует совпадения `HEAD` с `origin/<default_branch>`. Для каждого выбранного Code Repository дополнительно проверяется точный config-only pointer и разрешение того же Store через `doctor/context` с `source: declared`. Файловые права не меняются.
 
-После успешной проверки CLI печатает готовую строку для выбранного агента. Она вызывает оригинальный action OpenSpec и передаёт ему ticket, исходное намерение, Store ID, workspace, точные пути и ревизии, границы «только чтение» и обязательные разделы результата. Workspace задаёт multi-repo-территорию, но читать разрешено только явно перечисленные Spec Root и выбранные checkout; родительские каталоги, remotes и невыбранные репозитории запрещены.
+После успешной проверки CLI формирует готовый prompt со штатным `/opsx-explore`, runtime-параметрами и точным путём к проектной инструкции `.sdd/instructions/explore.md`. В prompt входят ticket, исходное намерение, Store ID, workspace, точные пути и ревизии. Постоянные границы, порядок исследования и формат результата находятся в `explore.md`, а не в JavaScript.
 
-Откройте новую сессию агента из корня Store и вставьте всю строку первым сообщением. Не отправляйте описание задачи отдельным сообщением до `/opsx-explore`. Строка начинается с:
+После проверки CLI печатает готовый prompt. Откройте новую сессию выбранного агента из корня Store и вставьте prompt целиком первым сообщением. Не отправляйте описание задачи отдельным сообщением до `/opsx-explore`.
 
 ```text
-/opsx-explore PAY-412. Это Explore шага 01 SDD. Исходное намерение: "Понять, как показывать пользователю актуальный статус платежа в UI на основе данных API". ...
+/opsx-explore PAY-412. Перед исследованием прочитай и выполни проектный контракт "/workspace/payments-specs/.sdd/instructions/explore.md". ...
 ```
 
-`sdd explore` не изменяет содержимое `opsx-explore.md`: файл принадлежит OpenSpec. Для Qwen отсутствующий action восстанавливается через `openspec update --force`. Для GigaCode прямой update не используется, пока официальный adapter создаёт `.qwen/`; совместимый `.gigacode/` pack обновляется вместе с SDD adapter. `sdd explore` требует TTY; флага для неинтерактивного ввода в первой реализации нет. Переданная дополнительная инструкция запрещает создавать Change, SDD-метадату, ветку, коммит или PR и читать Jira по API.
+`sdd explore` не изменяет содержимое `opsx-explore.md`: файл принадлежит OpenSpec и обновляется вместе с его версией. Общий `.sdd/instructions/explore.md` содержит дополнительные правила multi-repo SDD и не регистрируется как slash-команда. Отдельной `/sdd-explore` нет. Для Qwen отсутствующий action восстанавливается через `openspec update --force`. Для GigaCode прямой update не используется, пока официальный adapter создаёт `.qwen/`; совместимый `.gigacode/` pack обновляется вместе с SDD adapter.
 
-Если в будущем аргумента оригинального action станет недостаточно, отдельная ревизия процесса может добавить `/sdd-explore`. Она должна жить в пространстве имён `sdd-*` и не перезаписывать `opsx-*`; текущая реализация такой команды не создаёт.
+`sdd explore` требует интерактивный TTY для выбора репозиториев и ввода намерения, но самостоятельно агента не запускает.
 
 ## Создание Change и Proposal
 

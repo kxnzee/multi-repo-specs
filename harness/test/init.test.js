@@ -209,10 +209,15 @@ test("initProject creates Store, official expanded pack and the complete skeleto
     "sdd.yaml",
     "CODEOWNERS",
     ".gitignore",
+    ".sdd/instructions/explore.md",
   ];
   for (const relativePath of expectedFiles) {
     assert.equal((await fs.stat(path.join(target, relativePath))).isFile(), true, relativePath);
   }
+  await assert.rejects(
+    fs.stat(path.join(target, ".qwen", "commands", "sdd-explore.md")),
+    /ENOENT/,
+  );
   assert.match(
     await fs.readFile(path.join(target, ".qwen/agents/repository-context-pass.md"), "utf8"),
     /name: repository-context-pass/,
@@ -318,6 +323,11 @@ test("initProject persists GigaCode through the Qwen OpenSpec adapter", async (t
   assert.equal(
     (await fs.stat(path.join(target, ".gigacode", "commands", "sdd-apply.md"))).isFile(),
     true,
+  );
+  assert.equal((await fs.stat(path.join(target, ".sdd", "instructions", "explore.md"))).isFile(), true);
+  await assert.rejects(
+    fs.stat(path.join(target, ".gigacode", "commands", "sdd-explore.md")),
+    /ENOENT/,
   );
   assert.equal(
     (
@@ -506,6 +516,32 @@ test("initProject reports recovery when a completed Store loses a required comma
   );
   assert.equal(openSpec.calls.length, callsBeforeRepeat);
   await assert.rejects(fs.stat(missingCommand), /ENOENT/);
+});
+
+test("initProject reports recovery when a completed Store loses Explore instructions", async (t) => {
+  const target = await temporaryProject(t);
+  const openSpec = fakeOpenSpec(target);
+  await initProject({
+    target,
+    storeId: "payments-specs",
+    agentId: "qwen",
+    commandRunner: openSpec.runner,
+  });
+  const callsBeforeRepeat = openSpec.calls.length;
+  const missingInstructions = path.join(target, ".sdd", "instructions", "explore.md");
+  await fs.unlink(missingInstructions);
+
+  await assert.rejects(
+    initProject({
+      target,
+      storeId: "payments-specs",
+      agentId: "qwen",
+      commandRunner: openSpec.runner,
+    }),
+    /needs_recovery:.*отсутствует \.sdd\/instructions\/explore\.md/s,
+  );
+  assert.equal(openSpec.calls.length, callsBeforeRepeat);
+  await assert.rejects(fs.stat(missingInstructions), /ENOENT/);
 });
 
 test("initProject reports recovery when a completed Store loses a native subagent", async (t) => {
