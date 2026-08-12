@@ -232,11 +232,9 @@ test("initProject creates Store, official expanded pack and the complete skeleto
     "original OpenSpec action\n",
   );
   const qwenInstructions = await fs.readFile(path.join(target, "QWEN.md"), "utf8");
-  assert.match(qwenInstructions, /## Planning PR/);
-  assert.match(qwenInstructions, /`\/opsx-update <change-id>`/);
-  assert.match(qwenInstructions, /Не предлагай отдельные `sdd review`, `sdd baseline`/);
-  assert.match(qwenInstructions, /QA-subtask остаётся открытым решением/);
-  assert.match(qwenInstructions, /runtime-инструкцию `sdd-apply\.md`, а не built-in `\/opsx-apply`/);
+  assert.match(qwenInstructions, /Первое сообщение.*всегда начинай на русском языке/);
+  assert.match(qwenInstructions, /`isComplete: true`/);
+  assert.match(qwenInstructions, /шаг 04, Planning PR и фиксация Spec Baseline/);
   const config = parseSddConfig(await fs.readFile(path.join(target, "sdd.yaml"), "utf8"));
   assert.deepEqual(config.storeRepository, {
     id: "payments-specs",
@@ -367,11 +365,9 @@ test("initProject persists GigaCode through the Qwen OpenSpec adapter", async (t
     path.join(target, ".gigacode", "GIGACODE.md"),
     "utf8",
   );
-  assert.match(gigaInstructions, /## Planning PR/);
-  assert.match(gigaInstructions, /`\/opsx-update <change-id>`/);
-  assert.match(gigaInstructions, /Не предлагай отдельные `sdd review`, `sdd baseline`/);
-  assert.match(gigaInstructions, /QA-subtask остаётся открытым решением/);
-  assert.match(gigaInstructions, /runtime-инструкцию `sdd-apply\.md`, а не built-in `\/opsx-apply`/);
+  assert.match(gigaInstructions, /Первое сообщение.*всегда начинай на русском языке/);
+  assert.match(gigaInstructions, /`isComplete: true`/);
+  assert.match(gigaInstructions, /шаг 04, Planning PR и фиксация Spec Baseline/);
   assert.equal(fsSync.existsSync(path.join(target, "GIGACODE.md")), false);
   assert.equal(fsSync.existsSync(path.join(target, ".qwen")), false);
   assert.equal(fsSync.existsSync(path.join(target, "QWEN.md")), false);

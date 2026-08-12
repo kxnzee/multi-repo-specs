@@ -130,9 +130,22 @@ JS-код стал скрытым источником постоянных ин
 
 ## Этап 3. Разгрузка `QWEN.md` и `GIGACODE.md`
 
+Статус: выполнено.
+
 ### Проблема
 
 Файлы инструкций выбранного агента содержат большой процессный блок о Planning PR, Spec Baseline, implementation subtasks, `sdd load` и Apply. Часть правил нужна агенту в любой сессии, но пошаговые алгоритмы отдельных этапов относятся к командам или пользовательской документации.
+
+### Распределение владельцев
+
+| Правило | Единственный владелец |
+|---|---|
+| Язык общения и подтверждение `proposal.md` при начале шага 03 в новой сессии | `QWEN.md` / `GIGACODE.md` |
+| Routing завершённого `/opsx-continue` на шаг 04 вместо Apply или Archive | `QWEN.md` / `GIGACODE.md` |
+| Формирование Proposal, Specs, Design и Tasks | `openspec/config.yaml` |
+| Planning PR, обработка замечаний, Spec Baseline и implementation subtasks | `docs/steps/04.md` |
+| `sdd load`, повторная загрузка и переход в Apply-сессию | `docs/steps/05.md` |
+| Границы Apply и формат результата реализации | `sdd-apply.md` |
 
 ### Требуемые изменения
 

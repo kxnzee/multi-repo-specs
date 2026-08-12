@@ -153,49 +153,32 @@ test("sdd-apply реализует шаг 06 в границах одного Co
 });
 
 test("инструкции агентов направляют завершённый Planning на шаг 04", async () => {
-  const instructions = await Promise.all([
+  const [qwenInstructions, gigaInstructions] = await Promise.all([
     read("init/agents/qwen/QWEN.md"),
     read("init/agents/gigacode/.gigacode/GIGACODE.md"),
   ]);
 
-  for (const contents of instructions) {
-    assert.match(contents, /раздел намеренно находится в файле инструкций агента/);
+  for (const contents of [qwenInstructions, gigaInstructions]) {
+    assert.match(contents, /Первое сообщение.*всегда начинай на русском языке/);
     assert.match(contents, /built-in `\/opsx-continue`/);
     assert.match(contents, /`isComplete: true`.*до вызова `openspec instructions`/s);
-    assert.match(contents, /Правила содержимого Proposal, Specs, Design[\s\S]*остаются в `openspec\/config.yaml`/);
-    assert.match(contents, /`isComplete: true`.*только завершение Proposal, Specs, Design и Tasks/);
     assert.match(contents, /новой сессии.*до первого `\/opsx-continue`.*полный `proposal\.md`/s);
     assert.match(contents, /явное подтверждение.*принятый вход/s);
     assert.match(contents, /Не выводи подтверждение из наличия файла или статуса OpenSpec `done`/);
-    assert.match(contents, /Не создавай для этого approval-файл/);
-    assert.match(contents, /следующий этап — шаг 04, Planning PR и фиксация Spec Baseline/);
-    assert.match(contents, /Не предлагай и не запускай `\/opsx-apply`/);
-    assert.match(contents, /Не предлагай и не запускай `\/opsx-archive` до шага 09/);
-    assert.match(contents, /backend, frontend, Composite Verification, ручная проверка, merge и rollout/);
-    assert.match(contents, /не выдумывай статус готовности/);
-    assert.doesNotMatch(contents, /archive_readiness/);
-    assert.match(contents, /подсказку built-in `\/opsx-continue`.*замени маршрутом на шаг 04/);
-    assert.match(contents, /Не предлагай отдельные `sdd review`, `sdd baseline`/);
-    assert.match(contents, /Не считай HEAD ветки `feature\/<change-id>` Spec Baseline/);
-    assert.match(contents, /Baseline появляется только после merge Planning PR/);
-    assert.match(contents, /`\/opsx-update <change-id>`.*только.*unresolved comments/s);
-    assert.match(contents, /точный текст замечаний.*threads либо `file:line`/);
-    assert.match(contents, /Не закрывай review threads, не создавай commit, не выполняй push/);
-    assert.match(contents, /по одной implementation subtask на каждый.*repository-id/);
-    assert.match(contents, /parent_ticket, change_id, store_id, spec_baseline/);
-    assert.doesNotMatch(contents, /spec_path/);
-    assert.match(contents, /точными task\.id из структурированного/);
-    assert.match(contents, /не извлекай ID из описаний Tasks/);
-    assert.match(contents, /QA-subtask остаётся открытым решением/);
-    assert.match(contents, /`sdd load --store <store-id> --repo <repository-id> --change <change-id> --baseline <sha> --work-package <id>\.\.\.`/);
-    assert.match(contents, /При повторном load всегда передавай текущие параметры implementation subtask/);
-    assert.match(contents, /не пытайся выводить их из Git-ветки или прежнего runtime/);
-    assert.match(contents, /готовое первое сообщение указывает на `sdd-apply\.md` внутри runtime Store/);
-    assert.match(contents, /Не требуй обнаружения slash-команды в Code Repository/);
-    assert.match(contents, /выполняй точную runtime-инструкцию `sdd-apply\.md`, а не built-in `\/opsx-apply`/);
-    assert.match(contents, /не отмечай центральный `tasks\.md` и не переходи к Archive/);
-    assert.match(contents, /Commit, push, PR и tracker изменяй только по отдельному явному поручению пользователя/);
+    assert.match(contents, /`isComplete: true`.*только завершение Proposal, Specs, Design и Tasks/s);
+    assert.match(contents, /единственным маршрутом: шаг 04, Planning PR и фиксация Spec Baseline/);
+    assert.match(contents, /Сам Apply или Archive не запускай/);
+    assert.doesNotMatch(
+      contents,
+      /## Planning PR|## Начало реализации|`\/opsx-update|sdd review|sdd baseline|implementation subtask|QA-subtask|sdd load|sdd-apply\.md|task\.id|Composite Verification/,
+    );
   }
+
+  const withoutProviderHeading = (contents) => contents.replace(/^# Инструкции для .+\n/, "");
+  assert.equal(
+    withoutProviderHeading(qwenInstructions),
+    withoutProviderHeading(gigaInstructions),
+  );
 
   await Promise.all([
     assert.rejects(fs.stat(path.join(HARNESS_ROOT, "init/commands/sdd-review.md")), /ENOENT/),
