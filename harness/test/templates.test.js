@@ -28,6 +28,9 @@ test("OpenSpec использует встроенную схему и native su
 
   assert.equal(config.schema, "spec-driven");
   assert.deepEqual(Object.keys(config.rules).sort(), ["design", "proposal", "specs", "tasks"]);
+  assert.match(config.context, /OpenSpec-артефакты.*пиши на русском языке/);
+  assert.match(config.context, /Не переводи код, команды, пути, идентификаторы/);
+  assert.doesNotMatch(config.context, /Первое сообщение|Общайся с пользователем/);
   assert.match(config.context, /центральном Store Repository/);
   assert.match(config.context, /agent\.instructions_file/);
   assert.match(config.context, /repository_instructions_path/);
@@ -106,6 +109,10 @@ test("OpenSpec использует встроенную схему и native su
 test("sdd-apply реализует шаг 06 в границах одного Code Repository", async () => {
   const apply = await read("init/commands/sdd-apply.md");
 
+  assert.match(apply, /standalone-инструкция.*Code Repository.*может отсутствовать/s);
+  assert.match(apply, /языковой контракт.*обязательным локальным fallback/);
+  assert.match(apply, /Первое сообщение.*на русском языке/);
+  assert.match(apply, /Не переводи только код, команды, пути, идентификаторы/);
   assert.match(apply, /openspec validate <change-id> --type change --strict --no-interactive --json/);
   assert.match(apply, /<repository-id>\/context\.json/);
   assert.match(apply, /openspec instructions apply --change <change-id> --json/);
@@ -150,6 +157,19 @@ test("sdd-apply реализует шаг 06 в границах одного Co
     fs.stat(path.join(HARNESS_ROOT, "init/commands/sdd-verify.md")),
     /ENOENT/,
   );
+});
+
+test("Store-команды и context pack не дублируют общий языковой контракт", async () => {
+  const [contextCommand, changeCommand, contextEntryPoint] = await Promise.all([
+    read("init/commands/sdd-context.md"),
+    read("init/commands/sdd-change.md"),
+    read("init/skeleton/openspec/context/00-start-here.md"),
+  ]);
+
+  for (const contents of [contextCommand, changeCommand, contextEntryPoint]) {
+    assert.doesNotMatch(contents, /Первое сообщение|Рабочий язык|общайся с пользователем/i);
+    assert.doesNotMatch(contents, /Не переводи (?:только )?код, команды, пути/);
+  }
 });
 
 test("инструкции агентов направляют завершённый Planning на шаг 04", async () => {
