@@ -20,6 +20,7 @@
 # /openspec/context/system-map.yaml @technical-owner
 # /openspec/context/ADR/README.md @spec-owner
 # /openspec/context/_raw/README.md @spec-owner
+# /.sdd/instructions/** @apply-owner @technical-owner
 # /<agent-commands-directory>/sdd-*.md @apply-owner @technical-owner
 # /<agent-commands-directory>/opsx-*.md @apply-owner
 # /<provider-specific-agent-directory>/agents/*.md @apply-owner @technical-owner
