@@ -32,7 +32,7 @@ sdd init --store payments-specs --agent qwen \
   --repo api=https://example.test/api.git#main
 ```
 
-Команда проверяет совместимость OpenSpec, создаёт Store через официальный `openspec store setup`, устанавливает официальный expanded agent pack и раскладывает SDD skeleton. Набор workflows передаётся профилю `custom` через временную изолированную конфигурацию, поэтому глобальный профиль OpenSpec пользователя не изменяется. `--agent` обязателен и принимает `qwen` или `gigacode`. GigaCode использует официальный OpenSpec adapter `qwen`, но готовый pack переносится в `.gigacode/`, а инструкция записывается в `GIGACODE.md`; фактическое соответствие сохраняется в `sdd.yaml`. Уже существующий официальный `.qwen/` также переносится целиком и после успешного `init` не остаётся.
+Команда проверяет совместимость OpenSpec, создаёт Store через официальный `openspec store setup`, устанавливает официальный expanded agent pack и раскладывает SDD skeleton. Набор workflows передаётся профилю `custom` через временную изолированную конфигурацию, поэтому глобальный профиль OpenSpec пользователя не изменяется. `--agent` обязателен и принимает `qwen` или `gigacode`. GigaCode использует официальный OpenSpec adapter `qwen`, но готовый pack переносится в `.gigacode/`, а инструкция записывается в `.gigacode/GIGACODE.md`; фактическое соответствие сохраняется в `sdd.yaml`. Уже существующий официальный `.qwen/` также переносится целиком и после успешного `init` не остаётся.
 
 Существующий OpenSpec root без Store metadata принимается без удаления specs, Changes и собственных настроек config: адаптер добавляет только обязательные настройки SDD. Обычные `.gitignore` и `CODEOWNERS` также сохраняются и дополняются. При повторном запуске Store metadata считается только признаком начатой инициализации: `sdd init` проверяет согласованность конфигурации, OpenSpec root, проектный skeleton и обязательные команды агента. Полное состояние не изменяется, а частичное возвращает `needs_recovery` с перечнем причин. Автоматического ремонта пока нет.
 
@@ -128,6 +128,8 @@ sdd change --ticket PAY-412 --name payment-status --store payments-specs
 CLI разрешает только центральный Store, проверяет совпадение явного `--store` с текущим checkout, его регистрацию и identity, активные и архивные Changes, чистую актуальную основную ветку, отсутствие локальной и remote planning-ветки, затем создаёт `feature/pay-412-payment-status` и вызывает официальный `openspec new change`. При повторном запуске допускаются изменения только внутри того же Change; существующий Proposal продолжается без перезаписи. Ветка без Change, другая schema, commit или изменения вне Change возвращают `needs_recovery`.
 
 После JSON-результата agent command получает официальные `openspec instructions proposal`, создаёт только `proposal.md` из подтверждённого Explore и завершает шаг лишь после явного подтверждения Change Owner. Delta Specs, `design.md`, `tasks.md`, commit, push и PR на этом этапе не создаются. `/opsx-propose` не вызывается, встроенные команды и skills OpenSpec не изменяются.
+
+При последующих `/opsx-continue` правила `openspec/config.yaml` определяют, когда основному planning-agent нужен read-only Repository Context Pass. Перед первым таким pass в сессии агент обязан прочитать установленный agent-facing контракт `openspec/context/repository-context-pass.md`; отдельного пользовательского вызова и автоматического запуска со стороны Harness нет. Человеческое объяснение механизма находится в корневом `docs/subagents.md` и агенту не передаётся.
 
 ## Planning PR и Spec Baseline
 

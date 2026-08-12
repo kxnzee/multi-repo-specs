@@ -13,6 +13,7 @@ description: Собрать или актуализировать общий к�
 - Работай только внутри текущего центрального репозитория с `role: store` в `sdd.yaml`.
 - Для чтения используй только `openspec/context/`, `openspec/specs/`, `sdd.yaml`, `CODEOWNERS`, `openspec/config.yaml`, `.openspec-store/store.yaml` и Git-состояние самого Store.
 - Вноси изменения только в `openspec/context/`.
+- `openspec/context/repository-context-pass.md` является неизменяемым process contract для planning-agent: не изменяй и не используй его как источник предметного контекста проекта.
 - Не обращайся к Code Repositories из `sdd.yaml`, их URL и локальным checkout. Не читай `<workspace>/src/` и любые другие каталоги за пределами текущего Store.
 - Не выполняй для Code Repositories `git ls-remote`, `git clone`, `git fetch`, `git checkout` и не создавай временные Git-копии.
 - Не создавай и не изменяй `openspec/specs/`, `openspec/changes/`, OpenSpec Requirements, OpenSpec Scenarios, Delta Specs и код. Высокоуровневые бизнес-сценарии в `01-product-context.md` описывают назначение продукта и не заменяют нормативные Scenarios из Specs.
@@ -28,8 +29,8 @@ description: Собрать или актуализировать общий к�
 ### 1. Проведи инвентаризацию структуры
 
 1. Рекурсивно собери отсортированный список всех путей `*.md` внутри `openspec/context/`.
-2. Классифицируй каждый путь как нормативный контекст, ADR, служебный README или raw-материал.
-3. Сверь найденные пути с принятой структурой: `00-start-here.md`, файлы от `01-...md` до `08-...md`, `system-map.yaml`, `ADR/README.md` и `_raw/README.md`.
+2. Классифицируй каждый путь как нормативный контекст, ADR, служебный README, raw-материал или process contract.
+3. Сверь найденные пути с принятой структурой: `00-start-here.md`, файлы от `01-...md` до `08-...md`, `system-map.yaml`, `ADR/README.md`, `_raw/README.md` и неизменяемый process contract `repository-context-pass.md`.
 4. Покажи отсутствующие обязательные файлы и неожиданные пути. Уточни назначение неожиданного файла до использования его содержимого.
 5. Не делай вывод о наличии файлов на основании истории диалога.
 
@@ -95,6 +96,7 @@ description: Собрать или актуализировать общий к�
 8. итоговый diff затрагивает только `openspec/context/`;
 9. каждый изменённый нормативный файл покрыт активным правилом CODEOWNERS с настроенным владельцем;
 10. во время процесса не читались и не изменялись Code Repositories.
+11. `repository-context-pass.md` не изменён.
 
 ## Завершение
 

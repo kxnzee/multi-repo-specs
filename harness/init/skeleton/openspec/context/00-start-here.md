@@ -19,6 +19,8 @@
 | Tasks, Verification | `07-quality-gates.md`, принятые артефакты Change |
 | Delivery | `05-security-and-compliance.md`, `08-release-process.md`, принятый Design |
 
+`repository-context-pass.md` является agent-facing процессным контрактом. Читайте его только перед первым Repository Context Pass в planning-сессии по маршруту из `openspec/config.yaml`.
+
 ## Open questions
 
 <!-- TODO

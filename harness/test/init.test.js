@@ -204,6 +204,7 @@ test("initProject creates Store, official expanded pack and the complete skeleto
     "openspec/context/system-map.yaml",
     "openspec/context/ADR/README.md",
     "openspec/context/_raw/README.md",
+    "openspec/context/repository-context-pass.md",
     "QWEN.md",
     "sdd.yaml",
     "CODEOWNERS",
@@ -212,6 +213,15 @@ test("initProject creates Store, official expanded pack and the complete skeleto
   for (const relativePath of expectedFiles) {
     assert.equal((await fs.stat(path.join(target, relativePath))).isFile(), true, relativePath);
   }
+  const installedSubagentContract = await fs.readFile(
+    path.join(target, "openspec", "context", "repository-context-pass.md"),
+    "utf8",
+  );
+  assert.match(installedSubagentContract, /Основной агент обязан использовать следующий шаблон/);
+  assert.match(
+    installedSubagentContract,
+    /родитель `agent\.commands_directory` из `sdd\.yaml`/,
+  );
   await assert.rejects(
     fs.stat(path.join(target, ".qwen", "commands", "sdd-verify.md")),
     /ENOENT/,
@@ -254,6 +264,12 @@ test("initProject creates Store, official expanded pack and the complete skeleto
   assert.match(contextCommand, /Статус описывает только соответствие центрального context pack/);
   assert.match(contextCommand, /`system-map\.yaml` прочитай до обработки `_raw\/` и интервью/);
   assert.match(contextCommand, /активное, не закомментированное правило CODEOWNERS/);
+  assert.match(
+    contextCommand,
+    /`openspec\/context\/repository-context-pass\.md` является неизменяемым process contract/,
+  );
+  assert.match(contextCommand, /неизменяемый process contract `repository-context-pass\.md`/);
+  assert.match(contextCommand, /`repository-context-pass\.md` не изменён/);
   assert.doesNotMatch(contextCommand, /получи временную Git-копию/);
   assert.doesNotMatch(contextCommand, /Сверь контекст со свежим состоянием систем/);
 
@@ -268,6 +284,7 @@ test("initProject creates Store, official expanded pack and the complete skeleto
     ]);
   assert.match(startHere, /Explore, Proposal, Delta Specs.*`03-architecture\.md`/);
   assert.match(startHere, /Explore, Proposal, Delta Specs.*`system-map\.yaml`/);
+  assert.match(startHere, /`repository-context-pass\.md` является agent-facing процессным контрактом/);
   assert.doesNotMatch(productContext, /технические ограничения/iu);
   assert.match(architectureContext, /## Технические ограничения/);
   assert.match(securityContext, /owner: Security Owner/);
@@ -334,13 +351,20 @@ test("initProject persists GigaCode through the Qwen OpenSpec adapter", async (t
     ),
     "existing official action\n",
   );
-  assert.equal((await fs.stat(path.join(target, "GIGACODE.md"))).isFile(), true);
-  const gigaInstructions = await fs.readFile(path.join(target, "GIGACODE.md"), "utf8");
+  assert.equal(
+    (await fs.stat(path.join(target, ".gigacode", "GIGACODE.md"))).isFile(),
+    true,
+  );
+  const gigaInstructions = await fs.readFile(
+    path.join(target, ".gigacode", "GIGACODE.md"),
+    "utf8",
+  );
   assert.match(gigaInstructions, /## Planning PR/);
   assert.match(gigaInstructions, /`\/opsx-update <change-id>`/);
   assert.match(gigaInstructions, /Не предлагай отдельные `sdd review`, `sdd baseline`/);
   assert.match(gigaInstructions, /QA-subtask остаётся открытым решением/);
   assert.match(gigaInstructions, /runtime-инструкцию `sdd-apply\.md`, а не built-in `\/opsx-apply`/);
+  assert.equal(fsSync.existsSync(path.join(target, "GIGACODE.md")), false);
   assert.equal(fsSync.existsSync(path.join(target, ".qwen")), false);
   assert.equal(fsSync.existsSync(path.join(target, "QWEN.md")), false);
   assert.ok(
@@ -484,6 +508,37 @@ test("initProject reports recovery when a completed Store loses a required comma
   );
   assert.equal(openSpec.calls.length, callsBeforeRepeat);
   await assert.rejects(fs.stat(missingCommand), /ENOENT/);
+});
+
+test("initProject reports recovery when a completed Store loses the subagent contract", async (t) => {
+  const target = await temporaryProject(t);
+  const openSpec = fakeOpenSpec(target);
+  await initProject({
+    target,
+    storeId: "payments-specs",
+    agentId: "qwen",
+    commandRunner: openSpec.runner,
+  });
+  const callsBeforeRepeat = openSpec.calls.length;
+  const missingContract = path.join(
+    target,
+    "openspec",
+    "context",
+    "repository-context-pass.md",
+  );
+  await fs.unlink(missingContract);
+
+  await assert.rejects(
+    initProject({
+      target,
+      storeId: "payments-specs",
+      agentId: "qwen",
+      commandRunner: openSpec.runner,
+    }),
+    /needs_recovery:.*отсутствует openspec\/context\/repository-context-pass\.md/s,
+  );
+  assert.equal(openSpec.calls.length, callsBeforeRepeat);
+  await assert.rejects(fs.stat(missingContract), /ENOENT/);
 });
 
 test("initProject blocks conflicting skeleton paths instead of overwriting them", async (t) => {

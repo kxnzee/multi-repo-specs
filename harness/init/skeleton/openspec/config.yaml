@@ -14,16 +14,15 @@ context: |
   Не требуй knowledge_path. Для каждого затронутого Code Repository сначала исследуй
   provider-specific каталог агента, определённый как родитель agent.commands_directory
   из sdd.yaml, и только затем используй адресное чтение исходного кода.
-  Если чтение нескольких или крупных репозиториев угрожает planning-context,
-  делегируй native subagents отдельный read-only Repository Context Pass
-  на один repository-id и один конкретный вопрос. Единственный основной агент
-  создаёт и изменяет артефакты Change. Передай subagent только change-id,
-  целевой artifactId, repository-id, checkout, точную ревизию, вопрос,
-  относящиеся к нему бизнесовые границы и минимальный межсистемный контекст.
-  Потребуй краткий результат с полями repository_id, revision, question, status,
-  facts, system_impact, verification_implications, confidence, open_questions
-  и короткими evidence в формате file:line. Не копируй transient evidence
-  и repo-local details в центральные артефакты.
+  Используй read-only Repository Context Pass, когда для текущего артефакта
+  требуется технический контекст нескольких Code Repositories или одного крупного,
+  независимая проверка вывода, разрешение противоречия либо исследование
+  дополнительного зарегистрированного repository-id в прежнем бизнесовом scope.
+  До создания первого Repository Context Pass в planning-сессии полностью прочитай
+  openspec/context/repository-context-pass.md и следуй его обязательным условиям запуска, шаблону задания,
+  контракту результата, правилам синтеза и fallback для runtime без native subagents.
+  Повторно читай контракт только после потери сессии или изменения его ревизии.
+  Единственный основной агент создаёт и изменяет артефакты Change.
   Master Specs меняются только командой Archive на этапе Finalization.
 
 rules:

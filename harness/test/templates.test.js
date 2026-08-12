@@ -20,9 +20,11 @@ async function read(relativePath) {
 }
 
 test("OpenSpec использует встроенную схему и только дополнительные правила SDD", async () => {
-  const [contents, step00] = await Promise.all([
+  const [contents, step00, subagentContract, humanSubagentGuide] = await Promise.all([
     read("init/skeleton/openspec/config.yaml"),
     read("../docs/steps/00.md"),
+    read("init/skeleton/openspec/context/repository-context-pass.md"),
+    read("../docs/subagents.md"),
   ]);
   const config = parseYaml(contents);
 
@@ -31,13 +33,36 @@ test("OpenSpec использует встроенную схему и толь�
   assert.match(config.context, /центральном Store Repository/);
   assert.match(config.context, /Не требуй knowledge_path/);
   assert.match(config.context, /родитель agent\.commands_directory/);
-  assert.match(config.context, /делегируй native subagents отдельный read-only Repository Context Pass/);
-  assert.match(config.context, /один repository-id и один конкретный вопрос/);
-  assert.match(config.context, /change-id,[\s\S]*целевой artifactId, repository-id, checkout, точную ревизию/);
-  assert.match(config.context, /repository_id, revision, question, status/);
-  assert.match(config.context, /facts, system_impact, verification_implications, confidence, open_questions/);
-  assert.match(config.context, /evidence в формате file:line/);
+  assert.match(config.context, /технический контекст нескольких Code Repositories или одного крупного/);
+  assert.match(config.context, /независимая проверка вывода/);
+  assert.match(config.context, /разрешение противоречия/);
+  assert.match(
+    config.context,
+    /полностью прочитай\s+openspec\/context\/repository-context-pass\.md/,
+  );
+  assert.doesNotMatch(config.context, /docs\/subagents\.md/);
+  assert.match(config.context, /обязательным условиям запуска, шаблону задания/);
+  assert.match(config.context, /fallback для runtime без native subagents/);
   assert.match(config.context, /Единственный основной агент/);
+  assert.match(subagentContract, /обязательный agent-facing контракт/);
+  assert.match(subagentContract, /Основной агент обязан использовать следующий шаблон/);
+  assert.match(subagentContract, /один `repository-id` и один конкретный вопрос/);
+  assert.match(subagentContract, /Change: <change-id>/);
+  assert.match(subagentContract, /Целевой артефакт: <specs\|design\|tasks>/);
+  assert.match(subagentContract, /repository_id: payments-backend/);
+  assert.match(subagentContract, /facts:/);
+  assert.match(subagentContract, /system_impact:/);
+  assert.match(subagentContract, /verification_implications:/);
+  assert.match(subagentContract, /confidence: high/);
+  assert.match(subagentContract, /open_questions: \[\]/);
+  assert.match(subagentContract, /reference: path\/to\/file:line/);
+  assert.match(subagentContract, /родитель `agent\.commands_directory` из `sdd\.yaml`/);
+  assert.doesNotMatch(subagentContract, /например, `\.qwen\/` или `\.gigacode\/`/);
+  assert.match(humanSubagentGuide, /Оно не передаётся агенту/);
+  assert.match(
+    humanSubagentGuide,
+    /Agent-facing контракт находится в .*repository-context-pass\.md/,
+  );
   assert.match(config.rules.proposal.join("\n"), /Jira\/SberTrack key/);
   assert.match(config.rules.proposal.join("\n"), /repository-id/);
   assert.match(config.rules.proposal.join("\n"), /Code Repositories, известные по итогам Explore как кандидаты/);
@@ -137,7 +162,7 @@ test("sdd-apply реализует шаг 06 в границах одного Co
 test("инструкции агентов направляют завершённый Planning на шаг 04", async () => {
   const instructions = await Promise.all([
     read("init/agents/qwen/QWEN.md"),
-    read("init/agents/gigacode/GIGACODE.md"),
+    read("init/agents/gigacode/.gigacode/GIGACODE.md"),
   ]);
 
   for (const contents of instructions) {
@@ -189,6 +214,11 @@ test("шаги 03 и 04 содержат только пользовательс
   ]);
 
   assert.match(step03, /\/opsx-continue <change-id>/);
+  assert.match(
+    step03,
+    /основной агент самостоятельно прочитает `openspec\/context\/repository-context-pass\.md`/,
+  );
+  assert.match(step03, /Передавать контракт агенту вручную не нужно/);
   assert.match(step04, /openspec status/);
   assert.match(step04, /openspec show/);
   assert.match(step04, /openspec validate/);

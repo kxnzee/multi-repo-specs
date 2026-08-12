@@ -8,7 +8,7 @@ const AGENTS = Object.freeze({
     openSpecId: "qwen",
     architecture: MARKDOWN_COMMAND_ARCHITECTURE,
     commandsDirectory: ".gigacode/commands",
-    instructionsFile: "GIGACODE.md",
+    instructionsFile: ".gigacode/GIGACODE.md",
     templateDirectory: "gigacode",
     generatedDirectory: ".qwen",
   }),
