@@ -1,6 +1,7 @@
 /** @fileoverview Пользовательский сценарий команды `sdd load`. */
 
 import { prepareLoad } from "../load/index.js";
+import { stringify as stringifyYaml } from "yaml";
 import { HELP, parseLoadArgs } from "./args.js";
 import { reportProgress } from "./progress.js";
 
@@ -42,22 +43,17 @@ export async function runLoad(args) {
     }, null, 2));
     return;
   }
-  const selectedTaskLines = result.selectedTasks.flatMap((task) => [
-    `  - id: ${JSON.stringify(task.id)}`,
-    `    description: ${JSON.stringify(task.description)}`,
-  ]);
-  console.log([
-    `step_status: ${result.stepStatus}`,
-    `store_id: ${result.storeId}`,
-    `change_id: ${result.changeId}`,
-    `spec_baseline: ${result.specBaseline}`,
-    `repository_id: ${result.repositoryId}`,
-    `implementation_branch: ${result.implementationBranch}`,
-    `branch_status: ${result.branchStatus}`,
-    `work_packages: ${result.workPackages.join(", ")}`,
-    "selected_tasks:",
-    ...selectedTaskLines,
-    `next_step: ${result.nextStep}`,
-    `next_action: ${result.nextAction}`,
-  ].join("\n"));
+  console.log(stringifyYaml({
+    step_status: result.stepStatus,
+    store_id: result.storeId,
+    change_id: result.changeId,
+    spec_baseline: result.specBaseline,
+    repository_id: result.repositoryId,
+    implementation_branch: result.implementationBranch,
+    branch_status: result.branchStatus,
+    work_packages: result.workPackages,
+    selected_tasks: result.selectedTasks,
+    next_step: result.nextStep,
+    next_action: result.nextAction,
+  }).trimEnd());
 }

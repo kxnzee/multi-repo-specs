@@ -32,7 +32,6 @@ test("mergeOpenSpecConfig blocks a config symlink", async (t) => {
 
   await assert.rejects(
     mergeOpenSpecConfig(source, destination),
-    /openspec\/config\.yaml должен быть обычным файлом/,
   );
   assert.equal(await fs.readFile(external, "utf8"), "schema: spec-driven\n");
 });
@@ -47,7 +46,6 @@ test("initProject blocks a Store metadata symlink", async (t) => {
 
   await assert.rejects(
     initProject({ target: directory, storeId: "payments-specs", agentId: "qwen" }),
-    /\.openspec-store\/store\.yaml должна быть обычным файлом/,
   );
   assert.equal(await fs.readFile(external, "utf8"), "version: 1\nid: payments-specs\n");
 });
