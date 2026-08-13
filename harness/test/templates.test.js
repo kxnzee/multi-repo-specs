@@ -170,7 +170,7 @@ test("Store-команды и context pack не дублируют общий я
   }
 });
 
-test("инструкции агентов не дублируют настройку языка и направляют Planning на шаг 04", async () => {
+test("инструкции агентов описывают Store, не дублируют язык и направляют Planning на шаг 04", async () => {
   const [qwenInstructions, gigaInstructions] = await Promise.all([
     read("init/agents/qwen/QWEN.md"),
     read("init/agents/gigacode/.gigacode/GIGACODE.md"),
@@ -178,6 +178,12 @@ test("инструкции агентов не дублируют настрой
 
   for (const contents of [qwenInstructions, gigaInstructions]) {
     assert.doesNotMatch(contents, /русск|язык|language output|language ui/i);
+    assert.match(contents, /текущий репозиторий — центральный Store SDD-проекта/i);
+    assert.match(contents, /`openspec\/` — единственный источник истины/);
+    assert.match(contents, /Store не содержит прикладной код/);
+    assert.match(contents, /Code Repositories.*не создают собственные каталоги `openspec\/changes\/`/s);
+    assert.match(contents, /Не изменяй built-in `openspec-\*` skills и `opsx-\*` commands/);
+    assert.match(contents, /Не переходи к Archive.*реализация во всех затронутых Code Repositories.*межрепозиторная и ручная проверки/s);
     assert.match(contents, /built-in `\/opsx-continue`/);
     assert.match(contents, /`isComplete: true`.*до вызова `openspec instructions`/s);
     assert.match(contents, /новой сессии.*до первого `\/opsx-continue`.*полный `proposal\.md`/s);

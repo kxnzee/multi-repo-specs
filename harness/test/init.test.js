@@ -232,6 +232,8 @@ test("initProject creates Store, official expanded pack and the complete skeleto
     "original OpenSpec action\n",
   );
   const qwenInstructions = await fs.readFile(path.join(target, "QWEN.md"), "utf8");
+  assert.match(qwenInstructions, /центральный Store SDD-проекта/);
+  assert.match(qwenInstructions, /`openspec\/` — единственный источник истины/);
   assert.match(qwenInstructions, /`isComplete: true`/);
   assert.match(qwenInstructions, /шаг 04, Planning PR и фиксация Spec Baseline/);
   const config = parseSddConfig(await fs.readFile(path.join(target, "sdd.yaml"), "utf8"));
@@ -364,6 +366,8 @@ test("initProject persists GigaCode through the Qwen OpenSpec adapter", async (t
     path.join(target, ".gigacode", "GIGACODE.md"),
     "utf8",
   );
+  assert.match(gigaInstructions, /центральный Store SDD-проекта/);
+  assert.match(gigaInstructions, /`openspec\/` — единственный источник истины/);
   assert.match(gigaInstructions, /`isComplete: true`/);
   assert.match(gigaInstructions, /шаг 04, Planning PR и фиксация Spec Baseline/);
   assert.equal(fsSync.existsSync(path.join(target, "GIGACODE.md")), false);
