@@ -171,7 +171,7 @@ function assertStorePathAvailable(projectRoot, commandRunner) {
       return id;
     });
     const commands = registeredIds
-      .map((registeredId) => `openspec store unregister ${registeredId} --json`)
+      .map((registeredId) => `openspec store unregister ${registeredId}`)
       .join("\n");
     throw new Error(
       `Локальный registry OpenSpec уже регистрирует путь ${projectRoot} как Store: ` +

@@ -18,6 +18,18 @@ test("runCommand includes stderr from a failed process", () => {
   );
 });
 
+test("runCommand forwards stderr from a successful process without failing", () => {
+  const warnings = [];
+  const output = runCommand(
+    process.execPath,
+    ["-e", "console.error('config-warning'); process.stdout.write('ok')"],
+    { onStderr: (message) => warnings.push(message) },
+  );
+
+  assert.equal(output, "ok");
+  assert.deepEqual(warnings, ["config-warning"]);
+});
+
 test("runCommand passes an isolated environment override", () => {
   assert.equal(
     runCommand(

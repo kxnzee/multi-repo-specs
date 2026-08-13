@@ -124,11 +124,12 @@ export async function connectProject({
   assertStoreIdentity(registration, metadata.id, storeRoot, "openspec store register");
   const storeDoctor = runOpenSpecJson(commandRunner, ["store", "doctor", metadata.id, "--json"], storeRoot);
   validateStoreDoctor(storeDoctor, metadata.id, storeRoot);
-  const doctor = runOpenSpecJson(commandRunner, ["doctor", "--store", metadata.id, "--json"], storeRoot);
-  assertOpenSpecRoot(doctor.root, { path: storeRoot, storeId: metadata.id, source: "store" }, `openspec doctor --store ${metadata.id} --json`);
-  if (doctor.root.healthy !== true || doctor.store?.id !== metadata.id) {
-    throw new Error("openspec doctor не подтвердила исправный зарегистрированный Store");
-  }
+  const doctorOutput = commandRunner("openspec", ["doctor", "--store", metadata.id], {
+    cwd: storeRoot,
+    environment: { NODE_NO_WARNINGS: "1" },
+    onStderr: (message) => onProgress(`Предупреждение OpenSpec:\n${message}`),
+  });
+  if (doctorOutput) onProgress(doctorOutput);
   const context = runOpenSpecJson(commandRunner, ["context", "--store", metadata.id, "--json"], storeRoot);
   assertOpenSpecRoot(context.root, { path: storeRoot, storeId: metadata.id, source: "store" }, `openspec context --store ${metadata.id} --json`);
   const workspace = await resolveWorkspace(

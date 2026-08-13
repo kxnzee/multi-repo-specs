@@ -76,9 +76,12 @@ export async function connectRepository({
   const pointerCreated = await ensurePointer(repositoryRoot, storeId);
   const pointerPending = Boolean(commandRunner("git", ["status", "--porcelain", "--untracked-files=all", "--", GIT_POINTER_PATH], { cwd: repositoryRoot }));
   onProgress("проверка OpenSpec pointer...");
-  const doctor = runOpenSpecJson(commandRunner, ["doctor", "--json"], repositoryRoot);
-  assertOpenSpecRoot(doctor.root, { path: storeRoot, storeId, source: "declared" }, "openspec doctor --json");
-  if (doctor.root.healthy !== true) throw new Error(`${repository.id}: openspec doctor не подтвердила исправный Store`);
+  const doctorOutput = commandRunner("openspec", ["doctor"], {
+    cwd: repositoryRoot,
+    environment: { NODE_NO_WARNINGS: "1" },
+    onStderr: (message) => onProgress(`Предупреждение OpenSpec:\n${message}`),
+  });
+  if (doctorOutput) onProgress(doctorOutput);
   const context = runOpenSpecJson(commandRunner, ["context", "--json"], repositoryRoot);
   assertOpenSpecRoot(context.root, { path: storeRoot, storeId, source: "declared" }, "openspec context --json");
   return {

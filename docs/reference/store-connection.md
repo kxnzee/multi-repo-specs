@@ -40,13 +40,13 @@ SDD определяет workspace в следующем порядке:
 Проверьте существующие регистрации:
 
 ```bash
-openspec store list --json
+openspec store list
 ```
 
 Если локальную регистрацию нужно сбросить, выполните:
 
 ```bash
-openspec store unregister <store-id> --json
+openspec store unregister <store-id>
 ```
 
 Команда удаляет только локальную регистрацию и не удаляет файлы Store. Для уже

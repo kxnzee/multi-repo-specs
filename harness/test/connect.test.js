@@ -188,6 +188,7 @@ function fakeOpenSpec(storeRoot, initialStores = []) {
       store_id: "payments-specs",
     };
     if (args[0] === "doctor") {
+      if (!args.includes("--json")) return "human-doctor-output";
       return JSON.stringify({
         root: { ...root, healthy: true, status: [] },
         store: { id: "payments-specs", status: [] },
@@ -227,6 +228,28 @@ test("connectProject registers Store, clones a missing repository and creates it
       .includes("openspec/"),
     true,
   );
+});
+
+test("connectProject reports human-readable OpenSpec doctor output without blocking", async (t) => {
+  const scenario = await createScenario(t);
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const progress = [];
+  const runner = (command, args, options = {}) => {
+    if (command === "openspec" && args[0] === "doctor") {
+      options.onStderr?.("project config warning");
+    }
+    return openSpec.runner(command, args, options);
+  };
+
+  const result = await connectProject({
+    start: scenario.storeRoot,
+    commandRunner: runner,
+    onProgress: (message) => progress.push(message),
+  });
+
+  assert.equal(result.status, "needs_setup_pr");
+  assert.equal(progress.includes("human-doctor-output"), true);
+  assert.equal(progress.some((message) => message.includes("project config warning")), true);
 });
 
 test("connectProject is idempotent for an accepted pointer and existing checkout", async (t) => {

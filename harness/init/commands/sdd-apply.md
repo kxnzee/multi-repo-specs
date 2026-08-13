@@ -67,6 +67,8 @@ openspec instructions apply --change <change-id> --json
 
 Технический контекст сначала ищи в действующем файле инструкций агента текущего Code Repository. Его путь определён `agent.instructions_file` в `sdd.yaml`. Не сканируй `commands/`, `skills/` или `agents/` в поиске другого контекста. Если файла нет или сведений недостаточно, адресно прочитай связанные код и тесты. Не загружай весь крупный репозиторий или другие Code Repositories автоматически.
 
+До реализации определи затронутые существующие публичные контракты по `code_base_revision`, инструкциям репозитория, коду и подтверждающим тестам. Specs, Design и выбранный Work Package определяют, должно ли прежнее поведение сохраниться или Change явно вводит несовместимое изменение с миграцией и rollout.
+
 Для простой работы используй краткий план текущей сессии. Локальный technical design, implementation plan или checklist допустим только если действительно нужен по правилам Code Repository. Он необязателен, не создаёт SDD-гейт и не становится источником требований.
 
 ## 4. Реализуй Work Packages
@@ -82,6 +84,8 @@ openspec instructions apply --change <change-id> --json
 - встроенные skills `openspec-*` и команды `opsx-*` provider-specific agent pack.
 
 Не расширяй scope найденными сопутствующими проблемами. Перечисли их отдельно в отчёте или PR.
+
+Не изменяй существующие assertions только для того, чтобы согласовать их с незапланированным несовместимым поведением реализации. Изменение прежнего контракта и его тестов допустимо, только если оно прямо следует из принятых Specs, Design и выбранного Work Package. Если реализация требует несовместимого изменения, которого нет в принятых артефактах, не вноси его: оставь Work Package со статусом `blocked` и верни вопрос Change Owner на planning.
 
 Если точный Work Package нельзя завершить без записи в другой Code Repository, Composite Verification или недоступного внешнего окружения, не подменяй его соседней Task и не объявляй выполненным. Оставь этот ID со статусом `incomplete` либо `blocked` и укажи точную причину.
 
@@ -105,7 +109,7 @@ openspec instructions apply --change <change-id> --json
 
 Если описание Work Package прямо требует тест, контрактную проверку или другое проверяемое подтверждение, `Not run` означает, что этот ID имеет статус `incomplete` либо `blocked`. Созданный, но не запущенный тест не завершает такой Work Package.
 
-Для Work Package о сохранении существующего поведения сначала сравни результат с `code_base_revision`; не выводи ожидаемое прежнее поведение из уже изменённого кода. Без такого сравнения и требуемой проверки этот ID не имеет статус `completed`.
+Для каждого затронутого публичного контракта сравни результат с `code_base_revision`; не выводи прежнее поведение из уже изменённого кода. Если Change не предусматривает его изменение, подтверди сохранение поведения существующей проверкой либо добавленной регрессионной проверкой. Если Change явно предусматривает breaking change, свяжи обновлённое поведение и тесты с соответствующими Specs, Design и Work Package. Без такого подтверждения затронутый ID не имеет статус `completed`.
 
 После работы снова проверь, что `spec_root` чист и остаётся на том же `spec_baseline`. Любое изменение immutable Store блокирует завершение и требует повторного `sdd load` после устранения причины.
 
@@ -138,6 +142,8 @@ work_package_results:
   - id: <exact task.id>
     description: <exact official description>
     implementation: <summary | none>
+    contract_compatibility: not_applicable | preserved | planned_breaking_change
+    contract_evidence: <baseline and verification | accepted artifact and verification | none>
     verification: <command and evidence | Not run with reason>
     status: completed | incomplete | blocked
 implementation_branch: <branch>

@@ -35,6 +35,7 @@ function redact(value, sensitiveValues) {
  * @param {object} [options]
  * @param {string} [options.cwd]
  * @param {Record<string, string>} [options.environment] Дополнительное окружение процесса.
+ * @param {(message: string) => void} [options.onStderr] Обработчик успешного stderr.
  * @param {string[]} [options.sensitiveValues]
  * @param {number} [options.timeout] Максимальное время выполнения в миллисекундах.
  * @returns {string} stdout без пробелов по краям.
@@ -42,7 +43,13 @@ function redact(value, sensitiveValues) {
 export function runCommand(
   command,
   args,
-  { cwd, environment = {}, sensitiveValues = [], timeout = DEFAULT_TIMEOUT } = {},
+  {
+    cwd,
+    environment = {},
+    onStderr = () => {},
+    sensitiveValues = [],
+    timeout = DEFAULT_TIMEOUT,
+  } = {},
 ) {
   if (!Number.isFinite(timeout) || timeout <= 0) {
     throw new Error("Timeout внешней команды должен быть положительным числом");
@@ -70,6 +77,9 @@ export function runCommand(
       `${invocation} завершилась с ошибкой${details ? `:\n${details}` : ""}`,
     );
   }
+
+  const warning = redact(result.stderr?.trim() ?? "", sensitiveValues);
+  if (warning) onStderr(warning);
 
   return result.stdout.trim();
 }
