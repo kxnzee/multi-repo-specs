@@ -2,21 +2,15 @@
 
 import { prepareLoad } from "../load/index.js";
 import { stringify as stringifyYaml } from "yaml";
-import { HELP, parseLoadArgs } from "./args.js";
 import { reportProgress } from "./progress.js";
 
 /**
  * Выполняет `openspec-orch load` и печатает машинный или компактный человекочитаемый результат.
  *
- * @param {string[]} args Аргументы без имени команды.
+ * @param {{storeId: string, repositoryId: string, change: string, baseline?: string, workPackages: string[], noStrict: boolean, json: boolean}} options Нормализованные параметры команды.
  * @returns {Promise<void>}
  */
-export async function runLoad(args) {
-  const options = parseLoadArgs(args);
-  if (options.help) {
-    console.log(HELP);
-    return;
-  }
+export async function runLoad(options) {
   reportProgress("Подготовка контекста реализации...");
   const result = await prepareLoad({
     storeId: options.storeId,

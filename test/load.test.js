@@ -3,7 +3,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
@@ -14,27 +13,15 @@ import { serializeOrchestratorConfig } from "../src/config/index.js";
 import { prepareLoad } from "../src/load/index.js";
 import { runCommand } from "../src/shared/command.js";
 import { agentFixture } from "../test-fixtures/agents.js";
+import {
+  commitFiles,
+  initializeGitRepository,
+  temporaryDirectory,
+} from "../test-fixtures/workspace.js";
 
 const TEMPLATE =
   'version: 1\nversions:\n  process: draft\n  openspec: "1.7.0"\nagent: null\nrepositories: []\n';
 const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/bin/openspec-orch.js");
-
-/** @param {string} repository */
-function configureGit(repository) {
-  runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
-  runCommand("git", ["-C", repository, "config", "user.name", "OpenSpec Orchestrator Tests"]);
-}
-
-/** @param {string} repository @param {Record<string, string>} files */
-async function commitFiles(repository, files) {
-  for (const [relativePath, contents] of Object.entries(files)) {
-    const target = path.join(repository, relativePath);
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.writeFile(target, contents, "utf8");
-  }
-  runCommand("git", ["-C", repository, "add", "."]);
-  runCommand("git", ["-C", repository, "commit", "-m", "initial"]);
-}
 
 /**
  * @param {import("node:test").TestContext} t
@@ -47,8 +34,7 @@ async function createScenario(t, {
   includeAgentInstructions = true,
   includeApplyHandoff = true,
 } = {}) {
-  const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-load-")));
-  t.after(async () => fs.rm(root, { recursive: true, force: true }));
+  const root = await temporaryDirectory(t, "openspec-orchestrator-load-");
   const workspace = path.join(root, "workspace");
   const storeRoot = storeInsideWorkspace
     ? path.join(workspace, "openspec", "payments-specs")
@@ -58,10 +44,8 @@ async function createScenario(t, {
   const codeRemote = path.join(root, "payments-api.git");
   await fs.mkdir(storeRoot, { recursive: true });
   await fs.mkdir(codeRoot, { recursive: true });
-  runCommand("git", ["init", "--initial-branch", "main", storeRoot]);
-  runCommand("git", ["init", "--initial-branch", "main", codeRoot]);
-  configureGit(storeRoot);
-  configureGit(codeRoot);
+  initializeGitRepository(storeRoot);
+  initializeGitRepository(codeRoot);
 
   const repositories = [
     { id: "payments-specs", role: "store", url: storeRemote, defaultBranch: "main" },

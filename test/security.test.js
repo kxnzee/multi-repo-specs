@@ -2,28 +2,16 @@
 
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 import { initProject } from "../src/init/index.js";
 import { readRelativeRegularFile } from "../src/shared/files.js";
-
-/**
- * Создаёт временный каталог и регистрирует его удаление.
- *
- * @param {import("node:test").TestContext} t Контекст теста.
- * @returns {Promise<string>} Временный каталог.
- */
-async function temporaryDirectory(t) {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-security-"));
-  t.after(async () => fs.rm(directory, { recursive: true, force: true }));
-  return directory;
-}
+import { temporaryDirectory } from "../test-fixtures/workspace.js";
 
 test("readRelativeRegularFile blocks a symlink in a parent directory", async (t) => {
-  const directory = await temporaryDirectory(t);
-  const external = await temporaryDirectory(t);
+  const directory = await temporaryDirectory(t, "openspec-orchestrator-security-");
+  const external = await temporaryDirectory(t, "openspec-orchestrator-security-");
   await fs.writeFile(path.join(external, "handoff.md"), "external\n", "utf8");
   await fs.symlink(external, path.join(directory, "workflow"));
 
@@ -34,7 +22,7 @@ test("readRelativeRegularFile blocks a symlink in a parent directory", async (t)
 });
 
 test("initProject blocks a Store metadata symlink", async (t) => {
-  const directory = await temporaryDirectory(t);
+  const directory = await temporaryDirectory(t, "openspec-orchestrator-security-");
   const metadataDirectory = path.join(directory, ".openspec-store");
   const external = path.join(directory, "external-store.yaml");
   await fs.mkdir(metadataDirectory);

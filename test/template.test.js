@@ -2,7 +2,6 @@
 
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
@@ -13,6 +12,7 @@ import {
   buildTemplatePlan,
   parseTemplateDescriptor,
 } from "../src/template/index.js";
+import { temporaryDirectory } from "../test-fixtures/workspace.js";
 
 /**
  * Создаёт изолированные Template и target roots.
@@ -21,12 +21,11 @@ import {
  * @returns {Promise<{root: string, templateRoot: string, targetRoot: string}>} Пути сценария.
  */
 async function temporaryRoots(t) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-template-"));
+  const root = await temporaryDirectory(t, "openspec-orchestrator-template-");
   const templateRoot = path.join(root, "template");
   const targetRoot = path.join(root, "target");
   await fs.mkdir(templateRoot);
   await fs.mkdir(targetRoot);
-  t.after(async () => fs.rm(root, { recursive: true, force: true }));
   return { root, templateRoot, targetRoot };
 }
 

@@ -1,21 +1,15 @@
 /** @fileoverview Пользовательский сценарий команды `openspec-orch connect`. */
 
 import { connectProject } from "../connect/index.js";
-import { HELP, parseConnectArgs } from "./args.js";
 import { reportProgress } from "./progress.js";
 
 /**
  * Выполняет `openspec-orch connect` и печатает состояние каждого Code Repository.
  *
- * @param {string[]} args Аргументы команды без имени `connect`.
+ * @param {{workspace?: string, noStrict: boolean}} options Нормализованные параметры команды.
  * @returns {Promise<void>}
  */
-export async function runConnect(args) {
-  const options = parseConnectArgs(args);
-  if (options.help) {
-    console.log(HELP);
-    return;
-  }
+export async function runConnect(options) {
   const result = await connectProject({
     workspace: options.workspace,
     noStrict: options.noStrict,

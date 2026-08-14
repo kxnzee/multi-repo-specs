@@ -1,9 +1,8 @@
 /** @fileoverview Разбор и строгая проверка принадлежащей OpenSpec Orchestrator конфигурации. */
 
-import path from "node:path";
-
 import { parse, stringify } from "yaml";
-import { assertOrchestratorConfigSchema, assertStoreMetadataSchema } from "./schema.js";
+import { assertPortableRelativePath } from "../shared/paths.js";
+import { parseOrchestratorConfigSchema, parseStoreMetadataSchema } from "./schema.js";
 
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ROLES = new Set(["store", "code"]);
@@ -84,29 +83,6 @@ function normalizeRepository(value) {
 }
 
 /**
- * Проверяет безопасный относительный POSIX-путь, сохранённый Project Template.
- *
- * @param {unknown} value Значение из openspec-orch.yaml.
- * @param {string} label Полный путь поля.
- * @returns {string} Проверенный путь.
- */
-function normalizeAgentPath(value, label) {
-  if (
-    typeof value !== "string" ||
-    !value ||
-    value.includes("\0") ||
-    value.includes("\\") ||
-    path.posix.isAbsolute(value) ||
-    path.win32.isAbsolute(value) ||
-    /^[A-Za-z]:/.test(value) ||
-    value.split("/").some((segment) => !segment || segment === "." || segment === "..")
-  ) {
-    throw new Error(`${label} должен быть безопасным относительным POSIX-путём`);
-  }
-  return value;
-}
-
-/**
  * Нормализует runtime mapping агента без обращения к исходному Template.
  *
  * @param {Record<string, unknown>} value Agent mapping из YAML.
@@ -121,14 +97,26 @@ function normalizeAgent(value) {
   const handoffs = {};
   for (const [name, handoffPath] of Object.entries(value.handoffs ?? {})) {
     assertRepositoryId(name, `agent.handoffs.${name}`);
-    handoffs[name] = normalizeAgentPath(handoffPath, `agent.handoffs.${name}`);
+    handoffs[name] = assertPortableRelativePath(
+      handoffPath,
+      `agent.handoffs.${name}`,
+      { allowDot: false },
+    );
   }
   return {
     id,
     openSpecId,
     architecture: AGENT_ARCHITECTURE,
-    commandsDirectory: normalizeAgentPath(value.commands_directory, "agent.commands_directory"),
-    instructionsFile: normalizeAgentPath(value.instructions_file, "agent.instructions_file"),
+    commandsDirectory: assertPortableRelativePath(
+      value.commands_directory,
+      "agent.commands_directory",
+      { allowDot: false },
+    ),
+    instructionsFile: assertPortableRelativePath(
+      value.instructions_file,
+      "agent.instructions_file",
+      { allowDot: false },
+    ),
     handoffs,
   };
 }
@@ -147,8 +135,9 @@ function normalizeAgent(value) {
  * }}
  */
 export function parseOrchestratorConfig(source) {
-  const value = parseYaml(source, "Некорректный openspec-orch.yaml");
-  assertOrchestratorConfigSchema(value);
+  const value = parseOrchestratorConfigSchema(
+    parseYaml(source, "Некорректный openspec-orch.yaml"),
+  );
 
   const agent = normalizeAgent(value.agent);
 
@@ -243,8 +232,9 @@ export function serializeOrchestratorConfig(template, repositories, agent, stric
  * @returns {{id: string, remote: string | undefined}}
  */
 export function parseStoreMetadata(source) {
-  const value = parseYaml(source, "Некорректная .openspec-store/store.yaml");
-  assertStoreMetadataSchema(value);
+  const value = parseStoreMetadataSchema(
+    parseYaml(source, "Некорректная .openspec-store/store.yaml"),
+  );
   if (value.version !== 1) throw new Error("Store metadata должна иметь version: 1");
   assertRepositoryId(value.id, "Store ID");
   if (value.remote !== undefined && typeof value.remote !== "string") {

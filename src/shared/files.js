@@ -2,12 +2,7 @@
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
-
-/** @param {string} root @param {string} target @returns {boolean} */
-function isWithin(root, target) {
-  const relative = path.relative(root, target);
-  return relative !== "" && !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative);
-}
+import { isContainedPath, isPortableRelativePath } from "./paths.js";
 
 /**
  * Проверяет абсолютный существующий путь и запрещает выход или symlink относительно root.
@@ -23,7 +18,7 @@ export async function resolveContainedExistingPath(root, candidate, label, kind)
     throw new Error(`${label} должен быть абсолютным путём`);
   }
   const target = path.resolve(candidate);
-  if (target !== candidate || !isWithin(root, target)) {
+  if (target !== candidate || !isContainedPath(root, target)) {
     throw new Error(`${label} выходит за разрешённый root`);
   }
   const [realTarget, stat] = await Promise.all([fs.realpath(target), fs.lstat(target)]);
@@ -49,7 +44,7 @@ export async function resolveContainedDeclaredPath(root, candidate, label) {
     throw new Error(`${label} должен быть абсолютным путём`);
   }
   const target = path.resolve(candidate);
-  if (target !== candidate || !isWithin(root, target)) {
+  if (target !== candidate || !isContainedPath(root, target)) {
     throw new Error(`${label} выходит за разрешённый root`);
   }
 
@@ -76,17 +71,12 @@ export async function resolveContainedDeclaredPath(root, candidate, label) {
  * @returns {Promise<string>} UTF-8 содержимое файла.
  */
 export async function readRelativeRegularFile(root, relativePath) {
-  if (
-    typeof relativePath !== "string" ||
-    !relativePath ||
-    path.isAbsolute(relativePath) ||
-    relativePath.split(/[\\/]/).some((segment) => !segment || segment === "." || segment === "..")
-  ) {
+  if (!isPortableRelativePath(relativePath, { allowDot: false })) {
     throw new Error(`Некорректный относительный путь файла: ${relativePath ?? ""}`);
   }
 
   let current = root;
-  const segments = relativePath.split(/[\\/]/);
+  const segments = relativePath.split("/");
   for (const [index, segment] of segments.entries()) {
     current = path.join(current, segment);
     let stat;

@@ -3,7 +3,6 @@
 import assert from "node:assert/strict";
 import fsSync from "node:fs";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { parse } from "yaml";
@@ -13,6 +12,7 @@ import { initProject, parseRepository } from "../src/init/index.js";
 import { runCommand } from "../src/shared/command.js";
 import { inspectOpenSpecCli, requireOpenSpecCapability } from "../src/shared/compatibility.js";
 import { agentFixture } from "../test-fixtures/agents.js";
+import { temporaryDirectory } from "../test-fixtures/workspace.js";
 
 /**
  * Создаёт тестовый центральный Git-репозиторий с origin.
@@ -21,9 +21,7 @@ import { agentFixture } from "../test-fixtures/agents.js";
  * @returns {Promise<string>} Канонический путь временного проекта.
  */
 async function temporaryProject(t) {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-init-"));
-  const canonicalDirectory = await fs.realpath(directory);
-  t.after(async () => fs.rm(canonicalDirectory, { recursive: true, force: true }));
+  const canonicalDirectory = await temporaryDirectory(t, "openspec-orchestrator-init-");
   runCommand("git", ["init", "--initial-branch", "main", canonicalDirectory]);
   runCommand("git", ["-C", canonicalDirectory, "remote", "add", "origin", "https://example.test/specs.git"]);
   return canonicalDirectory;
@@ -93,10 +91,7 @@ const BASE_TEMPLATE_ROOT = new URL("../templates/base/", import.meta.url);
  * @returns {Promise<string>} Путь Template root.
  */
 async function customTemplate(t) {
-  const root = await fs.realpath(
-    await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-custom-template-")),
-  );
-  t.after(async () => fs.rm(root, { recursive: true, force: true }));
+  const root = await temporaryDirectory(t, "openspec-orchestrator-custom-template-");
   const files = {
     "template.yaml": `agents:
   team-agent:

@@ -3,7 +3,6 @@
 import assert from "node:assert/strict";
 import fsSync from "node:fs";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
@@ -11,57 +10,15 @@ import { connectProject } from "../src/connect/index.js";
 import { serializeOrchestratorConfig } from "../src/config/index.js";
 import { runCommand } from "../src/shared/command.js";
 import { agentFixture } from "../test-fixtures/agents.js";
+import {
+  commitFiles,
+  createBareRemote,
+  initializeGitRepository,
+  temporaryDirectory,
+} from "../test-fixtures/workspace.js";
 
 const QWEN_AGENT = agentFixture("qwen");
 const GIGACODE_AGENT = agentFixture("gigacode");
-
-/**
- * Создаёт удаляемый после теста корень multi-repo workspace.
- *
- * @param {import("node:test").TestContext} t Контекст текущего теста.
- * @returns {Promise<string>} Канонический путь временного каталога.
- */
-async function temporaryWorkspace(t) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-connect-"));
-  const canonicalRoot = await fs.realpath(root);
-  t.after(async () => fs.rm(canonicalRoot, { recursive: true, force: true }));
-  return canonicalRoot;
-}
-
-/**
- * Настраивает локальную Git identity для тестовых коммитов.
- *
- * @param {string} repository Путь тестового Git-репозитория.
- * @returns {void}
- */
-function configureGit(repository) {
-  runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
-  runCommand("git", ["-C", repository, "config", "user.name", "OpenSpec Orchestrator Tests"]);
-}
-
-/**
- * Создаёт тестовый source-репозиторий и соответствующий bare remote.
- *
- * @param {string} root Корень тестового сценария.
- * @param {string} name Базовое имя репозитория.
- * @param {Record<string, string>} [files] Начальные файлы source-репозитория.
- * @returns {Promise<string>} Путь созданного bare remote.
- */
-async function createBareRemote(root, name, files = {}) {
-  const source = path.join(root, `${name}-source`);
-  const remote = path.join(root, `${name}.git`);
-  runCommand("git", ["init", "--initial-branch", "main", source]);
-  configureGit(source);
-  for (const [relativePath, contents] of Object.entries(files)) {
-    const target = path.join(source, relativePath);
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.writeFile(target, contents, "utf8");
-  }
-  runCommand("git", ["-C", source, "add", "."]);
-  runCommand("git", ["-C", source, "commit", "--allow-empty", "-m", "initial"]);
-  runCommand("git", ["clone", "--bare", source, remote]);
-  return remote;
-}
 
 /**
  * Собирает центральный Store, Code remote и локальный workspace для connect-тестов.
@@ -78,12 +35,11 @@ async function createBareRemote(root, name, files = {}) {
  * }>} Пути подготовленного сценария.
  */
 async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
-  const root = await temporaryWorkspace(t);
+  const root = await temporaryDirectory(t, "openspec-orchestrator-connect-");
   const codeFiles = pointer ? { "openspec/config.yaml": "store: payments-specs\n" } : {};
   const codeRemote = await createBareRemote(root, "api", codeFiles);
   const centralSource = path.join(root, "central-source");
-  runCommand("git", ["init", "--initial-branch", "main", centralSource]);
-  configureGit(centralSource);
+  initializeGitRepository(centralSource);
 
   const centralRemote = path.join(root, "payments-specs.git");
   const orchestratorTemplate = 'version: 1\n\nversions:\n  process: draft\n  openspec: "1.7.0"\n\nagent: null\n\nrepositories: []\n';
@@ -110,13 +66,7 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
       { id: "api", role: "code", url: codeRemote, defaultBranch: "main" },
     ], agent),
   };
-  for (const [relativePath, contents] of Object.entries(centralFiles)) {
-    const target = path.join(centralSource, relativePath);
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.writeFile(target, contents, "utf8");
-  }
-  runCommand("git", ["-C", centralSource, "add", "."]);
-  runCommand("git", ["-C", centralSource, "commit", "-m", "initialize store"]);
+  await commitFiles(centralSource, centralFiles, { message: "initialize store" });
   runCommand("git", ["clone", "--bare", centralSource, centralRemote]);
 
   const workspace = path.join(root, "workspace");

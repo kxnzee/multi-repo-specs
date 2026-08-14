@@ -1,83 +1,64 @@
-/** @fileoverview Runtime-проверка YAML-схем, принадлежащих OpenSpec Orchestrator. */
+/** @fileoverview Zod-схемы YAML-контрактов OpenSpec Orchestrator. */
 
-import { isRecord } from "../shared/schema.js";
+import * as z from "zod";
+
+const REQUIRED_STRING = z.string().min(1);
+const AGENT_SCHEMA = z.looseObject({
+  id: REQUIRED_STRING,
+  openspec_adapter: REQUIRED_STRING,
+  architecture: REQUIRED_STRING,
+  commands_directory: REQUIRED_STRING,
+  instructions_file: REQUIRED_STRING,
+  handoffs: z.record(z.string(), REQUIRED_STRING).optional(),
+});
+const REPOSITORY_SCHEMA = z.looseObject({
+  id: REQUIRED_STRING,
+  role: REQUIRED_STRING,
+  url: REQUIRED_STRING,
+  default_branch: REQUIRED_STRING,
+});
+const ORCHESTRATOR_CONFIG_SCHEMA = z.looseObject({
+  strict: z.boolean().optional(),
+  versions: z.looseObject({ openspec: z.string().optional() }).optional(),
+  agent: AGENT_SCHEMA,
+  repositories: z.array(REPOSITORY_SCHEMA),
+});
+const STORE_METADATA_SCHEMA = z.looseObject({
+  version: z.number(),
+  id: z.string(),
+  remote: z.string().optional(),
+});
 
 /**
- * Проверяет обязательную строку в YAML-объекте.
+ * Разбирает значение по схеме и добавляет название внешнего контракта к ошибке.
  *
- * @param {Record<string, unknown>} value Объект-владелец поля.
- * @param {string} key Имя поля.
- * @param {string} label Полный путь для сообщения об ошибке.
- * @returns {void}
+ * @param {z.ZodType} schema Runtime-схема.
+ * @param {unknown} value Необработанное значение.
+ * @param {string} label Название контракта.
+ * @returns {Record<string, unknown>} Проверенное значение.
  */
-function assertString(value, key, label) {
-  if (typeof value[key] !== "string" || !value[key]) {
-    throw new Error(`В openspec-orch.yaml отсутствует ${label}`);
-  }
+function parseSchema(schema, value, label) {
+  const result = schema.safeParse(value);
+  if (!result.success) throw new Error(`${label}: ${z.prettifyError(result.error)}`);
+  return result.data;
 }
 
 /**
- * Проверяет обязательную структуру openspec-orch.yaml до нормализации значений.
+ * Проверяет структуру `openspec-orch.yaml` до предметной нормализации.
  *
  * @param {unknown} value Разобранный YAML.
- * @returns {asserts value is Record<string, unknown>} Успешная проверка структуры.
+ * @returns {Record<string, unknown>} Проверенный документ.
  */
-export function assertOrchestratorConfigSchema(value) {
-  if (!isRecord(value)) throw new Error("Некорректный openspec-orch.yaml должен содержать YAML-объект");
-  if (value.strict !== undefined && typeof value.strict !== "boolean") {
-    throw new Error("strict в openspec-orch.yaml должен быть boolean");
-  }
-  if (
-    value.versions !== undefined &&
-    (!isRecord(value.versions) ||
-      (value.versions.openspec !== undefined && typeof value.versions.openspec !== "string"))
-  ) {
-    throw new Error("legacy versions в openspec-orch.yaml должен быть YAML-объектом");
-  }
-  if (!isRecord(value.agent)) throw new Error("В openspec-orch.yaml отсутствует agent");
-  for (const key of [
-    "id",
-    "openspec_adapter",
-    "architecture",
-    "commands_directory",
-    "instructions_file",
-  ]) {
-    assertString(value.agent, key, `agent.${key}`);
-  }
-  if (value.agent.handoffs !== undefined) {
-    if (!isRecord(value.agent.handoffs)) {
-      throw new Error("agent.handoffs в openspec-orch.yaml должен быть YAML-объектом");
-    }
-    for (const key of Object.keys(value.agent.handoffs)) {
-      assertString(value.agent.handoffs, key, `agent.handoffs.${key}`);
-    }
-  }
-  if (!Array.isArray(value.repositories)) {
-    throw new Error("В openspec-orch.yaml отсутствует список repositories");
-  }
-  for (const [index, repository] of value.repositories.entries()) {
-    if (!isRecord(repository)) {
-      throw new Error(`repositories[${index}] должен быть YAML-объектом`);
-    }
-    for (const key of ["id", "role", "url", "default_branch"]) {
-      assertString(repository, key, `repositories[${index}].${key}`);
-    }
-  }
+export function parseOrchestratorConfigSchema(value) {
+  return parseSchema(ORCHESTRATOR_CONFIG_SCHEMA, value, "Некорректный openspec-orch.yaml");
 }
 
 /**
  * Проверяет структуру `.openspec-store/store.yaml`.
  *
  * @param {unknown} value Разобранный YAML.
- * @returns {asserts value is import("../shared/types.js").StoreMetadata} Успешная проверка.
+ * @returns {import("../shared/types.js").StoreMetadata} Проверенный документ.
  */
-export function assertStoreMetadataSchema(value) {
-  if (!isRecord(value)) {
-    throw new Error("Некорректная .openspec-store/store.yaml должна содержать YAML-объект");
-  }
-  if (typeof value.version !== "number") throw new Error("Store metadata должна содержать version");
-  if (typeof value.id !== "string") throw new Error("Store metadata должна содержать id");
-  if (value.remote !== undefined && typeof value.remote !== "string") {
-    throw new Error("Store metadata remote должен быть строкой");
-  }
+export function parseStoreMetadataSchema(value) {
+  return parseSchema(STORE_METADATA_SCHEMA, value, "Некорректная .openspec-store/store.yaml");
 }

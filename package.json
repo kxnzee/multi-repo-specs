@@ -20,8 +20,10 @@
     "openspec-orch": "./src/bin/openspec-orch.js"
   },
   "dependencies": {
+    "commander": "14.0.3",
     "cross-spawn": "7.0.6",
-    "yaml": "2.9.0"
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
   },
   "scripts": {
     "test": "node --test",

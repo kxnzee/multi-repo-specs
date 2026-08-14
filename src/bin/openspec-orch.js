@@ -3,12 +3,8 @@
 /** @fileoverview Точка входа OpenSpec Orchestrator CLI. */
 
 import process from "node:process";
-import { HELP } from "../cli/args.js";
-import { runChange } from "../cli/change.js";
-import { runConnect } from "../cli/connect.js";
-import { runExplore } from "../cli/explore.js";
-import { runInit } from "../cli/init.js";
-import { runLoad } from "../cli/load.js";
+import { CommanderError } from "commander";
+import { createProgram } from "../cli/program.js";
 
 /**
  * Проверяет минимальную версию Node.js.
@@ -31,21 +27,19 @@ export function assertNodeVersion(version = process.versions.node) {
  */
 async function main() {
   assertNodeVersion();
-
-  const [command, ...args] = process.argv.slice(2);
-  if (!command || command === "-h" || command === "--help") {
-    console.log(HELP);
+  const program = createProgram();
+  if (process.argv.length === 2) {
+    program.outputHelp();
     return;
   }
-  if (command === "explore") return runExplore(args);
-  if (command === "change") return runChange(args);
-  if (command === "connect") return runConnect(args);
-  if (command === "init") return runInit(args);
-  if (command === "load") return runLoad(args);
-  throw new Error(`Неизвестная команда: ${command}\n\n${HELP}`);
+  await program.parseAsync(process.argv);
 }
 
 main().catch((error) => {
+  if (error instanceof CommanderError) {
+    process.exitCode = error.exitCode;
+    return;
+  }
   console.error(`openspec-orch: ${error.message}`);
   process.exitCode = 1;
 });

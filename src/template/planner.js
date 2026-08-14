@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { isContainedPath } from "../shared/paths.js";
 import { parseTemplateDescriptor } from "./descriptor.js";
 
 const MODULE_ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -46,18 +47,6 @@ async function resolveDirectoryRoot(requestedRoot, label) {
     throw new Error(`${label} должен быть существующим обычным каталогом: ${absolute}`);
   }
   return fs.realpath(absolute);
-}
-
-/**
- * Проверяет вложенность пути в root.
- *
- * @param {string} root Канонический root.
- * @param {string} candidate Канонический кандидат.
- * @returns {boolean} Принадлежность root с учётом самого root.
- */
-function isWithin(root, candidate) {
-  const relative = path.relative(root, candidate);
-  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..");
 }
 
 /**
@@ -245,7 +234,10 @@ export async function buildTemplatePlan({
 }) {
   const templateRoot = await resolveDirectoryRoot(requestedTemplateRoot, "Template root");
   const targetRoot = await resolveDirectoryRoot(requestedTargetRoot, "Target root");
-  if (isWithin(templateRoot, targetRoot) || isWithin(targetRoot, templateRoot)) {
+  if (
+    isContainedPath(templateRoot, targetRoot, { allowRoot: true }) ||
+    isContainedPath(targetRoot, templateRoot, { allowRoot: true })
+  ) {
     throw new Error("Template root и target root не должны пересекаться");
   }
 
@@ -302,7 +294,7 @@ export async function buildTemplatePlan({
       }
       assertNotProtected(targetRelative, `agents.${agent.id}.copy[${operationIndex}]`);
       const canonicalSource = await fs.realpath(sourceFile.absolute);
-      if (!isWithin(templateRoot, canonicalSource)) {
+      if (!isContainedPath(templateRoot, canonicalSource, { allowRoot: true })) {
         throw new Error(`${label} выходит за Template root`);
       }
       files.push({

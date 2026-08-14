@@ -3,7 +3,6 @@
 import path from "node:path";
 
 import { initProject } from "../init/index.js";
-import { HELP, parseInitArgs } from "./args.js";
 import { reportProgress } from "./progress.js";
 
 /**
@@ -41,15 +40,10 @@ export function buildConnectHint(storeRoot, storeId) {
 /**
  * Выполняет пользовательский сценарий `openspec-orch init`.
  *
- * @param {string[]} args Аргументы команды без имени `init`.
+ * @param {{target: string, storeId: string, agentId: string, templateRoot?: string, repositories: Array<{id: string, role: "code", url: string, defaultBranch: string}>, noStrict: boolean}} options Нормализованные параметры команды.
  * @returns {Promise<void>}
  */
-export async function runInit(args) {
-  const options = parseInitArgs(args);
-  if (options.help) {
-    console.log(HELP);
-    return;
-  }
+export async function runInit(options) {
   reportProgress("Инициализация Store...");
   const result = await initProject({
     target: options.target,

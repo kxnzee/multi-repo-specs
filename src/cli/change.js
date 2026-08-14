@@ -4,7 +4,6 @@ import process from "node:process";
 import { createInterface } from "node:readline/promises";
 
 import { prepareChange } from "../change/index.js";
-import { HELP, parseChangeArgs } from "./args.js";
 import { reportProgress } from "./progress.js";
 
 /**
@@ -25,15 +24,10 @@ async function confirmArchived(prompt) {
 /**
  * Выполняет `openspec-orch change` и печатает единственный JSON-результат в stdout.
  *
- * @param {string[]} args Аргументы без имени команды.
+ * @param {{ticket: string, name: string, storeId?: string, noStrict: boolean}} options Нормализованные параметры команды.
  * @returns {Promise<void>}
  */
-export async function runChange(args) {
-  const options = parseChangeArgs(args);
-  if (options.help) {
-    console.log(HELP);
-    return;
-  }
+export async function runChange(options) {
   const prompt = process.stdin.isTTY === true
     ? createInterface({ input: process.stdin, output: process.stderr })
     : null;

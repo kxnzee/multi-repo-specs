@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+import { isContainedPath } from "../shared/paths.js";
 import { isGitRevision, isRecord } from "../shared/schema.js";
 
 const CONTEXT_KEYS = [
@@ -74,20 +75,14 @@ function isRuntimeContext(value) {
     typeof value.schema === "string" && value.schema.length > 0 &&
     ["package", "whole-change"].includes(value.implementation_mode) &&
     typeof value.change_root === "string" && path.isAbsolute(value.change_root) &&
-    path.relative(value.spec_root, value.change_root) !== "" &&
-    !path.relative(value.spec_root, value.change_root).startsWith(`..${path.sep}`) &&
-    path.relative(value.spec_root, value.change_root) !== ".." &&
-    !path.isAbsolute(path.relative(value.spec_root, value.change_root)) &&
+    isContainedPath(value.spec_root, value.change_root) &&
     new Set(workPackages).size === workPackages.length &&
     workPackages.every((item) => typeof item === "string" && item.length > 0) &&
     (value.implementation_mode === "package" ? workPackages.length > 0 : workPackages.length === 0) &&
     isRecord(value.context_files) && Object.entries(value.context_files).every(([artifactId, files]) =>
       artifactId.length > 0 && Array.isArray(files) &&
       files.every((item) => typeof item === "string" && path.isAbsolute(item) &&
-        path.relative(value.change_root, item) !== "" &&
-        !path.relative(value.change_root, item).startsWith(`..${path.sep}`) &&
-        path.relative(value.change_root, item) !== ".." &&
-        !path.isAbsolute(path.relative(value.change_root, item)))) &&
+        isContainedPath(value.change_root, item))) &&
     Array.isArray(value.allowed_edit_roots) && value.allowed_edit_roots.length === 1 &&
     value.allowed_edit_roots.every((item) => typeof item === "string" && path.isAbsolute(item)) &&
     Array.isArray(value.immutable_roots) &&

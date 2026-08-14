@@ -3,7 +3,6 @@
 import assert from "node:assert/strict";
 import fsSync from "node:fs";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
@@ -11,21 +10,15 @@ import { buildChangeId, prepareChange } from "../src/change/index.js";
 import { serializeOrchestratorConfig } from "../src/config/index.js";
 import { runCommand } from "../src/shared/command.js";
 import { agentFixture } from "../test-fixtures/agents.js";
+import {
+  commitFiles,
+  initializeGitRepository,
+  temporaryDirectory,
+} from "../test-fixtures/workspace.js";
 
 const QWEN = agentFixture("qwen");
 const ORCHESTRATOR_TEMPLATE =
   'version: 1\nversions:\n  process: draft\n  openspec: "1.7.0"\nagent: null\nrepositories: []\n';
-
-/**
- * Настраивает локальную Git identity.
- *
- * @param {string} repository Git checkout.
- * @returns {void}
- */
-function configureGit(repository) {
-  runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
-  runCommand("git", ["-C", repository, "config", "user.name", "OpenSpec Orchestrator Tests"]);
-}
 
 /**
  * Создаёт Store checkout с bare remote и автоматически удаляет сценарий.
@@ -35,13 +28,11 @@ function configureGit(repository) {
  * @returns {Promise<{root: string, storeRoot: string, remote: string}>} Пути сценария.
  */
 async function createScenario(t, { archived = [], schema = "spec-driven" } = {}) {
-  const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-change-")));
-  t.after(async () => fs.rm(root, { recursive: true, force: true }));
+  const root = await temporaryDirectory(t, "openspec-orchestrator-change-");
   const storeRoot = path.join(root, "payments-specs");
   const remote = path.join(root, "payments-specs.git");
   await fs.mkdir(storeRoot);
-  runCommand("git", ["init", "--initial-branch", "main", storeRoot]);
-  configureGit(storeRoot);
+  initializeGitRepository(storeRoot);
 
   const repositories = [{
     id: "payments-specs",
@@ -59,13 +50,7 @@ async function createScenario(t, { archived = [], schema = "spec-driven" } = {})
     "openspec/changes/archive/.gitkeep": "",
   };
   for (const name of archived) files[`openspec/changes/archive/${name}/.gitkeep`] = "";
-  for (const [relativePath, contents] of Object.entries(files)) {
-    const target = path.join(storeRoot, relativePath);
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.writeFile(target, contents, "utf8");
-  }
-  runCommand("git", ["-C", storeRoot, "add", "."]);
-  runCommand("git", ["-C", storeRoot, "commit", "-m", "initial"]);
+  await commitFiles(storeRoot, files);
   runCommand("git", ["clone", "--bare", storeRoot, remote]);
   runCommand("git", ["-C", storeRoot, "remote", "add", "origin", remote]);
   return { root, storeRoot: await fs.realpath(storeRoot), remote };

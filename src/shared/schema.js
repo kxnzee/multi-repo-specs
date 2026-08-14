@@ -1,4 +1,23 @@
-/** @fileoverview Runtime guards для недоверенных машинных данных. */
+/** @fileoverview Zod guards для недоверенных машинных данных. */
+
+import * as z from "zod";
+
+const OPEN_SPEC_ROOT_SCHEMA = z.looseObject({
+  path: z.string(),
+  store_id: z.string().optional(),
+  source: z.string(),
+  healthy: z.boolean().optional(),
+});
+const OPEN_SPEC_DIAGNOSTIC_SCHEMA = z.looseObject({
+  code: z.string().optional(),
+  message: z.string().optional(),
+  severity: z.enum(["error", "warning", "info"]).optional(),
+});
+const OPEN_SPEC_RESPONSE_SCHEMA = z.looseObject({
+  root: OPEN_SPEC_ROOT_SCHEMA.optional(),
+  status: z.array(z.unknown()).optional(),
+});
+const GIT_REVISION_SCHEMA = z.string().regex(/^[0-9a-f]{40}$/);
 
 /**
  * Проверяет, что значение является обычным JSON-объектом.
@@ -17,13 +36,7 @@ export function isRecord(value) {
  * @returns {value is import("./types.js").OpenSpecRoot} Результат проверки.
  */
 export function isOpenSpecRoot(value) {
-  return (
-    isRecord(value) &&
-    typeof value.path === "string" &&
-    (value.store_id === undefined || typeof value.store_id === "string") &&
-    typeof value.source === "string" &&
-    (value.healthy === undefined || typeof value.healthy === "boolean")
-  );
+  return OPEN_SPEC_ROOT_SCHEMA.safeParse(value).success;
 }
 
 /**
@@ -33,12 +46,7 @@ export function isOpenSpecRoot(value) {
  * @returns {value is import("./types.js").OpenSpecDiagnostic} Результат проверки.
  */
 export function isOpenSpecDiagnostic(value) {
-  return (
-    isRecord(value) &&
-    (value.code === undefined || typeof value.code === "string") &&
-    (value.message === undefined || typeof value.message === "string") &&
-    (value.severity === undefined || ["error", "warning", "info"].includes(value.severity))
-  );
+  return OPEN_SPEC_DIAGNOSTIC_SCHEMA.safeParse(value).success;
 }
 
 /**
@@ -48,11 +56,7 @@ export function isOpenSpecDiagnostic(value) {
  * @returns {value is import("./types.js").OpenSpecResponse} Результат проверки.
  */
 export function isOpenSpecResponse(value) {
-  return (
-    isRecord(value) &&
-    (value.root === undefined || isOpenSpecRoot(value.root)) &&
-    (value.status === undefined || Array.isArray(value.status))
-  );
+  return OPEN_SPEC_RESPONSE_SCHEMA.safeParse(value).success;
 }
 
 /**
@@ -62,5 +66,5 @@ export function isOpenSpecResponse(value) {
  * @returns {value is string} Результат проверки.
  */
 export function isGitRevision(value) {
-  return typeof value === "string" && /^[0-9a-f]{40}$/.test(value);
+  return GIT_REVISION_SCHEMA.safeParse(value).success;
 }

@@ -2,7 +2,6 @@
 
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
@@ -17,62 +16,14 @@ import {
 } from "../src/explore/index.js";
 import { runCommand } from "../src/shared/command.js";
 import { agentFixture } from "../test-fixtures/agents.js";
+import {
+  createCheckoutWithRemote,
+  temporaryDirectory,
+} from "../test-fixtures/workspace.js";
 
 const QWEN = agentFixture("qwen");
 const ORCHESTRATOR_TEMPLATE =
   'version: 1\nversions:\n  process: draft\n  openspec: "1.7.0"\nagent: null\nrepositories: []\n';
-
-/**
- * Создаёт автоматически удаляемый корень explore-сценария.
- *
- * @param {import("node:test").TestContext} t Контекст текущего теста.
- * @returns {Promise<string>} Канонический путь временного каталога.
- */
-async function temporaryRoot(t) {
-  const root = await fs.realpath(
-    await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-explore-")),
-  );
-  t.after(async () => fs.rm(root, { recursive: true, force: true }));
-  return root;
-}
-
-/**
- * Настраивает локальную Git identity для тестовых коммитов.
- *
- * @param {string} repository Путь тестового Git-репозитория.
- * @returns {void}
- */
-function configureGit(repository) {
-  runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
-  runCommand("git", ["-C", repository, "config", "user.name", "OpenSpec Orchestrator Tests"]);
-}
-
-/**
- * Создаёт checkout с initial commit и соответствующим bare remote.
- *
- * @param {string} root Корень тестового сценария.
- * @param {string} relativePath Относительный путь checkout.
- * @param {string} remoteName Имя bare remote.
- * @param {Record<string, string>} files Начальные файлы checkout.
- * @returns {Promise<{checkout: string, remote: string}>} Канонический checkout и remote.
- */
-async function createCheckout(root, relativePath, remoteName, files) {
-  const checkout = path.join(root, relativePath);
-  const remote = path.join(root, `${remoteName}.git`);
-  await fs.mkdir(path.dirname(checkout), { recursive: true });
-  runCommand("git", ["init", "--initial-branch", "main", checkout]);
-  configureGit(checkout);
-  for (const [relativeFile, contents] of Object.entries(files)) {
-    const target = path.join(checkout, relativeFile);
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.writeFile(target, contents, "utf8");
-  }
-  runCommand("git", ["-C", checkout, "add", "."]);
-  runCommand("git", ["-C", checkout, "commit", "-m", "initial"]);
-  runCommand("git", ["clone", "--bare", checkout, remote]);
-  runCommand("git", ["-C", checkout, "remote", "add", "origin", remote]);
-  return { checkout: await fs.realpath(checkout), remote };
-}
 
 /**
  * Собирает Store и необязательный Code Repository для Explore-тестов.
@@ -88,7 +39,7 @@ async function createCheckout(root, relativePath, remoteName, files) {
  * }>} Пути подготовленного сценария.
  */
 async function createScenario(t, { withCode = false, archived = [] } = {}) {
-  const root = await temporaryRoot(t);
+  const root = await temporaryDirectory(t, "openspec-orchestrator-explore-");
   const workspace = path.join(root, "workspace");
   const storeRemote = path.join(root, "payments-specs.git");
   const codeRemote = path.join(root, "api.git");
@@ -118,7 +69,7 @@ async function createScenario(t, { withCode = false, archived = [] } = {}) {
   for (const name of archived) {
     storeFiles[`openspec/changes/archive/${name}/.gitkeep`] = "";
   }
-  const store = await createCheckout(
+  const store = await createCheckoutWithRemote(
     root,
     path.join("workspace", "payments-specs"),
     "payments-specs",
@@ -127,7 +78,7 @@ async function createScenario(t, { withCode = false, archived = [] } = {}) {
 
   let code;
   if (withCode) {
-    code = await createCheckout(
+    code = await createCheckoutWithRemote(
       root,
       path.join("workspace", "src", "api"),
       "api",

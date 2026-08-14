@@ -3,7 +3,6 @@
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
 import { buildExploreInvocation, prepareExplore } from "../explore/index.js";
-import { HELP, parseExploreArgs } from "./args.js";
 import { reportProgress } from "./progress.js";
 
 /**
@@ -130,15 +129,10 @@ function printExploreResult(result) {
 /**
  * Выполняет интерактивный сценарий `openspec-orch explore`.
  *
- * @param {string[]} args Аргументы без имени команды.
+ * @param {{ticket: string, workspace?: string, noStrict: boolean}} options Нормализованные параметры команды.
  * @returns {Promise<void>}
  */
-export async function runExplore(args) {
-  const options = parseExploreArgs(args);
-  if (options.help) {
-    console.log(HELP);
-    return;
-  }
+export async function runExplore(options) {
   if (process.stdin.isTTY !== true) {
     throw new Error("openspec-orch explore требует интерактивный TTY для выбора и ввода намерения");
   }

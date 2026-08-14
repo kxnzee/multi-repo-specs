@@ -1,4 +1,4 @@
-/** @fileoverview Проверка ветвлений парсера аргументов OpenSpec Orchestrator CLI. */
+/** @fileoverview Проверка декларативного контракта OpenSpec Orchestrator CLI. */
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -6,37 +6,33 @@ import path from "node:path";
 import process from "node:process";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
-import {
-  HELP,
-  parseChangeArgs,
-  parseConnectArgs,
-  parseExploreArgs,
-  parseInitArgs,
-  parseLoadArgs,
-} from "../src/cli/args.js";
-import { runChange } from "../src/cli/change.js";
-import { runConnect } from "../src/cli/connect.js";
-import { runExplore } from "../src/cli/explore.js";
-import { runInit } from "../src/cli/init.js";
-import { runLoad } from "../src/cli/load.js";
+
+import { createProgram } from "../src/cli/program.js";
 import { reportProgress } from "../src/cli/progress.js";
 
 /**
- * Перехватывает строки `console.log` только на время одного последовательного smoke-сценария.
+ * Разбирает одну команду без запуска production-сценария.
  *
- * @param {() => Promise<void>} action Проверяемый вызов CLI.
- * @returns {Promise<string[]>} Напечатанные строки.
+ * @param {string[]} args Аргументы начиная с имени команды.
+ * @returns {Promise<{name: string, options: Record<string, unknown>} | undefined>} Нормализованный вызов.
  */
-async function captureLogs(action) {
-  const original = console.log;
-  const lines = [];
-  console.log = (...values) => lines.push(values.join(" "));
-  try {
-    await action();
-  } finally {
-    console.log = original;
+async function parseCommand(args) {
+  let invocation;
+  const handler = (name) => async (options) => {
+    invocation = { name, options };
+  };
+  const program = createProgram({
+    init: handler("init"),
+    connect: handler("connect"),
+    explore: handler("explore"),
+    change: handler("change"),
+    load: handler("load"),
+  });
+  for (const command of [program, ...program.commands]) {
+    command.configureOutput({ writeOut() {}, writeErr() {} });
   }
-  return lines;
+  await program.parseAsync(args, { from: "user" });
+  return invocation;
 }
 
 test("rejects unsupported Node versions", () => {
@@ -54,64 +50,177 @@ test("rejects unsupported Node versions", () => {
   assert.notEqual(result.stderr, "");
 });
 
-test("public binary exposes the documented CLI contract", () => {
+test("public binary exposes generated help", () => {
   const result = spawnSync(process.execPath, ["src/bin/openspec-orch.js", "--help"], {
     cwd: path.resolve("."),
     encoding: "utf8",
   });
   assert.equal(result.status, 0);
   assert.equal(result.stderr, "");
-  assert.equal(result.stdout, `${HELP}\n`);
-});
-
-test("all CLI runners expose the common help without starting project operations", async () => {
-  for (const runner of [runInit, runConnect, runExplore, runChange, runLoad]) {
-    const lines = await captureLogs(() => runner(["--help"]));
-    assert.equal(lines.length, 1);
-    assert.equal(typeof lines[0], "string");
-    assert.notEqual(lines[0], "");
+  assert.match(result.stdout, /^Usage: openspec-orch/m);
+  for (const command of ["init", "connect", "explore", "change", "load"]) {
+    assert.match(result.stdout, new RegExp(`^  ${command}`, "m"));
   }
 });
 
-test("parseInitArgs accepts positional and inline options", () => {
+test("every subcommand exposes generated help without running its action", () => {
+  for (const command of ["init", "connect", "explore", "change", "load"]) {
+    const result = spawnSync(
+      process.execPath,
+      ["src/bin/openspec-orch.js", command, "--help"],
+      { cwd: path.resolve("."), encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, new RegExp(`^Usage: openspec-orch ${command}`, "m"));
+  }
+});
+
+test("init command normalizes positional and repeated repository options", async () => {
   assert.deepEqual(
-    parseInitArgs([
+    await parseCommand([
+      "init",
       "project",
       "--store=specs",
       "--agent=qwen",
       "--repo=api=https://example.test/api.git#main",
+      "--template=./team-template",
+      "--no-strict",
     ]),
     {
-      help: false,
-      target: "project",
-      storeId: "specs",
-      agentId: "qwen",
-      templateRoot: undefined,
-      noStrict: false,
-      repositories: [{
-        id: "api",
-        role: "code",
-        url: "https://example.test/api.git",
-        defaultBranch: "main",
-      }],
+      name: "init",
+      options: {
+        target: "project",
+        storeId: "specs",
+        agentId: "qwen",
+        templateRoot: "./team-template",
+        noStrict: true,
+        repositories: [{
+          id: "api",
+          role: "code",
+          url: "https://example.test/api.git",
+          defaultBranch: "main",
+        }],
+      },
     },
   );
-  assert.equal(parseInitArgs(["--help"]).help, true);
 });
 
-test("parseInitArgs accepts split options and rejects ambiguous input", () => {
-  assert.equal(parseInitArgs(["--store", "specs", "--agent", "qwen"]).storeId, "specs");
-  assert.equal(
-    parseInitArgs(["--store", "specs", "--agent", "team", "--template", "./team-template"]).templateRoot,
-    "./team-template",
+test("init command accepts split options and applies stable defaults", async () => {
+  assert.deepEqual(
+    await parseCommand(["init", "--store", "specs", "--agent", "qwen"]),
+    {
+      name: "init",
+      options: {
+        target: ".",
+        storeId: "specs",
+        agentId: "qwen",
+        templateRoot: undefined,
+        repositories: [],
+        noStrict: false,
+      },
+    },
   );
-  assert.equal(parseInitArgs(["--store", "specs", "--agent", "qwen", "--no-strict"]).noStrict, true);
-  assert.throws(() => parseInitArgs(["--agent", "qwen"]));
-  assert.throws(() => parseInitArgs(["--store", "specs"]));
-  assert.throws(() => parseInitArgs(["--store", "specs", "--store=other", "--agent=qwen"]));
-  assert.throws(() => parseInitArgs(["--store=specs", "--agent=qwen", "one", "two"]));
-  assert.throws(() => parseInitArgs(["--store=specs", "--agent=qwen", "--unknown"]));
-  assert.throws(() => parseInitArgs(["--store=specs", "--agent=qwen", "--template=one", "--template=two"]));
+});
+
+test("connect and explore commands normalize shared options", async () => {
+  assert.deepEqual(
+    await parseCommand(["connect", "--workspace=/tmp/work", "--no-strict"]),
+    { name: "connect", options: { workspace: "/tmp/work", noStrict: true } },
+  );
+  assert.deepEqual(
+    await parseCommand(["explore", "--ticket=TEST1-TEST0", "--workspace=/tmp/work"]),
+    {
+      name: "explore",
+      options: { ticket: "TEST1-TEST0", workspace: "/tmp/work", noStrict: false },
+    },
+  );
+});
+
+test("change command validates identifiers", async () => {
+  assert.deepEqual(
+    await parseCommand([
+      "change",
+      "--ticket=PAY-412",
+      "--name=payment-status",
+      "--store=payments-specs",
+    ]),
+    {
+      name: "change",
+      options: {
+        ticket: "PAY-412",
+        name: "payment-status",
+        storeId: "payments-specs",
+        noStrict: false,
+      },
+    },
+  );
+  await assert.rejects(parseCommand(["change", "--ticket=pay-412", "--name=payment-status"]));
+  await assert.rejects(parseCommand(["change", "--ticket=PAY-412", "--name=PaymentStatus"]));
+});
+
+test("load command collects unique Work Packages", async () => {
+  const baseline = "0123456789abcdef0123456789abcdef01234567";
+  assert.deepEqual(
+    await parseCommand([
+      "load",
+      "--store=payments-specs",
+      "--repo=payments-api",
+      "--change=pay-412-payment-status",
+      `--baseline=${baseline}`,
+      "--work-package=1",
+      "--work-package=task-a",
+      "--json",
+    ]),
+    {
+      name: "load",
+      options: {
+        storeId: "payments-specs",
+        repositoryId: "payments-api",
+        change: "pay-412-payment-status",
+        baseline,
+        workPackages: ["1", "task-a"],
+        noStrict: false,
+        json: true,
+      },
+    },
+  );
+  await assert.rejects(parseCommand([
+    "load",
+    "--store=payments-specs",
+    "--repo=payments-api",
+    "--change=pay-412-payment-status",
+    "--work-package=1",
+    "--work-package=1",
+  ]));
+});
+
+test("Commander rejects missing, duplicate and unknown options", async () => {
+  await assert.rejects(parseCommand(["init", "--agent=qwen"]));
+  await assert.rejects(parseCommand(["init", "--store=specs"]));
+  await assert.rejects(parseCommand([
+    "init",
+    "--store=specs",
+    "--store=other",
+    "--agent=qwen",
+  ]));
+  await assert.rejects(parseCommand([
+    "init",
+    "--store=specs",
+    "--agent=qwen",
+    "--unknown",
+  ]));
+  await assert.rejects(parseCommand(["connect", "--workspace", "--help"]));
+});
+
+test("Commander rejects invalid baseline and missing split values", async () => {
+  await assert.rejects(parseCommand([
+    "load",
+    "--store=payments-specs",
+    "--repo=payments-api",
+    "--change=pay-412-payment-status",
+    "--baseline=HEAD",
+  ]));
+  await assert.rejects(parseCommand(["explore", "--ticket", "--workspace", "/tmp/work"]));
 });
 
 test("reportProgress writes one event to the selected output", () => {
@@ -122,144 +231,4 @@ test("reportProgress writes one event to the selected output", () => {
     },
   });
   assert.equal(written, "progress-event\n");
-});
-
-test("parseConnectArgs covers help, split and inline workspace", () => {
-  assert.deepEqual(parseConnectArgs(["--help"]), { help: true });
-  assert.deepEqual(parseConnectArgs(["--workspace", "/tmp/work"]), { help: false, workspace: "/tmp/work", noStrict: false });
-  assert.deepEqual(parseConnectArgs(["--workspace=/tmp/work", "--no-strict"]), { help: false, workspace: "/tmp/work", noStrict: true });
-  assert.throws(() => parseConnectArgs(["--workspace=/a", "--workspace=/b"]));
-  assert.throws(() => parseConnectArgs(["unexpected"]));
-});
-
-test("parseExploreArgs covers ticket and workspace variants", () => {
-  assert.deepEqual(parseExploreArgs(["--help"]), { help: true });
-  assert.deepEqual(
-    parseExploreArgs(["--ticket", "PAY-412", "--workspace", "/tmp/work"]),
-    { help: false, ticket: "PAY-412", workspace: "/tmp/work", noStrict: false },
-  );
-  assert.deepEqual(
-    parseExploreArgs(["--ticket=PAY-412", "--workspace=/tmp/work"]),
-    { help: false, ticket: "PAY-412", workspace: "/tmp/work", noStrict: false },
-  );
-  assert.deepEqual(
-    parseExploreArgs(["--ticket=TEST1-TEST0", "--workspace=/tmp/work"]),
-    { help: false, ticket: "TEST1-TEST0", workspace: "/tmp/work", noStrict: false },
-  );
-  assert.throws(() => parseExploreArgs([]));
-  assert.throws(() => parseExploreArgs(["--ticket=pay-412"]));
-  assert.throws(() => parseExploreArgs(["--ticket=PAY-412", "--ticket=PAY-413"]));
-  assert.throws(() => parseExploreArgs(["--ticket=PAY-412", "--workspace=/a", "--workspace=/b"]));
-  assert.throws(() => parseExploreArgs(["--ticket=PAY-412", "unexpected"]));
-});
-
-test("parseChangeArgs requires a canonical ticket and short name", () => {
-  assert.deepEqual(parseChangeArgs(["--help"]), { help: true });
-  assert.deepEqual(
-    parseChangeArgs(["--ticket", "PAY-412", "--name", "payment-status"]),
-    { help: false, ticket: "PAY-412", name: "payment-status", storeId: undefined, noStrict: false },
-  );
-  assert.deepEqual(
-    parseChangeArgs(["--ticket=PAY-412", "--name=payment-status", "--store=payments-specs"]),
-    { help: false, ticket: "PAY-412", name: "payment-status", storeId: "payments-specs", noStrict: false },
-  );
-  assert.throws(() => parseChangeArgs([]));
-  assert.throws(() => parseChangeArgs(["--ticket=PAY-412"]));
-  assert.throws(() => parseChangeArgs(["--ticket=pay-412", "--name=payment-status"]));
-  assert.throws(() => parseChangeArgs(["--ticket=PAY-412", "--name=PaymentStatus"]));
-  assert.throws(
-    () => parseChangeArgs(["--ticket=PAY-412", "--name=one", "--store=one", "--store=two"]),
-  );
-  assert.throws(
-    () => parseChangeArgs(["--ticket=PAY-412", "--name=one", "--name=two"]),
-  );
-  assert.throws(
-    () => parseChangeArgs(["--ticket=PAY-412", "--name=one", "unexpected"]),
-  );
-});
-
-test("parseLoadArgs accepts optional baseline, relaxed mode and unique Work Packages", () => {
-  const baseline = "0123456789abcdef0123456789abcdef01234567";
-  assert.deepEqual(parseLoadArgs(["--help"]), { help: true });
-  assert.deepEqual(
-    parseLoadArgs([
-      "--store=payments-specs",
-      "--repo",
-      "payments-api",
-      "--change=pay-412-payment-status",
-      `--baseline=${baseline}`,
-      "--work-package=1",
-      "--work-package",
-      "task-a",
-      "--json",
-    ]),
-    {
-      help: false,
-      storeId: "payments-specs",
-      repositoryId: "payments-api",
-      change: "pay-412-payment-status",
-      baseline,
-      workPackages: ["1", "task-a"],
-      noStrict: false,
-      json: true,
-    },
-  );
-  assert.deepEqual(parseLoadArgs([
-    "--store=payments-specs",
-    "--repo=payments-api",
-    "--change=pay-412-payment-status",
-    `--baseline=${"a".repeat(40)}`,
-  ]).workPackages, []);
-  assert.deepEqual(parseLoadArgs([
-    "--store=payments-specs",
-    "--repo=payments-api",
-    "--change=pay-412-payment-status",
-    "--no-strict",
-  ]), {
-    help: false,
-    storeId: "payments-specs",
-    repositoryId: "payments-api",
-    change: "pay-412-payment-status",
-    baseline: undefined,
-    workPackages: [],
-    noStrict: true,
-    json: false,
-  });
-  assert.throws(() => parseLoadArgs([]));
-  assert.throws(
-    () => parseLoadArgs([
-      "--store=payments-specs", "--repo=payments-api", "--change=x", "--baseline=HEAD", "--work-package=1",
-    ]),
-  );
-  assert.throws(
-    () => parseLoadArgs([
-      "--change=x",
-      "--store=payments-specs",
-      "--repo=payments-api",
-      `--baseline=${baseline}`,
-      "--work-package=1",
-      "--work-package=1",
-    ]),
-  );
-  assert.throws(
-    () => parseLoadArgs([
-      "--store=payments-specs", "--repo=payments-api", "--change=x", `--baseline=${baseline}`,
-      "--work-package", "--json",
-    ]),
-  );
-});
-
-test("split CLI options reject another long option instead of consuming it as a value", () => {
-  assert.throws(
-    () => parseInitArgs(["--store", "--agent", "qwen"]),
-  );
-  assert.throws(
-    () => parseConnectArgs(["--workspace", "--help"]),
-  );
-  assert.throws(
-    () => parseExploreArgs(["--ticket", "--workspace", "/tmp/work"]),
-  );
-  assert.throws(
-    () => parseChangeArgs(["--ticket=PAY-412", "--name", "--help"]),
-  );
 });
