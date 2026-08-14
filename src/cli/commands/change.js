@@ -4,22 +4,8 @@ import process from "node:process";
 import { createInterface } from "node:readline/promises";
 
 import { prepareChange } from "../../internal/change/index.js";
+import { confirm } from "../prompt.js";
 import { reportProgress } from "../progress.js";
-
-/**
- * Запрашивает подтверждение повторной работы по архивному ticket.
- *
- * @param {import("node:readline/promises").Interface} prompt Терминальный интерфейс.
- * @returns {Promise<boolean>} Решение Change Owner.
- */
-async function confirmArchived(prompt) {
-  while (true) {
-    const answer = (await prompt.question("Продолжить создание Change? [y/N] ")).trim().toLowerCase();
-    if (["y", "yes", "д", "да"].includes(answer)) return true;
-    if (["", "n", "no", "н", "нет"].includes(answer)) return false;
-    console.error("Введите yes/да или no/нет.");
-  }
-}
 
 /**
  * Выполняет `openspec-orch change` и печатает единственный JSON-результат в stdout.
@@ -42,7 +28,7 @@ export async function runChange(options) {
         ? async (changes) => {
             console.error(`Найдены архивные Changes с ticket ${options.ticket}:`);
             for (const change of changes) console.error(`  ${change}`);
-            return confirmArchived(prompt);
+            return confirm(prompt, "Продолжить создание Change?", console.error);
           }
         : undefined,
     });

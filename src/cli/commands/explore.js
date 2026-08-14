@@ -3,6 +3,7 @@
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
 import { buildExploreInvocation, prepareExplore } from "../../internal/explore/index.js";
+import { confirm } from "../prompt.js";
 import { reportProgress } from "../progress.js";
 
 /**
@@ -12,22 +13,6 @@ import { reportProgress } from "../progress.js";
  * @property {(question: string) => Promise<string>} question
  * @property {() => void} close
  */
-
-/**
- * Запрашивает подтверждение на русском или английском языке.
- *
- * @param {Prompt} prompt Терминальный интерфейс.
- * @param {string} question Текст вопроса.
- * @returns {Promise<boolean>} Решение пользователя.
- */
-async function confirm(prompt, question) {
-  while (true) {
-    const answer = (await prompt.question(`${question} [y/N] `)).trim().toLowerCase();
-    if (["y", "yes", "д", "да"].includes(answer)) return true;
-    if (["", "n", "no", "н", "нет"].includes(answer)) return false;
-    console.log("Введите yes/да или no/нет.");
-  }
-}
 
 /**
  * Запрашивает непустой текст.
