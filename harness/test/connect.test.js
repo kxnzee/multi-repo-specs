@@ -9,7 +9,7 @@ import test from "node:test";
 
 import { connectProject } from "../connect/index.js";
 import { resolveAgentAdapter } from "../config/agents.js";
-import { serializeSddConfig } from "../config/index.js";
+import { serializeOrchestratorConfig } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
 
 const QWEN_AGENT = resolveAgentAdapter("qwen");
@@ -22,7 +22,7 @@ const GIGACODE_AGENT = resolveAgentAdapter("gigacode");
  * @returns {Promise<string>} Канонический путь временного каталога.
  */
 async function temporaryWorkspace(t) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "multi-repo-sdd-connect-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-connect-"));
   const canonicalRoot = await fs.realpath(root);
   t.after(async () => fs.rm(canonicalRoot, { recursive: true, force: true }));
   return canonicalRoot;
@@ -36,7 +36,7 @@ async function temporaryWorkspace(t) {
  */
 function configureGit(repository) {
   runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
-  runCommand("git", ["-C", repository, "config", "user.name", "SDD Tests"]);
+  runCommand("git", ["-C", repository, "config", "user.name", "OpenSpec Orchestrator Tests"]);
 }
 
 /**
@@ -86,7 +86,7 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
   configureGit(centralSource);
 
   const centralRemote = path.join(root, "payments-specs.git");
-  const sddTemplate = 'version: 1\n\nversions:\n  process: draft\n  openspec: "1.7.0"\n\nagent: null\n\nrepositories: []\n';
+  const orchestratorTemplate = 'version: 1\n\nversions:\n  process: draft\n  openspec: "1.7.0"\n\nagent: null\n\nrepositories: []\n';
   const centralFiles = {
     ".openspec-store/store.yaml": `version: 1\nid: payments-specs\nremote: ${JSON.stringify(centralRemote)}\n`,
     "openspec/config.yaml": "schema: spec-driven\n",
@@ -95,12 +95,12 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
     [path.join(agent.commandsDirectory, "opsx-continue.md")]: "---\ndescription: continue\n---\n",
     [path.join(agent.commandsDirectory, "opsx-explore.md")]: "---\ndescription: explore\n---\n",
     [path.join(agent.commandsDirectory, "opsx-update.md")]: "---\ndescription: update\n---\n",
-    [path.join(agent.commandsDirectory, "sdd-change.md")]: "---\ndescription: change\n---\n",
-    [path.join(agent.commandsDirectory, "sdd-context.md")]: "---\ndescription: context\n---\n",
-    [path.join(agent.commandsDirectory, "sdd-apply.md")]: "---\ndescription: apply\n---\n",
+    [path.join(agent.commandsDirectory, "openspec-orch-change.md")]: "---\ndescription: change\n---\n",
+    [path.join(agent.commandsDirectory, "openspec-orch-context.md")]: "---\ndescription: context\n---\n",
+    [path.join(agent.commandsDirectory, "openspec-orch-apply.md")]: "---\ndescription: apply\n---\n",
     [agent.instructionsFile]: `# Instructions for ${agent.id}\n`,
-    [path.join(".sdd", "instructions", "explore.md")]: "# Explore contract\n",
-    "sdd.yaml": serializeSddConfig(sddTemplate, [
+    [path.join(".openspec-orch", "instructions", "explore.md")]: "# Explore contract\n",
+    "openspec-orch.yaml": serializeOrchestratorConfig(orchestratorTemplate, [
       {
         id: "payments-specs",
         role: "store",
@@ -283,7 +283,7 @@ test("connectProject remembers an explicit workspace for a nonstandard Store pat
   assert.equal(first.workspace, scenario.workspace);
   assert.equal(second.workspace, scenario.workspace);
   assert.equal(
-    runCommand("git", ["-C", customStoreRoot, "config", "--local", "--get", "sdd.workspace"]),
+    runCommand("git", ["-C", customStoreRoot, "config", "--local", "--get", "openspec-orch.workspace"]),
     scenario.workspace,
   );
 });
@@ -316,7 +316,7 @@ for (const agent of [QWEN_AGENT, GIGACODE_AGENT]) {
 
 test("connectProject requires the non-command Explore instructions", async (t) => {
   const scenario = await createScenario(t, { pointer: true });
-  await fs.rm(path.join(scenario.storeRoot, ".sdd", "instructions", "explore.md"));
+  await fs.rm(path.join(scenario.storeRoot, ".openspec-orch", "instructions", "explore.md"));
   const openSpec = fakeOpenSpec(scenario.storeRoot);
 
   await assert.rejects(

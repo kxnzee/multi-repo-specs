@@ -1,4 +1,4 @@
-/** @fileoverview Интерактивный пользовательский сценарий `sdd explore`. */
+/** @fileoverview Интерактивный пользовательский сценарий `openspec-orch explore`. */
 
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
@@ -127,7 +127,7 @@ function printExploreResult(result) {
 }
 
 /**
- * Выполняет интерактивный сценарий `sdd explore`.
+ * Выполняет интерактивный сценарий `openspec-orch explore`.
  *
  * @param {string[]} args Аргументы без имени команды.
  * @returns {Promise<void>}
@@ -139,7 +139,7 @@ export async function runExplore(args) {
     return;
   }
   if (process.stdin.isTTY !== true) {
-    throw new Error("sdd explore требует интерактивный TTY для выбора и ввода намерения");
+    throw new Error("openspec-orch explore требует интерактивный TTY для выбора и ввода намерения");
   }
   const prompt = createInterface({ input: process.stdin, output: process.stdout });
   try {

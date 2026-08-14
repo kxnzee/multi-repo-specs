@@ -1,4 +1,4 @@
-/** @fileoverview Разбор аргументов команд SDD CLI. */
+/** @fileoverview Разбор аргументов команд OpenSpec Orchestrator CLI. */
 
 import { supportedAgentIds } from "../config/agents.js";
 import { assertRepositoryId } from "../config/index.js";
@@ -8,11 +8,11 @@ import { parseRepository } from "../init/index.js";
 import { isGitRevision } from "../shared/schema.js";
 
 export const HELP = `Использование:
-  sdd init [path] --store <store-id> --agent <agent-id> [--repo <id=url#branch>]...
-  sdd connect [--workspace <path>]
-  sdd explore --ticket <ticket-id> [--workspace <path>]
-  sdd change --ticket <ticket-id> --name <short-name> [--store <store-id>]
-  sdd load --store <store-id> --repo <repository-id> --change <change-id> --baseline <40-char-sha> --work-package <id>... [--json]
+  openspec-orch init [path] --store <store-id> --agent <agent-id> [--repo <id=url#branch>]...
+  openspec-orch connect [--workspace <path>]
+  openspec-orch explore --ticket <ticket-id> [--workspace <path>]
+  openspec-orch change --ticket <ticket-id> --name <short-name> [--store <store-id>]
+  openspec-orch load --store <store-id> --repo <repository-id> --change <change-id> --baseline <40-char-sha> --work-package <id>... [--json]
 
 Команды:
   init    Один раз создать OpenSpec Store и каркас центрального проекта
@@ -22,17 +22,17 @@ export const HELP = `Использование:
   load    Подготовить Code Repository к реализации на принятом Spec Baseline
 
 Параметры:
-  --store <id>    Store ID для sdd init, sdd change или sdd load
+  --store <id>    Store ID для openspec-orch init, openspec-orch change или openspec-orch load
   --agent <id>    Agent adapter: ${supportedAgentIds().join(", ")}
   --repo <value>  Для init: добавить id=url#branch; для load: указать repository-id
                   Пример init: --repo ui=https://example.test/ui.git#main
-  --workspace     Задать workspace; sdd connect запоминает его локально
+  --workspace     Задать workspace; openspec-orch connect запоминает его локально
   --ticket <key>  Ticket key, например PAY-412 или TEST1-TEST0
   --name <value>  Короткое имя Change в lowercase kebab-case
   --change <id>   Полный ID принятого OpenSpec Change
   --baseline <sha> Полная 40-символьная SHA принятого Store
   --work-package <id> Назначенный task.id из OpenSpec; параметр можно повторять
-  --json          Вернуть результат sdd load в JSON
+  --json          Вернуть результат openspec-orch load в JSON
   -h, --help      Показать эту справку
 `;
 
@@ -53,7 +53,7 @@ function readOptionValue(args, index, option, errorMessage) {
 }
 
 /**
- * Разбирает аргументы `sdd init` и проверяет обязательные одиночные флаги.
+ * Разбирает аргументы `openspec-orch init` и проверяет обязательные одиночные флаги.
  *
  * @param {string[]} args Аргументы после имени команды `init`.
  * @returns {{help: boolean, target: string, storeId: string | undefined, agentId: string | undefined, repositories: Array<{id: string, role: "code", url: string, defaultBranch: string}>}} Нормализованные параметры запуска.
@@ -96,13 +96,13 @@ export function parseInitArgs(args) {
     targetWasSet = true;
   }
 
-  if (!storeId) throw new Error("для sdd init требуется --store <store-id>");
-  if (!agentId) throw new Error("для sdd init требуется --agent <agent-id>");
+  if (!storeId) throw new Error("для openspec-orch init требуется --store <store-id>");
+  if (!agentId) throw new Error("для openspec-orch init требуется --agent <agent-id>");
   return { help: false, target, storeId, agentId, repositories };
 }
 
 /**
- * Разбирает необязательный путь workspace для `sdd connect`.
+ * Разбирает необязательный путь workspace для `openspec-orch connect`.
  *
  * @param {string[]} args Аргументы после имени команды `connect`.
  * @returns {{help: boolean, workspace?: string}} Нормализованные параметры запуска.
@@ -125,7 +125,7 @@ export function parseConnectArgs(args) {
 }
 
 /**
- * Разбирает ticket и необязательный workspace для `sdd explore`.
+ * Разбирает ticket и необязательный workspace для `openspec-orch explore`.
  *
  * @param {string[]} args Аргументы после имени команды `explore`.
  * @returns {{help: boolean, ticket?: string, workspace?: string}} Нормализованные параметры запуска.
@@ -152,12 +152,12 @@ export function parseExploreArgs(args) {
     }
     throw new Error(`Неизвестный параметр explore: ${arg}`);
   }
-  if (!ticket) throw new Error("для sdd explore требуется --ticket <ticket-id>");
+  if (!ticket) throw new Error("для openspec-orch explore требуется --ticket <ticket-id>");
   return { help: false, ticket, workspace };
 }
 
 /**
- * Разбирает ticket и короткое имя для `sdd change`.
+ * Разбирает ticket и короткое имя для `openspec-orch change`.
  *
  * @param {string[]} args Аргументы после имени команды `change`.
  * @returns {{help: boolean, ticket?: string, name?: string, storeId?: string}} Нормализованные параметры запуска.
@@ -192,8 +192,8 @@ export function parseChangeArgs(args) {
     }
     throw new Error(`Неизвестный параметр change: ${arg}`);
   }
-  if (!ticket) throw new Error("для sdd change требуется --ticket <ticket-id>");
-  if (!name) throw new Error("для sdd change требуется --name <short-name>");
+  if (!ticket) throw new Error("для openspec-orch change требуется --ticket <ticket-id>");
+  if (!name) throw new Error("для openspec-orch change требуется --name <short-name>");
   return { help: false, ticket, name, storeId };
 }
 
@@ -256,12 +256,12 @@ export function parseLoadArgs(args) {
     }
     throw new Error(`Неизвестный параметр load: ${arg}`);
   }
-  if (!storeId) throw new Error("для sdd load требуется --store <store-id>");
-  if (!repositoryId) throw new Error("для sdd load требуется --repo <repository-id>");
-  if (!change) throw new Error("для sdd load требуется --change <change-id>");
-  if (!baseline) throw new Error("для sdd load требуется --baseline <40-char-sha>");
+  if (!storeId) throw new Error("для openspec-orch load требуется --store <store-id>");
+  if (!repositoryId) throw new Error("для openspec-orch load требуется --repo <repository-id>");
+  if (!change) throw new Error("для openspec-orch load требуется --change <change-id>");
+  if (!baseline) throw new Error("для openspec-orch load требуется --baseline <40-char-sha>");
   if (workPackages.length === 0) {
-    throw new Error("для sdd load требуется хотя бы один --work-package <id>");
+    throw new Error("для openspec-orch load требуется хотя бы один --work-package <id>");
   }
   return { help: false, storeId, repositoryId, change, baseline, workPackages, json };
 }

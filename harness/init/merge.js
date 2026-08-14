@@ -34,7 +34,7 @@ export async function mergeSharedProjectFile(source, destination, relativePath) 
       .map((line) => line.trim())
       .filter((line) => line && !line.startsWith("#") && !existingRules.has(line));
     if (missingRules.length === 0) return false;
-    await fs.writeFile(destination, appendBlock(current, `# SDD local data\n${missingRules.join("\n")}`), "utf8");
+    await fs.writeFile(destination, appendBlock(current, `# OpenSpec Orchestrator local data\n${missingRules.join("\n")}`), "utf8");
     return true;
   }
   if (current.includes(template.trim())) return false;
@@ -43,7 +43,7 @@ export async function mergeSharedProjectFile(source, destination, relativePath) 
 }
 
 /**
- * Добавляет обязательный SDD-контекст, сохраняя OpenSpec-настройки проекта.
+ * Добавляет обязательный OpenSpec Orchestrator-контекст, сохраняя OpenSpec-настройки проекта.
  *
  * @param {string} source Путь шаблона.
  * @param {string} destination Путь `openspec/config.yaml`.

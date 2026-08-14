@@ -4,14 +4,14 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 
-import { parseSddConfig, parseStoreMetadata, sameGitRemote } from "../config/index.js";
+import { parseOrchestratorConfig, parseStoreMetadata, sameGitRemote } from "../config/index.js";
 import { findSpecRoot } from "../explore/workspace.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
 import { validateOpenSpec } from "../shared/store.js";
 
 const PATHS = Object.freeze({
   metadata: path.join(".openspec-store", "store.yaml"),
-  sddConfig: "sdd.yaml",
+  orchestratorConfig: "openspec-orch.yaml",
 });
 
 /**
@@ -50,18 +50,18 @@ async function readStoreFile(projectRoot, relativePath) {
  *
  * @param {string} start Текущий каталог внутри Store.
  * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель команд.
- * @returns {Promise<{projectRoot: string, storeId: string, config: ReturnType<typeof parseSddConfig>, activeChanges: Array<{name: string}>}>} Проверенный Store.
+ * @returns {Promise<{projectRoot: string, storeId: string, config: ReturnType<typeof parseOrchestratorConfig>, activeChanges: Array<{name: string}>}>} Проверенный Store.
  */
 export async function resolveChangeStore(start, commandRunner) {
   const projectRoot = await findSpecRoot(start);
   const [metadataSource, configSource] = await Promise.all([
     readStoreFile(projectRoot, PATHS.metadata),
-    readStoreFile(projectRoot, PATHS.sddConfig),
+    readStoreFile(projectRoot, PATHS.orchestratorConfig),
   ]);
   const metadata = parseStoreMetadata(metadataSource);
-  const config = parseSddConfig(configSource);
+  const config = parseOrchestratorConfig(configSource);
   if (config.storeRepository.id !== metadata.id) {
-    throw new Error("Store ID в sdd.yaml не совпадает с Store metadata");
+    throw new Error("Store ID в openspec-orch.yaml не совпадает с Store metadata");
   }
   if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
     throw new Error("URL role: store не совпадает с Store metadata");

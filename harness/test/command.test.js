@@ -34,8 +34,8 @@ test("runCommand passes an isolated environment override", () => {
   assert.equal(
     runCommand(
       process.execPath,
-      ["-e", "process.stdout.write(process.env.SDD_TEST_ENVIRONMENT ?? '')"],
-      { environment: { SDD_TEST_ENVIRONMENT: "expanded" } },
+      ["-e", "process.stdout.write(process.env.OPENSPEC_ORCH_TEST_ENVIRONMENT ?? '')"],
+      { environment: { OPENSPEC_ORCH_TEST_ENVIRONMENT: "expanded" } },
     ),
     "expanded",
   );

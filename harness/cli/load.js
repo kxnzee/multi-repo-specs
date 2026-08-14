@@ -1,4 +1,4 @@
-/** @fileoverview Пользовательский сценарий команды `sdd load`. */
+/** @fileoverview Пользовательский сценарий команды `openspec-orch load`. */
 
 import { prepareLoad } from "../load/index.js";
 import { stringify as stringifyYaml } from "yaml";
@@ -6,7 +6,7 @@ import { HELP, parseLoadArgs } from "./args.js";
 import { reportProgress } from "./progress.js";
 
 /**
- * Выполняет `sdd load` и печатает машинный или компактный человекочитаемый результат.
+ * Выполняет `openspec-orch load` и печатает машинный или компактный человекочитаемый результат.
  *
  * @param {string[]} args Аргументы без имени команды.
  * @returns {Promise<void>}

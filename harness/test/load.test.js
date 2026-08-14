@@ -1,4 +1,4 @@
-/** @fileoverview Интеграционные сценарии `sdd load` с настоящими Git worktree. */
+/** @fileoverview Интеграционные сценарии `openspec-orch load` с настоящими Git worktree. */
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -11,18 +11,18 @@ import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 
 import { resolveAgentAdapter } from "../config/agents.js";
-import { serializeSddConfig } from "../config/index.js";
+import { serializeOrchestratorConfig } from "../config/index.js";
 import { prepareLoad } from "../load/index.js";
 import { runCommand } from "../shared/command.js";
 
 const TEMPLATE =
   'version: 1\nversions:\n  process: draft\n  openspec: "1.7.0"\nagent: null\nrepositories: []\n';
-const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../bin/sdd.js");
+const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../bin/openspec-orch.js");
 
 /** @param {string} repository */
 function configureGit(repository) {
   runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
-  runCommand("git", ["-C", repository, "config", "user.name", "SDD Tests"]);
+  runCommand("git", ["-C", repository, "config", "user.name", "OpenSpec Orchestrator Tests"]);
 }
 
 /** @param {string} repository @param {Record<string, string>} files */
@@ -46,7 +46,7 @@ async function createScenario(t, {
   agentId = "qwen",
   includeAgentInstructions = true,
 } = {}) {
-  const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "multi-repo-sdd-load-")));
+  const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-load-")));
   t.after(async () => fs.rm(root, { recursive: true, force: true }));
   const workspace = path.join(root, "workspace");
   const storeRoot = storeInsideWorkspace
@@ -70,9 +70,9 @@ async function createScenario(t, {
   const storeFiles = {
     ".openspec-store/store.yaml":
       `version: 1\nid: payments-specs\nremote: ${JSON.stringify(storeRemote)}\n`,
-    "sdd.yaml": serializeSddConfig(TEMPLATE, repositories, agent),
+    "openspec-orch.yaml": serializeOrchestratorConfig(TEMPLATE, repositories, agent),
     "openspec/config.yaml": "schema: spec-driven\n",
-    [path.join(agent.commandsDirectory, "sdd-apply.md")]: "Apply from verified runtime.\n",
+    [path.join(agent.commandsDirectory, "openspec-orch-apply.md")]: "Apply from verified runtime.\n",
     "openspec/changes/pay-412-payment-status/proposal.md": "# Proposal\n",
     "openspec/changes/pay-412-payment-status/tasks.md": "- [ ] 2.1 API\n- [ ] 2.2 tests\n",
   };
@@ -172,7 +172,7 @@ test("prepareLoad creates an exact Store worktree, implementation branch and min
   const scenario = await createScenario(t);
   const openSpec = fakeOpenSpec(scenario.storeRoot);
   await fs.writeFile(path.join(scenario.storeRoot, "local-owner-notes.txt"), "dirty Store checkout is allowed\n", "utf8");
-  await fs.writeFile(path.join(scenario.storeRoot, "sdd.yaml"), "invalid local edit: [\n", "utf8");
+  await fs.writeFile(path.join(scenario.storeRoot, "openspec-orch.yaml"), "invalid local edit: [\n", "utf8");
   const result = await prepareLoad({
     start: scenario.codeRoot,
     storeId: "payments-specs",
@@ -356,7 +356,7 @@ test("prepareLoad derives an explicit connect workspace from the Code Repository
     commandRunner: openSpec.runner,
   });
   assert.equal(
-    result.runtimePath.startsWith(path.join(scenario.workspace, ".sdd", "runtime")),
+    result.runtimePath.startsWith(path.join(scenario.workspace, ".openspec-orch", "runtime")),
     true,
   );
 });
@@ -382,7 +382,7 @@ test("prepareLoad uses the current subtask Work Packages after implementation co
   assert.deepEqual(context.work_packages, ["2"]);
 });
 
-test("sdd load CLI returns structured JSON and YAML contracts", async (t) => {
+test("openspec-orch load CLI returns structured JSON and YAML contracts", async (t) => {
   const scenario = await createScenario(t);
   const fakeBin = path.join(scenario.workspace, "fake-bin");
   const executable = path.join(fakeBin, "openspec");

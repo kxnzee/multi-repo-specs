@@ -117,20 +117,20 @@ Owner и Spec Owner.
 для одной бизнес-цели. Для каждой capability агент создаёт отдельную Delta Spec и
 сохраняет её относительный путь из Master Specs.
 
-Дополнительная команда SDD для этого не нужна. Используется обычный маршрут:
+Дополнительная команда OpenSpec Orchestrator для этого не нужна. Используется обычный маршрут:
 
 | Этап | Что вызвать | Результат |
 |---|---|---|
-| Explore | `sdd explore --ticket PAY-500` | Подтверждена одна бизнес-цель и найдены затронутые системы |
-| Change и Proposal | `/sdd-change PAY-500 payment-recovery` | Создан один Change и одна planning-ветка |
+| Explore | `openspec-orch explore --ticket PAY-500` | Подтверждена одна бизнес-цель и найдены затронутые системы |
+| Change и Proposal | `/openspec-orch-change PAY-500 payment-recovery` | Создан один Change и одна planning-ветка |
 | Specs | первый `/opsx-continue pay-500-payment-recovery` | Созданы все Delta Specs этого Change |
 | Design | второй `/opsx-continue pay-500-payment-recovery` | Описаны связи между capabilities и репозиториями |
 | Tasks | третий `/opsx-continue pay-500-payment-recovery` | Созданы Work Packages для общей реализации |
 | Planning PR | обычные команды шага 04 | Принят один `spec_baseline` для всего Change |
-| Реализация | `sdd load` отдельно в каждом Code Repository | Загружены назначенные Work Packages общего Change |
+| Реализация | `openspec-orch load` отдельно в каждом Code Repository | Загружены назначенные Work Packages общего Change |
 | Finalization | `/opsx-archive pay-500-payment-recovery` | Все Delta Specs применены к соответствующим Master Specs |
 
-Кастомный SDD отвечает за подготовку контекста, создание каркаса Change, фиксацию
+Кастомная обвязка OpenSpec Orchestrator отвечает за подготовку контекста, создание каркаса Change, фиксацию
 Baseline и передачу Work Packages в Code Repositories. Стандартный OpenSpec создаёт
 Specs, Design и Tasks через `/opsx-continue`, проверяет Change и применяет Delta Specs
 через `/opsx-archive`.
@@ -163,7 +163,7 @@ Capability `notifications/payment-failure` пока отсутствует.
 Из корня Store выполните:
 
 ```bash
-sdd explore --ticket PAY-500
+openspec-orch explore --ticket PAY-500
 ```
 
 Выберите затронутые Code Repositories и передайте намерение:
@@ -173,7 +173,7 @@ sdd explore --ticket PAY-500
 показать ошибку, разрешить повтор и отправить уведомление.
 ```
 
-`sdd explore` вернёт готовое сообщение для `/opsx-explore`. Передайте его агенту без
+`openspec-orch explore` вернёт готовое сообщение для `/opsx-explore`. Передайте его агенту без
 изменений и завершите обычный [шаг 01](../steps/01.md). Explore должен подтвердить,
 что все три изменения относятся к одной задаче.
 
@@ -182,10 +182,10 @@ sdd explore --ticket PAY-500
 В той же агентской сессии выполните:
 
 ```text
-/sdd-change PAY-500 payment-recovery
+/openspec-orch-change PAY-500 payment-recovery
 ```
 
-Кастомная команда SDD создаст:
+Кастомная команда OpenSpec Orchestrator создаст:
 
 ```text
 branch: feature/pay-500-payment-recovery
@@ -210,7 +210,7 @@ artifact: proposal.md
 пути. `notifications/payment-failure` объявляется новой capability. После проверки
 подтвердите Proposal как обычно на [шаге 02](../steps/02.md).
 
-Не вызывайте `/sdd-change` отдельно для каждой capability: это создаст три независимых
+Не вызывайте `/openspec-orch-change` отдельно для каждой capability: это создаст три независимых
 Changes вместо одного согласованного изменения.
 
 ### Шаг 03. Создать все Delta Specs
@@ -355,10 +355,10 @@ capabilities, если их реализует один репозиторий.
 
 ### Шаги 05–06. Реализовать Work Packages
 
-Разработчик каждого репозитория запускает обычный `sdd load`. Например, для API:
+Разработчик каждого репозитория запускает обычный `openspec-orch load`. Например, для API:
 
 ```bash
-sdd load \
+openspec-orch load \
   --store payments-specs \
   --repo payments-api \
   --change pay-500-payment-recovery \
@@ -367,7 +367,7 @@ sdd load \
   --work-package 2
 ```
 
-`sdd load` не принимает capability path и не загружает одну Delta Spec отдельно. Он
+`openspec-orch load` не принимает capability path и не загружает одну Delta Spec отдельно. Он
 фиксирует весь Change на принятом Baseline, а область конкретной реализации задаётся
 выбранными Work Package ID. Дальше каждый репозиторий проходит обычные шаги
 [05](../steps/05.md) и [06](../steps/06.md).

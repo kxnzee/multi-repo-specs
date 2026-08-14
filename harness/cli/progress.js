@@ -1,4 +1,4 @@
-/** @fileoverview Единый пользовательский вывод прогресса команд SDD. */
+/** @fileoverview Единый пользовательский вывод прогресса команд OpenSpec Orchestrator. */
 
 import process from "node:process";
 

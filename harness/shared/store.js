@@ -1,4 +1,4 @@
-/** @fileoverview Общие проверки OpenSpec Store перед рабочими командами SDD. */
+/** @fileoverview Общие проверки OpenSpec Store перед рабочими командами OpenSpec Orchestrator. */
 
 import path from "node:path";
 
@@ -41,7 +41,7 @@ function assertStoreDoctor(payload, storeId, projectRoot) {
  *
  * @param {string} projectRoot Абсолютный путь Store.
  * @param {string} storeId Ожидаемый Store ID.
- * @param {string} configuredVersion Закреплённая версия OpenSpec из sdd.yaml.
+ * @param {string} configuredVersion Закреплённая версия OpenSpec из openspec-orch.yaml.
  * @param {typeof import("./command.js").runCommand} commandRunner Исполнитель OpenSpec.
  * @returns {Array<{name: string}>} Активные Changes из разрешённого Store.
  */

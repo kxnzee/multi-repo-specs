@@ -1,4 +1,4 @@
-/** @fileoverview Пользовательский сценарий команды `sdd init`. */
+/** @fileoverview Пользовательский сценарий команды `openspec-orch init`. */
 
 import path from "node:path";
 
@@ -33,13 +33,13 @@ export function buildConnectHint(storeRoot, storeId) {
     path.dirname(workspace) !== workspace
   );
   const command = standardLayout
-    ? "sdd connect"
-    : `sdd connect --workspace ${JSON.stringify(workspace)}`;
+    ? "openspec-orch connect"
+    : `openspec-orch connect --workspace ${JSON.stringify(workspace)}`;
   return `Далее: выполните ${command}`;
 }
 
 /**
- * Выполняет пользовательский сценарий `sdd init`.
+ * Выполняет пользовательский сценарий `openspec-orch init`.
  *
  * @param {string[]} args Аргументы команды без имени `init`.
  * @returns {Promise<void>}

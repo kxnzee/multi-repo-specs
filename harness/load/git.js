@@ -25,7 +25,7 @@ export function assertRepositoryIdentity(root, expectedRemote, label, runner) {
   const gitRoot = path.resolve(runner("git", ["rev-parse", "--show-toplevel"], { cwd: root }));
   if (gitRoot !== root) throw new Error(`${label}: команда должна запускаться из корня Git-репозитория`);
   const origin = runner("git", ["remote", "get-url", "origin"], { cwd: root });
-  if (!sameGitRemote(origin, expectedRemote)) throw new Error(`${label}: origin не совпадает с sdd.yaml`);
+  if (!sameGitRemote(origin, expectedRemote)) throw new Error(`${label}: origin не совпадает с openspec-orch.yaml`);
   return origin;
 }
 

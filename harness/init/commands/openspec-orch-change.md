@@ -2,7 +2,7 @@
 description: "Создать OpenSpec Change и согласовать Proposal после Explore"
 ---
 
-Команда вызывается как `/sdd-change <ticket-id> <short-name>` из центрального Store после завершённого Explore. Она объединяет создание стандартного OpenSpec Change и подготовку `proposal.md`, но не создаёт Delta Specs, `design.md`, `tasks.md`, код, commit, push или PR.
+Команда вызывается как `/openspec-orch-change <ticket-id> <short-name>` из центрального Store после завершённого Explore. Она объединяет создание стандартного OpenSpec Change и подготовку `proposal.md`, но не создаёт Delta Specs, `design.md`, `tasks.md`, код, commit, push или PR.
 
 ## Обязательный вход
 
@@ -13,14 +13,14 @@ description: "Создать OpenSpec Change и согласовать Proposal 
 - явное решение Change Owner, что Explore завершён и можно создать Change и Proposal;
 - отсутствие блокирующих вопросов.
 
-Проверь, что ticket аргумента совпадает с ticket структурированного итога Explore. Не восстанавливай Explore из Jira, истории других сессий, существующего Change или пересказа пользователя. Если текущая сессия не содержит полного результата, остановись и попроси повторить `sdd explore` и оригинальный `/opsx-explore`.
+Проверь, что ticket аргумента совпадает с ticket структурированного итога Explore. Не восстанавливай Explore из Jira, истории других сессий, существующего Change или пересказа пользователя. Если текущая сессия не содержит полного результата, остановись и попроси повторить `openspec-orch explore` и оригинальный `/opsx-explore`.
 
 ## 1. Создай или разреши каркас Change
 
 Выполни только детерминированную команду:
 
 ```bash
-sdd change --ticket <ticket-id> --name <short-name> --store <store-id>
+openspec-orch change --ticket <ticket-id> --name <short-name> --store <store-id>
 ```
 
 `<store-id>` возьми только из структурированного итога Explore. CLI не переключает Store по этому параметру, а проверяет, что он совпадает с текущим центральным checkout.

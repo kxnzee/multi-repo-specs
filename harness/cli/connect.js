@@ -1,11 +1,11 @@
-/** @fileoverview Пользовательский сценарий команды `sdd connect`. */
+/** @fileoverview Пользовательский сценарий команды `openspec-orch connect`. */
 
 import { connectProject } from "../connect/index.js";
 import { HELP, parseConnectArgs } from "./args.js";
 import { reportProgress } from "./progress.js";
 
 /**
- * Выполняет `sdd connect` и печатает состояние каждого Code Repository.
+ * Выполняет `openspec-orch connect` и печатает состояние каждого Code Repository.
  *
  * @param {string[]} args Аргументы команды без имени `connect`.
  * @returns {Promise<void>}
@@ -22,7 +22,7 @@ export async function runConnect(args) {
   });
   console.log(`Store: ${result.storeId} (${result.storeRoot})`);
   console.log(`Workspace: ${result.workspace}`);
-  if (options.workspace) console.log("Workspace сохранён локально для следующих команд SDD.");
+  if (options.workspace) console.log("Workspace сохранён локально для следующих команд OpenSpec Orchestrator.");
   console.log("Локальная регистрация Store проверена OpenSpec.");
   for (const repository of result.repositories) {
     console.log(`${repository.id}: ${repository.status}${repository.cloned ? ", cloned" : ", existing"}`);

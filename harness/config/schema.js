@@ -1,4 +1,4 @@
-/** @fileoverview Runtime-проверка YAML-схем, принадлежащих SDD. */
+/** @fileoverview Runtime-проверка YAML-схем, принадлежащих OpenSpec Orchestrator. */
 
 import { isRecord } from "../shared/schema.js";
 
@@ -12,22 +12,22 @@ import { isRecord } from "../shared/schema.js";
  */
 function assertString(value, key, label) {
   if (typeof value[key] !== "string" || !value[key]) {
-    throw new Error(`В sdd.yaml отсутствует ${label}`);
+    throw new Error(`В openspec-orch.yaml отсутствует ${label}`);
   }
 }
 
 /**
- * Проверяет обязательную структуру sdd.yaml до нормализации значений.
+ * Проверяет обязательную структуру openspec-orch.yaml до нормализации значений.
  *
  * @param {unknown} value Разобранный YAML.
  * @returns {asserts value is Record<string, unknown>} Успешная проверка структуры.
  */
-export function assertSddConfigSchema(value) {
-  if (!isRecord(value)) throw new Error("Некорректный sdd.yaml должен содержать YAML-объект");
+export function assertOrchestratorConfigSchema(value) {
+  if (!isRecord(value)) throw new Error("Некорректный openspec-orch.yaml должен содержать YAML-объект");
   if (!isRecord(value.versions) || typeof value.versions.openspec !== "string") {
-    throw new Error("В sdd.yaml отсутствует versions.openspec");
+    throw new Error("В openspec-orch.yaml отсутствует versions.openspec");
   }
-  if (!isRecord(value.agent)) throw new Error("В sdd.yaml отсутствует agent");
+  if (!isRecord(value.agent)) throw new Error("В openspec-orch.yaml отсутствует agent");
   for (const key of [
     "id",
     "openspec_adapter",
@@ -38,7 +38,7 @@ export function assertSddConfigSchema(value) {
     assertString(value.agent, key, `agent.${key}`);
   }
   if (!Array.isArray(value.repositories)) {
-    throw new Error("В sdd.yaml отсутствует список repositories");
+    throw new Error("В openspec-orch.yaml отсутствует список repositories");
   }
   for (const [index, repository] of value.repositories.entries()) {
     if (!isRecord(repository)) {

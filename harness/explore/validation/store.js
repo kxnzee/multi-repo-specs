@@ -21,7 +21,7 @@ export async function validateOpenSpecAction(projectRoot, agent) {
   }
   if (!stat?.isFile() || stat.isSymbolicLink()) {
     const recovery = agent.generatedDirectory
-      ? `совместимый pack для ${agent.id} должен обновить Technical Owner через SDD adapter`
+      ? `совместимый pack для ${agent.id} должен обновить Technical Owner через OpenSpec Orchestrator adapter`
       : "выполните openspec update --force";
     throw new Error(`Не установлено оригинальное действие OpenSpec ${relativePath}; ${recovery}`);
   }

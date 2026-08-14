@@ -4,12 +4,12 @@
 
 | Шаг | Кто выполняет | Что происходит | Результат |
 |---|---|---|---|
-| [00](00.md) | Technical Owner, затем участники | Проект создаётся один раз, рабочие машины подключаются к Store | `sdd connect` возвращает `ready` |
+| [00](00.md) | Technical Owner, затем участники | Проект создаётся один раз, рабочие машины подключаются к Store | `openspec-orch connect` возвращает `ready` |
 | [01](01.md) | Change Owner | Агент исследует запрос и выбранные репозитории | Проблема и область изменения понятны |
 | [02](02.md) | Change Owner | Создаются Change и Proposal | Proposal подтверждён |
 | [03](03.md) | Change Owner и агент | Создаются Specs, Design и Tasks | Все четыре planning-артефакта готовы |
 | [04](04.md) | Change Owner и reviewers | Planning PR проходит проверку и сливается | Зафиксирован Spec Baseline, созданы implementation subtasks |
-| [05](05.md) | Разработчик | Загружается назначенная работа для одного Code Repository | `sdd load` возвращает `implementation_ready` |
+| [05](05.md) | Разработчик | Загружается назначенная работа для одного Code Repository | `openspec-orch load` возвращает `implementation_ready` |
 | [06](06.md) | Разработчик и агент | Работа реализуется и передаётся в implementation PR | PR готов к общей проверке системы |
 
 Первый пилот заканчивается после шага 06. Composite Verification, merge, rollout и Archive выполняются только по отдельно согласованным инструкциям следующих шагов.

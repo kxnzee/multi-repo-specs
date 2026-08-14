@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-import { parseSddConfig, parseStoreMetadata, sameGitRemote } from "../config/index.js";
+import { parseOrchestratorConfig, parseStoreMetadata, sameGitRemote } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
 import { inspectFreshCheckout } from "../shared/git.js";
 import { assertOpenSpecRoot } from "../shared/openspec.js";
@@ -22,8 +22,8 @@ export { validateTicket } from "./validation/ticket.js";
 
 const PATHS = Object.freeze({
   metadata: path.join(".openspec-store", "store.yaml"),
-  exploreInstructions: path.join(".sdd", "instructions", "explore.md"),
-  sddConfig: "sdd.yaml",
+  exploreInstructions: path.join(".openspec-orch", "instructions", "explore.md"),
+  orchestratorConfig: "openspec-orch.yaml",
 });
 
 /**
@@ -68,21 +68,21 @@ export async function prepareExplore({
 } = {}) {
   validateTicket(ticket);
   if (typeof selectRepositories !== "function") {
-    throw new Error("Для sdd explore требуется интерактивный выбор репозиториев");
+    throw new Error("Для openspec-orch explore требуется интерактивный выбор репозиториев");
   }
 
   const startContext = await resolveStart(start, commandRunner);
   const projectRoot = startContext.projectRoot;
   const [metadataSource, configSource] = await Promise.all([
     readStoreFile(projectRoot, PATHS.metadata),
-    readStoreFile(projectRoot, PATHS.sddConfig),
+    readStoreFile(projectRoot, PATHS.orchestratorConfig),
   ]);
   const metadata = parseStoreMetadata(metadataSource);
-  const config = parseSddConfig(configSource);
+  const config = parseOrchestratorConfig(configSource);
   const exploreInstructionsPath = path.join(projectRoot, PATHS.exploreInstructions);
   await readStoreFile(projectRoot, PATHS.exploreInstructions);
   if (config.storeRepository.id !== metadata.id) {
-    throw new Error("Store ID в sdd.yaml не совпадает с Store metadata");
+    throw new Error("Store ID в openspec-orch.yaml не совпадает с Store metadata");
   }
   if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
     throw new Error("URL role: store не совпадает с Store metadata");
@@ -124,7 +124,7 @@ export async function prepareExplore({
     startContext.codeRoot &&
     !available.some(({ path: repositoryPath }) => repositoryPath === startContext.codeRoot)
   ) {
-    throw new Error("Текущий Code Repository не зарегистрирован в sdd.yaml этого Store");
+    throw new Error("Текущий Code Repository не зарегистрирован в openspec-orch.yaml этого Store");
   }
 
   const store = inspectFreshCheckout(projectRoot, config.storeRepository, commandRunner);

@@ -8,7 +8,7 @@ import { runOpenSpecJson } from "../shared/openspec.js";
 
 const REQUIRED_ROOT_PATHS = Object.freeze([
   path.join(".openspec-store", "store.yaml"),
-  "sdd.yaml",
+  "openspec-orch.yaml",
   path.join("openspec", "config.yaml"),
   path.join("openspec", "context", "00-start-here.md"),
   path.join("openspec", "context", "system-map.yaml"),
@@ -33,7 +33,7 @@ async function pathState(target) {
  * Проверяет обязательные файлы Store и блокирует symlink до чтения.
  *
  * @param {string} candidate Предполагаемый Store.
- * @returns {Promise<boolean>} Содержит ли каталог полный SDD skeleton.
+ * @returns {Promise<boolean>} Содержит ли каталог полный OpenSpec Orchestrator skeleton.
  */
 async function hasRequiredRoot(candidate) {
   const stats = await Promise.all(
@@ -48,14 +48,14 @@ async function hasRequiredRoot(candidate) {
 }
 
 /**
- * Подтверждает обязательный SDD skeleton в Store.
+ * Подтверждает обязательный OpenSpec Orchestrator skeleton в Store.
  *
  * @param {string} candidate Предполагаемый Store.
  * @returns {Promise<string>} Канонический путь.
  */
 async function requireProjectRoot(candidate) {
   if (!(await hasRequiredRoot(candidate))) {
-    throw new Error(`Разрешённый Store не содержит обязательный SDD skeleton: ${candidate}`);
+    throw new Error(`Разрешённый Store не содержит обязательный OpenSpec Orchestrator skeleton: ${candidate}`);
   }
   return fs.realpath(candidate);
 }

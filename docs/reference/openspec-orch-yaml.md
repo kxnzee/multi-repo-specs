@@ -1,6 +1,6 @@
-# Конфигурация `sdd.yaml`
+# Конфигурация `openspec-orch.yaml`
 
-`sdd.yaml` находится в корне центрального Store Repository и описывает совместимую версию OpenSpec, выбранный агент и репозитории SDD-проекта. Файл создаётся командой `sdd init` и используется командами Harness как машинная конфигурация.
+`openspec-orch.yaml` находится в корне центрального Store Repository и описывает совместимую версию OpenSpec, выбранный агент и репозитории SDD-проекта. Файл создаётся командой `openspec-orch init` и используется командами Harness как машинная конфигурация.
 
 ## Полный пример
 
@@ -31,7 +31,7 @@ repositories:
 
 | Поле | Назначение |
 |---|---|
-| `versions.openspec` | Версия OpenSpec, с которой совместим Harness. Сейчас поддерживается только `1.7.0`; другая версия блокирует команды SDD. |
+| `versions.openspec` | Версия OpenSpec, с которой совместим Harness. Сейчас поддерживается только `1.7.0`; другая версия блокирует команды OpenSpec Orchestrator. |
 
 ## `agent`
 
@@ -76,7 +76,7 @@ checkout = /workspace/src/frontend
 repository_instructions_path = /workspace/src/frontend/.gigacode/GIGACODE.md
 ```
 
-Основной агент проверяет, что путь остаётся внутри `checkout`, и передаёт его native subagent в prompt конкретного запуска. Путь не записывается обратно в `sdd.yaml`. Если файла в Code Repository нет, Repository Context Pass продолжает работу через минимальное адресное чтение кода и тестов.
+Основной агент проверяет, что путь остаётся внутри `checkout`, и передаёт его native subagent в prompt конкретного запуска. Путь не записывается обратно в `openspec-orch.yaml`. Если файла в Code Repository нет, Repository Context Pass продолжает работу через минимальное адресное чтение кода и тестов.
 
 ## `repositories`
 

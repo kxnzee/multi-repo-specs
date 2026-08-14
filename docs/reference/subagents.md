@@ -2,7 +2,7 @@
 
 Repository Context Pass помогает основному агенту собрать технический контекст из Code Repositories при подготовке Specs, Design и Tasks на шаге 03. Здесь описано, когда запускаются subagents, какие данные они получают и как добавить новую специализацию.
 
-`sdd init` устанавливает project-level native subagents в provider-specific каталог `agents/`. Обязательным является только базовый профиль; frontend и backend входят в начальный набор как optional специализации:
+`openspec-orch init` устанавливает project-level native subagents в provider-specific каталог `agents/`. Обязательным является только базовый профиль; frontend и backend входят в начальный набор как optional специализации:
 
 | Subagent type | Назначение |
 |---|---|
@@ -85,7 +85,7 @@ repository_instructions_update_candidate: false
 ## Ограничения
 
 - Subagent не создаёт Change и не изменяет Store или Code Repository.
-- `repository_instructions_path` вычисляется как `<checkout>/<agent.instructions_file>` из проверенного `sdd.yaml`.
+- `repository_instructions_path` вычисляется как `<checkout>/<agent.instructions_file>` из проверенного `openspec-orch.yaml`.
 - Основной агент проверяет, что путь не выходит из `checkout`; существующий файл не должен разрешаться за его пределы или быть symlink в последнем сегменте.
 - Subagent сначала читает только этот файл инструкций, затем адресно код и тесты.
 - Отсутствие или неполнота файла инструкций не блокирует pass.
@@ -129,6 +129,6 @@ evidence и repository_instructions_update_candidate.
 3. не выдавайте инструменты записи без отдельной необходимости;
 4. сохраните общий контракт результата Repository Context Pass;
 5. проверьте обнаружение и понятность `description` через `/agents`;
-6. не добавляйте optional профиль в обязательные проверки `sdd init` и `sdd connect`.
+6. не добавляйте optional профиль в обязательные проверки `openspec-orch init` и `openspec-orch connect`.
 
 Для включения профиля в начальный набор новых Store добавьте его шаблон в `harness/init/subagents/`. Harness установит файл в каталог `agents/` выбранного adapter. Расширять `openspec/config.yaml` и список обязательных профилей при этом не нужно.

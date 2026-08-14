@@ -1,4 +1,4 @@
-/** @fileoverview Общие JSDoc-типы для машинных данных SDD и OpenSpec. */
+/** @fileoverview Общие JSDoc-типы для машинных данных OpenSpec Orchestrator и OpenSpec. */
 
 /**
  * Корень OpenSpec, разрешённый официальным CLI.
@@ -83,7 +83,7 @@
  */
 
 /**
- * Репозиторий из нормализованного sdd.yaml.
+ * Репозиторий из нормализованного openspec-orch.yaml.
  *
  * @typedef {object} RegisteredRepository
  * @property {string} id

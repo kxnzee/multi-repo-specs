@@ -1,4 +1,4 @@
-/** @fileoverview Пользовательский сценарий детерминированной команды `sdd change`. */
+/** @fileoverview Пользовательский сценарий детерминированной команды `openspec-orch change`. */
 
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
@@ -23,7 +23,7 @@ async function confirmArchived(prompt) {
 }
 
 /**
- * Выполняет `sdd change` и печатает единственный JSON-результат в stdout.
+ * Выполняет `openspec-orch change` и печатает единственный JSON-результат в stdout.
  *
  * @param {string[]} args Аргументы без имени команды.
  * @returns {Promise<void>}

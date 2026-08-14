@@ -5,7 +5,7 @@ import path from "node:path";
 import process from "node:process";
 import {
   assertSupportedOpenSpecVersion,
-  parseSddConfig,
+  parseOrchestratorConfig,
   parseStoreMetadata,
   sameGitRemote,
 } from "../config/index.js";
@@ -18,14 +18,14 @@ const REQUIRED_AGENT_COMMANDS = Object.freeze([
   "opsx-explore.md",
   "opsx-continue.md",
   "opsx-update.md",
-  "sdd-context.md",
-  "sdd-change.md",
-  "sdd-apply.md",
+  "openspec-orch-context.md",
+  "openspec-orch-change.md",
+  "openspec-orch-apply.md",
 ]);
 const PATHS = Object.freeze({
   metadata: path.join(".openspec-store", "store.yaml"),
-  exploreInstructions: path.join(".sdd", "instructions", "explore.md"),
-  sddConfig: "sdd.yaml",
+  exploreInstructions: path.join(".openspec-orch", "instructions", "explore.md"),
+  orchestratorConfig: "openspec-orch.yaml",
 });
 
 /**
@@ -102,10 +102,10 @@ export async function connectProject({
   onProgress("Проверка Store и OpenSpec...");
   const storeRoot = await fs.realpath(path.resolve(start));
   const metadata = parseStoreMetadata(await readFile(storeRoot, PATHS.metadata));
-  const config = parseSddConfig(await readFile(storeRoot, PATHS.sddConfig));
+  const config = parseOrchestratorConfig(await readFile(storeRoot, PATHS.orchestratorConfig));
   await readFile(storeRoot, PATHS.exploreInstructions);
   await readFile(storeRoot, config.agent.instructionsFile);
-  if (config.storeRepository.id !== metadata.id) throw new Error("Store ID в sdd.yaml не совпадает с Store metadata");
+  if (config.storeRepository.id !== metadata.id) throw new Error("Store ID в openspec-orch.yaml не совпадает с Store metadata");
   if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
     throw new Error("URL role: store не совпадает с Store metadata");
   }

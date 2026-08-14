@@ -23,7 +23,7 @@ const CONTEXT_KEYS = [
 ];
 
 /**
- * Создаёт runtime-каталог, запрещая symlink на каждом принадлежащем SDD сегменте.
+ * Создаёт runtime-каталог, запрещая symlink на каждом принадлежащем OpenSpec Orchestrator сегменте.
  *
  * @param {string} workspace
  * @param {string[]} segments
@@ -31,7 +31,7 @@ const CONTEXT_KEYS = [
  */
 export async function ensureRuntimeDirectory(workspace, segments) {
   let current = workspace;
-  for (const segment of [".sdd", "runtime", ...segments]) {
+  for (const segment of [".openspec-orch", "runtime", ...segments]) {
     current = path.join(current, segment);
     let stat;
     try {
@@ -94,7 +94,7 @@ export async function removeRuntimeContext(runtimeRoot) {
  * @returns {Promise<string>}
  */
 export async function writeRuntimeContext(runtimeRoot, context) {
-  if (!isRuntimeContext(context)) throw new Error("SDD сформировал некорректный runtime context");
+  if (!isRuntimeContext(context)) throw new Error("OpenSpec Orchestrator сформировал некорректный runtime context");
   const contextPath = path.join(runtimeRoot, "context.json");
   const temporary = path.join(runtimeRoot, `.context-${process.pid}.tmp`);
   await fs.writeFile(temporary, `${JSON.stringify(context, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });

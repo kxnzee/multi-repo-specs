@@ -153,7 +153,7 @@ planning-артефактах, без новой OpenSpec schema:
 - Planning PR B содержит ссылку на Change A и его Sync PR.
 
 После merge Planning PR B его собственная merge SHA становится `spec_baseline B`.
-Именно Baseline B передаётся в `sdd load` для реализации Change B.
+Именно Baseline B передаётся в `openspec-orch load` для реализации Change B.
 
 ### 5.4. Реализовать Change B
 
@@ -260,7 +260,7 @@ A ──► B ──► D
 Sync PR.
 
 Первая версия является документационным и agent-context изменением. Она не добавляет
-новую команду `sdd`, schema, manifest, runtime-state или проектный валидатор.
+новую команду `openspec-orch`, schema, manifest, runtime-state или проектный валидатор.
 
 Затронутые места:
 

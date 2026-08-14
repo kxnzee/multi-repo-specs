@@ -8,7 +8,7 @@ import { validateChangeName } from "../change/id.js";
 import {
   assertRepositoryId,
   assertSupportedOpenSpecVersion,
-  parseSddConfig,
+  parseOrchestratorConfig,
   parseStoreMetadata,
   sameGitRemote,
 } from "../config/index.js";
@@ -85,25 +85,25 @@ async function readStoreFile(root, relativePath) {
  * @param {string} repositoryId
  * @param {string} codeOrigin
  * @param {typeof runCommand} commandRunner
- * @returns {Promise<{config: ReturnType<typeof parseSddConfig>, repository: import("../config/index.js").Repository}>}
+ * @returns {Promise<{config: ReturnType<typeof parseOrchestratorConfig>, repository: import("../config/index.js").Repository}>}
  */
 async function inspectStoreConfig(root, storeId, repositoryId, codeOrigin, commandRunner) {
   const metadata = parseStoreMetadata(await readStoreFile(root, ".openspec-store/store.yaml"));
-  const config = parseSddConfig(await readStoreFile(root, "sdd.yaml"));
+  const config = parseOrchestratorConfig(await readStoreFile(root, "openspec-orch.yaml"));
   assertSupportedOpenSpecVersion(config.openSpecVersion);
   if (metadata.id !== storeId || config.storeRepository.id !== storeId) {
-    throw new Error(`Store metadata и sdd.yaml не подтверждают Store ${storeId}`);
+    throw new Error(`Store metadata и openspec-orch.yaml не подтверждают Store ${storeId}`);
   }
   assertRepositoryIdentity(root, config.storeRepository.url, storeId, commandRunner);
   if (metadata.remote !== undefined && !sameGitRemote(metadata.remote, config.storeRepository.url)) {
-    throw new Error(`Store ${storeId}: metadata remote не совпадает с sdd.yaml`);
+    throw new Error(`Store ${storeId}: metadata remote не совпадает с openspec-orch.yaml`);
   }
   const matches = config.codeRepositories.filter(({ id }) => id === repositoryId);
   if (matches.length !== 1) {
-    throw new Error(`repository-id ${repositoryId} не найден однозначно в sdd.yaml`);
+    throw new Error(`repository-id ${repositoryId} не найден однозначно в openspec-orch.yaml`);
   }
   if (!sameGitRemote(matches[0].url, codeOrigin)) {
-    throw new Error(`repository-id ${repositoryId}: origin не совпадает с sdd.yaml`);
+    throw new Error(`repository-id ${repositoryId}: origin не совпадает с openspec-orch.yaml`);
   }
   return { config, repository: matches[0] };
 }
@@ -117,7 +117,7 @@ async function inspectStoreConfig(root, storeId, repositoryId, codeOrigin, comma
  * @param {string} repositoryId
  * @param {string} codeOrigin
  * @param {typeof runCommand} commandRunner
- * @returns {{config: ReturnType<typeof parseSddConfig>, repository: import("../config/index.js").Repository}}
+ * @returns {{config: ReturnType<typeof parseOrchestratorConfig>, repository: import("../config/index.js").Repository}}
  */
 function inspectBaselineConfig(
   storeRoot,
@@ -127,23 +127,23 @@ function inspectBaselineConfig(
   codeOrigin,
   commandRunner,
 ) {
-  const config = parseSddConfig(
-    commandRunner("git", ["show", `${baseline}:sdd.yaml`], { cwd: storeRoot }),
+  const config = parseOrchestratorConfig(
+    commandRunner("git", ["show", `${baseline}:openspec-orch.yaml`], { cwd: storeRoot }),
   );
   assertSupportedOpenSpecVersion(config.openSpecVersion);
   if (config.storeRepository.id !== storeId) {
-    throw new Error(`sdd.yaml на spec_baseline не подтверждает Store ${storeId}`);
+    throw new Error(`openspec-orch.yaml на spec_baseline не подтверждает Store ${storeId}`);
   }
   const storeOrigin = commandRunner("git", ["remote", "get-url", "origin"], { cwd: storeRoot });
   if (!sameGitRemote(config.storeRepository.url, storeOrigin)) {
-    throw new Error(`Store ${storeId}: origin не совпадает с sdd.yaml на spec_baseline`);
+    throw new Error(`Store ${storeId}: origin не совпадает с openspec-orch.yaml на spec_baseline`);
   }
   const matches = config.codeRepositories.filter(({ id }) => id === repositoryId);
   if (matches.length !== 1) {
-    throw new Error(`repository-id ${repositoryId} не найден однозначно в sdd.yaml на spec_baseline`);
+    throw new Error(`repository-id ${repositoryId} не найден однозначно в openspec-orch.yaml на spec_baseline`);
   }
   if (!sameGitRemote(matches[0].url, codeOrigin)) {
-    throw new Error(`repository-id ${repositoryId}: origin не совпадает с sdd.yaml на spec_baseline`);
+    throw new Error(`repository-id ${repositoryId}: origin не совпадает с openspec-orch.yaml на spec_baseline`);
   }
   return { config, repository: matches[0] };
 }
@@ -188,7 +188,7 @@ export async function prepareLoad({
   const actualCodeRoot = path.resolve(
     commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd: codeRoot }),
   );
-  if (actualCodeRoot !== codeRoot) throw new Error("sdd load нужно запускать из корня Code Repository");
+  if (actualCodeRoot !== codeRoot) throw new Error("openspec-orch load нужно запускать из корня Code Repository");
   const codeOrigin = commandRunner("git", ["remote", "get-url", "origin"], { cwd: codeRoot });
   assertClean(codeRoot, commandRunner);
   await assertNoGitOperation(codeRoot, commandRunner);
@@ -215,7 +215,7 @@ export async function prepareLoad({
     commandRunner,
   );
   if (!sameGitRemote(currentMetadata.remote, acceptedStore.config.storeRepository.url)) {
-    throw new Error(`Store ${storeId}: metadata remote не совпадает с sdd.yaml на spec_baseline`);
+    throw new Error(`Store ${storeId}: metadata remote не совпадает с openspec-orch.yaml на spec_baseline`);
   }
   const workspace = await resolveCodeWorkspace(codeRoot);
   const runtimeRoot = await ensureRuntimeDirectory(workspace, [storeId, changeId, repositoryId]);
@@ -234,7 +234,7 @@ export async function prepareLoad({
   );
   const applyInstructionRelativePath = path.join(
     baselineStore.config.agent.commandsDirectory,
-    "sdd-apply.md",
+    "openspec-orch-apply.md",
   );
   const agentInstructionsRelativePath = baselineStore.config.agent.instructionsFile;
   await Promise.all([

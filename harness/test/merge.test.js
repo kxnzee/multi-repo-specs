@@ -16,7 +16,7 @@ import { mergeOpenSpecConfig } from "../init/merge.js";
  * @returns {Promise<string>} Временный каталог.
  */
 async function temporaryDirectory(t) {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "multi-repo-sdd-merge-"));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-merge-"));
   t.after(async () => fs.rm(directory, { recursive: true, force: true }));
   return directory;
 }

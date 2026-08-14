@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-/** @fileoverview Точка входа SDD CLI. */
+/** @fileoverview Точка входа OpenSpec Orchestrator CLI. */
 
 import process from "node:process";
 import { HELP } from "../cli/args.js";
@@ -20,7 +20,7 @@ import { runLoad } from "../cli/load.js";
 export function assertNodeVersion(version = process.versions.node) {
   const major = Number(version.split(".")[0]);
   if (!Number.isInteger(major) || major < 20) {
-    throw new Error("SDD requires Node.js 20 or newer");
+    throw new Error("OpenSpec Orchestrator requires Node.js 20 or newer");
   }
 }
 
@@ -46,6 +46,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(`sdd: ${error.message}`);
+  console.error(`openspec-orch: ${error.message}`);
   process.exitCode = 1;
 });

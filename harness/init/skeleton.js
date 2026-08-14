@@ -1,4 +1,4 @@
-/** @fileoverview Сборка и установка центрального SDD/OpenSpec skeleton. */
+/** @fileoverview Сборка и установка центрального OpenSpec Orchestrator/OpenSpec skeleton. */
 
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -8,10 +8,10 @@ import { fileURLToPath } from "node:url";
 import {
   assertRepositoryId,
   assertSupportedOpenSpecVersion,
-  parseSddConfig,
+  parseOrchestratorConfig,
   parseStoreMetadata,
   sameGitRemote,
-  serializeSddConfig,
+  serializeOrchestratorConfig,
 } from "../config/index.js";
 import { resolveAgentAdapter } from "../config/agents.js";
 import { runCommand } from "../shared/command.js";
@@ -44,7 +44,7 @@ const PATHS = Object.freeze({
   metadata: path.join(".openspec-store", "store.yaml"),
   openSpecConfig: path.join("openspec", "config.yaml"),
   alternateOpenSpecConfig: path.join("openspec", "config.yml"),
-  sddConfig: "sdd.yaml",
+  orchestratorConfig: "openspec-orch.yaml",
   gitIgnore: ".gitignore",
   codeOwners: "CODEOWNERS",
 });
@@ -54,9 +54,9 @@ const REQUIRED_AGENT_COMMANDS = Object.freeze([
   "opsx-explore.md",
   "opsx-continue.md",
   "opsx-update.md",
-  "sdd-context.md",
-  "sdd-change.md",
-  "sdd-apply.md",
+  "openspec-orch-context.md",
+  "openspec-orch-change.md",
+  "openspec-orch-apply.md",
 ]);
 const REQUIRED_OPEN_SPEC_DIRECTORIES = Object.freeze([
   path.join("openspec", "specs"),
@@ -127,7 +127,7 @@ function bundleTarget(relativePath) {
  * @returns {Promise<void>}
  */
 async function installOpenSpec(projectRoot, agentAdapter, commandRunner) {
-  const configRoot = await fs.mkdtemp(path.join(os.tmpdir(), "multi-repo-sdd-openspec-profile-"));
+  const configRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-openspec-profile-"));
   const openSpecConfigRoot = path.join(configRoot, "openspec");
   try {
     await fs.mkdir(openSpecConfigRoot, { recursive: true });
@@ -151,7 +151,7 @@ async function installOpenSpec(projectRoot, agentAdapter, commandRunner) {
 }
 
 /**
- * Блокирует `sdd init`, если текущий путь уже зарегистрирован как Store.
+ * Блокирует `openspec-orch init`, если текущий путь уже зарегистрирован как Store.
  *
  * @param {string} projectRoot Абсолютный путь центрального репозитория.
  * @param {typeof runCommand} commandRunner Исполнитель внешних команд.
@@ -177,7 +177,7 @@ function assertStorePathAvailable(projectRoot, commandRunner) {
       `Локальный registry OpenSpec уже регистрирует путь ${projectRoot} как Store: ` +
         `${registeredIds.join(", ")}. Для чистого первого запуска выполните:\n${commands}\n` +
         "Команда unregister удаляет только локальную регистрацию и не удаляет файлы. " +
-        "После этого повторите sdd init",
+        "После этого повторите openspec-orch init",
     );
   }
 }
@@ -217,7 +217,7 @@ function setupStore(projectRoot, storeId, remote, commandRunner) {
  * Блокирует конфликтующие управляемые пути до первого изменения проекта.
  *
  * @param {string} projectRoot Абсолютный путь центрального репозитория.
- * @param {BundleFile[]} bundleFiles Файлы, которые установит SDD.
+ * @param {BundleFile[]} bundleFiles Файлы, которые установит OpenSpec Orchestrator.
  * @param {{id: string, commandsDirectory: string, generatedDirectory: string | null}} agent
  * Выбранный agent adapter.
  * @returns {Promise<void>}
@@ -236,7 +236,7 @@ async function assertSkeletonDoesNotExist(projectRoot, bundleFiles, agent) {
     conflicts.push(relativePath);
   }
   if (conflicts.length > 0) {
-    throw new Error(`Инициализации мешают существующие SDD/OpenSpec-пути: ${conflicts.join(", ")}`);
+    throw new Error(`Инициализации мешают существующие OpenSpec Orchestrator/OpenSpec-пути: ${conflicts.join(", ")}`);
   }
 
   const agentRoot = agent.commandsDirectory.split("/")[0];
@@ -261,7 +261,7 @@ async function assertSkeletonDoesNotExist(projectRoot, bundleFiles, agent) {
 }
 
 /**
- * Проверяет, что Store metadata относится к полностью завершённому `sdd init`.
+ * Проверяет, что Store metadata относится к полностью завершённому `openspec-orch init`.
  * Проверка только читает проект и не пытается продолжить или откатить частичный запуск.
  *
  * @param {object} options Параметры проверки.
@@ -311,30 +311,30 @@ async function assertInitializationComplete({
     }
   }
 
-  const configStat = await pathState(path.join(projectRoot, PATHS.sddConfig));
+  const configStat = await pathState(path.join(projectRoot, PATHS.orchestratorConfig));
   if (configStat?.isFile() && !configStat.isSymbolicLink()) {
     try {
-      const config = parseSddConfig(
-        await fs.readFile(path.join(projectRoot, PATHS.sddConfig), "utf8"),
+      const config = parseOrchestratorConfig(
+        await fs.readFile(path.join(projectRoot, PATHS.orchestratorConfig), "utf8"),
       );
       assertSupportedOpenSpecVersion(config.openSpecVersion);
       if (config.storeRepository.id !== storeId) {
-        issues.push(`Store ID в ${PATHS.sddConfig} не совпадает с Store metadata`);
+        issues.push(`Store ID в ${PATHS.orchestratorConfig} не совпадает с Store metadata`);
       }
       if (config.agent.id !== agent.id) {
-        issues.push(`agent в ${PATHS.sddConfig} не совпадает с аргументом sdd init`);
+        issues.push(`agent в ${PATHS.orchestratorConfig} не совпадает с аргументом openspec-orch init`);
       }
       if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
-        issues.push(`URL role: store в ${PATHS.sddConfig} не совпадает с Store metadata`);
+        issues.push(`URL role: store в ${PATHS.orchestratorConfig} не совпадает с Store metadata`);
       }
     } catch (error) {
-      issues.push(`${PATHS.sddConfig}: ${error.message}`);
+      issues.push(`${PATHS.orchestratorConfig}: ${error.message}`);
     }
   }
 
   if (issues.length > 0) {
     throw new Error(
-      `needs_recovery: Store metadata существует, но sdd init не завершён: ${issues.join("; ")}. ` +
+      `needs_recovery: Store metadata существует, но openspec-orch init не завершён: ${issues.join("; ")}. ` +
         "Автоматический ремонт не выполняется; файлы проекта не изменены",
     );
   }
@@ -369,10 +369,10 @@ async function adaptGeneratedAgentPack(projectRoot, agent) {
  * @param {object} options Параметры установки.
  * @param {string} options.projectRoot Абсолютный путь центрального репозитория.
  * @param {BundleFile[]} options.bundleFiles Подготовленные файлы bundle.
- * @param {string} options.sddContents Готовое содержимое sdd.yaml.
+ * @param {string} options.orchestratorContents Готовое содержимое openspec-orch.yaml.
  * @returns {Promise<{created: string[], updated: string[]}>} Созданные и дополненные пути.
  */
-async function installSkeleton({ projectRoot, bundleFiles, sddContents }) {
+async function installSkeleton({ projectRoot, bundleFiles, orchestratorContents }) {
   const created = [];
   const updated = [];
   for (const file of bundleFiles) {
@@ -380,12 +380,12 @@ async function installSkeleton({ projectRoot, bundleFiles, sddContents }) {
     const source = file.source;
     await fs.mkdir(path.dirname(destination), { recursive: true });
 
-    if (file.target === PATHS.sddConfig) {
+    if (file.target === PATHS.orchestratorConfig) {
       const destinationStat = await pathState(destination);
       if (destinationStat) {
-        throw new Error(`${PATHS.sddConfig} уже существует`);
+        throw new Error(`${PATHS.orchestratorConfig} уже существует`);
       }
-      await fs.writeFile(destination, sddContents, "utf8");
+      await fs.writeFile(destination, orchestratorContents, "utf8");
     } else if (file.target === PATHS.openSpecConfig) {
       const destinationStat = await pathState(destination);
       if (destinationStat) {
@@ -414,7 +414,7 @@ async function installSkeleton({ projectRoot, bundleFiles, sddContents }) {
 /**
  * Один раз подготавливает центральный репозиторий как OpenSpec Store.
  * Команда повторно безопасна только для Store с тем же ID; подключение новых
- * рабочих машин и code-репозиториев выполняет `sdd connect`.
+ * рабочих машин и code-репозиториев выполняет `openspec-orch connect`.
  *
  * @param {object} [options]
  * @param {string} [options.target] Корень центрального Git-репозитория.
@@ -438,12 +438,12 @@ export async function initProject({
   const requestedRoot = path.resolve(target);
   const rootStat = await pathState(requestedRoot);
   if (!rootStat?.isDirectory() || rootStat.isSymbolicLink()) {
-    throw new Error(`sdd init требует существующий обычный каталог: ${requestedRoot}`);
+    throw new Error(`openspec-orch init требует существующий обычный каталог: ${requestedRoot}`);
   }
   const projectRoot = await fs.realpath(requestedRoot);
   if (await pathState(path.join(projectRoot, PATHS.alternateOpenSpecConfig))) {
     throw new Error(
-      `${PATHS.alternateOpenSpecConfig} нужно перенести в ${PATHS.openSpecConfig} до sdd init`,
+      `${PATHS.alternateOpenSpecConfig} нужно перенести в ${PATHS.openSpecConfig} до openspec-orch init`,
     );
   }
 
@@ -517,14 +517,14 @@ export async function initProject({
   const installedVersion = commandRunner("openspec", ["--version"], { cwd: projectRoot });
   assertSupportedOpenSpecVersion(installedVersion);
   assertStorePathAvailable(projectRoot, commandRunner);
-  const sddTemplate = await fs.readFile(path.join(skeletonRoot, PATHS.sddConfig), "utf8");
-  const sddContents = serializeSddConfig(
-    sddTemplate,
+  const orchestratorTemplate = await fs.readFile(path.join(skeletonRoot, PATHS.orchestratorConfig), "utf8");
+  const orchestratorContents = serializeOrchestratorConfig(
+    orchestratorTemplate,
     configuredRepositories,
     agent,
     installedVersion,
   );
-  parseSddConfig(sddContents);
+  parseOrchestratorConfig(orchestratorContents);
   const hasProjectFiles = (await fs.readdir(projectRoot)).some((entry) => entry !== ".git");
   // Для существующего проекта OpenSpec root нужен до Store setup; для пустого
   // репозитория Store setup сначала создаёт root, который затем принимает init.
@@ -536,7 +536,7 @@ export async function initProject({
   const installed = await installSkeleton({
     projectRoot,
     bundleFiles,
-    sddContents,
+    orchestratorContents,
   });
   return {
     target: projectRoot,

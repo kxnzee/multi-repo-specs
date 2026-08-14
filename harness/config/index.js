@@ -1,8 +1,8 @@
-/** @fileoverview Разбор и строгая проверка принадлежащей SDD конфигурации. */
+/** @fileoverview Разбор и строгая проверка принадлежащей OpenSpec Orchestrator конфигурации. */
 
 import { parse, stringify } from "yaml";
 import { resolveAgentAdapter } from "./agents.js";
-import { assertSddConfigSchema, assertStoreMetadataSchema } from "./schema.js";
+import { assertOrchestratorConfigSchema, assertStoreMetadataSchema } from "./schema.js";
 
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ROLES = new Set(["store", "code"]);
@@ -56,7 +56,7 @@ function hasHttpCredentials(value) {
 /**
  * Нормализует одну запись repositories из внешнего YAML-формата.
  *
- * @param {unknown} value Необработанная запись из sdd.yaml.
+ * @param {unknown} value Необработанная запись из openspec-orch.yaml.
  * @returns {Repository} Проверенная запись во внутреннем формате CLI.
  */
 function normalizeRepository(value) {
@@ -83,10 +83,10 @@ function normalizeRepository(value) {
 }
 
 /**
- * Читает и проверяет принадлежащую SDD часть конфигурации.
+ * Читает и проверяет принадлежащую OpenSpec Orchestrator часть конфигурации.
  * OpenSpec-конфигурацию эта функция намеренно не интерпретирует.
  *
- * @param {string} source Содержимое sdd.yaml.
+ * @param {string} source Содержимое openspec-orch.yaml.
  * @returns {{
  *   openSpecVersion: string,
  *   agent: ReturnType<typeof resolveAgentAdapter>,
@@ -95,9 +95,9 @@ function normalizeRepository(value) {
  *   codeRepositories: Repository[]
  * }}
  */
-export function parseSddConfig(source) {
-  const value = parseYaml(source, "Некорректный sdd.yaml");
-  assertSddConfigSchema(value);
+export function parseOrchestratorConfig(source) {
+  const value = parseYaml(source, "Некорректный openspec-orch.yaml");
+  assertOrchestratorConfigSchema(value);
 
   const agent = resolveAgentAdapter(value.agent?.id);
   if (
@@ -106,17 +106,17 @@ export function parseSddConfig(source) {
     value.agent.commands_directory !== agent.commandsDirectory ||
     value.agent.instructions_file !== agent.instructionsFile
   ) {
-    throw new Error(`Конфигурация agent '${agent.id}' в sdd.yaml не совпадает с адаптером SDD`);
+    throw new Error(`Конфигурация agent '${agent.id}' в openspec-orch.yaml не совпадает с адаптером OpenSpec Orchestrator`);
   }
 
   const repositories = value.repositories.map(normalizeRepository);
   const ids = new Set(repositories.map(({ id }) => id));
   if (ids.size !== repositories.length) {
-    throw new Error("sdd.yaml содержит повторяющийся repository-id");
+    throw new Error("openspec-orch.yaml содержит повторяющийся repository-id");
   }
   const stores = repositories.filter(({ role }) => role === "store");
   if (stores.length !== 1) {
-    throw new Error("sdd.yaml должен содержать ровно одну запись role: store");
+    throw new Error("openspec-orch.yaml должен содержать ровно одну запись role: store");
   }
   return {
     openSpecVersion: value.versions.openspec,
@@ -128,7 +128,7 @@ export function parseSddConfig(source) {
 }
 
 /**
- * Заполняет встроенный шаблон sdd.yaml выбранным агентом и репозиториями.
+ * Заполняет встроенный шаблон openspec-orch.yaml выбранным агентом и репозиториями.
  *
  * @param {string} template YAML-шаблон из skeleton.
  * @param {Repository[]} repositories
@@ -136,8 +136,8 @@ export function parseSddConfig(source) {
  * @param {string} [openSpecVersion] Версия OpenSpec, которую требуется зафиксировать.
  * @returns {string}
  */
-export function serializeSddConfig(template, repositories, agent, openSpecVersion) {
-  const value = parseYaml(template, "Некорректный шаблон sdd.yaml");
+export function serializeOrchestratorConfig(template, repositories, agent, openSpecVersion) {
+  const value = parseYaml(template, "Некорректный шаблон openspec-orch.yaml");
   value.versions ??= {};
   value.versions.openspec = assertSupportedOpenSpecVersion(
     openSpecVersion ?? value.versions.openspec,
@@ -166,7 +166,7 @@ export function serializeSddConfig(template, repositories, agent, openSpecVersio
  */
 export function assertSupportedOpenSpecVersion(version) {
   if (version !== OPEN_SPEC_VERSION) {
-    throw new Error(`SDD требует OpenSpec ${OPEN_SPEC_VERSION}`);
+    throw new Error(`OpenSpec Orchestrator требует OpenSpec ${OPEN_SPEC_VERSION}`);
   }
   return version;
 }

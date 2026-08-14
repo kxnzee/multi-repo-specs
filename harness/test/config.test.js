@@ -1,11 +1,11 @@
-/** @fileoverview Проверка строгой схемы и безопасности sdd.yaml. */
+/** @fileoverview Проверка строгой схемы и безопасности openspec-orch.yaml. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseSddConfig, parseStoreMetadata } from "../config/index.js";
+import { parseOrchestratorConfig, parseStoreMetadata } from "../config/index.js";
 
 /**
- * Создаёт минимальный валидный sdd.yaml для негативных тестов.
+ * Создаёт минимальный валидный openspec-orch.yaml для негативных тестов.
  *
  * @param {string} repositories YAML-список repositories.
  * @returns {string} Полный YAML.
@@ -24,33 +24,33 @@ ${repositories}
 `;
 }
 
-test("parseSddConfig rejects an unknown repository role", () => {
+test("parseOrchestratorConfig rejects an unknown repository role", () => {
   assert.throws(
-    () => parseSddConfig(config("  - id: specs\n    role: unknown\n    url: https://example.test/specs.git\n    default_branch: main")),
+    () => parseOrchestratorConfig(config("  - id: specs\n    role: unknown\n    url: https://example.test/specs.git\n    default_branch: main")),
   );
 });
 
-test("parseSddConfig rejects duplicate repository ids", () => {
+test("parseOrchestratorConfig rejects duplicate repository ids", () => {
   const repository = "  - id: specs\n    role: store\n    url: https://example.test/specs.git\n    default_branch: main";
-  assert.throws(() => parseSddConfig(config(`${repository}\n${repository}`)));
+  assert.throws(() => parseOrchestratorConfig(config(`${repository}\n${repository}`)));
 });
 
-test("parseSddConfig blocks credentials embedded in repository URL", () => {
+test("parseOrchestratorConfig blocks credentials embedded in repository URL", () => {
   assert.throws(
-    () => parseSddConfig(config("  - id: specs\n    role: store\n    url: https://user:pass@example.test/specs.git\n    default_branch: main")),
+    () => parseOrchestratorConfig(config("  - id: specs\n    role: store\n    url: https://user:pass@example.test/specs.git\n    default_branch: main")),
   );
 });
 
-test("parseSddConfig rejects missing schema sections and repository fields", () => {
-  assert.throws(() => parseSddConfig("versions: {}\nagent: {}\nrepositories: []\n"));
-  assert.throws(() => parseSddConfig("versions:\n  openspec: '1.7.0'\nrepositories: []\n"));
+test("parseOrchestratorConfig rejects missing schema sections and repository fields", () => {
+  assert.throws(() => parseOrchestratorConfig("versions: {}\nagent: {}\nrepositories: []\n"));
+  assert.throws(() => parseOrchestratorConfig("versions:\n  openspec: '1.7.0'\nrepositories: []\n"));
   assert.throws(
-    () => parseSddConfig("versions:\n  openspec: '1.7.0'\nagent: {}\nrepositories: []\n"),
+    () => parseOrchestratorConfig("versions:\n  openspec: '1.7.0'\nagent: {}\nrepositories: []\n"),
   );
   const prefix = "versions:\n  openspec: '1.7.0'\nagent:\n  id: qwen\n  openspec_adapter: qwen\n  architecture: markdown-commands\n  commands_directory: .qwen/commands\n  instructions_file: QWEN.md\n";
-  assert.throws(() => parseSddConfig(`${prefix}repositories:\n  - invalid\n`));
+  assert.throws(() => parseOrchestratorConfig(`${prefix}repositories:\n  - invalid\n`));
   assert.throws(
-    () => parseSddConfig(`${prefix}repositories:\n  - id: specs\n    role: store\n    url: https://example.test/specs.git\n`),
+    () => parseOrchestratorConfig(`${prefix}repositories:\n  - id: specs\n    role: store\n    url: https://example.test/specs.git\n`),
   );
 });
 

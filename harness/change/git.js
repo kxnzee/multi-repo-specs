@@ -1,4 +1,4 @@
-/** @fileoverview Git-инварианты первого и повторного запуска `sdd change`. */
+/** @fileoverview Git-инварианты первого и повторного запуска `openspec-orch change`. */
 
 import { inspectFreshCheckout, inspectRepositoryIdentity } from "../shared/git.js";
 import { isGitRevision } from "../shared/schema.js";
@@ -41,7 +41,7 @@ function assertBranchAbsent(projectRoot, branch, commandRunner) {
  * Проверяет первый запуск с чистой актуальной основной ветки.
  *
  * @param {string} projectRoot Корень Store.
- * @param {import("../shared/types.js").RegisteredRepository} repository Store из sdd.yaml.
+ * @param {import("../shared/types.js").RegisteredRepository} repository Store из openspec-orch.yaml.
  * @param {string} branch Новая planning-ветка.
  * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель Git.
  * @returns {import("../shared/types.js").GitState} Зафиксированная основная ветка и ревизия.
@@ -81,7 +81,7 @@ function parseStatusPaths(output) {
  * Проверяет безопасное продолжение шага в существующей planning-ветке.
  *
  * @param {string} projectRoot Корень Store.
- * @param {import("../shared/types.js").RegisteredRepository} repository Store из sdd.yaml.
+ * @param {import("../shared/types.js").RegisteredRepository} repository Store из openspec-orch.yaml.
  * @param {string} branch Ожидаемая planning-ветка.
  * @param {string} changeId Change ID.
  * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель Git.

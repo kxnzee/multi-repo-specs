@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { runCommand } from "../shared/command.js";
 
-const WORKSPACE_CONFIG_KEY = "sdd.workspace";
+const WORKSPACE_CONFIG_KEY = "openspec-orch.workspace";
 
 /**
  * Возвращает состояние пути, не считая отсутствие ошибкой.
@@ -59,14 +59,14 @@ export async function resolveWorkspace(
   if (!workspace) {
     throw new Error(
       `Не удалось определить workspace; разместите Store как <workspace>/${storeId} ` +
-      "или один раз выполните sdd connect --workspace <path>",
+      "или один раз выполните openspec-orch connect --workspace <path>",
     );
   }
   const stat = await pathState(workspace);
   if (!stat?.isDirectory() || stat.isSymbolicLink()) {
     if (configuredWorkspace) {
       throw new Error(
-        `Сохранённый workspace недоступен: ${workspace}; повторите sdd connect --workspace <path>`,
+        `Сохранённый workspace недоступен: ${workspace}; повторите openspec-orch connect --workspace <path>`,
       );
     }
     throw new Error(`Workspace должен быть обычным каталогом: ${workspace}`);
@@ -92,7 +92,7 @@ export function rememberWorkspace(storeRoot, workspace, commandRunner = runComma
 
 /**
  * Определяет workspace по стандартному checkout `<workspace>/src/<repository-id>`.
- * `sdd connect` всегда размещает Code Repositories именно в этой структуре, включая
+ * `openspec-orch connect` всегда размещает Code Repositories именно в этой структуре, включая
  * сценарий с явно заданным workspace и Store вне `<workspace>/openspec/`.
  *
  * @param {string} repositoryRoot Канонический корень Code Repository.

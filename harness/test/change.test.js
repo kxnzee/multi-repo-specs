@@ -9,11 +9,11 @@ import test from "node:test";
 
 import { buildChangeId, prepareChange } from "../change/index.js";
 import { resolveAgentAdapter } from "../config/agents.js";
-import { serializeSddConfig } from "../config/index.js";
+import { serializeOrchestratorConfig } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
 
 const QWEN = resolveAgentAdapter("qwen");
-const SDD_TEMPLATE =
+const ORCHESTRATOR_TEMPLATE =
   'version: 1\nversions:\n  process: draft\n  openspec: "1.7.0"\nagent: null\nrepositories: []\n';
 
 /**
@@ -24,7 +24,7 @@ const SDD_TEMPLATE =
  */
 function configureGit(repository) {
   runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
-  runCommand("git", ["-C", repository, "config", "user.name", "SDD Tests"]);
+  runCommand("git", ["-C", repository, "config", "user.name", "OpenSpec Orchestrator Tests"]);
 }
 
 /**
@@ -35,7 +35,7 @@ function configureGit(repository) {
  * @returns {Promise<{root: string, storeRoot: string, remote: string}>} Пути сценария.
  */
 async function createScenario(t, { archived = [] } = {}) {
-  const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "multi-repo-sdd-change-")));
+  const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-change-")));
   t.after(async () => fs.rm(root, { recursive: true, force: true }));
   const storeRoot = path.join(root, "payments-specs");
   const remote = path.join(root, "payments-specs.git");
@@ -52,7 +52,7 @@ async function createScenario(t, { archived = [] } = {}) {
   const files = {
     ".openspec-store/store.yaml":
       `version: 1\nid: payments-specs\nremote: ${JSON.stringify(remote)}\n`,
-    "sdd.yaml": serializeSddConfig(SDD_TEMPLATE, repositories, QWEN),
+    "openspec-orch.yaml": serializeOrchestratorConfig(ORCHESTRATOR_TEMPLATE, repositories, QWEN),
     "openspec/config.yaml": "schema: spec-driven\n",
     "openspec/context/00-start-here.md": "# Start\n",
     "openspec/context/system-map.yaml": "systems: []\nrelationships: []\n",

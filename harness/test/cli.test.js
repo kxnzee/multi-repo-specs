@@ -1,4 +1,4 @@
-/** @fileoverview Проверка ветвлений парсера аргументов SDD CLI. */
+/** @fileoverview Проверка ветвлений парсера аргументов OpenSpec Orchestrator CLI. */
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -7,6 +7,7 @@ import process from "node:process";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 import {
+  HELP,
   parseChangeArgs,
   parseConnectArgs,
   parseExploreArgs,
@@ -39,7 +40,7 @@ async function captureLogs(action) {
 }
 
 test("rejects unsupported Node versions", () => {
-  const entrypoint = pathToFileURL(path.resolve("bin/sdd.js")).href;
+  const entrypoint = pathToFileURL(path.resolve("bin/openspec-orch.js")).href;
   const script = `
     Object.defineProperty(process.versions, "node", { value: "18.20.0" });
     await import(${JSON.stringify(entrypoint)});
@@ -51,6 +52,16 @@ test("rejects unsupported Node versions", () => {
   );
   assert.equal(result.status, 1);
   assert.notEqual(result.stderr, "");
+});
+
+test("public binary exposes the documented CLI contract", () => {
+  const result = spawnSync(process.execPath, ["bin/openspec-orch.js", "--help"], {
+    cwd: path.resolve("."),
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0);
+  assert.equal(result.stderr, "");
+  assert.equal(result.stdout, `${HELP}\n`);
 });
 
 test("all CLI runners expose the common help without starting project operations", async () => {

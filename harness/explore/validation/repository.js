@@ -38,7 +38,7 @@ export async function resolveCodeRepositories(workspace, repositories, commandRu
     const repositoryRoot = path.join(sourceRoot, repository.id);
     const stat = await pathState(repositoryRoot);
     if (!stat?.isDirectory() || stat.isSymbolicLink()) {
-      throw new Error(`${repository.id}: отсутствует checkout ${repositoryRoot}; выполните sdd connect`);
+      throw new Error(`${repository.id}: отсутствует checkout ${repositoryRoot}; выполните openspec-orch connect`);
     }
     const canonicalRoot = await fs.realpath(repositoryRoot);
     inspectRepositoryIdentity(canonicalRoot, repository, commandRunner);
@@ -67,7 +67,7 @@ export async function validatePointer(repository, storeId, projectRoot, commandR
   const pointerPath = path.join(repository.path, OPEN_SPEC_CONFIG);
   const pointerStat = await pathState(pointerPath);
   if (!pointerStat?.isFile() || pointerStat.isSymbolicLink()) {
-    throw new Error(`${repository.id}: отсутствует принятый OpenSpec pointer; выполните sdd connect`);
+    throw new Error(`${repository.id}: отсутствует принятый OpenSpec pointer; выполните openspec-orch connect`);
   }
   const pointer = (await fs.readFile(pointerPath, "utf8")).replaceAll("\r\n", "\n");
   if (pointer !== `store: ${storeId}\n`) {

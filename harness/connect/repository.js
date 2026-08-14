@@ -21,7 +21,7 @@ function inspectCheckout(repositoryRoot, repository, commandRunner) {
   const gitRoot = path.resolve(commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd: repositoryRoot }));
   if (gitRoot !== repositoryRoot) throw new Error(`${repository.id}: каталог не является корнем Git-репозитория`);
   const origin = commandRunner("git", ["remote", "get-url", "origin"], { cwd: repositoryRoot });
-  if (!sameGitRemote(origin, repository.url)) throw new Error(`${repository.id}: origin не совпадает с sdd.yaml`);
+  if (!sameGitRemote(origin, repository.url)) throw new Error(`${repository.id}: origin не совпадает с openspec-orch.yaml`);
   const branch = commandRunner("git", ["branch", "--show-current"], { cwd: repositoryRoot });
   if (branch !== repository.defaultBranch) throw new Error(`${repository.id}: ожидается ветка ${repository.defaultBranch}`);
   const changes = commandRunner("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: repositoryRoot })

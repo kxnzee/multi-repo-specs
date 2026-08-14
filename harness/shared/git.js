@@ -6,7 +6,7 @@ import { sameGitRemote } from "../config/index.js";
 import { isGitRevision } from "./schema.js";
 
 /**
- * Сверяет корень и origin локального checkout с записью `sdd.yaml`.
+ * Сверяет корень и origin локального checkout с записью `openspec-orch.yaml`.
  *
  * @param {string} repositoryRoot Абсолютный путь checkout.
  * @param {import("./types.js").RegisteredRepository} repository Ожидаемая identity.
@@ -24,7 +24,7 @@ export function inspectRepositoryIdentity(repositoryRoot, repository, commandRun
     cwd: repositoryRoot,
   });
   if (!sameGitRemote(origin, repository.url)) {
-    throw new Error(`${repository.id}: origin не совпадает с sdd.yaml`);
+    throw new Error(`${repository.id}: origin не совпадает с openspec-orch.yaml`);
   }
 }
 

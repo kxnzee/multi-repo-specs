@@ -8,7 +8,7 @@ import process from "node:process";
 import test from "node:test";
 
 import { resolveAgentAdapter } from "../config/agents.js";
-import { parseSddConfig, serializeSddConfig } from "../config/index.js";
+import { parseOrchestratorConfig, serializeOrchestratorConfig } from "../config/index.js";
 import {
   buildExploreInvocation,
   findSpecRoot,
@@ -18,7 +18,7 @@ import {
 import { runCommand } from "../shared/command.js";
 
 const QWEN = resolveAgentAdapter("qwen");
-const SDD_TEMPLATE =
+const ORCHESTRATOR_TEMPLATE =
   'version: 1\nversions:\n  process: draft\n  openspec: "1.7.0"\nagent: null\nrepositories: []\n';
 
 /**
@@ -29,7 +29,7 @@ const SDD_TEMPLATE =
  */
 async function temporaryRoot(t) {
   const root = await fs.realpath(
-    await fs.mkdtemp(path.join(os.tmpdir(), "multi-repo-sdd-explore-")),
+    await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-explore-")),
   );
   t.after(async () => fs.rm(root, { recursive: true, force: true }));
   return root;
@@ -43,7 +43,7 @@ async function temporaryRoot(t) {
  */
 function configureGit(repository) {
   runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
-  runCommand("git", ["-C", repository, "config", "user.name", "SDD Tests"]);
+  runCommand("git", ["-C", repository, "config", "user.name", "OpenSpec Orchestrator Tests"]);
 }
 
 /**
@@ -106,13 +106,13 @@ async function createScenario(t, { withCode = false, archived = [] } = {}) {
   const storeFiles = {
     ".openspec-store/store.yaml":
       `version: 1\nid: payments-specs\nremote: ${JSON.stringify(storeRemote)}\n`,
-    "sdd.yaml": serializeSddConfig(SDD_TEMPLATE, repositories, QWEN),
+    "openspec-orch.yaml": serializeOrchestratorConfig(ORCHESTRATOR_TEMPLATE, repositories, QWEN),
     "openspec/config.yaml": "schema: spec-driven\n",
     "openspec/context/00-start-here.md": "# Start\n",
     "openspec/context/system-map.yaml": "repositories: []\n",
     "openspec/changes/archive/.gitkeep": "",
     ".qwen/commands/opsx-explore.md": "---\ndescription: explore\n---\n",
-    ".sdd/instructions/explore.md": "# Explore contract\n",
+    ".openspec-orch/instructions/explore.md": "# Explore contract\n",
   };
   for (const name of archived) {
     storeFiles[`openspec/changes/archive/${name}/.gitkeep`] = "";
@@ -203,9 +203,9 @@ function fakeOpenSpec(
   return { calls, runner };
 }
 
-test("parseSddConfig reads agent, Store and Code Repository roles", () => {
-  const config = parseSddConfig(
-    serializeSddConfig(SDD_TEMPLATE, [
+test("parseOrchestratorConfig reads agent, Store and Code Repository roles", () => {
+  const config = parseOrchestratorConfig(
+    serializeOrchestratorConfig(ORCHESTRATOR_TEMPLATE, [
       { id: "project-specs", role: "store", url: "https://example.test/specs.git", defaultBranch: "main" },
       { id: "api", role: "code", url: "ssh://git@example.test/api.git", defaultBranch: "develop" },
     ], QWEN),
@@ -215,9 +215,9 @@ test("parseSddConfig reads agent, Store and Code Repository roles", () => {
   assert.deepEqual(config.codeRepositories.map(({ id }) => id), ["api"]);
 });
 
-test("parseSddConfig rejects credentials embedded in HTTP repository URLs", () => {
+test("parseOrchestratorConfig rejects credentials embedded in HTTP repository URLs", () => {
   assert.throws(
-    () => parseSddConfig(serializeSddConfig(SDD_TEMPLATE, [
+    () => parseOrchestratorConfig(serializeOrchestratorConfig(ORCHESTRATOR_TEMPLATE, [
       { id: "project-specs", role: "store", url: "https://token@example.test/specs.git", defaultBranch: "main" },
     ], QWEN)),
   );
@@ -252,10 +252,10 @@ test("prepareExplore uses the connected workspace for Store-only Explore", async
   assert.equal(result.repositories.length, 0);
   assert.equal(
     result.exploreInstructionsPath,
-    path.join(scenario.storeRoot, ".sdd", "instructions", "explore.md"),
+    path.join(scenario.storeRoot, ".openspec-orch", "instructions", "explore.md"),
   );
   assert.match(result.store.revision, /^[0-9a-f]{40}$/);
-  await assert.rejects(fs.stat(path.join(scenario.storeRoot, ".sdd", "checkouts")));
+  await assert.rejects(fs.stat(path.join(scenario.storeRoot, ".openspec-orch", "checkouts")));
 });
 
 test("prepareExplore uses the workspace remembered by connect", async (t) => {
@@ -267,7 +267,7 @@ test("prepareExplore uses the workspace remembered by connect", async (t) => {
     customStoreRoot,
     "config",
     "--local",
-    "sdd.workspace",
+    "openspec-orch.workspace",
     scenario.workspace,
   ]);
   const openSpec = fakeOpenSpec(customStoreRoot);
@@ -306,7 +306,7 @@ test("buildExploreInvocation includes supplied runtime values", () => {
     store: { branch: "main", revision: "a".repeat(40) },
     projectSpecsOnly: false,
     repositories: [{ id: "api", branch: "main", revision: "b".repeat(40), path: "/work/src/api" }],
-    exploreInstructionsPath: "/work/openspec/payments-specs/.sdd/instructions/explore.md",
+    exploreInstructionsPath: "/work/openspec/payments-specs/.openspec-orch/instructions/explore.md",
   });
   for (const value of [
     "PAY-415",
@@ -314,7 +314,7 @@ test("buildExploreInvocation includes supplied runtime values", () => {
     "b".repeat(40),
     "/work/openspec/payments-specs",
     "/work/src/api",
-    "/work/openspec/payments-specs/.sdd/instructions/explore.md",
+    "/work/openspec/payments-specs/.openspec-orch/instructions/explore.md",
   ]) {
     assert.equal(invocation.includes(value), true);
   }
@@ -330,7 +330,7 @@ test("buildExploreInvocation requires the request intent", () => {
     store: { branch: "main", revision: "a".repeat(40) },
     projectSpecsOnly: true,
     repositories: [],
-    exploreInstructionsPath: "/work/openspec/payments-specs/.sdd/instructions/explore.md",
+    exploreInstructionsPath: "/work/openspec/payments-specs/.openspec-orch/instructions/explore.md",
   };
   assert.throws(
     () => buildExploreInvocation({ ...result, intent: " " }),
@@ -491,7 +491,7 @@ test("prepareExplore blocks a Code Repository that resolves another Store ID", a
 
 test("CLI rejects non-interactive explore before touching a project", () => {
   assert.throws(
-    () => runCommand(process.execPath, [path.resolve("bin/sdd.js"), "explore", "--ticket", "PAY-421"], {
+    () => runCommand(process.execPath, [path.resolve("bin/openspec-orch.js"), "explore", "--ticket", "PAY-421"], {
       cwd: path.resolve("."),
     }),
   );

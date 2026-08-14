@@ -1,4 +1,4 @@
-/** @fileoverview Проверка CLI-входа и Git-предусловий `sdd init`. */
+/** @fileoverview Проверка CLI-входа и Git-предусловий `openspec-orch init`. */
 
 import path from "node:path";
 
@@ -13,13 +13,13 @@ const REPOSITORY_PATTERN = /^([a-z0-9]+(?:-[a-z0-9]+)*)=(.+)#([^#]+)$/;
  */
 export async function inspectGit(projectRoot, commandRunner) {
   const gitRoot = path.resolve(commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd: projectRoot }));
-  if (gitRoot !== projectRoot) throw new Error("sdd init нужно запускать из корня центрального Git-репозитория");
+  if (gitRoot !== projectRoot) throw new Error("openspec-orch init нужно запускать из корня центрального Git-репозитория");
   if (commandRunner("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: projectRoot })) {
-    throw new Error("sdd init требует чистое рабочее дерево Git");
+    throw new Error("openspec-orch init требует чистое рабочее дерево Git");
   }
   const remote = commandRunner("git", ["remote", "get-url", "origin"], { cwd: projectRoot });
   const defaultBranch = commandRunner("git", ["branch", "--show-current"], { cwd: projectRoot });
-  if (!defaultBranch) throw new Error("sdd init нельзя запускать в detached HEAD");
+  if (!defaultBranch) throw new Error("openspec-orch init нельзя запускать в detached HEAD");
   return { remote, defaultBranch };
 }
 

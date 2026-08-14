@@ -1,6 +1,6 @@
-# SDD local data. Do not ignore openspec/, the provider-specific agent directory, or .sdd/ as a whole.
-.sdd/cache/
-.sdd/logs/
+# OpenSpec Orchestrator local data. Do not ignore openspec/, the provider-specific agent directory, or .openspec-orch/ as a whole.
+.openspec-orch/cache/
+.openspec-orch/logs/
 
 # Local credentials
-.sdd/credentials/
+.openspec-orch/credentials/
