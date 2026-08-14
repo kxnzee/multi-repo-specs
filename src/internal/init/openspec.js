@@ -4,9 +4,9 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { assertRepositoryId } from "../config/index.js";
 import { requireOpenSpecCapability } from "../shared/compatibility.js";
 import { parseOpenSpecJson } from "../shared/openspec.js";
+import { assertRepositoryId } from "../shared/schema.js";
 
 const EXPANDED_WORKFLOWS = Object.freeze([
   "propose",

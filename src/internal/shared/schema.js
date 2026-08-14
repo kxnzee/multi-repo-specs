@@ -18,6 +18,19 @@ const OPEN_SPEC_RESPONSE_SCHEMA = z.looseObject({
   status: z.array(z.unknown()).optional(),
 });
 const GIT_REVISION_SCHEMA = z.string().regex(/^[0-9a-f]{40}$/);
+const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * Проверяет устойчивый ID Store или репозитория.
+ *
+ * @param {unknown} id Проверяемое значение.
+ * @param {string} [label] Название поля для сообщения об ошибке.
+ * @returns {string} Проверенный lowercase kebab-case ID.
+ */
+export function assertRepositoryId(id, label = "repository-id") {
+  if (!ID_PATTERN.test(id ?? "")) throw new Error(`${label} должен быть в lowercase kebab-case`);
+  return id;
+}
 
 /**
  * Проверяет, что значение является обычным JSON-объектом.

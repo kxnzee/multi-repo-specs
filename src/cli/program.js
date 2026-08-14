@@ -3,10 +3,9 @@
 import { Command, InvalidArgumentError, Option } from "commander";
 
 import { validateChangeName } from "../internal/change/index.js";
-import { assertRepositoryId } from "../internal/config/index.js";
 import { validateTicket } from "../internal/explore/index.js";
 import { parseRepository } from "../internal/init/index.js";
-import { isGitRevision } from "../internal/shared/schema.js";
+import { assertRepositoryId, isGitRevision } from "../internal/shared/schema.js";
 import { runChange } from "./commands/change.js";
 import { runConnect } from "./commands/connect.js";
 import { runExplore } from "./commands/explore.js";

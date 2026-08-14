@@ -3,7 +3,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { assertRepositoryId } from "../config/index.js";
+import { assertRepositoryId } from "./schema.js";
 
 const ARCHIVE_PREFIX = /^\d{4}-\d{2}-\d{2}-(.+)$/;
 const CHANGE_NAME_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;

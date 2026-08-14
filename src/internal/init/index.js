@@ -4,7 +4,6 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import {
-  assertRepositoryId,
   parseOrchestratorConfig,
   parseStoreMetadata,
   serializeOrchestratorConfig,
@@ -12,6 +11,7 @@ import {
 import { runCommand } from "../shared/command.js";
 import { inspectOpenSpecCli } from "../shared/compatibility.js";
 import { lstatOrNull } from "../shared/files.js";
+import { assertRepositoryId } from "../shared/schema.js";
 import { BASE_TEMPLATE_ROOT, buildTemplatePlan } from "../template/index.js";
 import {
   adaptGeneratedAgentPack,

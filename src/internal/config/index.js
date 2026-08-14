@@ -2,9 +2,9 @@
 
 import { parse, stringify } from "yaml";
 import { assertPortableRelativePath } from "../shared/paths.js";
+import { assertRepositoryId } from "../shared/schema.js";
 import { parseOrchestratorConfigSchema, parseStoreMetadataSchema } from "./schema.js";
 
-const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ROLES = new Set(["store", "code"]);
 const AGENT_ARCHITECTURE = "markdown-commands";
 
@@ -241,37 +241,4 @@ export function parseStoreMetadata(source) {
     throw new Error("Store metadata remote должен быть строкой");
   }
   return { id: value.id, remote: value.remote };
-}
-
-/**
- * Проверяет устойчивый ID Store или репозитория.
- *
- * @param {unknown} id Проверяемое значение.
- * @param {string} [label] Название поля для сообщения об ошибке.
- * @returns {string} Проверенный lowercase kebab-case ID.
- */
-export function assertRepositoryId(id, label = "repository-id") {
-  if (!ID_PATTERN.test(id ?? "")) throw new Error(`${label} должен быть в lowercase kebab-case`);
-  return id;
-}
-
-/**
- * Убирает незначимые завершающие слеши из Git URL перед сравнением.
- *
- * @param {string} value Git URL.
- * @returns {string} Нормализованный URL.
- */
-function normalizeGitRemote(value) {
-  return value.trim().replace(/\/+$/, "");
-}
-
-/**
- * Сравнивает URL без завершающего слеша, не пытаясь переопределять Git-семантику.
- *
- * @param {string} actual
- * @param {string} expected
- * @returns {boolean}
- */
-export function sameGitRemote(actual, expected) {
-  return normalizeGitRemote(actual) === normalizeGitRemote(expected);
 }

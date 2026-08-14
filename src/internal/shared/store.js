@@ -4,13 +4,10 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-import {
-  parseOrchestratorConfig,
-  parseStoreMetadata,
-  sameGitRemote,
-} from "../config/index.js";
+import { parseOrchestratorConfig, parseStoreMetadata } from "../config/index.js";
 import { inspectOpenSpecCli, requireOpenSpecCapability } from "./compatibility.js";
 import { lstatOrNull, readRelativeRegularFile } from "./files.js";
+import { sameGitRemote } from "./git.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "./openspec.js";
 import { isRecord } from "./schema.js";
 

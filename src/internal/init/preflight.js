@@ -4,11 +4,9 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  parseOrchestratorConfig,
-  sameGitRemote,
-} from "../config/index.js";
+import { parseOrchestratorConfig } from "../config/index.js";
 import { lstatOrNull } from "../shared/files.js";
+import { sameGitRemote } from "../shared/git.js";
 
 const MODULE_ROOT = path.dirname(fileURLToPath(import.meta.url));
 

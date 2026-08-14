@@ -2,8 +2,28 @@
 
 import path from "node:path";
 
-import { sameGitRemote } from "../config/index.js";
 import { isGitRevision } from "./schema.js";
+
+/**
+ * Убирает незначимые завершающие слеши из Git URL перед сравнением.
+ *
+ * @param {string} value Git URL.
+ * @returns {string} Нормализованный URL.
+ */
+function normalizeGitRemote(value) {
+  return value.trim().replace(/\/+$/, "");
+}
+
+/**
+ * Сравнивает URL без завершающего слеша, не пытаясь переопределять Git-семантику.
+ *
+ * @param {string} actual
+ * @param {string} expected
+ * @returns {boolean}
+ */
+export function sameGitRemote(actual, expected) {
+  return normalizeGitRemote(actual) === normalizeGitRemote(expected);
+}
 
 /**
  * Сверяет корень и origin локального checkout с записью `openspec-orch.yaml`.
