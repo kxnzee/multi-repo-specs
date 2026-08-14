@@ -12,13 +12,13 @@ const REPOSITORY_PATTERN = /^([a-z0-9]+(?:-[a-z0-9]+)*)=(.+)#([^#]+)$/;
  * @returns {Promise<{remote: string, defaultBranch: string}>} Origin и текущая ветка.
  */
 export async function inspectGit(projectRoot, commandRunner) {
-  const gitRoot = path.resolve(commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd: projectRoot }));
+  const gitRoot = path.resolve(await commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd: projectRoot }));
   if (gitRoot !== projectRoot) throw new Error("openspec-orch init нужно запускать из корня центрального Git-репозитория");
-  if (commandRunner("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: projectRoot })) {
+  if (await commandRunner("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: projectRoot })) {
     throw new Error("openspec-orch init требует чистое рабочее дерево Git");
   }
-  const remote = commandRunner("git", ["remote", "get-url", "origin"], { cwd: projectRoot });
-  const defaultBranch = commandRunner("git", ["branch", "--show-current"], { cwd: projectRoot });
+  const remote = await commandRunner("git", ["remote", "get-url", "origin"], { cwd: projectRoot });
+  const defaultBranch = await commandRunner("git", ["branch", "--show-current"], { cwd: projectRoot });
   if (!defaultBranch) throw new Error("openspec-orch init нельзя запускать в detached HEAD");
   return { remote, defaultBranch };
 }

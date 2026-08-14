@@ -33,18 +33,18 @@ export async function connectProject({
   const storeRoot = await fs.realpath(path.resolve(start));
   const { metadata, config } = await readStoreConfiguration(storeRoot);
   const executionMode = resolveExecutionMode(config.strict, noStrict);
-  inspectOpenSpecCli(commandRunner, storeRoot);
-  const registration = runOpenSpecJson(commandRunner, ["store", "register", storeRoot, "--id", metadata.id, "--yes", "--json"], storeRoot);
+  await inspectOpenSpecCli(commandRunner, storeRoot);
+  const registration = await runOpenSpecJson(commandRunner, ["store", "register", storeRoot, "--id", metadata.id, "--yes", "--json"], storeRoot);
   assertOpenSpecStore(registration.store, { path: storeRoot, storeId: metadata.id }, "openspec store register");
-  const storeDoctor = runOpenSpecJson(commandRunner, ["store", "doctor", metadata.id, "--json"], storeRoot);
+  const storeDoctor = await runOpenSpecJson(commandRunner, ["store", "doctor", metadata.id, "--json"], storeRoot);
   assertStoreDoctor(storeDoctor, metadata.id, storeRoot);
-  const doctorOutput = commandRunner("openspec", ["doctor", "--store", metadata.id], {
+  const doctorOutput = await commandRunner("openspec", ["doctor", "--store", metadata.id], {
     cwd: storeRoot,
     environment: { NODE_NO_WARNINGS: "1" },
     onStderr: (message) => onProgress(`Предупреждение OpenSpec:\n${message}`),
   });
   if (doctorOutput) onProgress(doctorOutput);
-  const context = runOpenSpecJson(commandRunner, ["context", "--store", metadata.id, "--json"], storeRoot);
+  const context = await runOpenSpecJson(commandRunner, ["context", "--store", metadata.id, "--json"], storeRoot);
   assertOpenSpecRoot(context.root, { path: storeRoot, storeId: metadata.id, source: "store" }, `openspec context --store ${metadata.id} --json`);
   const workspace = await resolveWorkspace(
     storeRoot,
@@ -71,7 +71,7 @@ export async function connectProject({
     onProgress(`${prefix}: готово`);
   }
   if (requestedWorkspace && executionMode === "strict") {
-    rememberWorkspace(storeRoot, workspace, commandRunner);
+    await rememberWorkspace(storeRoot, workspace, commandRunner);
   }
   return {
     storeId: metadata.id,

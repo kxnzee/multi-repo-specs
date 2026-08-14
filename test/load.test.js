@@ -95,8 +95,8 @@ async function createScenario(t, {
   const codeRemote = path.join(root, "payments-api.git");
   await fs.mkdir(storeRoot, { recursive: true });
   await fs.mkdir(codeRoot, { recursive: true });
-  initializeGitRepository(storeRoot);
-  initializeGitRepository(codeRoot);
+  await initializeGitRepository(storeRoot);
+  await initializeGitRepository(codeRoot);
 
   const repositories = [
     { id: "payments-specs", role: "store", url: storeRemote, defaultBranch: "main" },
@@ -123,17 +123,17 @@ async function createScenario(t, {
     "README.md": "# API\n",
     "openspec/config.yaml": "store: payments-specs\n",
   });
-  runCommand("git", ["clone", "--bare", storeRoot, storeRemote]);
-  runCommand("git", ["clone", "--bare", codeRoot, codeRemote]);
-  runCommand("git", ["-C", storeRoot, "remote", "add", "origin", storeRemote]);
-  runCommand("git", ["-C", codeRoot, "remote", "add", "origin", codeRemote]);
+  await runCommand("git", ["clone", "--bare", storeRoot, storeRemote]);
+  await runCommand("git", ["clone", "--bare", codeRoot, codeRemote]);
+  await runCommand("git", ["-C", storeRoot, "remote", "add", "origin", storeRemote]);
+  await runCommand("git", ["-C", codeRoot, "remote", "add", "origin", codeRemote]);
   return {
     workspace,
     storeRoot: await fs.realpath(storeRoot),
     codeRoot: await fs.realpath(codeRoot),
     storeRemote,
     codeRemote,
-    baseline: runCommand("git", ["-C", storeRoot, "rev-parse", "HEAD"]),
+    baseline: await runCommand("git", ["-C", storeRoot, "rev-parse", "HEAD"]),
   };
 }
 
@@ -261,7 +261,7 @@ test("prepareLoad creates an exact Store worktree, implementation branch and min
     { id: "1", description: "2.1 API" },
     { id: "2", description: "2.2 tests" },
   ]);
-  assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.codeRoot }), result.implementationBranch);
+  assert.equal(await runCommand("git", ["branch", "--show-current"], { cwd: scenario.codeRoot }), result.implementationBranch);
   const context = JSON.parse(await fs.readFile(result.runtimePath, "utf8"));
   assert.deepEqual(Object.keys(context).sort(), [
     "allowed_edit_roots", "change_id", "code_base_revision", "code_root", "immutable_roots",
@@ -273,7 +273,7 @@ test("prepareLoad creates an exact Store worktree, implementation branch and min
   assert.equal(context.schema, "spec-driven");
   assert.deepEqual(context.allowed_edit_roots, [scenario.codeRoot]);
   assert.deepEqual(context.immutable_roots, [context.spec_root]);
-  assert.equal(runCommand("git", ["rev-parse", "HEAD"], { cwd: context.spec_root }), scenario.baseline);
+  assert.equal(await runCommand("git", ["rev-parse", "HEAD"], { cwd: context.spec_root }), scenario.baseline);
   assert.ok(openSpec.calls.some(({ args }) => args.join(" ") === [
     "validate", "pay-412-payment-status", "--type", "change", "--strict", "--no-interactive", "--json",
   ].join(" ")));
@@ -316,12 +316,12 @@ test("prepareLoad is idempotent after implementation commits on the same Baselin
   const first = await prepareLoad(options);
   const firstBase = JSON.parse(await fs.readFile(first.runtimePath, "utf8")).code_base_revision;
   await fs.writeFile(path.join(scenario.codeRoot, "implementation.txt"), "done\n", "utf8");
-  runCommand("git", ["-C", scenario.codeRoot, "add", "implementation.txt"]);
-  runCommand("git", ["-C", scenario.codeRoot, "commit", "-m", "implementation"]);
+  await runCommand("git", ["-C", scenario.codeRoot, "add", "implementation.txt"]);
+  await runCommand("git", ["-C", scenario.codeRoot, "commit", "-m", "implementation"]);
   const second = await prepareLoad({ ...options, workPackages: ["2", "1"] });
   assert.equal(second.branchStatus, "existing");
   const context = JSON.parse(await fs.readFile(second.runtimePath, "utf8"));
-  const implementationHead = runCommand("git", ["-C", scenario.codeRoot, "rev-parse", "HEAD"]);
+  const implementationHead = await runCommand("git", ["-C", scenario.codeRoot, "rev-parse", "HEAD"]);
   assert.notEqual(implementationHead, context.code_base_revision);
   assert.equal(context.code_base_revision, firstBase);
 });
@@ -340,7 +340,7 @@ test("prepareLoad rejects an unassigned or completed Work Package before creatin
       commandRunner: openSpec.runner,
     }),
   );
-  assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.codeRoot }), "main");
+  assert.equal(await runCommand("git", ["branch", "--show-current"], { cwd: scenario.codeRoot }), "main");
 });
 
 test("prepareLoad supports whole-change mode when the schema has no addressable Tasks", async (t) => {
@@ -379,7 +379,7 @@ test("prepareLoad rejects OpenSpec context paths outside the Change root", async
     }),
     /выходит за разрешённый root/,
   );
-  assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.codeRoot }), "main");
+  assert.equal(await runCommand("git", ["branch", "--show-current"], { cwd: scenario.codeRoot }), "main");
 });
 
 test("prepareLoad relaxed mode stays unpinned and preserves path security checks", async (t) => {
@@ -401,7 +401,7 @@ test("prepareLoad relaxed mode stays unpinned and preserves path security checks
   assert.equal(result.implementationBranch, null);
   assert.equal(result.branchStatus, "unmanaged");
   assert.equal(result.codeBaseRevision, "unpinned");
-  assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.codeRoot }), "main");
+  assert.equal(await runCommand("git", ["branch", "--show-current"], { cwd: scenario.codeRoot }), "main");
   const context = JSON.parse(await fs.readFile(result.runtimePath, "utf8"));
   assert.equal(context.execution_mode, "relaxed");
   assert.equal(context.spec_root, scenario.storeRoot);
@@ -455,17 +455,17 @@ test("prepareLoad uses the current subtask Baseline after implementation commits
   };
   const first = await prepareLoad(options);
   await fs.writeFile(path.join(scenario.codeRoot, "implementation.txt"), "started\n", "utf8");
-  runCommand("git", ["-C", scenario.codeRoot, "add", "implementation.txt"]);
-  runCommand("git", ["-C", scenario.codeRoot, "commit", "-m", "implementation"]);
+  await runCommand("git", ["-C", scenario.codeRoot, "add", "implementation.txt"]);
+  await runCommand("git", ["-C", scenario.codeRoot, "commit", "-m", "implementation"]);
   await fs.writeFile(path.join(scenario.storeRoot, "accepted-correction.md"), "# Correction\n", "utf8");
-  runCommand("git", ["-C", scenario.storeRoot, "add", "accepted-correction.md"]);
-  runCommand("git", ["-C", scenario.storeRoot, "commit", "-m", "correction"]);
-  runCommand("git", ["-C", scenario.storeRoot, "push", "origin", "main"]);
-  const correctedBaseline = runCommand("git", ["-C", scenario.storeRoot, "rev-parse", "HEAD"]);
+  await runCommand("git", ["-C", scenario.storeRoot, "add", "accepted-correction.md"]);
+  await runCommand("git", ["-C", scenario.storeRoot, "commit", "-m", "correction"]);
+  await runCommand("git", ["-C", scenario.storeRoot, "push", "origin", "main"]);
+  const correctedBaseline = await runCommand("git", ["-C", scenario.storeRoot, "rev-parse", "HEAD"]);
   const corrected = await prepareLoad({ ...options, baseline: correctedBaseline });
   const correctedContext = JSON.parse(await fs.readFile(corrected.runtimePath, "utf8"));
   assert.equal(correctedContext.spec_baseline, correctedBaseline);
-  assert.equal(runCommand("git", ["rev-parse", "HEAD"], { cwd: correctedContext.spec_root }), correctedBaseline);
+  assert.equal(await runCommand("git", ["rev-parse", "HEAD"], { cwd: correctedContext.spec_root }), correctedBaseline);
   assert.equal(first.runtimePath, corrected.runtimePath);
 });
 
@@ -487,7 +487,7 @@ test("prepareLoad recreates a changed immutable worktree on the same Baseline", 
   const repeated = await prepareLoad(options);
   const repeatedContext = JSON.parse(await fs.readFile(repeated.runtimePath, "utf8"));
   await assert.rejects(fs.stat(path.join(repeatedContext.spec_root, "unexpected.txt")));
-  assert.equal(runCommand("git", ["status", "--porcelain"], { cwd: repeatedContext.spec_root }), "");
+  assert.equal(await runCommand("git", ["status", "--porcelain"], { cwd: repeatedContext.spec_root }), "");
 });
 
 test("prepareLoad restores a missing but still registered immutable worktree", async (t) => {
@@ -509,10 +509,10 @@ test("prepareLoad restores a missing but still registered immutable worktree", a
   const restored = await prepareLoad(options);
   const restoredContext = JSON.parse(await fs.readFile(restored.runtimePath, "utf8"));
   assert.equal(
-    runCommand("git", ["rev-parse", "HEAD"], { cwd: restoredContext.spec_root }),
+    await runCommand("git", ["rev-parse", "HEAD"], { cwd: restoredContext.spec_root }),
     scenario.baseline,
   );
-  assert.equal(runCommand("git", ["status", "--porcelain"], { cwd: restoredContext.spec_root }), "");
+  assert.equal(await runCommand("git", ["status", "--porcelain"], { cwd: restoredContext.spec_root }), "");
 });
 
 test("prepareLoad derives an explicit connect workspace from the Code Repository", async (t) => {
@@ -547,8 +547,8 @@ test("prepareLoad uses the current subtask Work Packages after implementation co
   };
   const first = await prepareLoad(options);
   await fs.writeFile(path.join(scenario.codeRoot, "implementation.txt"), "started\n", "utf8");
-  runCommand("git", ["-C", scenario.codeRoot, "add", "implementation.txt"]);
-  runCommand("git", ["-C", scenario.codeRoot, "commit", "-m", "implementation"]);
+  await runCommand("git", ["-C", scenario.codeRoot, "add", "implementation.txt"]);
+  await runCommand("git", ["-C", scenario.codeRoot, "commit", "-m", "implementation"]);
   await prepareLoad({ ...options, workPackages: ["2"] });
   const context = JSON.parse(await fs.readFile(first.runtimePath, "utf8"));
   assert.deepEqual(context.work_packages, ["2"]);

@@ -44,7 +44,7 @@ export async function resolveWorkspace(
 ) {
   const configuredWorkspace = requestedWorkspace || !useGitConfig
     ? ""
-    : commandRunner(
+    : await commandRunner(
       "git",
       ["config", "--local", "--get", "--default", "", WORKSPACE_CONFIG_KEY],
       { cwd: storeRoot },
@@ -78,10 +78,10 @@ export async function resolveWorkspace(
  * @param {string} storeRoot Абсолютный путь центрального Store.
  * @param {string} workspace Канонический абсолютный путь workspace.
  * @param {typeof runCommand} [commandRunner] Исполнитель Git.
- * @returns {void}
+ * @returns {Promise<void>}
  */
-export function rememberWorkspace(storeRoot, workspace, commandRunner = runCommand) {
-  commandRunner(
+export async function rememberWorkspace(storeRoot, workspace, commandRunner = runCommand) {
+  await commandRunner(
     "git",
     ["config", "--local", "--replace-all", WORKSPACE_CONFIG_KEY, workspace],
     { cwd: storeRoot },

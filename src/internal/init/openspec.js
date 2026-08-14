@@ -45,7 +45,7 @@ export async function installOpenSpec(projectRoot, agentAdapter, commandRunner) 
       }, null, 2)}\n`,
       "utf8",
     );
-    commandRunner(
+    await commandRunner(
       "openspec",
       ["init", projectRoot, "--tools", agentAdapter, "--profile", "custom", "--no-animation"],
       { cwd: projectRoot, environment: { XDG_CONFIG_HOME: configRoot } },
@@ -60,11 +60,11 @@ export async function installOpenSpec(projectRoot, agentAdapter, commandRunner) 
  *
  * @param {string} projectRoot Корень Store.
  * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель команд.
- * @returns {void}
+ * @returns {Promise<void>}
  */
-export function assertStorePathAvailable(projectRoot, commandRunner) {
+export async function assertStorePathAvailable(projectRoot, commandRunner) {
   const registry = parseOpenSpecJson(
-    commandRunner("openspec", ["store", "list", "--json"], { cwd: projectRoot }),
+    await commandRunner("openspec", ["store", "list", "--json"], { cwd: projectRoot }),
     "openspec store list --json",
   );
   requireOpenSpecCapability(
@@ -99,10 +99,10 @@ export function assertStorePathAvailable(projectRoot, commandRunner) {
  * @param {string} storeId Store ID.
  * @param {string} remote Git URL Store.
  * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель команд.
- * @returns {void}
+ * @returns {Promise<void>}
  */
-export function setupStore(projectRoot, storeId, remote, commandRunner) {
-  const output = commandRunner(
+export async function setupStore(projectRoot, storeId, remote, commandRunner) {
+  const output = await commandRunner(
     "openspec",
     [
       "store",

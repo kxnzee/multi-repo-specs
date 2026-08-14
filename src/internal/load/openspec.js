@@ -41,12 +41,12 @@ const APPLY_SCHEMA = z.looseObject({
  * @param {string} storeId
  * @param {string} codeRoot
  * @param {typeof import("../shared/command.js").runCommand} commandRunner
- * @returns {string}
+ * @returns {Promise<string>}
  */
-export function resolveHealthyStore(storeId, codeRoot, commandRunner) {
-  inspectOpenSpecCli(commandRunner, codeRoot);
+export async function resolveHealthyStore(storeId, codeRoot, commandRunner) {
+  await inspectOpenSpecCli(commandRunner, codeRoot);
   const command = "openspec doctor --json";
-  const doctor = runOpenSpecJson(commandRunner, ["doctor", "--json"], codeRoot);
+  const doctor = await runOpenSpecJson(commandRunner, ["doctor", "--json"], codeRoot);
   const root = parseOpenSpecRoot(doctor.root, command);
   if (root.source !== "declared" || root.store_id !== storeId) {
     throw new Error(
@@ -62,7 +62,7 @@ export function resolveHealthyStore(storeId, codeRoot, commandRunner) {
     throw new Error(`Store ${storeId} не прошёл проверку здоровья \`${command}\``);
   }
   const storeRoot = path.resolve(root.path);
-  const storeDoctor = runOpenSpecJson(
+  const storeDoctor = await runOpenSpecJson(
     commandRunner,
     ["store", "doctor", storeId, "--json"],
     codeRoot,
@@ -140,7 +140,7 @@ export async function validateImplementationInput({
     "--no-interactive",
     "--json",
   ];
-  const validation = runOpenSpecJson(
+  const validation = await runOpenSpecJson(
     commandRunner,
     validationArgs,
     worktreeRoot,
@@ -161,7 +161,7 @@ export async function validateImplementationInput({
     throw new Error(`OpenSpec Change ${changeId} не прошёл validation`);
   }
 
-  const instructions = runOpenSpecJson(
+  const instructions = await runOpenSpecJson(
     commandRunner,
     ["instructions", "apply", "--change", changeId, "--json"],
     worktreeRoot,

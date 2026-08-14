@@ -58,7 +58,7 @@ function assertRelativeArtifactPath(value, label) {
 export async function resolveChangeStore(start, commandRunner) {
   const projectRoot = await findSpecRoot(start);
   const { metadata, config } = await readStoreConfiguration(projectRoot);
-  const activeChanges = validateOpenSpec(
+  const activeChanges = await validateOpenSpec(
     projectRoot,
     metadata.id,
     commandRunner,
@@ -115,7 +115,7 @@ export async function readChangeStatus(
   commandRunner,
   expected = {},
 ) {
-  const status = runOpenSpecJson(
+  const status = await runOpenSpecJson(
     commandRunner,
     ["status", "--change", changeId, "--store", storeId, "--json"],
     projectRoot,

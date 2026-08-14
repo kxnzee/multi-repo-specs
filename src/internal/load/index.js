@@ -91,7 +91,7 @@ async function inspectStoreConfig(root, storeId, repositoryId, codeOrigin, comma
       `openspec-orch.yaml объявляет Store ${config.storeRepository.id}, ожидался ${storeId}`,
     );
   }
-  if (strict) inspectRepositoryIdentity(root, config.storeRepository, commandRunner);
+  if (strict) await inspectRepositoryIdentity(root, config.storeRepository, commandRunner);
   if (metadata.remote !== undefined && !sameGitRemote(metadata.remote, config.storeRepository.url)) {
     throw new Error(`Store ${storeId}: metadata remote не совпадает с openspec-orch.yaml`);
   }
@@ -146,7 +146,7 @@ export async function prepareLoad({
   if (pointerStoreId !== storeId) {
     throw new Error(`Code Repository указывает на Store ${pointerStoreId}, а subtask передала ${storeId}`);
   }
-  const declaredStoreRoot = resolveHealthyStore(storeId, codeRoot, commandRunner);
+  const declaredStoreRoot = await resolveHealthyStore(storeId, codeRoot, commandRunner);
   const storeRoot = await fs.realpath(declaredStoreRoot);
   if (storeRoot !== declaredStoreRoot) throw new Error("Зарегистрированный Store root не должен быть symlink");
 
@@ -158,7 +158,7 @@ export async function prepareLoad({
   } catch (error) {
     if (noStrict || !isGitRevision(baseline)) throw error;
     currentConfig = parseOrchestratorConfig(
-      commandRunner("git", ["show", `${baseline}:openspec-orch.yaml`], { cwd: storeRoot }),
+      await commandRunner("git", ["show", `${baseline}:openspec-orch.yaml`], { cwd: storeRoot }),
     );
   }
   const executionMode = resolveExecutionMode(currentConfig.strict, noStrict);
@@ -195,19 +195,19 @@ export async function prepareLoad({
   let branch;
   if (strict) {
     const actualCodeRoot = path.resolve(
-      commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd: codeRoot }),
+      await commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd: codeRoot }),
     );
     if (actualCodeRoot !== codeRoot) {
       throw new Error("openspec-orch load нужно запускать из корня Code Repository");
     }
-    const codeOrigin = commandRunner("git", ["remote", "get-url", "origin"], { cwd: codeRoot });
-    assertClean(codeRoot, commandRunner);
+    const codeOrigin = await commandRunner("git", ["remote", "get-url", "origin"], { cwd: codeRoot });
+    await assertClean(codeRoot, commandRunner);
     await assertNoGitOperation(codeRoot, commandRunner);
-    inspectRepositoryIdentity(storeRoot, currentConfig.storeRepository, commandRunner);
-    fetchStoreObjects(storeRoot, baseline, commandRunner);
+    await inspectRepositoryIdentity(storeRoot, currentConfig.storeRepository, commandRunner);
+    await fetchStoreObjects(storeRoot, baseline, commandRunner);
     specRoot = path.join(runtimeRoot, "store");
     await ensureStoreWorktree({ storeRoot, worktreeRoot: specRoot, baseline, commandRunner });
-    const worktreeRevision = commandRunner("git", ["rev-parse", "HEAD"], { cwd: specRoot });
+    const worktreeRevision = await commandRunner("git", ["rev-parse", "HEAD"], { cwd: specRoot });
     if (worktreeRevision !== baseline) {
       throw new Error("Runtime Store worktree находится не на spec_baseline");
     }
@@ -255,7 +255,7 @@ export async function prepareLoad({
     commandRunner,
     strict,
   });
-  if (strict) assertClean(specRoot, commandRunner);
+  if (strict) await assertClean(specRoot, commandRunner);
   if (strict) {
     branch = await prepareImplementationBranch({
       codeRoot,

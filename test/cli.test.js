@@ -36,10 +36,10 @@ async function parseCommand(args) {
   return invocation;
 }
 
-test("rejects unsupported Node versions", () => {
+test("rejects Node versions below the runtime dependency boundary", () => {
   const entrypoint = pathToFileURL(path.resolve("src/bin/openspec-orch.js")).href;
   const script = `
-    Object.defineProperty(process.versions, "node", { value: "18.20.0" });
+    Object.defineProperty(process.versions, "node", { value: "20.4.0" });
     await import(${JSON.stringify(entrypoint)});
   `;
   const result = spawnSync(

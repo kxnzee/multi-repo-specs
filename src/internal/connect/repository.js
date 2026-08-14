@@ -13,19 +13,19 @@ import { isGitRevision } from "../shared/schema.js";
  * @param {string} repositoryRoot Абсолютный путь checkout.
  * @param {{id: string, url: string, defaultBranch: string}} repository Конфигурация репозитория.
  * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель Git.
- * @returns {{branch: string, revision: string}} Проверенное Git-состояние.
+ * @returns {Promise<{branch: string, revision: string}>} Проверенное Git-состояние.
  */
-function inspectCheckout(repositoryRoot, repository, commandRunner) {
-  inspectRepositoryIdentity(repositoryRoot, repository, commandRunner);
-  const branch = commandRunner("git", ["branch", "--show-current"], { cwd: repositoryRoot });
+async function inspectCheckout(repositoryRoot, repository, commandRunner) {
+  await inspectRepositoryIdentity(repositoryRoot, repository, commandRunner);
+  const branch = await commandRunner("git", ["branch", "--show-current"], { cwd: repositoryRoot });
   if (branch !== repository.defaultBranch) throw new Error(`${repository.id}: ожидается ветка ${repository.defaultBranch}`);
-  const changes = commandRunner("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: repositoryRoot })
+  const changes = (await commandRunner("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: repositoryRoot }))
     .split(/\r?\n/)
     .filter(Boolean);
   if (changes.some((line) => line.slice(3) !== POINTER_PATH)) {
     throw new Error(`${repository.id}: рабочее дерево должно быть чистым`);
   }
-  const revision = commandRunner("git", ["rev-parse", "HEAD"], { cwd: repositoryRoot });
+  const revision = await commandRunner("git", ["rev-parse", "HEAD"], { cwd: repositoryRoot });
   if (!isGitRevision(revision)) {
     throw new Error(`${repository.id}: Git вернул некорректную ревизию`);
   }
@@ -64,7 +64,7 @@ export async function connectRepository({
       );
     }
     onProgress("клонирование...");
-    commandRunner("git", ["clone", "--single-branch", "--no-tags", "--branch", repository.defaultBranch, "--", repository.url, repositoryRoot], {
+    await commandRunner("git", ["clone", "--single-branch", "--no-tags", "--branch", repository.defaultBranch, "--", repository.url, repositoryRoot], {
       cwd: sourceRoot,
       sensitiveValues: [repository.url],
     });
@@ -75,22 +75,22 @@ export async function connectRepository({
     onProgress("проверка существующего checkout...");
   }
   const git = executionMode === "strict"
-    ? inspectCheckout(repositoryRoot, repository, commandRunner)
+    ? await inspectCheckout(repositoryRoot, repository, commandRunner)
     : { branch: "unpinned", revision: "unpinned" };
   const pointerCreated = await ensurePointer(repositoryRoot, storeId);
-  const pointerPending = executionMode === "strict" && Boolean(commandRunner(
+  const pointerPending = executionMode === "strict" && Boolean(await commandRunner(
     "git",
     ["status", "--porcelain", "--untracked-files=all", "--", POINTER_PATH],
     { cwd: repositoryRoot },
   ));
   onProgress("проверка OpenSpec pointer...");
-  const doctorOutput = commandRunner("openspec", ["doctor"], {
+  const doctorOutput = await commandRunner("openspec", ["doctor"], {
     cwd: repositoryRoot,
     environment: { NODE_NO_WARNINGS: "1" },
     onStderr: (message) => onProgress(`Предупреждение OpenSpec:\n${message}`),
   });
   if (doctorOutput) onProgress(doctorOutput);
-  const context = runOpenSpecJson(commandRunner, ["context", "--json"], repositoryRoot);
+  const context = await runOpenSpecJson(commandRunner, ["context", "--json"], repositoryRoot);
   assertOpenSpecRoot(context.root, { path: storeRoot, storeId, source: "declared" }, "openspec context --json");
   return {
     id: repository.id,

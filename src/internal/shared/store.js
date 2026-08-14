@@ -161,12 +161,12 @@ export function assertStoreDoctor(payload, storeId, projectRoot) {
  * @param {string} projectRoot Абсолютный путь Store.
  * @param {string} storeId Ожидаемый Store ID.
  * @param {typeof import("./command.js").runCommand} commandRunner Исполнитель OpenSpec.
- * @returns {Array<{name: string}>} Активные Changes из разрешённого Store.
+ * @returns {Promise<Array<{name: string}>>} Активные Changes из разрешённого Store.
  */
-export function validateOpenSpec(projectRoot, storeId, commandRunner) {
-  inspectOpenSpecCli(commandRunner, projectRoot);
+export async function validateOpenSpec(projectRoot, storeId, commandRunner) {
+  await inspectOpenSpecCli(commandRunner, projectRoot);
 
-  const storeList = runOpenSpecJson(commandRunner, ["store", "list", "--json"], projectRoot);
+  const storeList = await runOpenSpecJson(commandRunner, ["store", "list", "--json"], projectRoot);
   requireOpenSpecCapability(
     Array.isArray(storeList.stores),
     "openspec store list --json: stores[]",
@@ -183,7 +183,7 @@ export function validateOpenSpec(projectRoot, storeId, commandRunner) {
     "openspec store list --json",
   );
 
-  const storeDoctor = runOpenSpecJson(
+  const storeDoctor = await runOpenSpecJson(
     commandRunner,
     ["store", "doctor", storeId, "--json"],
     projectRoot,
@@ -191,7 +191,7 @@ export function validateOpenSpec(projectRoot, storeId, commandRunner) {
   assertStoreDoctor(storeDoctor, storeId, projectRoot);
 
   const doctorCommand = `openspec doctor --store ${storeId} --json`;
-  const doctor = runOpenSpecJson(
+  const doctor = await runOpenSpecJson(
     commandRunner,
     ["doctor", "--store", storeId, "--json"],
     projectRoot,
@@ -214,14 +214,14 @@ export function validateOpenSpec(projectRoot, storeId, commandRunner) {
   }
 
   const contextCommand = `openspec context --store ${storeId} --json`;
-  const context = runOpenSpecJson(
+  const context = await runOpenSpecJson(
     commandRunner,
     ["context", "--store", storeId, "--json"],
     projectRoot,
   );
   assertOpenSpecRoot(context.root, { path: projectRoot, storeId, source: "store" }, contextCommand);
 
-  const changes = runOpenSpecJson(
+  const changes = await runOpenSpecJson(
     commandRunner,
     ["list", "--changes", "--store", storeId, "--json"],
     projectRoot,

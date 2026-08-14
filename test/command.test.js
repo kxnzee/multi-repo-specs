@@ -3,24 +3,39 @@
 import assert from "node:assert/strict";
 import process from "node:process";
 import test from "node:test";
+import { setImmediate as waitForImmediate } from "node:timers/promises";
 
 import { runCommand } from "../src/internal/shared/command.js";
 
-test("runCommand resolves the npm executable on every supported platform", () => {
+test("runCommand resolves the npm executable on every supported platform", async () => {
   // В Windows это npm.cmd, поэтому тест защищает именно cross-platform runner.
-  assert.match(runCommand("npm", ["--version"]), /^\d+\.\d+\.\d+/);
+  assert.match(await runCommand("npm", ["--version"]), /^\d+\.\d+\.\d+/);
 });
 
-test("runCommand includes stderr from a failed process", () => {
-  assert.throws(
-    () => runCommand(process.execPath, ["-e", "console.error('failure-details'); process.exit(2)"]),
+test("runCommand yields control while the subprocess is running", async () => {
+  const execution = runCommand(
+    process.execPath,
+    ["-e", "setTimeout(() => process.stdout.write('done'), 100)"],
+  );
+  let completed = false;
+  execution.then(() => {
+    completed = true;
+  });
+  await waitForImmediate();
+  assert.equal(completed, false);
+  assert.equal(await execution, "done");
+});
+
+test("runCommand includes stderr from a failed process", async () => {
+  await assert.rejects(
+    runCommand(process.execPath, ["-e", "console.error('failure-details'); process.exit(2)"]),
     /failure-details/,
   );
 });
 
-test("runCommand forwards stderr from a successful process without failing", () => {
+test("runCommand forwards stderr from a successful process without failing", async () => {
   const warnings = [];
-  const output = runCommand(
+  const output = await runCommand(
     process.execPath,
     ["-e", "console.error('config-warning'); process.stdout.write('ok')"],
     { onStderr: (message) => warnings.push(message) },
@@ -30,9 +45,9 @@ test("runCommand forwards stderr from a successful process without failing", () 
   assert.deepEqual(warnings, ["config-warning"]);
 });
 
-test("runCommand passes an isolated environment override", () => {
+test("runCommand passes an isolated environment override", async () => {
   assert.equal(
-    runCommand(
+    await runCommand(
       process.execPath,
       ["-e", "process.stdout.write(process.env.OPENSPEC_ORCH_TEST_ENVIRONMENT ?? '')"],
       { environment: { OPENSPEC_ORCH_TEST_ENVIRONMENT: "expanded" } },
@@ -41,10 +56,10 @@ test("runCommand passes an isolated environment override", () => {
   );
 });
 
-test("runCommand redacts sensitive values from invocation and stderr", () => {
+test("runCommand redacts sensitive values from invocation and stderr", async () => {
   const secret = "https://user:pass@example.test/repository.git";
-  assert.throws(
-    () => runCommand(
+  await assert.rejects(
+    runCommand(
       process.execPath,
       ["-e", "console.error(process.argv[1]); process.exit(1)", secret],
       { sensitiveValues: [secret] },
@@ -56,9 +71,9 @@ test("runCommand redacts sensitive values from invocation and stderr", () => {
   );
 });
 
-test("runCommand terminates a process after timeout", () => {
-  assert.throws(
-    () => runCommand(process.execPath, ["-e", "setTimeout(() => {}, 10_000)"], { timeout: 25 }),
+test("runCommand terminates a process after timeout", async () => {
+  await assert.rejects(
+    runCommand(process.execPath, ["-e", "setTimeout(() => {}, 10_000)"], { timeout: 25 }),
   );
-  assert.throws(() => runCommand(process.execPath, ["--version"], { timeout: 0 }));
+  await assert.rejects(runCommand(process.execPath, ["--version"], { timeout: 0 }));
 });

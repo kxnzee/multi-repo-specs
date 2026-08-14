@@ -68,7 +68,7 @@ export async function prepareExplore({
   await readRelativeRegularFile(projectRoot, exploreInstructionsRelativePath);
 
   await validateOpenSpecAction(projectRoot, config.agent);
-  const activeChanges = validateOpenSpec(
+  const activeChanges = await validateOpenSpec(
     projectRoot,
     metadata.id,
     commandRunner,
@@ -108,7 +108,7 @@ export async function prepareExplore({
   }
 
   const store = executionMode === "strict"
-    ? inspectFreshCheckout(projectRoot, config.storeRepository, commandRunner)
+    ? await inspectFreshCheckout(projectRoot, config.storeRepository, commandRunner)
     : { branch: "unpinned", revision: "unpinned" };
   const duplicates = await findDuplicates(projectRoot, ticket, activeChanges);
   if (duplicates.active.length > 0) {
@@ -131,7 +131,7 @@ export async function prepareExplore({
     const prefix = `[${index + 1}/${selected.length}] ${repository.id}`;
     onProgress(`${prefix}: проверка актуальности...`);
     const git = executionMode === "strict"
-      ? inspectFreshCheckout(repository.path, repository, commandRunner)
+      ? await inspectFreshCheckout(repository.path, repository, commandRunner)
       : { branch: "unpinned", revision: "unpinned" };
     await validatePointer(repository, metadata.id, projectRoot, commandRunner);
     repositories.push({ id: repository.id, path: repository.path, ...git });

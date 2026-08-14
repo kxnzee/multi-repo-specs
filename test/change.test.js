@@ -32,7 +32,7 @@ async function createScenario(t, { archived = [], schema = "spec-driven" } = {})
   const storeRoot = path.join(root, "payments-specs");
   const remote = path.join(root, "payments-specs.git");
   await fs.mkdir(storeRoot);
-  initializeGitRepository(storeRoot);
+  await initializeGitRepository(storeRoot);
 
   const repositories = [{
     id: "payments-specs",
@@ -51,8 +51,8 @@ async function createScenario(t, { archived = [], schema = "spec-driven" } = {})
   };
   for (const name of archived) files[`openspec/changes/archive/${name}/.gitkeep`] = "";
   await commitFiles(storeRoot, files);
-  runCommand("git", ["clone", "--bare", storeRoot, remote]);
-  runCommand("git", ["-C", storeRoot, "remote", "add", "origin", remote]);
+  await runCommand("git", ["clone", "--bare", storeRoot, remote]);
+  await runCommand("git", ["-C", storeRoot, "remote", "add", "origin", remote]);
   return { root, storeRoot: await fs.realpath(storeRoot), remote };
 }
 
@@ -185,7 +185,7 @@ test("prepareChange creates a planning branch and standard OpenSpec Change", asy
   assert.equal(result.nextArtifact.id, "proposal");
   assert.equal(result.nextArtifact.resolvedOutputPath, path.join(result.changePath, "proposal.md"));
   assert.equal(
-    runCommand("git", ["branch", "--show-current"], { cwd: scenario.storeRoot }),
+    await runCommand("git", ["branch", "--show-current"], { cwd: scenario.storeRoot }),
     result.branch,
   );
   assert.equal(
@@ -226,7 +226,7 @@ test("prepareChange relaxed mode creates a Change without managing Git branches"
   assert.equal(result.executionMode, "relaxed");
   assert.equal(result.branch, null);
   assert.equal(result.baseRevision, "unpinned");
-  assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.storeRoot }), "main");
+  assert.equal(await runCommand("git", ["branch", "--show-current"], { cwd: scenario.storeRoot }), "main");
 });
 
 test("prepareChange reports a concrete missing OpenSpec JSON capability", async (t) => {
@@ -306,7 +306,7 @@ test("prepareChange rejects an explicit Store ID from another checkout", async (
       commandRunner: openSpec.runner,
     }),
   );
-  assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.storeRoot }), "main");
+  assert.equal(await runCommand("git", ["branch", "--show-current"], { cwd: scenario.storeRoot }), "main");
 });
 
 test("prepareChange safely resumes an existing Change without recreating it", async (t) => {
@@ -342,7 +342,7 @@ test("prepareChange blocks another active Change for the same ticket", async (t)
       commandRunner: openSpec.runner,
     }),
   );
-  assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.storeRoot }), "main");
+  assert.equal(await runCommand("git", ["branch", "--show-current"], { cwd: scenario.storeRoot }), "main");
 });
 
 test("prepareChange requires explicit confirmation for an archived ticket", async (t) => {
@@ -377,7 +377,7 @@ test("prepareChange requires explicit confirmation for an archived ticket", asyn
 
 test("prepareChange reports recovery for a planning branch without Change", async (t) => {
   const scenario = await createScenario(t);
-  runCommand("git", ["switch", "-c", "feature/pay-416-payment-status"], {
+  await runCommand("git", ["switch", "-c", "feature/pay-416-payment-status"], {
     cwd: scenario.storeRoot,
   });
   const openSpec = fakeOpenSpec(scenario.storeRoot);
@@ -438,7 +438,7 @@ test("prepareChange follows a custom schema without proposal or tasks", async (t
 
 test("prepareChange blocks an existing remote planning branch", async (t) => {
   const scenario = await createScenario(t);
-  runCommand(
+  await runCommand(
     "git",
     ["push", "origin", "main:refs/heads/feature/pay-418-payment-status"],
     { cwd: scenario.storeRoot },
@@ -452,5 +452,5 @@ test("prepareChange blocks an existing remote planning branch", async (t) => {
       commandRunner: openSpec.runner,
     }),
   );
-  assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.storeRoot }), "main");
+  assert.equal(await runCommand("git", ["branch", "--show-current"], { cwd: scenario.storeRoot }), "main");
 });

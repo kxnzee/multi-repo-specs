@@ -33,7 +33,7 @@ export async function resolveCodeRepositories(
     }
     const canonicalRoot = await fs.realpath(repositoryRoot);
     if (executionMode === "strict") {
-      inspectRepositoryIdentity(canonicalRoot, repository, commandRunner);
+      await inspectRepositoryIdentity(canonicalRoot, repository, commandRunner);
     }
     resolved.push({ ...repository, path: canonicalRoot });
   }
@@ -67,7 +67,7 @@ export async function validatePointer(repository, storeId, projectRoot, commandR
   }
 
   const doctorCommand = "openspec doctor --json";
-  const doctor = runOpenSpecJson(commandRunner, ["doctor", "--json"], repository.path);
+  const doctor = await runOpenSpecJson(commandRunner, ["doctor", "--json"], repository.path);
   assertOpenSpecRoot(
     doctor.root,
     { path: projectRoot, storeId, source: "declared" },
@@ -77,7 +77,7 @@ export async function validatePointer(repository, storeId, projectRoot, commandR
     throw new Error(`${repository.id}: OpenSpec root не прошёл doctor`);
   }
 
-  const context = runOpenSpecJson(commandRunner, ["context", "--json"], repository.path);
+  const context = await runOpenSpecJson(commandRunner, ["context", "--json"], repository.path);
   assertOpenSpecRoot(
     context.root,
     { path: projectRoot, storeId, source: "declared" },

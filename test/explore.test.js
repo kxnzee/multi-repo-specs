@@ -257,7 +257,7 @@ test("prepareExplore uses the workspace remembered by connect", async (t) => {
   const scenario = await createScenario(t);
   const customStoreRoot = path.join(scenario.root, "custom-store");
   await fs.rename(scenario.storeRoot, customStoreRoot);
-  runCommand("git", [
+  await runCommand("git", [
     "-C",
     customStoreRoot,
     "config",
@@ -334,8 +334,8 @@ test("buildExploreInvocation requires the request intent", () => {
 
 test("prepareExplore uses existing selected checkout at its exact clean revision", async (t) => {
   const scenario = await createScenario(t, { withCode: true });
-  runCommand("git", ["-C", scenario.codeRoot, "config", "remote.origin.fetch", "+refs/heads/other:refs/remotes/origin/other"]);
-  runCommand("git", ["-C", scenario.codeRoot, "update-ref", "-d", "refs/remotes/origin/main"]);
+  await runCommand("git", ["-C", scenario.codeRoot, "config", "remote.origin.fetch", "+refs/heads/other:refs/remotes/origin/other"]);
+  await runCommand("git", ["-C", scenario.codeRoot, "update-ref", "-d", "refs/remotes/origin/main"]);
   const openSpec = fakeOpenSpec(scenario.storeRoot);
   const result = await prepareExplore({
     start: scenario.storeRoot,
@@ -344,9 +344,9 @@ test("prepareExplore uses existing selected checkout at its exact clean revision
     commandRunner: openSpec.runner,
   });
   assert.equal(result.repositories[0].path, scenario.codeRoot);
-  assert.equal(result.repositories[0].revision, runCommand("git", ["-C", scenario.codeRoot, "rev-parse", "HEAD"]));
+  assert.equal(result.repositories[0].revision, await runCommand("git", ["-C", scenario.codeRoot, "rev-parse", "HEAD"]));
   assert.equal(
-    runCommand("git", ["-C", scenario.codeRoot, "rev-parse", "origin/main"]),
+    await runCommand("git", ["-C", scenario.codeRoot, "rev-parse", "origin/main"]),
     result.repositories[0].revision,
   );
 });
@@ -504,9 +504,9 @@ test("prepareExplore blocks a Code Repository that resolves another Store ID", a
   );
 });
 
-test("CLI rejects non-interactive explore before touching a project", () => {
-  assert.throws(
-    () => runCommand(process.execPath, [path.resolve("src/bin/openspec-orch.js"), "explore", "--ticket", "PAY-421"], {
+test("CLI rejects non-interactive explore before touching a project", async () => {
+  await assert.rejects(
+    runCommand(process.execPath, [path.resolve("src/bin/openspec-orch.js"), "explore", "--ticket", "PAY-421"], {
       cwd: path.resolve("."),
     }),
   );

@@ -15,11 +15,11 @@ import {
  * @param {typeof import("./command.js").runCommand} commandRunner Исполнитель внешних команд.
  * @param {string[]} args Аргументы OpenSpec.
  * @param {string} cwd Рабочий каталог.
- * @returns {import("./types.js").OpenSpecResponse} Проверенный ответ.
+ * @returns {Promise<import("./types.js").OpenSpecResponse>} Проверенный ответ.
  */
-export function runOpenSpecJson(commandRunner, args, cwd) {
+export async function runOpenSpecJson(commandRunner, args, cwd) {
   const command = `openspec ${args.join(" ")}`;
-  return parseOpenSpecJson(commandRunner("openspec", args, { cwd }), command);
+  return parseOpenSpecJson(await commandRunner("openspec", args, { cwd }), command);
 }
 
 /**

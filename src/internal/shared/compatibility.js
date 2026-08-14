@@ -8,10 +8,10 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?
  *
  * @param {typeof import("./command.js").runCommand} commandRunner
  * @param {string} cwd
- * @returns {string}
+ * @returns {Promise<string>}
  */
-export function inspectOpenSpecCli(commandRunner, cwd) {
-  const version = commandRunner("openspec", ["--version"], { cwd }).trim();
+export async function inspectOpenSpecCli(commandRunner, cwd) {
+  const version = (await commandRunner("openspec", ["--version"], { cwd })).trim();
   if (!VERSION_PATTERN.test(version)) {
     throw new Error(
       "OpenSpec Orchestrator не может определить версию OpenSpec CLI: " +

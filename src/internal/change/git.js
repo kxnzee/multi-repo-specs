@@ -11,9 +11,9 @@ import { isGitRevision } from "../shared/schema.js";
  *
  * @param {string} projectRoot Корень Store.
  * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель Git.
- * @returns {string} Имя текущей ветки.
+ * @returns {Promise<string>} Имя текущей ветки.
  */
-export function currentBranch(projectRoot, commandRunner) {
+export async function currentBranch(projectRoot, commandRunner) {
   return commandRunner("git", ["branch", "--show-current"], { cwd: projectRoot });
 }
 
@@ -23,16 +23,16 @@ export function currentBranch(projectRoot, commandRunner) {
  * @param {string} projectRoot Корень Store.
  * @param {string} branch Ожидаемая planning-ветка.
  * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель Git.
- * @returns {void}
+ * @returns {Promise<void>}
  */
-function assertBranchAbsent(projectRoot, branch, commandRunner) {
-  const local = commandRunner(
+async function assertBranchAbsent(projectRoot, branch, commandRunner) {
+  const local = await commandRunner(
     "git",
     ["branch", "--list", branch, "--format=%(refname:short)"],
     { cwd: projectRoot },
   );
   if (local) throw new Error(`needs_recovery: локальная planning-ветка уже существует: ${branch}`);
-  const remote = commandRunner(
+  const remote = await commandRunner(
     "git",
     ["ls-remote", "--heads", "origin", `refs/heads/${branch}`],
     { cwd: projectRoot },
@@ -47,11 +47,11 @@ function assertBranchAbsent(projectRoot, branch, commandRunner) {
  * @param {import("../shared/types.js").RegisteredRepository} repository Store из openspec-orch.yaml.
  * @param {string} branch Новая planning-ветка.
  * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель Git.
- * @returns {import("../shared/types.js").GitState} Зафиксированная основная ветка и ревизия.
+ * @returns {Promise<import("../shared/types.js").GitState>} Зафиксированная основная ветка и ревизия.
  */
-export function inspectInitialChangeGit(projectRoot, repository, branch, commandRunner) {
-  const state = inspectFreshCheckout(projectRoot, repository, commandRunner);
-  assertBranchAbsent(projectRoot, branch, commandRunner);
+export async function inspectInitialChangeGit(projectRoot, repository, branch, commandRunner) {
+  const state = await inspectFreshCheckout(projectRoot, repository, commandRunner);
+  await assertBranchAbsent(projectRoot, branch, commandRunner);
   return state;
 }
 
@@ -88,27 +88,27 @@ function parseStatusPaths(output) {
  * @param {string} branch Ожидаемая planning-ветка.
  * @param {string} changeRoot Канонический каталог Change из OpenSpec status.
  * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель Git.
- * @returns {import("../shared/types.js").GitState} Текущая ветка и ревизия.
+ * @returns {Promise<import("../shared/types.js").GitState>} Текущая ветка и ревизия.
  */
-export function inspectContinuationChangeGit(
+export async function inspectContinuationChangeGit(
   projectRoot,
   repository,
   branch,
   changeRoot,
   commandRunner,
 ) {
-  inspectRepositoryIdentity(projectRoot, repository, commandRunner);
-  const actualBranch = currentBranch(projectRoot, commandRunner);
+  await inspectRepositoryIdentity(projectRoot, repository, commandRunner);
+  const actualBranch = await currentBranch(projectRoot, commandRunner);
   if (actualBranch !== branch) {
     throw new Error(`needs_recovery: Change должен находиться в ветке ${branch}`);
   }
-  const remote = commandRunner(
+  const remote = await commandRunner(
     "git",
     ["ls-remote", "--heads", "origin", `refs/heads/${branch}`],
     { cwd: projectRoot },
   );
   if (remote) throw new Error(`needs_recovery: planning-ветка уже опубликована: ${branch}`);
-  const commits = commandRunner(
+  const commits = await commandRunner(
     "git",
     ["rev-list", "--count", `${repository.defaultBranch}..HEAD`],
     { cwd: projectRoot },
@@ -116,7 +116,7 @@ export function inspectContinuationChangeGit(
   if (commits !== "0") {
     throw new Error("needs_recovery: в planning-ветке уже существуют commit до Planning PR");
   }
-  const status = commandRunner(
+  const status = await commandRunner(
     "git",
     ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
     { cwd: projectRoot },
@@ -133,7 +133,7 @@ export function inspectContinuationChangeGit(
   if (unexpected.length > 0) {
     throw new Error(`needs_recovery: изменения вне текущего Change: ${unexpected.join(", ")}`);
   }
-  const revision = commandRunner("git", ["rev-parse", "HEAD"], { cwd: projectRoot });
+  const revision = await commandRunner("git", ["rev-parse", "HEAD"], { cwd: projectRoot });
   if (!isGitRevision(revision)) throw new Error("Store: Git вернул некорректную ревизию");
   return { branch: actualBranch, revision };
 }

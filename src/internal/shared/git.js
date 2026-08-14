@@ -31,16 +31,16 @@ export function sameGitRemote(actual, expected) {
  * @param {string} repositoryRoot Абсолютный путь checkout.
  * @param {import("./types.js").RegisteredRepository} repository Ожидаемая identity.
  * @param {typeof import("./command.js").runCommand} commandRunner Исполнитель Git.
- * @returns {void}
+ * @returns {Promise<void>}
  */
-export function inspectRepositoryIdentity(repositoryRoot, repository, commandRunner) {
+export async function inspectRepositoryIdentity(repositoryRoot, repository, commandRunner) {
   const gitRoot = path.resolve(
-    commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd: repositoryRoot }),
+    await commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd: repositoryRoot }),
   );
   if (gitRoot !== repositoryRoot) {
     throw new Error(`${repository.id}: каталог не является корнем Git-репозитория`);
   }
-  const origin = commandRunner("git", ["remote", "get-url", "origin"], {
+  const origin = await commandRunner("git", ["remote", "get-url", "origin"], {
     cwd: repositoryRoot,
   });
   if (!sameGitRemote(origin, repository.url)) {
@@ -54,23 +54,23 @@ export function inspectRepositoryIdentity(repositoryRoot, repository, commandRun
  * @param {string} repositoryRoot Абсолютный путь checkout.
  * @param {import("./types.js").RegisteredRepository} repository Ожидаемая identity.
  * @param {typeof import("./command.js").runCommand} commandRunner Исполнитель Git.
- * @returns {import("./types.js").GitState} Проверенные ветка и точная ревизия.
+ * @returns {Promise<import("./types.js").GitState>} Проверенные ветка и точная ревизия.
  */
-export function inspectFreshCheckout(repositoryRoot, repository, commandRunner) {
-  inspectRepositoryIdentity(repositoryRoot, repository, commandRunner);
-  const changes = commandRunner(
+export async function inspectFreshCheckout(repositoryRoot, repository, commandRunner) {
+  await inspectRepositoryIdentity(repositoryRoot, repository, commandRunner);
+  const changes = await commandRunner(
     "git",
     ["status", "--porcelain", "--untracked-files=all"],
     { cwd: repositoryRoot },
   );
   if (changes) throw new Error(`${repository.id}: рабочее дерево должно быть чистым`);
-  const branch = commandRunner("git", ["branch", "--show-current"], { cwd: repositoryRoot });
+  const branch = await commandRunner("git", ["branch", "--show-current"], { cwd: repositoryRoot });
   if (branch !== repository.defaultBranch) {
     throw new Error(`${repository.id}: ожидается ветка ${repository.defaultBranch}`);
   }
   const remoteBranch = `refs/heads/${repository.defaultBranch}`;
   const trackingBranch = `refs/remotes/origin/${repository.defaultBranch}`;
-  const advertisedBranch = commandRunner(
+  const advertisedBranch = await commandRunner(
     "git",
     ["ls-remote", "--heads", "origin", remoteBranch],
     { cwd: repositoryRoot },
@@ -81,13 +81,13 @@ export function inspectFreshCheckout(repositoryRoot, repository, commandRunner) 
       `если это нужная ветка, опубликуйте её: git push -u origin ${repository.defaultBranch}`,
     );
   }
-  commandRunner(
+  await commandRunner(
     "git",
     ["fetch", "origin", `+${remoteBranch}:${trackingBranch}`],
     { cwd: repositoryRoot },
   );
-  const revision = commandRunner("git", ["rev-parse", "HEAD"], { cwd: repositoryRoot });
-  const remoteRevision = commandRunner(
+  const revision = await commandRunner("git", ["rev-parse", "HEAD"], { cwd: repositoryRoot });
+  const remoteRevision = await commandRunner(
     "git",
     ["rev-parse", `origin/${repository.defaultBranch}`],
     { cwd: repositoryRoot },

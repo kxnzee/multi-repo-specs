@@ -13,7 +13,7 @@ Core вызывает только публичный CLI OpenSpec и прове
 
 ## Первый запуск
 
-Требуется Node.js `20+`; поддерживаются macOS, Linux и Windows. Рекомендуемая и проверенная версия — OpenSpec `1.7.0`, но она не закрепляется в `openspec-orch.yaml`: Core проверяет используемые CLI capabilities и обязательные JSON fields. Назначение всех полей описано в [справочнике `openspec-orch.yaml`](docs/reference/openspec-orch-yaml.md). Из корня репозитория выполните:
+Требуется Node.js `20.5+`; поддерживаются macOS, Linux и Windows. Рекомендуемая и проверенная версия — OpenSpec `1.7.0`, но она не закрепляется в `openspec-orch.yaml`: Core проверяет используемые CLI capabilities и обязательные JSON fields. Назначение всех полей описано в [справочнике `openspec-orch.yaml`](docs/reference/openspec-orch-yaml.md). Из корня репозитория выполните:
 
 ```bash
 npm install

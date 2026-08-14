@@ -39,7 +39,7 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
   const codeFiles = pointer ? { "openspec/config.yaml": "store: payments-specs\n" } : {};
   const codeRemote = await createBareRemote(root, "api", codeFiles);
   const centralSource = path.join(root, "central-source");
-  initializeGitRepository(centralSource);
+  await initializeGitRepository(centralSource);
 
   const centralRemote = path.join(root, "payments-specs.git");
   const orchestratorTemplate = 'version: 1\n\nversions:\n  process: draft\n  openspec: "1.7.0"\n\nagent: null\n\nrepositories: []\n';
@@ -67,12 +67,12 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
     ], agent),
   };
   await commitFiles(centralSource, centralFiles, { message: "initialize store" });
-  runCommand("git", ["clone", "--bare", centralSource, centralRemote]);
+  await runCommand("git", ["clone", "--bare", centralSource, centralRemote]);
 
   const workspace = path.join(root, "workspace");
   const storeRoot = path.join(workspace, "payments-specs");
   await fs.mkdir(workspace, { recursive: true });
-  runCommand("git", ["clone", centralRemote, storeRoot]);
+  await runCommand("git", ["clone", centralRemote, storeRoot]);
   return { root, workspace, storeRoot, centralRemote, codeRemote };
 }
 
@@ -170,7 +170,7 @@ test("connectProject registers Store, clones a missing repository and creates it
     "store: payments-specs\n",
   );
   assert.equal(
-    runCommand("git", ["-C", path.join(scenario.workspace, "src/api"), "status", "--porcelain"])
+    (await runCommand("git", ["-C", path.join(scenario.workspace, "src/api"), "status", "--porcelain"]))
       .includes("openspec/"),
     true,
   );
@@ -203,7 +203,7 @@ test("connectProject is idempotent for an accepted pointer and existing checkout
   const openSpec = fakeOpenSpec(scenario.storeRoot);
 
   const first = await connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner });
-  runCommand("git", ["-C", path.join(scenario.workspace, "src/api"), "add", "openspec/config.yaml"]);
+  await runCommand("git", ["-C", path.join(scenario.workspace, "src/api"), "add", "openspec/config.yaml"]);
   const second = await connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner });
 
   assert.equal(first.status, "ready");
@@ -229,7 +229,7 @@ test("connectProject remembers an explicit workspace for a nonstandard Store pat
   assert.equal(first.workspace, scenario.workspace);
   assert.equal(second.workspace, scenario.workspace);
   assert.equal(
-    runCommand("git", ["-C", customStoreRoot, "config", "--local", "--get", "openspec-orch.workspace"]),
+    await runCommand("git", ["-C", customStoreRoot, "config", "--local", "--get", "openspec-orch.workspace"]),
     scenario.workspace,
   );
 });

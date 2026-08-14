@@ -22,8 +22,8 @@ import { temporaryDirectory } from "../test-fixtures/workspace.js";
  */
 async function temporaryProject(t) {
   const canonicalDirectory = await temporaryDirectory(t, "openspec-orchestrator-init-");
-  runCommand("git", ["init", "--initial-branch", "main", canonicalDirectory]);
-  runCommand("git", ["-C", canonicalDirectory, "remote", "add", "origin", "https://example.test/specs.git"]);
+  await runCommand("git", ["init", "--initial-branch", "main", canonicalDirectory]);
+  await runCommand("git", ["-C", canonicalDirectory, "remote", "add", "origin", "https://example.test/specs.git"]);
   return canonicalDirectory;
 }
 
@@ -481,11 +481,11 @@ test("initProject rejects existing Store metadata with another ID", async (t) =>
   );
 });
 
-test("OpenSpec compatibility accepts semantic versions and reports missing capabilities", () => {
+test("OpenSpec compatibility accepts semantic versions and reports missing capabilities", async () => {
   for (const version of ["1.7.0", "1.7.1", "1.8.0", "2.0.0-beta.1"]) {
-    assert.equal(inspectOpenSpecCli(() => version, "/tmp"), version);
+    assert.equal(await inspectOpenSpecCli(() => version, "/tmp"), version);
   }
-  assert.throws(() => inspectOpenSpecCli(() => "OpenSpec dev", "/tmp"), /semantic version/);
+  await assert.rejects(inspectOpenSpecCli(() => "OpenSpec dev", "/tmp"), /semantic version/);
   assert.throws(
     () => requireOpenSpecCapability(false, "openspec store list --json: stores[]"),
     /OpenSpec Orchestrator требует JSON capability.*stores\[\]/,
@@ -541,10 +541,10 @@ test("initProject does not require an optional handoff file on successful repeat
 test("initProject blocks conflicting skeleton paths instead of overwriting them", async (t) => {
   const target = await temporaryProject(t);
   await fs.writeFile(path.join(target, "openspec-orch.yaml"), "user owned\n", "utf8");
-  runCommand("git", ["-C", target, "config", "user.email", "tests@example.test"]);
-  runCommand("git", ["-C", target, "config", "user.name", "OpenSpec Orchestrator Tests"]);
-  runCommand("git", ["-C", target, "add", "openspec-orch.yaml"]);
-  runCommand("git", ["-C", target, "commit", "-m", "existing project"]);
+  await runCommand("git", ["-C", target, "config", "user.email", "tests@example.test"]);
+  await runCommand("git", ["-C", target, "config", "user.name", "OpenSpec Orchestrator Tests"]);
+  await runCommand("git", ["-C", target, "add", "openspec-orch.yaml"]);
+  await runCommand("git", ["-C", target, "commit", "-m", "existing project"]);
   const openSpec = fakeOpenSpec(target);
 
   await assert.rejects(
@@ -563,9 +563,9 @@ test("initProject rejects differing pre-existing Template files without merging 
   const target = await temporaryProject(t);
   await fs.writeFile(path.join(target, ".gitignore"), "node_modules/\n.openspec-orch/cache/\n", "utf8");
   await fs.writeFile(path.join(target, "CODEOWNERS"), "* @existing-team\n", "utf8");
-  configureRepository(target);
-  runCommand("git", ["-C", target, "add", ".gitignore", "CODEOWNERS"]);
-  runCommand("git", ["-C", target, "commit", "-m", "existing project files"]);
+  await configureRepository(target);
+  await runCommand("git", ["-C", target, "add", ".gitignore", "CODEOWNERS"]);
+  await runCommand("git", ["-C", target, "commit", "-m", "existing project files"]);
   const openSpec = fakeOpenSpec(target);
 
   await assert.rejects(
@@ -648,9 +648,9 @@ test("initProject skips an identical file that existed before the run", async (t
     "utf8",
   );
   await fs.writeFile(path.join(target, ".gitignore"), gitIgnore, "utf8");
-  configureRepository(target);
-  runCommand("git", ["-C", target, "add", ".gitignore"]);
-  runCommand("git", ["-C", target, "commit", "-m", "existing identical template file"]);
+  await configureRepository(target);
+  await runCommand("git", ["-C", target, "add", ".gitignore"]);
+  await runCommand("git", ["-C", target, "commit", "-m", "existing identical template file"]);
   const openSpec = fakeOpenSpec(target);
 
   const result = await initProject({
@@ -668,9 +668,9 @@ test("initProject skips an identical file that existed before the run", async (t
 test("initProject adopts a non-empty central repository through the official OpenSpec root", async (t) => {
   const target = await temporaryProject(t);
   await fs.writeFile(path.join(target, "existing.txt"), "existing project\n", "utf8");
-  configureRepository(target);
-  runCommand("git", ["-C", target, "add", "existing.txt"]);
-  runCommand("git", ["-C", target, "commit", "-m", "existing project"]);
+  await configureRepository(target);
+  await runCommand("git", ["-C", target, "add", "existing.txt"]);
+  await runCommand("git", ["-C", target, "commit", "-m", "existing project"]);
   const openSpec = fakeOpenSpec(target);
 
   await initProject({
@@ -692,9 +692,9 @@ test("initProject adopts a non-empty central repository through the official Ope
  * Настраивает локальную Git identity для тестовых коммитов.
  *
  * @param {string} repository Путь тестового Git-репозитория.
- * @returns {void}
+ * @returns {Promise<void>}
  */
-function configureRepository(repository) {
-  runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
-  runCommand("git", ["-C", repository, "config", "user.name", "OpenSpec Orchestrator Tests"]);
+async function configureRepository(repository) {
+  await runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
+  await runCommand("git", ["-C", repository, "config", "user.name", "OpenSpec Orchestrator Tests"]);
 }

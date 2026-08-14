@@ -38,22 +38,22 @@ export async function writeFiles(root, files) {
  * Настраивает локальную Git identity для тестовых коммитов.
  *
  * @param {string} repository Git checkout.
- * @returns {void}
+ * @returns {Promise<void>}
  */
-export function configureGit(repository) {
-  runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
-  runCommand("git", ["-C", repository, "config", "user.name", "OpenSpec Orchestrator Tests"]);
+export async function configureGit(repository) {
+  await runCommand("git", ["-C", repository, "config", "user.email", "tests@example.test"]);
+  await runCommand("git", ["-C", repository, "config", "user.name", "OpenSpec Orchestrator Tests"]);
 }
 
 /**
  * Создаёт Git-репозиторий с веткой main и тестовой identity.
  *
  * @param {string} repository Путь будущего checkout.
- * @returns {void}
+ * @returns {Promise<void>}
  */
-export function initializeGitRepository(repository) {
-  runCommand("git", ["init", "--initial-branch", "main", repository]);
-  configureGit(repository);
+export async function initializeGitRepository(repository) {
+  await runCommand("git", ["init", "--initial-branch", "main", repository]);
+  await configureGit(repository);
 }
 
 /**
@@ -70,8 +70,8 @@ export async function commitFiles(
   { message = "initial", allowEmpty = false } = {},
 ) {
   await writeFiles(repository, files);
-  runCommand("git", ["-C", repository, "add", "."]);
-  runCommand("git", [
+  await runCommand("git", ["-C", repository, "add", "."]);
+  await runCommand("git", [
     "-C",
     repository,
     "commit",
@@ -92,9 +92,9 @@ export async function commitFiles(
 export async function createBareRemote(root, name, files = {}) {
   const source = path.join(root, `${name}-source`);
   const remote = path.join(root, `${name}.git`);
-  initializeGitRepository(source);
+  await initializeGitRepository(source);
   await commitFiles(source, files, { allowEmpty: true });
-  runCommand("git", ["clone", "--bare", source, remote]);
+  await runCommand("git", ["clone", "--bare", source, remote]);
   return remote;
 }
 
@@ -111,9 +111,9 @@ export async function createCheckoutWithRemote(root, relativePath, remoteName, f
   const checkout = path.join(root, relativePath);
   const remote = path.join(root, `${remoteName}.git`);
   await fs.mkdir(path.dirname(checkout), { recursive: true });
-  initializeGitRepository(checkout);
+  await initializeGitRepository(checkout);
   await commitFiles(checkout, files);
-  runCommand("git", ["clone", "--bare", checkout, remote]);
-  runCommand("git", ["-C", checkout, "remote", "add", "origin", remote]);
+  await runCommand("git", ["clone", "--bare", checkout, remote]);
+  await runCommand("git", ["-C", checkout, "remote", "add", "origin", remote]);
   return { checkout: await fs.realpath(checkout), remote };
 }

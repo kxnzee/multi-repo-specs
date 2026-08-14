@@ -113,8 +113,8 @@ export async function initProject({
     },
     ...repositories,
   ];
-  inspectOpenSpecCli(commandRunner, projectRoot);
-  assertStorePathAvailable(projectRoot, commandRunner);
+  await inspectOpenSpecCli(commandRunner, projectRoot);
+  await assertStorePathAvailable(projectRoot, commandRunner);
   const orchestratorContents = serializeOrchestratorConfig(
     await fs.readFile(INIT_PATHS.orchestratorTemplate, "utf8"),
     configuredRepositories,
@@ -125,7 +125,7 @@ export async function initProject({
 
   await installOpenSpec(projectRoot, templatePlan.agent.openSpecId, commandRunner);
   await adaptGeneratedAgentPack(projectRoot, templatePlan.agent);
-  setupStore(projectRoot, storeId, git.remote, commandRunner);
+  await setupStore(projectRoot, storeId, git.remote, commandRunner);
 
   const installed = await applyTemplatePlan({
     projectRoot,

@@ -20,9 +20,9 @@ export async function resolveStart(start, commandRunner) {
     const stat = await lstatOrNull(cwd);
     if (!stat) throw nearestError;
     if (!stat.isDirectory()) cwd = path.dirname(cwd);
-    const codeRoot = path.resolve(commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd }));
-    const doctor = runOpenSpecJson(commandRunner, ["doctor", "--json"], codeRoot);
-    const context = runOpenSpecJson(commandRunner, ["context", "--json"], codeRoot);
+    const codeRoot = path.resolve(await commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd }));
+    const doctor = await runOpenSpecJson(commandRunner, ["doctor", "--json"], codeRoot);
+    const context = await runOpenSpecJson(commandRunner, ["context", "--json"], codeRoot);
     const doctorRoot = parseOpenSpecRoot(doctor.root, "openspec doctor --json");
     const contextRoot = parseOpenSpecRoot(context.root, "openspec context --json");
     if (doctorRoot.source !== "declared" || contextRoot.source !== "declared") {

@@ -67,7 +67,7 @@ export async function prepareChange({
       commandRunner,
     );
     git = executionMode === "strict"
-      ? inspectContinuationChangeGit(
+      ? await inspectContinuationChangeGit(
           store.projectRoot,
           store.config.storeRepository,
           branch,
@@ -77,7 +77,7 @@ export async function prepareChange({
       : { branch: null, revision: "unpinned" };
     changeStatus = "existing";
   } else {
-    if (executionMode === "strict" && currentBranch(store.projectRoot, commandRunner) === branch) {
+    if (executionMode === "strict" && await currentBranch(store.projectRoot, commandRunner) === branch) {
       throw new Error("needs_recovery: planning-ветка существует без Change");
     }
     if (duplicates.archived.length > 0) {
@@ -89,7 +89,7 @@ export async function prepareChange({
       }
     }
     git = executionMode === "strict"
-      ? inspectInitialChangeGit(
+      ? await inspectInitialChangeGit(
           store.projectRoot,
           store.config.storeRepository,
           branch,
@@ -97,9 +97,9 @@ export async function prepareChange({
         )
       : { branch: null, revision: "unpinned" };
     if (executionMode === "strict") {
-      commandRunner("git", ["switch", "-c", branch], { cwd: store.projectRoot });
+      await commandRunner("git", ["switch", "-c", branch], { cwd: store.projectRoot });
     }
-    const created = runOpenSpecJson(
+    const created = await runOpenSpecJson(
       commandRunner,
       [
         "new",

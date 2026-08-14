@@ -1,7 +1,6 @@
 /** @fileoverview Кроссплатформенный безопасный запуск внешних CLI без shell. */
 
-import process from "node:process";
-import crossSpawn from "cross-spawn";
+import { execa } from "execa";
 
 const COMMAND_ENV = Object.freeze({
   GIT_OPTIONAL_LOCKS: "0",
@@ -25,9 +24,8 @@ function redact(value, sensitiveValues) {
 }
 
 /**
- * Запускает executable из PATH с отдельным массивом аргументов. `cross-spawn`
- * обеспечивает одинаковое разрешение команд, включая npm `.cmd`-shim в Windows,
- * без глобального `shell: true`. При ошибке сохраняет вывод исходного CLI, но
+ * Асинхронно запускает executable из PATH с отдельным массивом аргументов без
+ * глобального `shell: true`. При ошибке сохраняет вывод исходного CLI, но
  * скрывает переданные URL с credential.
  *
  * @param {string} command
@@ -38,9 +36,9 @@ function redact(value, sensitiveValues) {
  * @param {(message: string) => void} [options.onStderr] Обработчик успешного stderr.
  * @param {string[]} [options.sensitiveValues]
  * @param {number} [options.timeout] Максимальное время выполнения в миллисекундах.
- * @returns {string} stdout без пробелов по краям.
+ * @returns {Promise<string>} stdout без пробелов по краям.
  */
-export function runCommand(
+export async function runCommand(
   command,
   args,
   {
@@ -54,32 +52,33 @@ export function runCommand(
   if (!Number.isFinite(timeout) || timeout <= 0) {
     throw new Error("Timeout внешней команды должен быть положительным числом");
   }
-  const result = crossSpawn.sync(command, args, {
+  const result = await execa(command, args, {
     cwd,
-    encoding: "utf8",
-    env: { ...process.env, ...environment, ...COMMAND_ENV },
+    env: { ...environment, ...COMMAND_ENV },
+    reject: false,
     timeout,
   });
 
-  if (result.signal) {
-    throw new Error(`${command} terminated by ${result.signal}`);
-  }
-  if (result.error) {
-    throw new Error(`Не удалось запустить ${command}: ${result.error.message}`);
-  }
-  if (result.status !== 0) {
+  if (result.failed) {
     const invocation = redact(`${command} ${args.join(" ")}`, sensitiveValues);
     const details = redact(
       [result.stderr, result.stdout].filter(Boolean).join("\n").trim(),
       sensitiveValues,
     );
+    const reason = result.timedOut
+      ? `превысила timeout ${timeout} мс`
+      : result.signal
+        ? `завершена сигналом ${result.signal}`
+        : result.exitCode === undefined
+          ? `не запущена: ${result.originalMessage ?? result.shortMessage}`
+          : "завершилась с ошибкой";
     throw new Error(
-      `${invocation} завершилась с ошибкой${details ? `:\n${details}` : ""}`,
+      `${invocation} ${redact(reason, sensitiveValues)}${details ? `:\n${details}` : ""}`,
     );
   }
 
-  const warning = redact(result.stderr?.trim() ?? "", sensitiveValues);
+  const warning = redact(result.stderr.trim(), sensitiveValues);
   if (warning) onStderr(warning);
 
-  return result.stdout.trim();
+  return result.stdout;
 }
