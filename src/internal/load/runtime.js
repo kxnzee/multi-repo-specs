@@ -3,31 +3,48 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import * as z from "zod";
 
 import { lstatOrNull } from "../shared/files.js";
 import { isContainedPath } from "../shared/paths.js";
-import { isGitRevision, isRecord } from "../shared/schema.js";
+import { isGitRevision } from "../shared/schema.js";
 
-const CONTEXT_KEYS = [
-  "version",
-  "step_status",
-  "execution_mode",
-  "store_id",
-  "change_id",
-  "spec_baseline",
-  "spec_root",
-  "repository_id",
-  "code_root",
-  "implementation_branch",
-  "code_base_revision",
-  "schema",
-  "implementation_mode",
-  "change_root",
-  "context_files",
-  "work_packages",
-  "allowed_edit_roots",
-  "immutable_roots",
-];
+const NON_EMPTY_STRING = z.string().min(1);
+const ABSOLUTE_PATH = NON_EMPTY_STRING.refine(path.isAbsolute);
+const UNIQUE_STRINGS = z.array(NON_EMPTY_STRING).refine(
+  (items) => new Set(items).size === items.length,
+);
+const REVISION = z.union([z.string().refine(isGitRevision), z.literal("unpinned")]);
+const RUNTIME_CONTEXT_SCHEMA = z.strictObject({
+  version: z.literal(2),
+  step_status: z.literal("implementation_ready"),
+  execution_mode: z.enum(["strict", "relaxed"]),
+  store_id: NON_EMPTY_STRING,
+  change_id: NON_EMPTY_STRING,
+  spec_baseline: REVISION,
+  spec_root: ABSOLUTE_PATH,
+  repository_id: NON_EMPTY_STRING,
+  code_root: ABSOLUTE_PATH,
+  implementation_branch: NON_EMPTY_STRING.nullable(),
+  code_base_revision: REVISION,
+  schema: NON_EMPTY_STRING,
+  implementation_mode: z.enum(["package", "whole-change"]),
+  change_root: ABSOLUTE_PATH,
+  context_files: z.record(NON_EMPTY_STRING, z.array(ABSOLUTE_PATH)),
+  work_packages: UNIQUE_STRINGS,
+  allowed_edit_roots: z.array(ABSOLUTE_PATH).length(1),
+  immutable_roots: z.array(ABSOLUTE_PATH).max(1),
+}).refine((context) => context.execution_mode === "strict"
+  ? isGitRevision(context.spec_baseline) && isGitRevision(context.code_base_revision) &&
+    context.implementation_branch !== null && context.immutable_roots[0] === context.spec_root
+  : context.spec_baseline === "unpinned" && context.code_base_revision === "unpinned" &&
+    context.implementation_branch === null && context.immutable_roots.length === 0
+).refine((context) => isContainedPath(context.spec_root, context.change_root)
+).refine((context) => context.implementation_mode === "package"
+  ? context.work_packages.length > 0
+  : context.work_packages.length === 0
+).refine((context) => Object.values(context.context_files).every((files) =>
+  files.every((file) => isContainedPath(context.change_root, file))));
 
 /**
  * Создаёт runtime-каталог, запрещая symlink на каждом принадлежащем OpenSpec Orchestrator сегменте.
@@ -52,40 +69,7 @@ export async function ensureRuntimeDirectory(workspace, segments) {
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
 function isRuntimeContext(value) {
-  if (!isRecord(value) || Object.keys(value).sort().join("\0") !== [...CONTEXT_KEYS].sort().join("\0")) {
-    return false;
-  }
-  const workPackages = Array.isArray(value.work_packages) ? value.work_packages : [];
-  return (
-    value.version === 2 &&
-    value.step_status === "implementation_ready" &&
-    ["store_id", "change_id", "spec_root", "repository_id", "code_root"]
-      .every((key) => typeof value[key] === "string") &&
-    ["strict", "relaxed"].includes(value.execution_mode) &&
-    (value.execution_mode === "strict"
-      ? isGitRevision(value.spec_baseline) && isGitRevision(value.code_base_revision) &&
-        typeof value.implementation_branch === "string" && value.implementation_branch.length > 0
-      : value.spec_baseline === "unpinned" && value.code_base_revision === "unpinned" &&
-        value.implementation_branch === null) &&
-    path.isAbsolute(value.spec_root) && path.isAbsolute(value.code_root) &&
-    typeof value.schema === "string" && value.schema.length > 0 &&
-    ["package", "whole-change"].includes(value.implementation_mode) &&
-    typeof value.change_root === "string" && path.isAbsolute(value.change_root) &&
-    isContainedPath(value.spec_root, value.change_root) &&
-    new Set(workPackages).size === workPackages.length &&
-    workPackages.every((item) => typeof item === "string" && item.length > 0) &&
-    (value.implementation_mode === "package" ? workPackages.length > 0 : workPackages.length === 0) &&
-    isRecord(value.context_files) && Object.entries(value.context_files).every(([artifactId, files]) =>
-      artifactId.length > 0 && Array.isArray(files) &&
-      files.every((item) => typeof item === "string" && path.isAbsolute(item) &&
-        isContainedPath(value.change_root, item))) &&
-    Array.isArray(value.allowed_edit_roots) && value.allowed_edit_roots.length === 1 &&
-    value.allowed_edit_roots.every((item) => typeof item === "string" && path.isAbsolute(item)) &&
-    Array.isArray(value.immutable_roots) &&
-    (value.execution_mode === "strict"
-      ? value.immutable_roots.length === 1 && value.immutable_roots[0] === value.spec_root
-      : value.immutable_roots.length === 0)
-  );
+  return RUNTIME_CONTEXT_SCHEMA.safeParse(value).success;
 }
 
 /**

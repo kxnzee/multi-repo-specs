@@ -1,12 +1,36 @@
 /** @fileoverview Schema-neutral проверки штатного OpenSpec API для подготовки реализации. */
 
 import path from "node:path";
+import * as z from "zod";
 
 import { inspectOpenSpecCli } from "../shared/compatibility.js";
 import { resolveContainedExistingPath } from "../shared/files.js";
 import { runOpenSpecJson } from "../shared/openspec.js";
-import { isOpenSpecRoot, isRecord } from "../shared/schema.js";
+import { isOpenSpecRoot } from "../shared/schema.js";
 import { assertStoreDoctor } from "../shared/store.js";
+
+const NON_EMPTY_STRING = z.string().min(1);
+const CONTEXT_FILES_SCHEMA = z.record(NON_EMPTY_STRING, z.array(NON_EMPTY_STRING));
+const VALIDATION_SCHEMA = z.looseObject({
+  items: z.array(z.looseObject({
+    id: NON_EMPTY_STRING,
+    type: z.literal("change"),
+    valid: z.literal(true),
+  })).length(1),
+});
+const TASK_SCHEMA = z.looseObject({
+  id: NON_EMPTY_STRING,
+  description: NON_EMPTY_STRING,
+  done: z.boolean(),
+});
+const APPLY_SCHEMA = z.looseObject({
+  changeName: NON_EMPTY_STRING,
+  changeDir: NON_EMPTY_STRING,
+  schemaName: NON_EMPTY_STRING,
+  contextFiles: CONTEXT_FILES_SCHEMA,
+  state: z.literal("ready"),
+  tasks: z.array(TASK_SCHEMA),
+});
 
 /**
  * Проверяет официальный Store doctor и возвращает зарегистрированный root.
@@ -50,14 +74,10 @@ function assertNearestRoot(root, expected, command) {
  * @returns {Promise<Record<string, string[]>>}
  */
 async function normalizeContextFiles(changeRoot, value) {
-  if (!isRecord(value)) {
-    throw new Error("openspec instructions apply вернула некорректный contextFiles");
-  }
+  const parsed = CONTEXT_FILES_SCHEMA.safeParse(value);
+  if (!parsed.success) throw new Error("openspec instructions apply вернула некорректный contextFiles");
   const result = {};
-  for (const [artifactId, files] of Object.entries(value)) {
-    if (!artifactId || !Array.isArray(files)) {
-      throw new Error("openspec instructions apply вернула некорректный contextFiles");
-    }
+  for (const [artifactId, files] of Object.entries(parsed.data)) {
     const normalized = [];
     for (const file of files) {
       const resolved = await resolveContainedExistingPath(
@@ -109,11 +129,12 @@ export async function validateImplementationInput({
     worktreeRoot,
   );
   assertNearestRoot(validation.root, worktreeRoot, "openspec validate");
-  if (!Array.isArray(validation.items) || validation.items.length !== 1) {
+  const parsedValidation = VALIDATION_SCHEMA.safeParse(validation);
+  if (!parsedValidation.success) {
     throw new Error("openspec validate должна вернуть ровно один Change");
   }
-  const item = validation.items[0];
-  if (!isRecord(item) || item.id !== changeId || item.type !== "change" || item.valid !== true) {
+  const item = parsedValidation.data.items[0];
+  if (item.id !== changeId) {
     throw new Error(`OpenSpec Change ${changeId} не прошёл строгую validation`);
   }
 
@@ -123,27 +144,22 @@ export async function validateImplementationInput({
     worktreeRoot,
   );
   assertNearestRoot(instructions.root, worktreeRoot, "openspec instructions apply");
-  if (
-    instructions.changeName !== changeId || instructions.state !== "ready" ||
-    typeof instructions.schemaName !== "string" || !instructions.schemaName ||
-    !Array.isArray(instructions.tasks)
-  ) {
+  const parsedInstructions = APPLY_SCHEMA.safeParse(instructions);
+  if (!parsedInstructions.success || parsedInstructions.data.changeName !== changeId) {
     throw new Error(`OpenSpec Change ${changeId} не готов к apply`);
   }
+  const apply = parsedInstructions.data;
   const changeRoot = await resolveContainedExistingPath(
     worktreeRoot,
-    instructions.changeDir,
+    apply.changeDir,
     "OpenSpec Apply changeDir",
     "directory",
   );
-  const contextFiles = await normalizeContextFiles(changeRoot, instructions.contextFiles);
+  const contextFiles = await normalizeContextFiles(changeRoot, apply.contextFiles);
 
   const tasks = new Map();
-  for (const task of instructions.tasks) {
-    if (
-      !isRecord(task) || typeof task.id !== "string" || !task.id || tasks.has(task.id) ||
-      typeof task.description !== "string" || !task.description || typeof task.done !== "boolean"
-    ) {
+  for (const task of apply.tasks) {
+    if (tasks.has(task.id)) {
       throw new Error("OpenSpec Tasks имеют некорректный JSON contract");
     }
     tasks.set(task.id, task);
@@ -154,7 +170,7 @@ export async function validateImplementationInput({
       throw new Error("Эта OpenSpec schema не возвращает адресуемые Tasks; --work-package использовать нельзя");
     }
     return {
-      schema: instructions.schemaName,
+      schema: apply.schemaName,
       changeRoot,
       implementationMode: "whole-change",
       contextFiles,
@@ -173,7 +189,7 @@ export async function validateImplementationInput({
     selectedTasks.push({ id: task.id, description: task.description });
   }
   return {
-    schema: instructions.schemaName,
+    schema: apply.schemaName,
     changeRoot,
     implementationMode: "package",
     contextFiles,
