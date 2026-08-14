@@ -7,7 +7,12 @@ import {
   assertOpenSpecStore,
   parseOpenSpecJson,
 } from "../src/internal/shared/openspec.js";
-import { isGitRevision, isOpenSpecResponse } from "../src/internal/shared/schema.js";
+import {
+  assertRepositoryId,
+  isGitRevision,
+  isOpenSpecResponse,
+  isRepositoryId,
+} from "../src/internal/shared/schema.js";
 
 test("parseOpenSpecJson rejects invalid JSON", () => {
   assert.throws(() => parseOpenSpecJson("not-json", "openspec doctor"));
@@ -29,6 +34,15 @@ test("shared schema validates OpenSpec responses and full Git revisions", () => 
   assert.equal(isGitRevision("a".repeat(40)), true);
   assert.equal(isGitRevision("a".repeat(39)), false);
   assert.equal(isGitRevision("A".repeat(40)), false);
+});
+
+test("repository ID predicate and assertion enforce the same string contract", () => {
+  assert.equal(isRepositoryId("payments-api"), true);
+  assert.equal(assertRepositoryId("payments-api"), "payments-api");
+  for (const invalid of [42, null, "Payments-API", "payments_api"]) {
+    assert.equal(isRepositoryId(invalid), false);
+    assert.throws(() => assertRepositoryId(invalid));
+  }
 });
 
 test("assertOpenSpecRoot rejects another Store", () => {

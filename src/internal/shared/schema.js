@@ -38,7 +38,7 @@ export function isRepositoryId(value) {
  * @returns {string} Проверенный lowercase kebab-case ID.
  */
 export function assertRepositoryId(id, label = "repository-id") {
-  if (!ID_PATTERN.test(id ?? "")) throw new Error(`${label} должен быть в lowercase kebab-case`);
+  if (!isRepositoryId(id)) throw new Error(`${label} должен быть в lowercase kebab-case`);
   return id;
 }
 
