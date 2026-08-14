@@ -198,7 +198,7 @@ package.json bin
 
 Встроенный Template явно отображает `assets/gitignore.template` в `.gitignore`; общего правила удаления суффиксов в Core нет.
 
-`src/internal/init/index.js` выполняет короткую Git-проверку, вызывает официальные Store/init API OpenSpec и раскладывает базовый Template. `src/internal/connect/index.js` вызывает официальные register/doctor, создаёт workspace, загружает Code Repositories и проверяет project pointer. Внутренние правила OpenSpec адаптер не дублирует. Стандартная схема `spec-driven` и её шаблоны берутся из установленного OpenSpec; текущий базовый workflow находится в `templates/base/` и устанавливается поверх результата OpenSpec.
+`src/internal/init/index.js` только оркестрирует первый запуск: `preflight.js` проверяет начальное или частичное состояние, `openspec.js` вызывает официальные Store/init API, `installer.js` переносит agent pack и применяет рассчитанный Template plan, а `validation.js` проверяет Git-вход. `src/internal/connect/index.js` вызывает официальные register/doctor, создаёт workspace, загружает Code Repositories и проверяет project pointer. Внутренние правила OpenSpec адаптер не дублирует. Стандартная схема `spec-driven` и её шаблоны берутся из установленного OpenSpec; текущий базовый workflow находится в `templates/base/` и устанавливается поверх результата OpenSpec.
 
 ## Разработка
 
