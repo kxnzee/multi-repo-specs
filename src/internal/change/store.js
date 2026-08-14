@@ -8,36 +8,32 @@ import {
 } from "../shared/files.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
 import { isPortableRelativePath } from "../shared/paths.js";
+import { openSpecContractError, parseOpenSpecContract } from "../shared/schema.js";
 import { findSpecRoot, readStoreConfiguration, validateOpenSpec } from "../shared/store.js";
 
 const NON_EMPTY_STRING = z.string().min(1);
-const STRING_LIST = z.array(NON_EMPTY_STRING);
 const CREATED_CHANGE_SCHEMA = z.looseObject({
   id: NON_EMPTY_STRING,
   path: NON_EMPTY_STRING,
   metadataPath: NON_EMPTY_STRING,
   schema: NON_EMPTY_STRING,
 });
-const STATUS_SCHEMA = z.looseObject({
-  changeName: NON_EMPTY_STRING,
-  schemaName: NON_EMPTY_STRING,
-  changeRoot: NON_EMPTY_STRING,
-  isComplete: z.boolean(),
-  applyRequires: STRING_LIST,
-  artifacts: z.array(z.unknown()),
-  artifactPaths: z.record(z.string(), z.unknown()),
-});
 const ARTIFACT_SCHEMA = z.looseObject({
   id: NON_EMPTY_STRING,
   outputPath: NON_EMPTY_STRING,
   status: z.enum(["done", "skipped", "ready", "blocked"]),
-  requires: STRING_LIST,
-  missingDeps: STRING_LIST.optional(),
 });
 const ARTIFACT_PATH_SCHEMA = z.looseObject({
   outputPath: NON_EMPTY_STRING,
   resolvedOutputPath: NON_EMPTY_STRING,
   existingOutputPaths: z.array(NON_EMPTY_STRING),
+});
+const STATUS_SCHEMA = z.looseObject({
+  changeName: NON_EMPTY_STRING,
+  schemaName: NON_EMPTY_STRING,
+  changeRoot: NON_EMPTY_STRING,
+  artifacts: z.array(ARTIFACT_SCHEMA),
+  artifactPaths: z.record(NON_EMPTY_STRING, z.unknown()),
 });
 
 /** @param {unknown} value @param {string} label @returns {string} */
@@ -84,11 +80,16 @@ export async function assertCreatedChange(payload, expected) {
     { path: expected.projectRoot, storeId: expected.storeId, source: "store" },
     "openspec new change",
   );
-  const parsedChange = CREATED_CHANGE_SCHEMA.safeParse(payload.change);
-  if (!parsedChange.success || parsedChange.data.id !== expected.changeId) {
-    throw new Error("openspec new change вернула другой Change или некорректную schema");
+  const change = parseOpenSpecContract(
+    CREATED_CHANGE_SCHEMA,
+    payload.change,
+    "openspec new change --json",
+  );
+  if (change.id !== expected.changeId) {
+    throw new Error(
+      `Ответ \`openspec new change --json\` относится к Change ${change.id}, ожидался ${expected.changeId}`,
+    );
   }
-  const change = parsedChange.data;
   const changeRoot = await resolveContainedExistingPath(
     expected.projectRoot,
     change.path,
@@ -131,11 +132,16 @@ export async function readChangeStatus(
     { path: projectRoot, storeId, source: "store" },
     "openspec status",
   );
-  const parsedStatus = STATUS_SCHEMA.safeParse(status);
-  if (!parsedStatus.success || parsedStatus.data.changeName !== changeId) {
-    throw new Error("openspec status вернула некорректную identity или artifact graph Change");
+  const changeStatus = parseOpenSpecContract(
+    STATUS_SCHEMA,
+    status,
+    "openspec status --json",
+  );
+  if (changeStatus.changeName !== changeId) {
+    throw new Error(
+      `Ответ \`openspec status --json\` относится к Change ${changeStatus.changeName}, ожидался ${changeId}`,
+    );
   }
-  const changeStatus = parsedStatus.data;
   const changeRoot = await resolveContainedExistingPath(
     projectRoot,
     changeStatus.changeRoot,
@@ -143,30 +149,44 @@ export async function readChangeStatus(
     "directory",
   );
   if (expected.changeRoot !== undefined && changeRoot !== expected.changeRoot) {
-    throw new Error("openspec status вернула другой Change root");
+    throw new Error(
+      `OpenSpec Orchestrator ожидал Change root ${expected.changeRoot}, ` +
+      `но \`openspec status --json\` указала ${changeRoot}`,
+    );
   }
   if (expected.schema !== undefined && changeStatus.schemaName !== expected.schema) {
-    throw new Error("openspec status вернула другую schema");
+    throw new Error(
+      `OpenSpec Orchestrator ожидал schema ${expected.schema}, ` +
+      `но \`openspec status --json\` указала ${changeStatus.schemaName}`,
+    );
   }
 
   const artifacts = [];
   const ids = new Set();
-  for (const rawArtifact of changeStatus.artifacts) {
-    const parsedArtifact = ARTIFACT_SCHEMA.safeParse(rawArtifact);
-    if (!parsedArtifact.success || ids.has(parsedArtifact.data.id)) {
-      throw new Error("openspec status вернула некорректный artifact graph");
+  for (const artifact of changeStatus.artifacts) {
+    if (ids.has(artifact.id)) {
+      throw openSpecContractError("openspec status --json", `повторяется artifact ${artifact.id}`);
     }
-    const artifact = parsedArtifact.data;
     ids.add(artifact.id);
     const outputPath = assertRelativeArtifactPath(
       artifact.outputPath,
       `OpenSpec artifact ${artifact.id}`,
     );
-    const parsedPathInfo = ARTIFACT_PATH_SCHEMA.safeParse(changeStatus.artifactPaths[artifact.id]);
-    if (!parsedPathInfo.success || parsedPathInfo.data.outputPath !== outputPath) {
-      throw new Error(`openspec status не вернула пути artifact ${artifact.id}`);
+    const rawPathInfo = changeStatus.artifactPaths[artifact.id];
+    if (!rawPathInfo) {
+      throw openSpecContractError("openspec status --json", `отсутствуют пути artifact ${artifact.id}`);
     }
-    const pathInfo = parsedPathInfo.data;
+    const pathInfo = parseOpenSpecContract(
+      ARTIFACT_PATH_SCHEMA,
+      rawPathInfo,
+      `openspec status --json (artifactPaths.${artifact.id})`,
+    );
+    if (pathInfo.outputPath !== outputPath) {
+      throw openSpecContractError(
+        "openspec status --json",
+        `artifactPaths.${artifact.id}.outputPath не совпадает с artifact graph`,
+      );
+    }
     const resolvedOutputPath = await resolveContainedDeclaredPath(
       changeRoot,
       pathInfo.resolvedOutputPath,
@@ -188,19 +208,6 @@ export async function readChangeStatus(
       existingOutputPaths,
     });
   }
-  const pathIds = Object.keys(changeStatus.artifactPaths);
-  if (pathIds.length !== ids.size || pathIds.some((id) => !ids.has(id))) {
-    throw new Error("openspec status вернула пути вне artifact graph");
-  }
-  for (const artifact of artifacts) {
-    if (
-      artifact.requires.some((id) => !ids.has(id)) ||
-      (artifact.missingDeps ?? []).some((id) => !ids.has(id))
-    ) {
-      throw new Error(`OpenSpec artifact ${artifact.id} ссылается на неизвестную зависимость`);
-    }
-  }
-
   const ready = artifacts.find((artifact) => artifact.status === "ready") ?? null;
   return {
     status: changeStatus,

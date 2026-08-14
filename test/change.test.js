@@ -254,6 +254,50 @@ test("prepareChange reports a concrete missing OpenSpec JSON capability", async 
   );
 });
 
+test("prepareChange attributes an unsupported status contract to the Orchestrator", async (t) => {
+  const scenario = await createScenario(t);
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const runner = (command, args, options) => {
+    const output = openSpec.runner(command, args, options);
+    if (command !== "openspec" || args[0] !== "status") return output;
+    const status = JSON.parse(output);
+    delete status.schemaName;
+    return JSON.stringify(status);
+  };
+
+  await assert.rejects(
+    prepareChange({
+      start: scenario.storeRoot,
+      ticket: "PAY-422",
+      name: "unsupported-status",
+      commandRunner: runner,
+    }),
+    /OpenSpec Orchestrator не может обработать ответ `openspec status --json`: несовместимый формат/,
+  );
+});
+
+test("prepareChange reports a status identity mismatch separately", async (t) => {
+  const scenario = await createScenario(t);
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const runner = (command, args, options) => {
+    const output = openSpec.runner(command, args, options);
+    if (command !== "openspec" || args[0] !== "status") return output;
+    const status = JSON.parse(output);
+    status.changeName = "another-change";
+    return JSON.stringify(status);
+  };
+
+  await assert.rejects(
+    prepareChange({
+      start: scenario.storeRoot,
+      ticket: "PAY-423",
+      name: "wrong-status-identity",
+      commandRunner: runner,
+    }),
+    /Ответ `openspec status --json` относится к Change another-change, ожидался pay-423-wrong-status-identity/,
+  );
+});
+
 test("prepareChange rejects an explicit Store ID from another checkout", async (t) => {
   const scenario = await createScenario(t);
   const openSpec = fakeOpenSpec(scenario.storeRoot);

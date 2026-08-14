@@ -91,3 +91,31 @@ export function isOpenSpecResponse(value) {
 export function isGitRevision(value) {
   return GIT_REVISION_SCHEMA.safeParse(value).success;
 }
+
+/**
+ * Создаёт ошибку на границе между ответом OpenSpec и ожиданиями Core.
+ *
+ * @param {string} command Команда-источник ответа.
+ * @param {string} reason Причина, по которой Core не может использовать ответ.
+ * @returns {Error} Ошибка совместимости машинного контракта.
+ */
+export function openSpecContractError(command, reason) {
+  return new Error(`OpenSpec Orchestrator не может обработать ответ \`${command}\`: ${reason}`);
+}
+
+/**
+ * Разбирает используемую Core часть ответа OpenSpec и явно обозначает границу совместимости.
+ *
+ * @template T
+ * @param {z.ZodType<T>} schema Ожидаемая схема используемых полей.
+ * @param {unknown} value Машинный ответ OpenSpec.
+ * @param {string} command Команда-источник ответа.
+ * @returns {T} Проверенная используемая часть ответа.
+ */
+export function parseOpenSpecContract(schema, value, command) {
+  const result = schema.safeParse(value);
+  if (!result.success) {
+    throw openSpecContractError(command, `несовместимый формат\n${z.prettifyError(result.error)}`);
+  }
+  return result.data;
+}

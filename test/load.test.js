@@ -11,6 +11,7 @@ import { parse as parseYaml } from "yaml";
 
 import { serializeOrchestratorConfig } from "../src/internal/config/index.js";
 import { prepareLoad } from "../src/internal/load/index.js";
+import { writeRuntimeContext } from "../src/internal/load/runtime.js";
 import { runCommand } from "../src/internal/shared/command.js";
 import { agentFixture } from "../test-fixtures/agents.js";
 import {
@@ -22,6 +23,56 @@ import {
 const TEMPLATE =
   'version: 1\nversions:\n  process: draft\n  openspec: "1.7.0"\nagent: null\nrepositories: []\n';
 const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/bin/openspec-orch.js");
+
+test("writeRuntimeContext checks only agent safety boundaries", async (t) => {
+  const runtimeRoot = await temporaryDirectory(t, "openspec-orchestrator-runtime-");
+  const specRoot = path.join(runtimeRoot, "store");
+  const codeRoot = path.join(runtimeRoot, "api");
+  const changeRoot = path.join(specRoot, "openspec", "changes", "pay-412-change");
+  const context = {
+    version: 2,
+    step_status: "implementation_ready",
+    execution_mode: "relaxed",
+    store_id: "payments-specs",
+    change_id: "pay-412-change",
+    spec_baseline: "unpinned",
+    spec_root: specRoot,
+    repository_id: "payments-api",
+    code_root: codeRoot,
+    implementation_branch: null,
+    code_base_revision: "unpinned",
+    schema: "spec-driven",
+    implementation_mode: "whole-change",
+    change_root: changeRoot,
+    context_files: {},
+    work_packages: [],
+    allowed_edit_roots: [codeRoot],
+    immutable_roots: [],
+  };
+  assert.equal(await writeRuntimeContext(runtimeRoot, context), path.join(runtimeRoot, "context.json"));
+  await assert.rejects(
+    writeRuntimeContext(runtimeRoot, {
+      ...context,
+      allowed_edit_roots: [path.join(runtimeRoot, "wrong")],
+    }),
+    /OpenSpec Orchestrator отказался записать runtime: allowed_edit_roots/,
+  );
+  await assert.rejects(
+    writeRuntimeContext(runtimeRoot, { ...context, change_root: path.join(runtimeRoot, "outside") }),
+    /change_root находится вне spec_root/,
+  );
+  await assert.rejects(
+    writeRuntimeContext(runtimeRoot, {
+      ...context,
+      context_files: { proposal: [path.join(runtimeRoot, "outside.md")] },
+    }),
+    /context_files выходит за change_root/,
+  );
+  await assert.rejects(
+    writeRuntimeContext(runtimeRoot, { ...context, execution_mode: "strict" }),
+    /immutable_roots не соответствует execution_mode/,
+  );
+});
 
 /**
  * @param {import("node:test").TestContext} t
