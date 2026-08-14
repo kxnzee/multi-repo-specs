@@ -8,6 +8,7 @@ import {
   resolveExecutionMode,
 } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
+import { findDuplicates, validateTicket } from "../shared/change.js";
 import { readRelativeRegularFile } from "../shared/files.js";
 import { inspectFreshCheckout } from "../shared/git.js";
 import { assertOpenSpecRoot } from "../shared/openspec.js";
@@ -19,10 +20,9 @@ import {
   validateSelection,
 } from "./validation/repository.js";
 import { validateOpenSpecAction } from "./validation/store.js";
-import { findDuplicates, validateTicket } from "./validation/ticket.js";
 import { resolveStart } from "./workspace.js";
 
-export { validateTicket } from "./validation/ticket.js";
+export { validateTicket } from "../shared/change.js";
 
 /**
  * Проверяет Store и workspace и возвращает read-only-область будущего Explore.

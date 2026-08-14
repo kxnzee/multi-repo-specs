@@ -1,9 +1,12 @@
-/** @fileoverview Проверка Jira ticket и поиск связанных Changes для Explore. */
+/** @fileoverview Общие идентификаторы Change и поиск Changes по внешнему ticket. */
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { assertRepositoryId } from "../config/index.js";
+
 const ARCHIVE_PREFIX = /^\d{4}-\d{2}-\d{2}-(.+)$/;
+const CHANGE_NAME_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const TICKET_PATTERN = /^[A-Z][A-Z0-9]*-[A-Z0-9]+$/;
 
 /**
@@ -20,10 +23,35 @@ export function validateTicket(ticket) {
 }
 
 /**
+ * Проверяет короткое имя Change без скрытой нормализации.
+ *
+ * @param {unknown} name Пользовательское короткое имя.
+ * @returns {string} Проверенное lowercase kebab-case имя.
+ */
+export function validateChangeName(name) {
+  if (typeof name !== "string" || !CHANGE_NAME_PATTERN.test(name)) {
+    throw new Error("Короткое имя Change должно быть в lowercase kebab-case, например payment-status");
+  }
+  return name;
+}
+
+/**
+ * Строит единый идентификатор `<ticket-lowercase>-<name>`.
+ *
+ * @param {string} ticket Внешний ticket key.
+ * @param {string} name Короткое имя Change.
+ * @returns {string} Канонический Change ID.
+ */
+export function buildChangeId(ticket, name) {
+  const changeId = `${validateTicket(ticket).toLowerCase()}-${validateChangeName(name)}`;
+  return assertRepositoryId(changeId, "Change ID");
+}
+
+/**
  * Проверяет принадлежность имени Change указанному ticket.
  *
  * @param {unknown} changeId Имя активного или архивного Change.
- * @param {string} ticket Нормализованный Jira ticket key.
+ * @param {string} ticket Нормализованный ticket key.
  * @returns {boolean} Совпадает ли Change с ticket без учёта регистра.
  */
 function matchesTicket(changeId, ticket) {
@@ -36,7 +64,7 @@ function matchesTicket(changeId, ticket) {
  * Находит активные и архивные Changes, уже связанные с ticket.
  *
  * @param {string} projectRoot Абсолютный путь Store.
- * @param {string} ticket Нормализованный Jira ticket key.
+ * @param {string} ticket Нормализованный ticket key.
  * @param {Array<{name: string}>} activeChanges Активные Changes из OpenSpec.
  * @returns {Promise<{active: string[], archived: string[]}>} Найденные дубли.
  */

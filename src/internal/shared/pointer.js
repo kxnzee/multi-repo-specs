@@ -3,7 +3,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { lstatOrNull } from "../shared/files.js";
+import { lstatOrNull } from "./files.js";
 
 const POINTER_PATH = path.join("openspec", "config.yaml");
 

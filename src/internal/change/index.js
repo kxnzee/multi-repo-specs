@@ -3,22 +3,21 @@
 import process from "node:process";
 
 import { resolveExecutionMode } from "../config/index.js";
-import { findDuplicates } from "../explore/validation/ticket.js";
 import { runCommand } from "../shared/command.js";
+import { buildChangeId, findDuplicates } from "../shared/change.js";
 import { runOpenSpecJson } from "../shared/openspec.js";
 import {
   currentBranch,
   inspectContinuationChangeGit,
   inspectInitialChangeGit,
 } from "./git.js";
-import { buildChangeId } from "./id.js";
 import {
   assertCreatedChange,
   readChangeStatus,
   resolveChangeStore,
 } from "./store.js";
 
-export { buildChangeId, validateChangeName } from "./id.js";
+export { buildChangeId, validateChangeName } from "../shared/change.js";
 
 /**
  * Подготавливает стандартный Change, не создавая Proposal от имени CLI.

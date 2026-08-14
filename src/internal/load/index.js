@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-import { validateChangeName } from "../change/id.js";
+import { validateChangeName } from "../shared/change.js";
 import {
   assertRepositoryId,
   parseOrchestratorConfig,
@@ -13,10 +13,10 @@ import {
   resolveExecutionMode,
   sameGitRemote,
 } from "../config/index.js";
-import { readPointer } from "../connect/pointer.js";
 import { runCommand } from "../shared/command.js";
 import { readRelativeRegularFile } from "../shared/files.js";
 import { inspectRepositoryIdentity } from "../shared/git.js";
+import { readPointer } from "../shared/pointer.js";
 import { isGitRevision } from "../shared/schema.js";
 import { resolveCodeWorkspace } from "../shared/workspace.js";
 import {
