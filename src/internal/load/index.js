@@ -70,15 +70,6 @@ function buildApplyPrompt(
 }
 
 /**
- * Читает принадлежащий Store обычный файл, не следуя symlink последнего сегмента.
- *
- * @param {string} root
- * @param {string} relativePath
- * @returns {Promise<string>}
- */
-const readStoreFile = readRelativeRegularFile;
-
-/**
  * Проверяет identity Store и выбирает Code Repository по origin текущего checkout.
  *
  * @param {string} root
@@ -90,8 +81,8 @@ const readStoreFile = readRelativeRegularFile;
  * @returns {Promise<{config: ReturnType<typeof parseOrchestratorConfig>, repository: import("../config/index.js").Repository}>}
  */
 async function inspectStoreConfig(root, storeId, repositoryId, codeOrigin, commandRunner, strict) {
-  const metadata = parseStoreMetadata(await readStoreFile(root, ".openspec-store/store.yaml"));
-  const config = parseOrchestratorConfig(await readStoreFile(root, "openspec-orch.yaml"));
+  const metadata = parseStoreMetadata(await readRelativeRegularFile(root, ".openspec-store/store.yaml"));
+  const config = parseOrchestratorConfig(await readRelativeRegularFile(root, "openspec-orch.yaml"));
   if (metadata.id !== storeId || config.storeRepository.id !== storeId) {
     throw new Error(`Store metadata и openspec-orch.yaml не подтверждают Store ${storeId}`);
   }
@@ -99,14 +90,14 @@ async function inspectStoreConfig(root, storeId, repositoryId, codeOrigin, comma
   if (metadata.remote !== undefined && !sameGitRemote(metadata.remote, config.storeRepository.url)) {
     throw new Error(`Store ${storeId}: metadata remote не совпадает с openspec-orch.yaml`);
   }
-  const matches = config.codeRepositories.filter(({ id }) => id === repositoryId);
-  if (matches.length !== 1) {
+  const repository = config.codeRepositories.find(({ id }) => id === repositoryId);
+  if (!repository) {
     throw new Error(`repository-id ${repositoryId} не найден однозначно в openspec-orch.yaml`);
   }
-  if (strict && !sameGitRemote(matches[0].url, codeOrigin ?? "")) {
+  if (strict && !sameGitRemote(repository.url, codeOrigin ?? "")) {
     throw new Error(`repository-id ${repositoryId}: origin не совпадает с openspec-orch.yaml`);
   }
-  return { config, repository: matches[0] };
+  return { config, repository };
 }
 
 /**
@@ -138,14 +129,14 @@ function inspectBaselineConfig(
   if (!sameGitRemote(config.storeRepository.url, storeOrigin)) {
     throw new Error(`Store ${storeId}: origin не совпадает с openspec-orch.yaml на spec_baseline`);
   }
-  const matches = config.codeRepositories.filter(({ id }) => id === repositoryId);
-  if (matches.length !== 1) {
+  const repository = config.codeRepositories.find(({ id }) => id === repositoryId);
+  if (!repository) {
     throw new Error(`repository-id ${repositoryId} не найден однозначно в openspec-orch.yaml на spec_baseline`);
   }
-  if (!sameGitRemote(matches[0].url, codeOrigin)) {
+  if (!sameGitRemote(repository.url, codeOrigin)) {
     throw new Error(`repository-id ${repositoryId}: origin не совпадает с openspec-orch.yaml на spec_baseline`);
   }
-  return { config, repository: matches[0] };
+  return { config, repository };
 }
 
 /**
@@ -191,8 +182,8 @@ export async function prepareLoad({
   const storeRoot = await fs.realpath(declaredStoreRoot);
   if (storeRoot !== declaredStoreRoot) throw new Error("Зарегистрированный Store root не должен быть symlink");
 
-  const currentMetadata = parseStoreMetadata(await readStoreFile(storeRoot, ".openspec-store/store.yaml"));
-  const currentConfigSource = await readStoreFile(storeRoot, "openspec-orch.yaml");
+  const currentMetadata = parseStoreMetadata(await readRelativeRegularFile(storeRoot, ".openspec-store/store.yaml"));
+  const currentConfigSource = await readRelativeRegularFile(storeRoot, "openspec-orch.yaml");
   let currentConfig;
   try {
     currentConfig = parseOrchestratorConfig(currentConfigSource);
@@ -284,8 +275,8 @@ export async function prepareLoad({
   );
   const agentInstructionsRelativePath = selectedStore.config.agent.instructionsFile;
   await Promise.all([
-    readStoreFile(specRoot, agentInstructionsRelativePath),
-    readStoreFile(specRoot, applyInstructionRelativePath),
+    readRelativeRegularFile(specRoot, agentInstructionsRelativePath),
+    readRelativeRegularFile(specRoot, applyInstructionRelativePath),
   ]);
   const agentInstructionsPath = path.join(specRoot, agentInstructionsRelativePath);
   const applyInstructionPath = path.join(specRoot, applyInstructionRelativePath);
