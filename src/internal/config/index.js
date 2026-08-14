@@ -70,9 +70,6 @@ function normalizeRepository(value) {
   if (!ROLES.has(repository.role)) {
     throw new Error(`Для repository-id ${repository.id} требуется role: store или role: code`);
   }
-  if (typeof repository.url !== "string" || typeof repository.defaultBranch !== "string") {
-    throw new Error(`Для repository-id ${repository.id} требуются url и default_branch`);
-  }
   if (repository.url.startsWith("-") || repository.defaultBranch.startsWith("-")) {
     throw new Error(`Некорректные Git-параметры для repository-id ${repository.id}`);
   }
@@ -237,8 +234,5 @@ export function parseStoreMetadata(source) {
   );
   if (value.version !== 1) throw new Error("Store metadata должна иметь version: 1");
   assertRepositoryId(value.id, "Store ID");
-  if (value.remote !== undefined && typeof value.remote !== "string") {
-    throw new Error("Store metadata remote должен быть строкой");
-  }
   return { id: value.id, remote: value.remote };
 }
