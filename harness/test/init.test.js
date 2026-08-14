@@ -6,6 +6,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { parse } from "yaml";
 
 import { resolveAgentAdapter } from "../config/agents.js";
 import { assertSupportedOpenSpecVersion, parseOrchestratorConfig } from "../config/index.js";
@@ -81,6 +82,8 @@ const PROJECT_SUBAGENTS = Object.freeze([
   "frontend-context-pass.md",
   "repository-context-pass.md",
 ]);
+
+const BASE_TEMPLATE_ROOT = new URL("../templates/base/", import.meta.url);
 
 /**
  * Имитирует OpenSpec init и Store API для тестов `openspec-orch init`.
@@ -206,6 +209,41 @@ test("parseRepository accepts the documented id=url#branch format", () => {
 test("parseRepository rejects ambiguous repository input", () => {
   assert.throws(() => parseRepository("UI=https://example.test/ui.git#main"));
   assert.throws(() => parseRepository("ui=https://example.test/ui.git"));
+});
+
+test("base Project Template owns workflow assets but not Core configuration", async () => {
+  const descriptor = parse(
+    await fs.readFile(new URL("template.yaml", BASE_TEMPLATE_ROOT), "utf8"),
+  );
+  assert.deepEqual(Object.keys(descriptor.agents).sort(), ["gigacode", "qwen"]);
+  assert.deepEqual(descriptor.agents.qwen.handoffs, {
+    explore: ".sdd/instructions/explore.md",
+    apply: ".qwen/commands/sdd-apply.md",
+  });
+  assert.deepEqual(descriptor.agents.gigacode.handoffs, {
+    explore: ".sdd/instructions/explore.md",
+    apply: ".gigacode/commands/sdd-apply.md",
+  });
+
+  for (const relativePath of [
+    "skeleton/openspec/config.yaml",
+    "commands/sdd-context.md",
+    "commands/sdd-change.md",
+    "commands/sdd-apply.md",
+    "subagents/repository-context-pass.md",
+    "agents/qwen/QWEN.md",
+    "agents/gigacode/.gigacode/GIGACODE.md",
+  ]) {
+    assert.equal((await fs.stat(new URL(relativePath, BASE_TEMPLATE_ROOT))).isFile(), true);
+  }
+  await assert.rejects(
+    fs.stat(new URL("skeleton/openspec-orch.yaml", BASE_TEMPLATE_ROOT)),
+    { code: "ENOENT" },
+  );
+  assert.equal(
+    (await fs.stat(new URL("../init/openspec-orch.yaml", import.meta.url))).isFile(),
+    true,
+  );
 });
 
 test("initProject creates Store, official expanded pack and the complete skeleton", async (t) => {

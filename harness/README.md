@@ -160,15 +160,15 @@ openspec-orch load \
 - `connect/index.js` — техническая логика `openspec-orch connect`.
 - `change/index.js` — создание и безопасное продолжение Change шага 02.
 - `explore/index.js` — read-only-проверки уже подключённого workspace шага 01.
-- `init/index.js` — техническая логика `openspec-orch init`.
+- `init/` — техническая логика `openspec-orch init` и Core-owned шаблон `openspec-orch.yaml`.
 - `load/index.js` — подготовка implementation-ветки и runtime точного Spec Baseline.
 - `shared/` — единый безопасный запуск внешних команд.
-- `init/skeleton/` — декларативный версионируемый каркас шага 00 без исполняемой логики.
+- `templates/base/` — встроенный базовый Project Template: skeleton, agent commands, инструкции и subagents без исполняемой логики Core.
 - `test/` — тесты технической обвязки, не входящие в публикуемый пакет.
 
 Суффикс `.template` у файла каркаса удаляется при установке. Например, `.gitignore.template` становится `.gitignore`; это позволяет npm включить файл в пакет.
 
-`init/index.js` выполняет короткую Git-проверку, вызывает официальные Store/init API OpenSpec и раскладывает каркас. `connect/index.js` вызывает официальные register/doctor, создаёт workspace, загружает Code Repositories и проверяет project pointer. Внутренние правила OpenSpec адаптер не дублирует. Стандартная схема `spec-driven` и её шаблоны берутся из установленного OpenSpec; OpenSpec Orchestrator задаёт только проектный контекст, дополнительные правила и команды агента в `init/skeleton/`.
+`init/index.js` выполняет короткую Git-проверку, вызывает официальные Store/init API OpenSpec и раскладывает базовый Template. `connect/index.js` вызывает официальные register/doctor, создаёт workspace, загружает Code Repositories и проверяет project pointer. Внутренние правила OpenSpec адаптер не дублирует. Стандартная схема `spec-driven` и её шаблоны берутся из установленного OpenSpec; текущий базовый workflow находится в `templates/base/` и устанавливается поверх результата OpenSpec.
 
 ## Разработка
 

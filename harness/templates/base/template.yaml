@@ -1,0 +1,38 @@
+agents:
+  qwen:
+    openspec_adapter: qwen
+    generated_directory: .qwen
+    target_directory: .qwen
+    commands_directory: .qwen/commands
+    instructions_file: QWEN.md
+    handoffs:
+      explore: .sdd/instructions/explore.md
+      apply: .qwen/commands/sdd-apply.md
+    copy:
+      - from: skeleton
+        to: .
+      - from: commands
+        to: .qwen/commands
+      - from: subagents
+        to: .qwen/agents
+      - from: agents/qwen
+        to: .
+
+  gigacode:
+    openspec_adapter: qwen
+    generated_directory: .qwen
+    target_directory: .gigacode
+    commands_directory: .gigacode/commands
+    instructions_file: .gigacode/GIGACODE.md
+    handoffs:
+      explore: .sdd/instructions/explore.md
+      apply: .gigacode/commands/sdd-apply.md
+    copy:
+      - from: skeleton
+        to: .
+      - from: commands
+        to: .gigacode/commands
+      - from: subagents
+        to: .gigacode/agents
+      - from: agents/gigacode
+        to: .

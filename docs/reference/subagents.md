@@ -131,4 +131,4 @@ evidence и repository_instructions_update_candidate.
 5. проверьте обнаружение и понятность `description` через `/agents`;
 6. не добавляйте optional профиль в обязательные проверки `openspec-orch init` и `openspec-orch connect`.
 
-Для включения профиля в начальный набор новых Store добавьте его шаблон в `harness/init/subagents/`. Harness установит файл в каталог `agents/` выбранного adapter. Расширять `openspec/config.yaml` и список обязательных профилей при этом не нужно.
+Для включения профиля в начальный набор новых Store добавьте его в `harness/templates/base/subagents/`. Базовый Template установит файл в каталог `agents/` выбранного adapter. Расширять `openspec/config.yaml` и список обязательных профилей при этом не нужно.

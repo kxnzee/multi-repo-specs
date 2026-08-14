@@ -12,7 +12,8 @@
     "explore",
     "init",
     "load",
-    "shared"
+    "shared",
+    "templates"
   ],
   "bin": {
     "openspec-orch": "./bin/openspec-orch.js"

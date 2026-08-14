@@ -1,4 +1,4 @@
-/** @fileoverview Сборка и установка центрального OpenSpec Orchestrator/OpenSpec skeleton. */
+/** @fileoverview Сборка и установка центрального OpenSpec Orchestrator/OpenSpec проекта. */
 
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -20,6 +20,8 @@ import { mergeOpenSpecConfig, mergeSharedProjectFile } from "./merge.js";
 import { inspectGit } from "./validation.js";
 
 const MODULE_ROOT = path.dirname(fileURLToPath(import.meta.url));
+const PACKAGE_ROOT = path.dirname(MODULE_ROOT);
+const BASE_TEMPLATE_ROOT = path.join(PACKAGE_ROOT, "templates", "base");
 const TEMPLATE_SUFFIX = ".template";
 const EXPANDED_WORKFLOWS = Object.freeze([
   "propose",
@@ -37,10 +39,11 @@ const EXPANDED_WORKFLOWS = Object.freeze([
 ]);
 
 const PATHS = Object.freeze({
-  skeleton: path.join(MODULE_ROOT, "skeleton"),
-  commandTemplates: path.join(MODULE_ROOT, "commands"),
-  subagentTemplates: path.join(MODULE_ROOT, "subagents"),
-  agentTemplates: path.join(MODULE_ROOT, "agents"),
+  skeleton: path.join(BASE_TEMPLATE_ROOT, "skeleton"),
+  commandTemplates: path.join(BASE_TEMPLATE_ROOT, "commands"),
+  subagentTemplates: path.join(BASE_TEMPLATE_ROOT, "subagents"),
+  agentTemplates: path.join(BASE_TEMPLATE_ROOT, "agents"),
+  orchestratorTemplate: path.join(MODULE_ROOT, "openspec-orch.yaml"),
   metadata: path.join(".openspec-store", "store.yaml"),
   openSpecConfig: path.join("openspec", "config.yaml"),
   alternateOpenSpecConfig: path.join("openspec", "config.yml"),
@@ -451,6 +454,10 @@ export async function initProject({
     source: path.join(skeletonRoot, source),
     target: bundleTarget(source),
   }));
+  bundleFiles.push({
+    source: PATHS.orchestratorTemplate,
+    target: PATHS.orchestratorConfig,
+  });
   for (const source of await listFiles(PATHS.commandTemplates)) {
     bundleFiles.push({
       source: path.join(PATHS.commandTemplates, source),
@@ -517,7 +524,7 @@ export async function initProject({
   const installedVersion = commandRunner("openspec", ["--version"], { cwd: projectRoot });
   assertSupportedOpenSpecVersion(installedVersion);
   assertStorePathAvailable(projectRoot, commandRunner);
-  const orchestratorTemplate = await fs.readFile(path.join(skeletonRoot, PATHS.orchestratorConfig), "utf8");
+  const orchestratorTemplate = await fs.readFile(PATHS.orchestratorTemplate, "utf8");
   const orchestratorContents = serializeOrchestratorConfig(
     orchestratorTemplate,
     configuredRepositories,

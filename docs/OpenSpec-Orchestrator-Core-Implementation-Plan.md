@@ -2,7 +2,7 @@
 
 ## 0. Общая модель
 
-- Статус: `proposed`.
+- Статус: `in_progress`.
 - Стадия продукта: проектирование до первого внешнего использования.
 - Рабочая ветка: `refactor-orchestrator-core`.
 - Стабильный публичный CLI-контракт ещё не объявлен.
@@ -736,6 +736,19 @@ Plugins реализуются сразу после пилота Core/Template:
 
 Каждый этап должен быть отдельным небольшим commit с наблюдаемым результатом. Простое перемещение файлов без разрыва старой зависимости не считается завершённым этапом. На этапе рефакторинга не меняется смысл текущего базового multi-repo workflow: сначала он переносится в Template, затем Core очищается от знания об этом workflow.
 
+Статус обновляется в этом документе перед commit, завершающим соответствующий этап.
+
+| Этап | Статус | Commit |
+|---|---|---|
+| 0. Исходное поведение и публичное имя | `completed` | `dea9186`, корректировка границы Template `ec675e5` |
+| 1. Базовый Template | `completed` | `refactor: extract base project template` |
+| 2. Общий Template engine | `not_started` | — |
+| 3. Перевод `init` на Template engine | `not_started` | — |
+| 4. Независимость Core-команд от Template | `not_started` | — |
+| 5. Schema-neutral OpenSpec-интеграция | `not_started` | — |
+| 6. Compatibility и strict/relaxed mode | `not_started` | — |
+| 7. Документация и реальный пилот | `not_started` | — |
+
 ```text
 текущий контракт -> публичное переименование -> базовый Template
 -> общий Template engine -> пользовательский Template
@@ -752,15 +765,16 @@ Plugins реализуются сразу после пилота Core/Template:
    - binary `sdd` → `openspec-orch`;
    - entrypoint `bin/sdd.js` → `bin/openspec-orch.js`;
    - `sdd.yaml` → `openspec-orch.yaml`;
-   - project commands `sdd-*` → `openspec-orch-*`;
-   - пользовательский help, ошибки, документацию и fixtures.
+   - Core runtime `.sdd/runtime` → `.openspec-orch/runtime`;
+   - пользовательский help, ошибки, документацию и fixtures;
+   - Template-owned commands `sdd-*` не переименовывать в namespace Core.
 4. Не добавлять compatibility alias и migration layer: внешних пользователей пока нет.
 5. До публикации оставить npm scope параметром решения; код и тесты не должны зависеть от конкретного `@<org>`.
 
 ### 4.2.2. Проверка этапа
 
 - все исходные сценарии проходят под новым CLI-именем;
-- в runtime-коде и устанавливаемых assets нет старых публичных имён `sdd`, кроме явных упоминаний методологии SDD;
+- в Core runtime нет старых публичных имён продукта `sdd`; базовый Template сохраняет `sdd-*` как собственный префикс;
 - package dry-run содержит новый binary и все прежние runtime-модули;
 - поведение команд, кроме именования, не изменилось.
 
@@ -774,7 +788,7 @@ Plugins реализуются сразу после пилота Core/Template:
 
 1. Разделить текущие файлы по владельцу:
    - `harness/bin`, `harness/cli`, Git/Store mechanics, OpenSpec runner и security checks оставить в Core;
-   - содержимое текущих `harness/init/skeleton`, `commands`, `agents` и `subagents` перенести во внутреннюю директорию базового Template;
+   - содержимое прежних `harness/init/skeleton`, `commands`, `agents` и `subagents` перенести в `harness/templates/base/`;
    - файлы официального OpenSpec pack не включать в Template: их по-прежнему создаёт `openspec init`;
    - специальный merge-код и проверки состава workflow пометить на удаление на этапе 3.
 2. Добавить в базовый Template минимальный `template.yaml` с Qwen/GigaCode agent mappings и упорядоченным `copy`.
