@@ -6,8 +6,7 @@ import path from "node:path";
 import { lstatOrNull } from "../../shared/files.js";
 import { inspectRepositoryIdentity } from "../../shared/git.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../../shared/openspec.js";
-
-const OPEN_SPEC_CONFIG = path.join("openspec", "config.yaml");
+import { POINTER_PATH, readPointer } from "../../shared/pointer.js";
 
 /**
  * Разрешает пути всех зарегистрированных Code Repositories в workspace.
@@ -58,13 +57,12 @@ export async function validatePointer(repository, storeId, projectRoot, commandR
       );
     }
   }
-  const pointerPath = path.join(repository.path, OPEN_SPEC_CONFIG);
+  const pointerPath = path.join(repository.path, POINTER_PATH);
   const pointerStat = await lstatOrNull(pointerPath);
   if (!pointerStat?.isFile() || pointerStat.isSymbolicLink()) {
     throw new Error(`${repository.id}: отсутствует принятый OpenSpec pointer; выполните openspec-orch connect`);
   }
-  const pointer = (await fs.readFile(pointerPath, "utf8")).replaceAll("\r\n", "\n");
-  if (pointer !== `store: ${storeId}\n`) {
+  if (await readPointer(repository.path) !== storeId) {
     throw new Error(`${repository.id}: openspec/config.yaml должен содержать только store: ${storeId}`);
   }
 

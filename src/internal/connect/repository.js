@@ -4,10 +4,8 @@ import path from "node:path";
 import { lstatOrNull } from "../shared/files.js";
 import { inspectRepositoryIdentity } from "../shared/git.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
-import { ensurePointer } from "../shared/pointer.js";
+import { ensurePointer, POINTER_PATH } from "../shared/pointer.js";
 import { isGitRevision } from "../shared/schema.js";
-
-const GIT_POINTER_PATH = "openspec/config.yaml";
 
 /**
  * Проверяет существующий checkout без fetch/pull.
@@ -24,7 +22,7 @@ function inspectCheckout(repositoryRoot, repository, commandRunner) {
   const changes = commandRunner("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: repositoryRoot })
     .split(/\r?\n/)
     .filter(Boolean);
-  if (changes.some((line) => line.slice(3) !== GIT_POINTER_PATH)) {
+  if (changes.some((line) => line.slice(3) !== POINTER_PATH)) {
     throw new Error(`${repository.id}: рабочее дерево должно быть чистым`);
   }
   const revision = commandRunner("git", ["rev-parse", "HEAD"], { cwd: repositoryRoot });
@@ -82,7 +80,7 @@ export async function connectRepository({
   const pointerCreated = await ensurePointer(repositoryRoot, storeId);
   const pointerPending = executionMode === "strict" && Boolean(commandRunner(
     "git",
-    ["status", "--porcelain", "--untracked-files=all", "--", GIT_POINTER_PATH],
+    ["status", "--porcelain", "--untracked-files=all", "--", POINTER_PATH],
     { cwd: repositoryRoot },
   ));
   onProgress("проверка OpenSpec pointer...");

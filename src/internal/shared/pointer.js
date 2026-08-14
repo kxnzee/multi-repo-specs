@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { lstatOrNull } from "./files.js";
 
-const POINTER_PATH = path.join("openspec", "config.yaml");
+export const POINTER_PATH = "openspec/config.yaml";
 
 /**
  * Читает строгий config-only pointer Code Repository.
