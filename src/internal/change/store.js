@@ -2,14 +2,13 @@
 
 import path from "node:path";
 
-import { findSpecRoot } from "../explore/workspace.js";
 import {
   resolveContainedDeclaredPath,
   resolveContainedExistingPath,
 } from "../shared/files.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
 import { isRecord } from "../shared/schema.js";
-import { readStoreConfiguration, validateOpenSpec } from "../shared/store.js";
+import { findSpecRoot, readStoreConfiguration, validateOpenSpec } from "../shared/store.js";
 
 const ARTIFACT_STATUSES = new Set(["done", "skipped", "ready", "blocked"]);
 

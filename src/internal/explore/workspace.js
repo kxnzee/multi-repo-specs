@@ -1,67 +1,9 @@
 /** @fileoverview Разрешение центрального Store и multi-repo workspace для Explore. */
 
-import { promises as fs } from "node:fs";
 import path from "node:path";
-import process from "node:process";
 import { lstatOrNull } from "../shared/files.js";
 import { runOpenSpecJson } from "../shared/openspec.js";
-
-const REQUIRED_ROOT_PATHS = Object.freeze([
-  path.join(".openspec-store", "store.yaml"),
-  "openspec-orch.yaml",
-  path.join("openspec", "config.yaml"),
-]);
-
-/**
- * Проверяет обязательные файлы Store и блокирует symlink до чтения.
- *
- * @param {string} candidate Предполагаемый Store.
- * @returns {Promise<boolean>} Содержит ли каталог полный OpenSpec Orchestrator skeleton.
- */
-async function hasRequiredRoot(candidate) {
-  const stats = await Promise.all(
-    REQUIRED_ROOT_PATHS.map((relativePath) => lstatOrNull(path.join(candidate, relativePath))),
-  );
-  for (const [index, stat] of stats.entries()) {
-    if (stat?.isSymbolicLink()) {
-      throw new Error(`${REQUIRED_ROOT_PATHS[index]} должна быть обычным файлом`);
-    }
-  }
-  return stats.every((stat) => stat?.isFile());
-}
-
-/**
- * Подтверждает обязательный OpenSpec Orchestrator skeleton в Store.
- *
- * @param {string} candidate Предполагаемый Store.
- * @returns {Promise<string>} Канонический путь.
- */
-async function requireProjectRoot(candidate) {
-  if (!(await hasRequiredRoot(candidate))) {
-    throw new Error(`Разрешённый Store не содержит обязательный OpenSpec Orchestrator skeleton: ${candidate}`);
-  }
-  return fs.realpath(candidate);
-}
-
-/**
- * Находит центральный Store среди текущего каталога и родителей.
- *
- * @param {string} [start] Начальный путь.
- * @returns {Promise<string>} Канонический путь Store.
- */
-export async function findSpecRoot(start = process.cwd()) {
-  let candidate = path.resolve(start);
-  const initial = await lstatOrNull(candidate);
-  if (!initial) throw new Error(`Начальный путь не существует: ${candidate}`);
-  if (!initial.isDirectory()) candidate = path.dirname(candidate);
-  while (true) {
-    if (await hasRequiredRoot(candidate)) return fs.realpath(candidate);
-    const parent = path.dirname(candidate);
-    if (parent === candidate) break;
-    candidate = parent;
-  }
-  throw new Error("Не удалось найти Spec Root среди родителей текущего каталога");
-}
+import { findSpecRoot, requireStoreRoot } from "../shared/store.js";
 
 /**
  * Разрешает запуск из Store или подключённого Code Repository.
@@ -93,7 +35,7 @@ export async function resolveStart(start, commandRunner) {
     ) {
       throw new Error("OpenSpec doctor и context разрешили разные Store");
     }
-    const projectRoot = await requireProjectRoot(path.resolve(context.root.path));
+    const projectRoot = await requireStoreRoot(path.resolve(context.root.path));
     return { projectRoot, codeRoot, discovery: { doctor, context } };
   }
 }
