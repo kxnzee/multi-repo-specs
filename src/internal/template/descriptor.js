@@ -3,15 +3,11 @@
 import { parse } from "yaml";
 import * as z from "zod";
 
-import {
-  assertPortableRelativePath,
-  isPortableRelativePath,
-} from "../shared/paths.js";
-import { isRecord } from "../shared/schema.js";
+import { isPortableRelativePath } from "../shared/paths.js";
+import { isRecord, isRepositoryId } from "../shared/schema.js";
 
-const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ARCHITECTURE = "markdown-commands";
-const ID_SCHEMA = z.string().regex(ID_PATTERN, "ожидается lowercase kebab-case");
+const ID_SCHEMA = z.string().refine(isRepositoryId, "ожидается lowercase kebab-case");
 
 /**
  * Создаёт схему безопасного относительного пути.
@@ -30,7 +26,7 @@ const RELATIVE_PATH = relativePathSchema(true);
 const NON_ROOT_PATH = relativePathSchema(false);
 const COPY_SCHEMA = z.strictObject({ from: RELATIVE_PATH, to: RELATIVE_PATH });
 const HANDOFFS_SCHEMA = z.record(z.string(), NON_ROOT_PATH).refine(
-  (handoffs) => Object.keys(handoffs).every((name) => ID_PATTERN.test(name)),
+  (handoffs) => Object.keys(handoffs).every(isRepositoryId),
   "handoff name должен быть в lowercase kebab-case",
 );
 const AGENT_SCHEMA = z.strictObject({
@@ -47,22 +43,10 @@ const TEMPLATE_SCHEMA = z.strictObject({
     (agents) => Object.keys(agents).length > 0,
     "template.yaml должен содержать непустой agents",
   ).refine(
-    (agents) => Object.keys(agents).every((id) => ID_PATTERN.test(id)),
+    (agents) => Object.keys(agents).every(isRepositoryId),
     "Agent ID должен быть в lowercase kebab-case",
   ),
 });
-
-/**
- * Проверяет безопасный переносимый относительный путь Template.
- *
- * @param {unknown} value Проверяемое значение.
- * @param {string} label Путь поля для сообщения об ошибке.
- * @param {{allowDot?: boolean}} [options] Разрешить корень назначения `.`.
- * @returns {string} Проверенный POSIX-путь.
- */
-export function assertTemplateRelativePath(value, label, options) {
-  return assertPortableRelativePath(value, label, options);
-}
 
 /**
  * Нормализует один проверенный agent mapping.
@@ -110,7 +94,7 @@ export function parseTemplateDescriptor(source) {
     throw new Error(`Некорректный template.yaml: ${error.message}`);
   }
   if (isRecord(value) && isRecord(value.agents)) {
-    const invalidId = Object.keys(value.agents).find((id) => !ID_PATTERN.test(id));
+    const invalidId = Object.keys(value.agents).find((id) => !isRepositoryId(id));
     if (invalidId) {
       throw new Error(`Agent ID '${invalidId}' в template.yaml должен быть в lowercase kebab-case`);
     }

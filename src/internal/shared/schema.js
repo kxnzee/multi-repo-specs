@@ -21,6 +21,16 @@ const GIT_REVISION_SCHEMA = z.string().regex(/^[0-9a-f]{40}$/);
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
+ * Проверяет формат устойчивого ID Store, репозитория или agent mapping.
+ *
+ * @param {unknown} value Проверяемое значение.
+ * @returns {value is string} Соответствует ли значение lowercase kebab-case.
+ */
+export function isRepositoryId(value) {
+  return typeof value === "string" && ID_PATTERN.test(value);
+}
+
+/**
  * Проверяет устойчивый ID Store или репозитория.
  *
  * @param {unknown} id Проверяемое значение.
