@@ -7,6 +7,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { initProject } from "../init/index.js";
+import { readRelativeRegularFile } from "../shared/files.js";
 
 /**
  * Создаёт временный каталог и регистрирует его удаление.
@@ -19,6 +20,18 @@ async function temporaryDirectory(t) {
   t.after(async () => fs.rm(directory, { recursive: true, force: true }));
   return directory;
 }
+
+test("readRelativeRegularFile blocks a symlink in a parent directory", async (t) => {
+  const directory = await temporaryDirectory(t);
+  const external = await temporaryDirectory(t);
+  await fs.writeFile(path.join(external, "handoff.md"), "external\n", "utf8");
+  await fs.symlink(external, path.join(directory, "workflow"));
+
+  await assert.rejects(
+    readRelativeRegularFile(directory, "workflow/handoff.md"),
+    /содержит symlink/,
+  );
+});
 
 test("initProject blocks a Store metadata symlink", async (t) => {
   const directory = await temporaryDirectory(t);

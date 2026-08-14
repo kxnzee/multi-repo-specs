@@ -744,7 +744,7 @@ Plugins реализуются сразу после пилота Core/Template:
 | 1. Базовый Template | `completed` | `refactor: extract base project template` |
 | 2. Общий Template engine | `completed` | `feat: add safe project template engine` |
 | 3. Перевод `init` на Template engine | `completed` | `feat: initialize projects from local templates` |
-| 4. Независимость Core-команд от Template | `not_started` | — |
+| 4. Независимость Core-команд от Template | `completed` | `refactor: decouple core commands from project templates` |
 | 5. Schema-neutral OpenSpec-интеграция | `not_started` | — |
 | 6. Compatibility и strict/relaxed mode | `not_started` | — |
 | 7. Документация и реальный пилот | `not_started` | — |
@@ -883,6 +883,7 @@ Core умеет безопасно прочитать произвольный �
 - оставить техническую подготовку workspace/repositories и безопасный agent handoff;
 - убрать знание о составе context, `CODEOWNERS`, ролях и содержании Explore-процесса;
 - требовать только Explore handoff, объявленный выбранным Template, если пользователь вызвал `explore`.
+- сохранить вызов штатного `/opsx-explore` как публичную точку OpenSpec, а не как файл или процесс Project Template; provider-specific каталог берётся из сохранённого agent mapping.
 
 ### 4.6.3. Проверка этапа
 

@@ -259,6 +259,23 @@ test("prepareExplore reports a lazy error when Template did not declare Explore 
   );
 });
 
+test("prepareExplore reports the declared Explore handoff when its file is missing", async (t) => {
+  const scenario = await createScenario(t);
+  await fs.rm(path.join(scenario.storeRoot, ".sdd", "instructions", "explore.md"));
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+  await assert.rejects(
+    prepareExplore({
+      start: scenario.storeRoot,
+      workspace: scenario.workspace,
+      ticket: "PAY-413",
+      selectRepositories: () => [],
+      commandRunner: openSpec.runner,
+    }),
+    /Отсутствует обычный файл \.sdd\/instructions\/explore\.md/,
+  );
+});
+
 test("prepareExplore uses the connected workspace for Store-only Explore", async (t) => {
   const scenario = await createScenario(t);
   const openSpec = fakeOpenSpec(scenario.storeRoot);

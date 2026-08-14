@@ -10,9 +10,10 @@ import {
   sameGitRemote,
 } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
+import { readRelativeRegularFile } from "../shared/files.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
 import { connectRepository } from "./repository.js";
-import { pathState, rememberWorkspace, resolveWorkspace } from "./workspace.js";
+import { rememberWorkspace, resolveWorkspace } from "./workspace.js";
 
 const PATHS = Object.freeze({
   metadata: path.join(".openspec-store", "store.yaml"),
@@ -26,12 +27,7 @@ const PATHS = Object.freeze({
  * @param {string} relativePath Относительный путь файла.
  * @returns {Promise<string>} UTF-8 содержимое.
  */
-async function readFile(root, relativePath) {
-  const target = path.join(root, relativePath);
-  const stat = await pathState(target);
-  if (!stat?.isFile() || stat.isSymbolicLink()) throw new Error(`Отсутствует обычный файл ${relativePath}`);
-  return fs.readFile(target, "utf8");
-}
+const readFile = readRelativeRegularFile;
 
 /**
  * Проверяет Store ID и путь в ответе OpenSpec.

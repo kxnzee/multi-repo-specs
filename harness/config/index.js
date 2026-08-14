@@ -172,6 +172,24 @@ export function parseOrchestratorConfig(source) {
 }
 
 /**
+ * Возвращает объявленный Template handoff только в момент вызова зависящей команды.
+ *
+ * @param {{handoffs: Record<string, string>}} agent Runtime mapping агента.
+ * @param {string} name Имя handoff.
+ * @param {string} command Пользовательская Core-команда для диагностики.
+ * @returns {string} Безопасный относительный путь handoff.
+ */
+export function requireAgentHandoff(agent, name, command) {
+  const handoff = agent.handoffs[name];
+  if (!handoff) {
+    throw new Error(
+      `Project Template не объявил agent.handoffs.${name} для ${command}`,
+    );
+  }
+  return handoff;
+}
+
+/**
  * Заполняет встроенный шаблон openspec-orch.yaml выбранным агентом и репозиториями.
  *
  * @param {string} template YAML-шаблон из skeleton.

@@ -313,6 +313,23 @@ for (const agent of [QWEN_AGENT, GIGACODE_AGENT]) {
   });
 }
 
+test("connectProject accepts a minimal config without any Template handoffs", async (t) => {
+  const agent = { ...QWEN_AGENT, handoffs: {} };
+  const scenario = await createScenario(t, { pointer: true, agent });
+  await fs.rm(path.join(scenario.storeRoot, agent.instructionsFile));
+  await fs.rm(path.join(scenario.storeRoot, ".sdd", "instructions", "explore.md"));
+  await fs.rm(path.join(scenario.storeRoot, agent.commandsDirectory), { recursive: true });
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+  const result = await connectProject({
+    start: scenario.storeRoot,
+    commandRunner: openSpec.runner,
+  });
+
+  assert.equal(result.status, "ready");
+  assert.notEqual(openSpec.calls.length, 0);
+});
+
 test("connectProject keeps an uncommitted generated pointer as needs_setup_pr", async (t) => {
   const scenario = await createScenario(t);
   const openSpec = fakeOpenSpec(scenario.storeRoot);

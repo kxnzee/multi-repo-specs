@@ -1,11 +1,16 @@
 /** @fileoverview Оркестрация read-only предпроверок для шага Explore. */
 
-import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-import { parseOrchestratorConfig, parseStoreMetadata, sameGitRemote } from "../config/index.js";
+import {
+  parseOrchestratorConfig,
+  parseStoreMetadata,
+  requireAgentHandoff,
+  sameGitRemote,
+} from "../config/index.js";
 import { runCommand } from "../shared/command.js";
+import { readRelativeRegularFile } from "../shared/files.js";
 import { inspectFreshCheckout } from "../shared/git.js";
 import { assertOpenSpecRoot } from "../shared/openspec.js";
 import { validateOpenSpec } from "../shared/store.js";
@@ -32,14 +37,7 @@ const PATHS = Object.freeze({
  * @param {string} relativePath Относительный путь.
  * @returns {Promise<string>} UTF-8 содержимое.
  */
-async function readStoreFile(projectRoot, relativePath) {
-  const target = path.join(projectRoot, relativePath);
-  const stat = await fs.lstat(target);
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new Error(`${relativePath} должна быть обычным файлом`);
-  }
-  return fs.readFile(target, "utf8");
-}
+const readStoreFile = readRelativeRegularFile;
 
 /**
  * Проверяет Store и workspace и возвращает read-only-область будущего Explore.
@@ -78,10 +76,11 @@ export async function prepareExplore({
   ]);
   const metadata = parseStoreMetadata(metadataSource);
   const config = parseOrchestratorConfig(configSource);
-  const exploreInstructionsRelativePath = config.agent.handoffs.explore;
-  if (!exploreInstructionsRelativePath) {
-    throw new Error("Project Template не объявил agent.handoffs.explore для openspec-orch explore");
-  }
+  const exploreInstructionsRelativePath = requireAgentHandoff(
+    config.agent,
+    "explore",
+    "openspec-orch explore",
+  );
   const exploreInstructionsPath = path.join(projectRoot, exploreInstructionsRelativePath);
   await readStoreFile(projectRoot, exploreInstructionsRelativePath);
   if (config.storeRepository.id !== metadata.id) {

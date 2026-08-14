@@ -38,13 +38,14 @@ async function commitFiles(repository, files) {
 
 /**
  * @param {import("node:test").TestContext} t
- * @param {{storeInsideWorkspace?: boolean, agentId?: "qwen" | "gigacode", includeAgentInstructions?: boolean}} [options]
+ * @param {{storeInsideWorkspace?: boolean, agentId?: "qwen" | "gigacode", includeAgentInstructions?: boolean, includeApplyHandoff?: boolean}} [options]
  * @returns {Promise<{workspace: string, storeRoot: string, codeRoot: string, storeRemote: string, codeRemote: string, baseline: string}>}
  */
 async function createScenario(t, {
   storeInsideWorkspace = true,
   agentId = "qwen",
   includeAgentInstructions = true,
+  includeApplyHandoff = true,
 } = {}) {
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-load-")));
   t.after(async () => fs.rm(root, { recursive: true, force: true }));
@@ -66,16 +67,19 @@ async function createScenario(t, {
     { id: "payments-specs", role: "store", url: storeRemote, defaultBranch: "main" },
     { id: "payments-api", role: "code", url: codeRemote, defaultBranch: "main" },
   ];
-  const agent = agentFixture(agentId);
+  const baseAgent = agentFixture(agentId);
+  const agent = includeApplyHandoff ? baseAgent : { ...baseAgent, handoffs: {} };
   const storeFiles = {
     ".openspec-store/store.yaml":
       `version: 1\nid: payments-specs\nremote: ${JSON.stringify(storeRemote)}\n`,
     "openspec-orch.yaml": serializeOrchestratorConfig(TEMPLATE, repositories, agent),
     "openspec/config.yaml": "schema: spec-driven\n",
-    [agent.handoffs.apply]: "Apply from verified runtime.\n",
     "openspec/changes/pay-412-payment-status/proposal.md": "# Proposal\n",
     "openspec/changes/pay-412-payment-status/tasks.md": "- [ ] 2.1 API\n- [ ] 2.2 tests\n",
   };
+  if (includeApplyHandoff) {
+    storeFiles[agent.handoffs.apply] = "Apply from verified runtime.\n";
+  }
   if (includeAgentInstructions) {
     storeFiles[agent.instructionsFile] = `# Instructions for ${agent.id}\n`;
   }
@@ -165,6 +169,24 @@ test("prepareLoad requires provider instructions on the accepted Baseline", asyn
       workPackages: ["1"],
       commandRunner: openSpec.runner,
     }),
+  );
+});
+
+test("prepareLoad reports a lazy error when Template did not declare Apply handoff", async (t) => {
+  const scenario = await createScenario(t, { includeApplyHandoff: false });
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+  await assert.rejects(
+    prepareLoad({
+      start: scenario.codeRoot,
+      storeId: "payments-specs",
+      repositoryId: "payments-api",
+      changeId: "pay-412-payment-status",
+      baseline: scenario.baseline,
+      workPackages: ["1"],
+      commandRunner: openSpec.runner,
+    }),
+    /не объявил agent\.handoffs\.apply/,
   );
 });
 

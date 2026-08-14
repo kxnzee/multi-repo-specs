@@ -10,11 +10,13 @@ import {
   assertSupportedOpenSpecVersion,
   parseOrchestratorConfig,
   parseStoreMetadata,
+  requireAgentHandoff,
   sameGitRemote,
 } from "../config/index.js";
 import { readPointer } from "../connect/pointer.js";
 import { resolveCodeWorkspace } from "../connect/workspace.js";
 import { runCommand } from "../shared/command.js";
+import { readRelativeRegularFile } from "../shared/files.js";
 import { isGitRevision } from "../shared/schema.js";
 import {
   assertClean,
@@ -70,12 +72,7 @@ function buildApplyPrompt(
  * @param {string} relativePath
  * @returns {Promise<string>}
  */
-async function readStoreFile(root, relativePath) {
-  const target = path.join(root, relativePath);
-  const stat = await fs.lstat(target);
-  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`${relativePath} должна быть обычным файлом`);
-  return fs.readFile(target, "utf8");
-}
+const readStoreFile = readRelativeRegularFile;
 
 /**
  * Проверяет identity Store и выбирает Code Repository по origin текущего checkout.
@@ -232,10 +229,11 @@ export async function prepareLoad({
     codeOrigin,
     commandRunner,
   );
-  const applyInstructionRelativePath = baselineStore.config.agent.handoffs.apply;
-  if (!applyInstructionRelativePath) {
-    throw new Error("Project Template не объявил agent.handoffs.apply для openspec-orch load");
-  }
+  const applyInstructionRelativePath = requireAgentHandoff(
+    baselineStore.config.agent,
+    "apply",
+    "openspec-orch load",
+  );
   const agentInstructionsRelativePath = baselineStore.config.agent.instructionsFile;
   await Promise.all([
     readStoreFile(worktreeRoot, agentInstructionsRelativePath),
