@@ -95,12 +95,7 @@ function isRuntimeContext(value) {
  * @returns {Promise<void>}
  */
 export async function removeRuntimeContext(runtimeRoot) {
-  const contextPath = path.join(runtimeRoot, "context.json");
-  try {
-    await fs.unlink(contextPath);
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
+  await fs.rm(path.join(runtimeRoot, "context.json"), { force: true });
 }
 
 /**
