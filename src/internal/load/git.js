@@ -4,12 +4,14 @@ import path from "node:path";
 
 import { lstatOrNull } from "../shared/files.js";
 import { inspectRepositoryIdentity } from "../shared/git.js";
+import { createGitClient } from "../shared/git-client.js";
 import { isGitRevision } from "../shared/schema.js";
 
 /** @param {string} root @param {typeof import("../shared/command.js").runCommand} runner @returns {Promise<void>} */
 export async function assertClean(root, runner) {
-  const status = await runner("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: root });
-  if (status) throw new Error(`${root}: рабочее дерево должно быть чистым`);
+  if (!(await createGitClient(root, runner).isClean())) {
+    throw new Error(`${root}: рабочее дерево должно быть чистым`);
+  }
 }
 
 /**
@@ -20,9 +22,10 @@ export async function assertClean(root, runner) {
  * @returns {Promise<void>}
  */
 export async function assertNoGitOperation(root, runner) {
+  const git = createGitClient(root, runner);
   const markers = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "BISECT_LOG", "rebase-merge", "rebase-apply"];
   for (const marker of markers) {
-    const gitPath = await runner("git", ["rev-parse", "--git-path", marker], { cwd: root });
+    const gitPath = await git.gitPath(marker);
     const target = path.resolve(root, gitPath);
     if (await lstatOrNull(target)) {
       throw new Error(`${root}: обнаружена незавершённая Git-операция (${marker})`);
@@ -39,18 +42,10 @@ export async function assertNoGitOperation(root, runner) {
  * @returns {Promise<void>}
  */
 export async function fetchStoreObjects(storeRoot, baseline, runner) {
-  await runner("git", ["fetch", "--no-tags", "origin"], { cwd: storeRoot });
-  const commit = await runner("git", ["rev-parse", `${baseline}^{commit}`], { cwd: storeRoot });
+  const git = createGitClient(storeRoot, runner);
+  await git.fetchOrigin();
+  const commit = await git.revision(`${baseline}^{commit}`);
   if (commit !== baseline) throw new Error("spec_baseline не является точной Git commit SHA Store");
-}
-
-/** @param {string} output @returns {Set<string>} */
-function worktreePaths(output) {
-  return new Set(
-    output.split(/\r?\n/)
-      .filter((line) => line.startsWith("worktree "))
-      .map((line) => path.resolve(line.slice("worktree ".length))),
-  );
 }
 
 /**
@@ -65,9 +60,8 @@ function worktreePaths(output) {
  * @returns {Promise<"created" | "reused" | "recreated">}
  */
 export async function ensureStoreWorktree({ storeRoot, worktreeRoot, baseline, commandRunner }) {
-  const registered = worktreePaths(
-    await commandRunner("git", ["worktree", "list", "--porcelain"], { cwd: storeRoot }),
-  );
+  const storeGit = createGitClient(storeRoot, commandRunner);
+  const registered = await storeGit.worktreePaths();
   const state = await lstatOrNull(worktreeRoot);
   if (state?.isSymbolicLink() || (state && !state.isDirectory())) {
     throw new Error(`Runtime Store path должен быть обычным каталогом: ${worktreeRoot}`);
@@ -78,29 +72,22 @@ export async function ensureStoreWorktree({ storeRoot, worktreeRoot, baseline, c
   if (state) {
     let reusable = false;
     try {
-      const root = path.resolve(await commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd: worktreeRoot }));
-      const revision = await commandRunner("git", ["rev-parse", "HEAD"], { cwd: worktreeRoot });
-      const status = await commandRunner("git", ["status", "--porcelain", "--untracked-files=all"], {
-        cwd: worktreeRoot,
-      });
-      reusable = root === worktreeRoot && revision === baseline && !status;
+      const worktreeGit = createGitClient(worktreeRoot, commandRunner);
+      const root = await worktreeGit.repositoryRoot();
+      const revision = await worktreeGit.revision();
+      reusable = root === worktreeRoot && revision === baseline && await worktreeGit.isClean();
     } catch {
       reusable = false;
     }
     if (reusable) return "reused";
   }
   if (state || registered.has(worktreeRoot)) {
-    await commandRunner("git", ["worktree", "remove", "--force", worktreeRoot], { cwd: storeRoot });
-    await commandRunner("git", ["worktree", "add", "--detach", worktreeRoot, baseline], { cwd: storeRoot });
+    await storeGit.removeWorktree(worktreeRoot);
+    await storeGit.addDetachedWorktree(worktreeRoot, baseline);
     return "recreated";
   }
-  await commandRunner("git", ["worktree", "add", "--detach", worktreeRoot, baseline], { cwd: storeRoot });
+  await storeGit.addDetachedWorktree(worktreeRoot, baseline);
   return "created";
-}
-
-/** @param {string} output @returns {Set<string>} */
-function refNames(output) {
-  return new Set(output.split(/\r?\n/).filter(Boolean));
 }
 
 /**
@@ -122,52 +109,43 @@ export async function prepareImplementationBranch({
   await inspectRepositoryIdentity(codeRoot, repository, commandRunner);
   await assertClean(codeRoot, commandRunner);
   await assertNoGitOperation(codeRoot, commandRunner);
-  await commandRunner("git", ["fetch", "--no-tags", "origin"], { cwd: codeRoot });
+  const git = createGitClient(codeRoot, commandRunner);
+  await git.fetchOrigin();
 
   const branch = `feature/${changeId}`;
-  const current = await commandRunner("git", ["branch", "--show-current"], { cwd: codeRoot });
-  const refs = refNames(await commandRunner(
-    "git",
-    ["for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes/origin"],
-    { cwd: codeRoot },
-  ));
+  const current = await git.currentBranch();
+  const refs = await git.refs(["refs/heads", "refs/remotes/origin"]);
   const local = refs.has(`refs/heads/${branch}`);
   const remote = refs.has(`refs/remotes/origin/${branch}`);
   const defaultRemote = `origin/${repository.defaultBranch}`;
-  const defaultRevision = await commandRunner("git", ["rev-parse", defaultRemote], { cwd: codeRoot });
+  const defaultRevision = await git.revision(defaultRemote);
   if (!isGitRevision(defaultRevision)) throw new Error(`${repository.id}: Git вернул некорректную основную ревизию`);
 
   let branchStatus;
   if (!local) {
     if (remote) {
-      await commandRunner("git", ["switch", "--track", "-c", branch, `origin/${branch}`], { cwd: codeRoot });
+      await git.createBranch(branch, { startPoint: `origin/${branch}`, track: true });
       branchStatus = "tracking";
     } else {
-      await commandRunner("git", ["switch", "--no-track", "-c", branch, defaultRemote], { cwd: codeRoot });
+      await git.createBranch(branch, { startPoint: defaultRemote });
       branchStatus = "created";
     }
   } else {
     if (current !== branch) {
       throw new Error(`${repository.id}: существующая ветка ${branch} должна быть выбрана пользователем`);
     }
-    const upstream = await commandRunner(
-      "git",
-      ["for-each-ref", "--format=%(upstream:short)", `refs/heads/${branch}`],
-      { cwd: codeRoot },
-    );
+    const upstream = await git.branchUpstream(branch);
     if (upstream && upstream !== `origin/${branch}`) {
       throw new Error(`${repository.id}: ветка ${branch} отслеживает неожиданный upstream ${upstream}`);
     }
     if (remote) {
-      const divergence = (await commandRunner(
-        "git",
-        ["rev-list", "--left-right", "--count", `${branch}...origin/${branch}`],
-        { cwd: codeRoot },
-      )).trim().split(/\s+/).map(Number);
-      if (divergence.length !== 2 || divergence.some((value) => !Number.isInteger(value))) {
-        throw new Error(`${repository.id}: Git вернул некорректный статус upstream`);
+      let divergence;
+      try {
+        divergence = await git.divergence(branch, `origin/${branch}`);
+      } catch (error) {
+        throw new Error(`${repository.id}: ${error.message}`, { cause: error });
       }
-      const [localOnly, remoteOnly] = divergence;
+      const { localOnly, remoteOnly } = divergence;
       if (remoteOnly > 0) {
         const reason = localOnly > 0 ? "diverged" : "отстаёт от";
         throw new Error(`${repository.id}: ветка ${branch} ${reason} origin/${branch}`);
@@ -176,11 +154,11 @@ export async function prepareImplementationBranch({
     branchStatus = "existing";
   }
 
-  const head = await commandRunner("git", ["rev-parse", "HEAD"], { cwd: codeRoot });
+  const head = await git.revision();
   if (!isGitRevision(head)) throw new Error(`${repository.id}: Git вернул некорректную HEAD`);
   const codeBaseRevision = branchStatus === "created"
     ? defaultRevision
-    : await commandRunner("git", ["merge-base", "HEAD", defaultRemote], { cwd: codeRoot });
+    : await git.mergeBase("HEAD", defaultRemote);
   if (!isGitRevision(codeBaseRevision)) {
     throw new Error(`${repository.id}: не удалось определить code_base_revision`);
   }

@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { runCommand } from "./command.js";
 import { lstatOrNull } from "./files.js";
+import { createGitClient } from "./git-client.js";
 
 const WORKSPACE_CONFIG_KEY = "openspec-orch.workspace";
 
@@ -44,11 +45,7 @@ export async function resolveWorkspace(
 ) {
   const configuredWorkspace = requestedWorkspace || !useGitConfig
     ? ""
-    : await commandRunner(
-      "git",
-      ["config", "--local", "--get", "--default", "", WORKSPACE_CONFIG_KEY],
-      { cwd: storeRoot },
-    );
+    : await createGitClient(storeRoot, commandRunner).configValue(WORKSPACE_CONFIG_KEY);
   const workspace = requestedWorkspace
     ? path.resolve(requestedWorkspace)
     : configuredWorkspace
@@ -81,11 +78,7 @@ export async function resolveWorkspace(
  * @returns {Promise<void>}
  */
 export async function rememberWorkspace(storeRoot, workspace, commandRunner = runCommand) {
-  await commandRunner(
-    "git",
-    ["config", "--local", "--replace-all", WORKSPACE_CONFIG_KEY, workspace],
-    { cwd: storeRoot },
-  );
+  await createGitClient(storeRoot, commandRunner).setConfigValue(WORKSPACE_CONFIG_KEY, workspace);
 }
 
 /**

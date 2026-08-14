@@ -14,6 +14,7 @@ import {
 import { runCommand } from "../shared/command.js";
 import { readRelativeRegularFile } from "../shared/files.js";
 import { inspectRepositoryIdentity, sameGitRemote } from "../shared/git.js";
+import { createGitClient } from "../shared/git-client.js";
 import { readPointer } from "../shared/pointer.js";
 import { assertRepositoryId, isGitRevision } from "../shared/schema.js";
 import { resolveCodeWorkspace } from "../shared/workspace.js";
@@ -158,7 +159,7 @@ export async function prepareLoad({
   } catch (error) {
     if (noStrict || !isGitRevision(baseline)) throw error;
     currentConfig = parseOrchestratorConfig(
-      await commandRunner("git", ["show", `${baseline}:openspec-orch.yaml`], { cwd: storeRoot }),
+      await createGitClient(storeRoot, commandRunner).showFile(baseline, "openspec-orch.yaml"),
     );
   }
   const executionMode = resolveExecutionMode(currentConfig.strict, noStrict);
@@ -194,20 +195,19 @@ export async function prepareLoad({
   let selectedStore;
   let branch;
   if (strict) {
-    const actualCodeRoot = path.resolve(
-      await commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd: codeRoot }),
-    );
+    const codeGit = createGitClient(codeRoot, commandRunner);
+    const actualCodeRoot = await codeGit.repositoryRoot();
     if (actualCodeRoot !== codeRoot) {
       throw new Error("openspec-orch load нужно запускать из корня Code Repository");
     }
-    const codeOrigin = await commandRunner("git", ["remote", "get-url", "origin"], { cwd: codeRoot });
+    const codeOrigin = await codeGit.originUrl();
     await assertClean(codeRoot, commandRunner);
     await assertNoGitOperation(codeRoot, commandRunner);
     await inspectRepositoryIdentity(storeRoot, currentConfig.storeRepository, commandRunner);
     await fetchStoreObjects(storeRoot, baseline, commandRunner);
     specRoot = path.join(runtimeRoot, "store");
     await ensureStoreWorktree({ storeRoot, worktreeRoot: specRoot, baseline, commandRunner });
-    const worktreeRevision = await commandRunner("git", ["rev-parse", "HEAD"], { cwd: specRoot });
+    const worktreeRevision = await createGitClient(specRoot, commandRunner).revision();
     if (worktreeRevision !== baseline) {
       throw new Error("Runtime Store worktree находится не на spec_baseline");
     }

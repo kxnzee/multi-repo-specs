@@ -2,6 +2,7 @@
 
 import path from "node:path";
 import { lstatOrNull } from "../shared/files.js";
+import { createGitClient } from "../shared/git-client.js";
 import { parseOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
 import { findSpecRoot, requireStoreRoot } from "../shared/store.js";
 
@@ -20,7 +21,7 @@ export async function resolveStart(start, commandRunner) {
     const stat = await lstatOrNull(cwd);
     if (!stat) throw nearestError;
     if (!stat.isDirectory()) cwd = path.dirname(cwd);
-    const codeRoot = path.resolve(await commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd }));
+    const codeRoot = await createGitClient(cwd, commandRunner).repositoryRoot();
     const doctor = await runOpenSpecJson(commandRunner, ["doctor", "--json"], codeRoot);
     const context = await runOpenSpecJson(commandRunner, ["context", "--json"], codeRoot);
     const doctorRoot = parseOpenSpecRoot(doctor.root, "openspec doctor --json");

@@ -1,7 +1,6 @@
 /** @fileoverview Общие проверки identity и точной ревизии Git checkout. */
 
-import path from "node:path";
-
+import { createGitClient } from "./git-client.js";
 import { isGitRevision } from "./schema.js";
 
 /**
@@ -34,15 +33,12 @@ export function sameGitRemote(actual, expected) {
  * @returns {Promise<void>}
  */
 export async function inspectRepositoryIdentity(repositoryRoot, repository, commandRunner) {
-  const gitRoot = path.resolve(
-    await commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd: repositoryRoot }),
-  );
+  const git = createGitClient(repositoryRoot, commandRunner);
+  const gitRoot = await git.repositoryRoot();
   if (gitRoot !== repositoryRoot) {
     throw new Error(`${repository.id}: каталог не является корнем Git-репозитория`);
   }
-  const origin = await commandRunner("git", ["remote", "get-url", "origin"], {
-    cwd: repositoryRoot,
-  });
+  const origin = await git.originUrl();
   if (!sameGitRemote(origin, repository.url)) {
     throw new Error(`${repository.id}: origin не совпадает с openspec-orch.yaml`);
   }
@@ -58,40 +54,21 @@ export async function inspectRepositoryIdentity(repositoryRoot, repository, comm
  */
 export async function inspectFreshCheckout(repositoryRoot, repository, commandRunner) {
   await inspectRepositoryIdentity(repositoryRoot, repository, commandRunner);
-  const changes = await commandRunner(
-    "git",
-    ["status", "--porcelain", "--untracked-files=all"],
-    { cwd: repositoryRoot },
-  );
-  if (changes) throw new Error(`${repository.id}: рабочее дерево должно быть чистым`);
-  const branch = await commandRunner("git", ["branch", "--show-current"], { cwd: repositoryRoot });
+  const git = createGitClient(repositoryRoot, commandRunner);
+  if (!(await git.isClean())) throw new Error(`${repository.id}: рабочее дерево должно быть чистым`);
+  const branch = await git.currentBranch();
   if (branch !== repository.defaultBranch) {
     throw new Error(`${repository.id}: ожидается ветка ${repository.defaultBranch}`);
   }
-  const remoteBranch = `refs/heads/${repository.defaultBranch}`;
-  const trackingBranch = `refs/remotes/origin/${repository.defaultBranch}`;
-  const advertisedBranch = await commandRunner(
-    "git",
-    ["ls-remote", "--heads", "origin", remoteBranch],
-    { cwd: repositoryRoot },
-  );
-  if (!advertisedBranch) {
+  if (!(await git.hasRemoteBranch(repository.defaultBranch))) {
     throw new Error(
       `${repository.id}: ветка ${repository.defaultBranch} отсутствует в origin; ` +
       `если это нужная ветка, опубликуйте её: git push -u origin ${repository.defaultBranch}`,
     );
   }
-  await commandRunner(
-    "git",
-    ["fetch", "origin", `+${remoteBranch}:${trackingBranch}`],
-    { cwd: repositoryRoot },
-  );
-  const revision = await commandRunner("git", ["rev-parse", "HEAD"], { cwd: repositoryRoot });
-  const remoteRevision = await commandRunner(
-    "git",
-    ["rev-parse", `origin/${repository.defaultBranch}`],
-    { cwd: repositoryRoot },
-  );
+  await git.fetchRemoteBranch(repository.defaultBranch);
+  const revision = await git.revision();
+  const remoteRevision = await git.revision(`origin/${repository.defaultBranch}`);
   if (!isGitRevision(revision) || !isGitRevision(remoteRevision)) {
     throw new Error(`${repository.id}: Git вернул некорректную ревизию`);
   }

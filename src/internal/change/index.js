@@ -5,9 +5,9 @@ import process from "node:process";
 import { resolveExecutionMode } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
 import { buildChangeId, findDuplicates } from "../shared/change.js";
+import { createGitClient } from "../shared/git-client.js";
 import { runOpenSpecJson } from "../shared/openspec.js";
 import {
-  currentBranch,
   inspectContinuationChangeGit,
   inspectInitialChangeGit,
 } from "./git.js";
@@ -77,7 +77,10 @@ export async function prepareChange({
       : { branch: null, revision: "unpinned" };
     changeStatus = "existing";
   } else {
-    if (executionMode === "strict" && await currentBranch(store.projectRoot, commandRunner) === branch) {
+    if (
+      executionMode === "strict" &&
+      (await createGitClient(store.projectRoot, commandRunner).currentBranch()) === branch
+    ) {
       throw new Error("needs_recovery: planning-ветка существует без Change");
     }
     if (duplicates.archived.length > 0) {
@@ -97,7 +100,7 @@ export async function prepareChange({
         )
       : { branch: null, revision: "unpinned" };
     if (executionMode === "strict") {
-      await commandRunner("git", ["switch", "-c", branch], { cwd: store.projectRoot });
+      await createGitClient(store.projectRoot, commandRunner).createBranch(branch);
     }
     const created = await runOpenSpecJson(
       commandRunner,

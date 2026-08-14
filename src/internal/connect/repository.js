@@ -3,6 +3,7 @@
 import path from "node:path";
 import { lstatOrNull } from "../shared/files.js";
 import { inspectRepositoryIdentity } from "../shared/git.js";
+import { createGitClient } from "../shared/git-client.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
 import { ensurePointer, POINTER_PATH } from "../shared/pointer.js";
 import { isGitRevision } from "../shared/schema.js";
@@ -17,15 +18,14 @@ import { isGitRevision } from "../shared/schema.js";
  */
 async function inspectCheckout(repositoryRoot, repository, commandRunner) {
   await inspectRepositoryIdentity(repositoryRoot, repository, commandRunner);
-  const branch = await commandRunner("git", ["branch", "--show-current"], { cwd: repositoryRoot });
+  const git = createGitClient(repositoryRoot, commandRunner);
+  const branch = await git.currentBranch();
   if (branch !== repository.defaultBranch) throw new Error(`${repository.id}: ожидается ветка ${repository.defaultBranch}`);
-  const changes = (await commandRunner("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: repositoryRoot }))
-    .split(/\r?\n/)
-    .filter(Boolean);
-  if (changes.some((line) => line.slice(3) !== POINTER_PATH)) {
+  const changedPaths = await git.statusPaths();
+  if (changedPaths.some((filePath) => filePath !== POINTER_PATH)) {
     throw new Error(`${repository.id}: рабочее дерево должно быть чистым`);
   }
-  const revision = await commandRunner("git", ["rev-parse", "HEAD"], { cwd: repositoryRoot });
+  const revision = await git.revision();
   if (!isGitRevision(revision)) {
     throw new Error(`${repository.id}: Git вернул некорректную ревизию`);
   }
@@ -64,9 +64,10 @@ export async function connectRepository({
       );
     }
     onProgress("клонирование...");
-    await commandRunner("git", ["clone", "--single-branch", "--no-tags", "--branch", repository.defaultBranch, "--", repository.url, repositoryRoot], {
-      cwd: sourceRoot,
-      sensitiveValues: [repository.url],
+    await createGitClient(sourceRoot, commandRunner).cloneBranch({
+      url: repository.url,
+      target: repositoryRoot,
+      branch: repository.defaultBranch,
     });
     cloned = true;
   } else if (!existing.isDirectory() || existing.isSymbolicLink()) {
@@ -78,11 +79,8 @@ export async function connectRepository({
     ? await inspectCheckout(repositoryRoot, repository, commandRunner)
     : { branch: "unpinned", revision: "unpinned" };
   const pointerCreated = await ensurePointer(repositoryRoot, storeId);
-  const pointerPending = executionMode === "strict" && Boolean(await commandRunner(
-    "git",
-    ["status", "--porcelain", "--untracked-files=all", "--", POINTER_PATH],
-    { cwd: repositoryRoot },
-  ));
+  const pointerPending = executionMode === "strict" &&
+    !(await createGitClient(repositoryRoot, commandRunner).isClean([POINTER_PATH]));
   onProgress("проверка OpenSpec pointer...");
   const doctorOutput = await commandRunner("openspec", ["doctor"], {
     cwd: repositoryRoot,
