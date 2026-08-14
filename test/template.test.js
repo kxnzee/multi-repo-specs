@@ -142,6 +142,29 @@ test("descriptor rejects missing fields and unsafe portable paths", () => {
   );
 });
 
+test("descriptor rejects unknown fields instead of silently ignoring authoring mistakes", () => {
+  const topLevel = descriptorValue([]);
+  topLevel.description = "unsupported metadata";
+  assert.throws(
+    () => parseTemplateDescriptor(stringify(topLevel)),
+    /description/,
+  );
+
+  const agent = descriptorValue([]);
+  agent.agents.test.handofs = { apply: ".agent/commands/apply.md" };
+  assert.throws(
+    () => parseTemplateDescriptor(stringify(agent)),
+    /handofs/,
+  );
+
+  const copy = descriptorValue([{ from: "instruction.md", to: ".agent/INSTRUCTIONS.md" }]);
+  copy.agents.test.copy[0].overwrite = true;
+  assert.throws(
+    () => parseTemplateDescriptor(stringify(copy)),
+    /overwrite/,
+  );
+});
+
 test("planner rejects an agent absent from the selected Template", async (t) => {
   const { templateRoot, targetRoot } = await temporaryRoots(t);
   await writeDescriptor(templateRoot, descriptorValue([]));

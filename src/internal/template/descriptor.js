@@ -28,12 +28,12 @@ function relativePathSchema(allowDot) {
 
 const RELATIVE_PATH = relativePathSchema(true);
 const NON_ROOT_PATH = relativePathSchema(false);
-const COPY_SCHEMA = z.looseObject({ from: RELATIVE_PATH, to: RELATIVE_PATH });
+const COPY_SCHEMA = z.strictObject({ from: RELATIVE_PATH, to: RELATIVE_PATH });
 const HANDOFFS_SCHEMA = z.record(z.string(), NON_ROOT_PATH).refine(
   (handoffs) => Object.keys(handoffs).every((name) => ID_PATTERN.test(name)),
   "handoff name должен быть в lowercase kebab-case",
 );
-const AGENT_SCHEMA = z.looseObject({
+const AGENT_SCHEMA = z.strictObject({
   openspec_adapter: ID_SCHEMA,
   generated_directory: NON_ROOT_PATH,
   target_directory: NON_ROOT_PATH,
@@ -42,7 +42,7 @@ const AGENT_SCHEMA = z.looseObject({
   handoffs: HANDOFFS_SCHEMA.default({}),
   copy: z.array(COPY_SCHEMA),
 });
-const TEMPLATE_SCHEMA = z.looseObject({
+const TEMPLATE_SCHEMA = z.strictObject({
   agents: z.record(z.string(), AGENT_SCHEMA).refine(
     (agents) => Object.keys(agents).length > 0,
     "template.yaml должен содержать непустой agents",
