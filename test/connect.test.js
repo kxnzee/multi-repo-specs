@@ -6,9 +6,9 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-import { connectProject } from "../src/connect/index.js";
-import { serializeOrchestratorConfig } from "../src/config/index.js";
-import { runCommand } from "../src/shared/command.js";
+import { connectProject } from "../src/internal/connect/index.js";
+import { serializeOrchestratorConfig } from "../src/internal/config/index.js";
+import { runCommand } from "../src/internal/shared/command.js";
 import { agentFixture } from "../test-fixtures/agents.js";
 import {
   commitFiles,

@@ -2,8 +2,8 @@
 
 import path from "node:path";
 
-import { initProject } from "../init/index.js";
-import { reportProgress } from "./progress.js";
+import { initProject } from "../../internal/init/index.js";
+import { reportProgress } from "../progress.js";
 
 /**
  * Печатает именованный список созданных или дополненных файлов.

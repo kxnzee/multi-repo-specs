@@ -9,9 +9,9 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 
-import { serializeOrchestratorConfig } from "../src/config/index.js";
-import { prepareLoad } from "../src/load/index.js";
-import { runCommand } from "../src/shared/command.js";
+import { serializeOrchestratorConfig } from "../src/internal/config/index.js";
+import { prepareLoad } from "../src/internal/load/index.js";
+import { runCommand } from "../src/internal/shared/command.js";
 import { agentFixture } from "../test-fixtures/agents.js";
 import {
   commitFiles,

@@ -7,10 +7,10 @@ import path from "node:path";
 import test from "node:test";
 import { parse } from "yaml";
 
-import { parseOrchestratorConfig } from "../src/config/index.js";
-import { initProject, parseRepository } from "../src/init/index.js";
-import { runCommand } from "../src/shared/command.js";
-import { inspectOpenSpecCli, requireOpenSpecCapability } from "../src/shared/compatibility.js";
+import { parseOrchestratorConfig } from "../src/internal/config/index.js";
+import { initProject, parseRepository } from "../src/internal/init/index.js";
+import { runCommand } from "../src/internal/shared/command.js";
+import { inspectOpenSpecCli, requireOpenSpecCapability } from "../src/internal/shared/compatibility.js";
 import { agentFixture } from "../test-fixtures/agents.js";
 import { temporaryDirectory } from "../test-fixtures/workspace.js";
 
@@ -281,7 +281,7 @@ test("base Project Template owns workflow assets but not Core configuration", as
     { code: "ENOENT" },
   );
   assert.equal(
-    (await fs.stat(new URL("../src/init/openspec-orch.yaml", import.meta.url))).isFile(),
+    (await fs.stat(new URL("../src/internal/init/openspec-orch.yaml", import.meta.url))).isFile(),
     true,
   );
 });

@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { runCommand } from "../src/shared/command.js";
+import { runCommand } from "../src/internal/shared/command.js";
 
 /**
  * Создаёт канонический временный каталог и регистрирует его удаление.

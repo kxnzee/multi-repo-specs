@@ -7,14 +7,14 @@ import process from "node:process";
 import test from "node:test";
 import { parse, stringify } from "yaml";
 
-import { parseOrchestratorConfig, serializeOrchestratorConfig } from "../src/config/index.js";
+import { parseOrchestratorConfig, serializeOrchestratorConfig } from "../src/internal/config/index.js";
 import {
   buildExploreInvocation,
   findSpecRoot,
   prepareExplore,
   validateTicket,
-} from "../src/explore/index.js";
-import { runCommand } from "../src/shared/command.js";
+} from "../src/internal/explore/index.js";
+import { runCommand } from "../src/internal/shared/command.js";
 import { agentFixture } from "../test-fixtures/agents.js";
 import {
   createCheckoutWithRemote,

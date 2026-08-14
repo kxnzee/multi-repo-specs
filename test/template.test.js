@@ -11,7 +11,7 @@ import {
   BASE_TEMPLATE_ROOT,
   buildTemplatePlan,
   parseTemplateDescriptor,
-} from "../src/template/index.js";
+} from "../src/internal/template/index.js";
 import { temporaryDirectory } from "../test-fixtures/workspace.js";
 
 /**

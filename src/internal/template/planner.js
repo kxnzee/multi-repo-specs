@@ -8,11 +8,8 @@ import { isContainedPath } from "../shared/paths.js";
 import { parseTemplateDescriptor } from "./descriptor.js";
 
 const MODULE_ROOT = path.dirname(fileURLToPath(import.meta.url));
-export const BASE_TEMPLATE_ROOT = path.join(
-  path.dirname(path.dirname(MODULE_ROOT)),
-  "templates",
-  "base",
-);
+const PACKAGE_ROOT = path.dirname(path.dirname(path.dirname(MODULE_ROOT)));
+export const BASE_TEMPLATE_ROOT = path.join(PACKAGE_ROOT, "templates", "base");
 const PROTECTED_ROOTS = new Set([".git", ".openspec-store", "openspec-orch.yaml"]);
 
 /**

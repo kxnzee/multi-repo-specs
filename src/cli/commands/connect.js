@@ -1,7 +1,7 @@
 /** @fileoverview Пользовательский сценарий команды `openspec-orch connect`. */
 
-import { connectProject } from "../connect/index.js";
-import { reportProgress } from "./progress.js";
+import { connectProject } from "../../internal/connect/index.js";
+import { reportProgress } from "../progress.js";
 
 /**
  * Выполняет `openspec-orch connect` и печатает состояние каждого Code Repository.

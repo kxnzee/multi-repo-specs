@@ -2,16 +2,16 @@
 
 import { Command, InvalidArgumentError, Option } from "commander";
 
-import { validateChangeName } from "../change/index.js";
-import { assertRepositoryId } from "../config/index.js";
-import { validateTicket } from "../explore/index.js";
-import { parseRepository } from "../init/index.js";
-import { isGitRevision } from "../shared/schema.js";
-import { runChange } from "./change.js";
-import { runConnect } from "./connect.js";
-import { runExplore } from "./explore.js";
-import { runInit } from "./init.js";
-import { runLoad } from "./load.js";
+import { validateChangeName } from "../internal/change/index.js";
+import { assertRepositoryId } from "../internal/config/index.js";
+import { validateTicket } from "../internal/explore/index.js";
+import { parseRepository } from "../internal/init/index.js";
+import { isGitRevision } from "../internal/shared/schema.js";
+import { runChange } from "./commands/change.js";
+import { runConnect } from "./commands/connect.js";
+import { runExplore } from "./commands/explore.js";
+import { runInit } from "./commands/init.js";
+import { runLoad } from "./commands/load.js";
 
 const DEFAULT_HANDLERS = Object.freeze({
   init: runInit,

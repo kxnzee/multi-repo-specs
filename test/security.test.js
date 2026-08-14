@@ -5,8 +5,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-import { initProject } from "../src/init/index.js";
-import { readRelativeRegularFile } from "../src/shared/files.js";
+import { initProject } from "../src/internal/init/index.js";
+import { readRelativeRegularFile } from "../src/internal/shared/files.js";
 import { temporaryDirectory } from "../test-fixtures/workspace.js";
 
 test("readRelativeRegularFile blocks a symlink in a parent directory", async (t) => {

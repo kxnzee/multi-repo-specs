@@ -784,7 +784,7 @@ Plugins реализуются сразу после пилота Core/Template:
 ### 4.3.1. Изменения
 
 1. Разделить текущие файлы по владельцу:
-   - `src/bin`, `src/cli`, Git/Store mechanics, OpenSpec runner и security checks оставить в Core;
+   - `src/bin`, `src/cli` и непубличные Git/Store, OpenSpec и security-модули в `src/internal` оставить в Core;
    - содержимое прежних каталогов `init/skeleton`, `commands`, `agents` и `subagents` перенести в `templates/base/`;
    - файлы официального OpenSpec pack не включать в Template: их по-прежнему создаёт `openspec init`;
    - специальный merge-код и проверки состава workflow пометить на удаление на этапе 3.

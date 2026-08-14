@@ -3,8 +3,8 @@
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
 
-import { prepareChange } from "../change/index.js";
-import { reportProgress } from "./progress.js";
+import { prepareChange } from "../../internal/change/index.js";
+import { reportProgress } from "../progress.js";
 
 /**
  * Запрашивает подтверждение повторной работы по архивному ticket.

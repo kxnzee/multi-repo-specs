@@ -170,21 +170,35 @@ openspec-orch load \
 
 ## Границы
 
-- `src/bin/` — минимальные точки входа командной строки.
-- `src/config/index.js` — разбор Store identity, agent mapping, repositories и project execution mode из `openspec-orch.yaml`.
-- `src/connect/index.js` — техническая логика `openspec-orch connect`.
-- `src/change/index.js` — создание и безопасное продолжение Change шага 02.
-- `src/explore/index.js` — read-only-проверки уже подключённого workspace шага 01.
-- `src/init/` — техническая логика `openspec-orch init` и Core-owned шаблон `openspec-orch.yaml`.
-- `src/load/index.js` — подготовка strict Baseline runtime либо явно `unpinned` relaxed runtime.
-- `src/shared/` — единый безопасный запуск внешних команд.
-- `src/template/` — Core-owned parser и безопасный copy planner Project Template; применение plan выполняет только `init`.
+- `src/bin/openspec-orch.js` — единственная npm-точка входа; только передаёт управление CLI.
+- `src/cli/index.js` — запуск приложения, проверка Node.js и единая обработка ошибок.
+- `src/cli/program.js` — публичный контракт команд, аргументов и флагов.
+- `src/cli/commands/` — пользовательские сценарии команд и форматирование результата.
+- `src/internal/` — непубличная механика Core, которую нельзя считать API пакета.
+- `src/internal/change/`, `connect/`, `explore/`, `init/`, `load/` — предметная реализация команд.
+- `src/internal/config/` — разбор Store identity, agent mapping, repositories и project execution mode из `openspec-orch.yaml`.
+- `src/internal/template/` — parser и безопасный copy planner Project Template; применение plan выполняет только `init`.
+- `src/internal/shared/` — общие Git, OpenSpec, filesystem, process и validation-примитивы внутренних модулей.
 - `templates/base/` — встроенный базовый Project Template: skeleton, agent commands, инструкции и subagents без исполняемой логики Core.
 - `test/` — тесты технической обвязки, не входящие в публикуемый пакет.
 
+Путь исполнения теперь читается сверху вниз:
+
+```text
+package.json bin
+  -> src/bin/openspec-orch.js
+  -> src/cli/index.js
+  -> src/cli/program.js
+  -> src/cli/commands/<command>.js
+  -> src/internal/<domain>/
+  -> src/internal/shared/
+```
+
+Пакет не предоставляет библиотечный JavaScript API: публичной поверхностью остаётся CLI `openspec-orch`. Поэтому код из `src/internal/` может меняться без обязательства сохранять прямые импорты потребителей.
+
 Встроенный Template явно отображает `assets/gitignore.template` в `.gitignore`; общего правила удаления суффиксов в Core нет.
 
-`src/init/index.js` выполняет короткую Git-проверку, вызывает официальные Store/init API OpenSpec и раскладывает базовый Template. `src/connect/index.js` вызывает официальные register/doctor, создаёт workspace, загружает Code Repositories и проверяет project pointer. Внутренние правила OpenSpec адаптер не дублирует. Стандартная схема `spec-driven` и её шаблоны берутся из установленного OpenSpec; текущий базовый workflow находится в `templates/base/` и устанавливается поверх результата OpenSpec.
+`src/internal/init/index.js` выполняет короткую Git-проверку, вызывает официальные Store/init API OpenSpec и раскладывает базовый Template. `src/internal/connect/index.js` вызывает официальные register/doctor, создаёт workspace, загружает Code Repositories и проверяет project pointer. Внутренние правила OpenSpec адаптер не дублирует. Стандартная схема `spec-driven` и её шаблоны берутся из установленного OpenSpec; текущий базовый workflow находится в `templates/base/` и устанавливается поверх результата OpenSpec.
 
 ## Разработка
 

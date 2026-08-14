@@ -2,8 +2,8 @@
 
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
-import { buildExploreInvocation, prepareExplore } from "../explore/index.js";
-import { reportProgress } from "./progress.js";
+import { buildExploreInvocation, prepareExplore } from "../../internal/explore/index.js";
+import { reportProgress } from "../progress.js";
 
 /**
  * Минимальный интерфейс интерактивного терминала.

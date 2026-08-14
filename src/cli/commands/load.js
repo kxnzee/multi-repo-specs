@@ -1,8 +1,8 @@
 /** @fileoverview Пользовательский сценарий команды `openspec-orch load`. */
 
-import { prepareLoad } from "../load/index.js";
+import { prepareLoad } from "../../internal/load/index.js";
 import { stringify as stringifyYaml } from "yaml";
-import { reportProgress } from "./progress.js";
+import { reportProgress } from "../progress.js";
 
 /**
  * Выполняет `openspec-orch load` и печатает машинный или компактный человекочитаемый результат.

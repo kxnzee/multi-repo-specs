@@ -6,14 +6,7 @@
   "files": [
     "src/bin",
     "src/cli",
-    "src/config",
-    "src/connect",
-    "src/change",
-    "src/explore",
-    "src/init",
-    "src/load",
-    "src/shared",
-    "src/template",
+    "src/internal",
     "templates"
   ],
   "bin": {
