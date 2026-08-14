@@ -1,9 +1,40 @@
-/** @fileoverview Общие проверки OpenSpec Store перед рабочими командами OpenSpec Orchestrator. */
+/** @fileoverview Чтение и общие проверки Store перед рабочими командами OpenSpec Orchestrator. */
 
 import path from "node:path";
 
+import {
+  parseOrchestratorConfig,
+  parseStoreMetadata,
+  sameGitRemote,
+} from "../config/index.js";
 import { inspectOpenSpecCli, requireOpenSpecCapability } from "./compatibility.js";
+import { readRelativeRegularFile } from "./files.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "./openspec.js";
+
+/**
+ * Читает Core-owned Store metadata и конфигурацию и проверяет их общую identity.
+ *
+ * @param {string} projectRoot Абсолютный путь Store.
+ * @returns {Promise<{
+ *   metadata: ReturnType<typeof parseStoreMetadata>,
+ *   config: ReturnType<typeof parseOrchestratorConfig>
+ * }>} Проверенные Store metadata и конфигурация.
+ */
+export async function readStoreConfiguration(projectRoot) {
+  const [metadataSource, configSource] = await Promise.all([
+    readRelativeRegularFile(projectRoot, ".openspec-store/store.yaml"),
+    readRelativeRegularFile(projectRoot, "openspec-orch.yaml"),
+  ]);
+  const metadata = parseStoreMetadata(metadataSource);
+  const config = parseOrchestratorConfig(configSource);
+  if (config.storeRepository.id !== metadata.id) {
+    throw new Error("Store ID в openspec-orch.yaml не совпадает с Store metadata");
+  }
+  if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
+    throw new Error("URL role: store не совпадает с Store metadata");
+  }
+  return { metadata, config };
+}
 
 /**
  * Проверяет metadata, здоровье и регистрацию Store из ответа store doctor.

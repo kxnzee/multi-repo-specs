@@ -2,21 +2,14 @@
 
 import path from "node:path";
 
-import { parseOrchestratorConfig, parseStoreMetadata, sameGitRemote } from "../config/index.js";
 import { findSpecRoot } from "../explore/workspace.js";
 import {
-  readRelativeRegularFile,
   resolveContainedDeclaredPath,
   resolveContainedExistingPath,
 } from "../shared/files.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
 import { isRecord } from "../shared/schema.js";
-import { validateOpenSpec } from "../shared/store.js";
-
-const PATHS = Object.freeze({
-  metadata: path.join(".openspec-store", "store.yaml"),
-  orchestratorConfig: "openspec-orch.yaml",
-});
+import { readStoreConfiguration, validateOpenSpec } from "../shared/store.js";
 
 const ARTIFACT_STATUSES = new Set(["done", "skipped", "ready", "blocked"]);
 
@@ -36,22 +29,16 @@ function assertRelativeArtifactPath(value, label) {
  *
  * @param {string} start
  * @param {typeof import("../shared/command.js").runCommand} commandRunner
- * @returns {Promise<{projectRoot: string, storeId: string, config: ReturnType<typeof parseOrchestratorConfig>, activeChanges: Array<{name: string}>}>}
+ * @returns {Promise<{
+ *   projectRoot: string,
+ *   storeId: string,
+ *   config: ReturnType<typeof import("../config/index.js").parseOrchestratorConfig>,
+ *   activeChanges: Array<{name: string}>
+ * }>}
  */
 export async function resolveChangeStore(start, commandRunner) {
   const projectRoot = await findSpecRoot(start);
-  const [metadataSource, configSource] = await Promise.all([
-    readRelativeRegularFile(projectRoot, PATHS.metadata),
-    readRelativeRegularFile(projectRoot, PATHS.orchestratorConfig),
-  ]);
-  const metadata = parseStoreMetadata(metadataSource);
-  const config = parseOrchestratorConfig(configSource);
-  if (config.storeRepository.id !== metadata.id) {
-    throw new Error("Store ID в openspec-orch.yaml не совпадает с Store metadata");
-  }
-  if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
-    throw new Error("URL role: store не совпадает с Store metadata");
-  }
+  const { metadata, config } = await readStoreConfiguration(projectRoot);
   const activeChanges = validateOpenSpec(
     projectRoot,
     metadata.id,

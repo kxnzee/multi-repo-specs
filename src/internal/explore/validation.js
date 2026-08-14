@@ -4,17 +4,14 @@ import path from "node:path";
 import process from "node:process";
 
 import {
-  parseOrchestratorConfig,
-  parseStoreMetadata,
   requireAgentHandoff,
   resolveExecutionMode,
-  sameGitRemote,
 } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
 import { readRelativeRegularFile } from "../shared/files.js";
 import { inspectFreshCheckout } from "../shared/git.js";
 import { assertOpenSpecRoot } from "../shared/openspec.js";
-import { validateOpenSpec } from "../shared/store.js";
+import { readStoreConfiguration, validateOpenSpec } from "../shared/store.js";
 import { resolveWorkspace } from "../shared/workspace.js";
 import {
   resolveCodeRepositories,
@@ -26,20 +23,6 @@ import { findDuplicates, validateTicket } from "./validation/ticket.js";
 import { resolveStart } from "./workspace.js";
 
 export { validateTicket } from "./validation/ticket.js";
-
-const PATHS = Object.freeze({
-  metadata: path.join(".openspec-store", "store.yaml"),
-  orchestratorConfig: "openspec-orch.yaml",
-});
-
-/**
- * Читает обязательный обычный файл Store без перехода по symlink.
- *
- * @param {string} projectRoot Корень Store.
- * @param {string} relativePath Относительный путь.
- * @returns {Promise<string>} UTF-8 содержимое.
- */
-const readStoreFile = readRelativeRegularFile;
 
 /**
  * Проверяет Store и workspace и возвращает read-only-область будущего Explore.
@@ -74,12 +57,7 @@ export async function prepareExplore({
 
   const startContext = await resolveStart(start, commandRunner);
   const projectRoot = startContext.projectRoot;
-  const [metadataSource, configSource] = await Promise.all([
-    readStoreFile(projectRoot, PATHS.metadata),
-    readStoreFile(projectRoot, PATHS.orchestratorConfig),
-  ]);
-  const metadata = parseStoreMetadata(metadataSource);
-  const config = parseOrchestratorConfig(configSource);
+  const { metadata, config } = await readStoreConfiguration(projectRoot);
   const executionMode = resolveExecutionMode(config.strict, noStrict);
   const exploreInstructionsRelativePath = requireAgentHandoff(
     config.agent,
@@ -87,13 +65,7 @@ export async function prepareExplore({
     "openspec-orch explore",
   );
   const exploreInstructionsPath = path.join(projectRoot, exploreInstructionsRelativePath);
-  await readStoreFile(projectRoot, exploreInstructionsRelativePath);
-  if (config.storeRepository.id !== metadata.id) {
-    throw new Error("Store ID в openspec-orch.yaml не совпадает с Store metadata");
-  }
-  if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
-    throw new Error("URL role: store не совпадает с Store metadata");
-  }
+  await readRelativeRegularFile(projectRoot, exploreInstructionsRelativePath);
 
   await validateOpenSpecAction(projectRoot, config.agent);
   const activeChanges = validateOpenSpec(

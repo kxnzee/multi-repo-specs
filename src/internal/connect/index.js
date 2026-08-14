@@ -3,32 +3,13 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import {
-  parseOrchestratorConfig,
-  parseStoreMetadata,
-  resolveExecutionMode,
-  sameGitRemote,
-} from "../config/index.js";
+import { resolveExecutionMode } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
 import { inspectOpenSpecCli } from "../shared/compatibility.js";
-import { readRelativeRegularFile } from "../shared/files.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
+import { readStoreConfiguration } from "../shared/store.js";
 import { rememberWorkspace, resolveWorkspace } from "../shared/workspace.js";
 import { connectRepository } from "./repository.js";
-
-const PATHS = Object.freeze({
-  metadata: path.join(".openspec-store", "store.yaml"),
-  orchestratorConfig: "openspec-orch.yaml",
-});
-
-/**
- * Читает обязательный обычный файл внутри заданного корня.
- *
- * @param {string} root Абсолютный корень проекта.
- * @param {string} relativePath Относительный путь файла.
- * @returns {Promise<string>} UTF-8 содержимое.
- */
-const readFile = readRelativeRegularFile;
 
 /**
  * Проверяет Store ID и путь в ответе OpenSpec.
@@ -91,13 +72,8 @@ export async function connectProject({
 } = {}) {
   onProgress("Проверка Store и OpenSpec...");
   const storeRoot = await fs.realpath(path.resolve(start));
-  const metadata = parseStoreMetadata(await readFile(storeRoot, PATHS.metadata));
-  const config = parseOrchestratorConfig(await readFile(storeRoot, PATHS.orchestratorConfig));
+  const { metadata, config } = await readStoreConfiguration(storeRoot);
   const executionMode = resolveExecutionMode(config.strict, noStrict);
-  if (config.storeRepository.id !== metadata.id) throw new Error("Store ID в openspec-orch.yaml не совпадает с Store metadata");
-  if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
-    throw new Error("URL role: store не совпадает с Store metadata");
-  }
   inspectOpenSpecCli(commandRunner, storeRoot);
   const registration = runOpenSpecJson(commandRunner, ["store", "register", storeRoot, "--id", metadata.id, "--yes", "--json"], storeRoot);
   assertStoreIdentity(registration, metadata.id, storeRoot, "openspec store register");
