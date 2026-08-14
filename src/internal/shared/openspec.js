@@ -90,6 +90,20 @@ export function assertNoOpenSpecErrors(value, command) {
 }
 
 /**
+ * Разбирает обязательную identity OpenSpec root без проверки project-specific ожиданий.
+ *
+ * @param {unknown} root OpenSpec root из JSON-ответа.
+ * @param {string} command Команда-источник ответа.
+ * @returns {import("./types.js").OpenSpecRoot} Проверенная identity.
+ */
+export function parseOpenSpecRoot(root, command) {
+  if (!isOpenSpecRoot(root)) {
+    throw openSpecContractError(command, "не передана обязательная identity OpenSpec root");
+  }
+  return root;
+}
+
+/**
  * Проверяет, что OpenSpec разрешил ожидаемый Store, а не nearest/default root.
  *
  * @param {unknown} root Разрешённый OpenSpec root из JSON-ответа.
@@ -98,25 +112,23 @@ export function assertNoOpenSpecErrors(value, command) {
  * @returns {void}
  */
 export function assertOpenSpecRoot(root, expected, command) {
-  if (!isOpenSpecRoot(root)) {
-    throw openSpecContractError(command, "не передана обязательная identity OpenSpec root");
-  }
-  if (path.resolve(root.path ?? "") !== path.resolve(expected.path)) {
+  const actual = parseOpenSpecRoot(root, command);
+  if (path.resolve(actual.path) !== path.resolve(expected.path)) {
     throw new Error(
       `OpenSpec Orchestrator ожидал root.path ${expected.path}, ` +
-        `но ответ \`${command}\` указал ${root.path ?? "не указан"}`,
+        `но ответ \`${command}\` указал ${actual.path}`,
     );
   }
-  if (root.source !== expected.source) {
+  if (actual.source !== expected.source) {
     throw new Error(
       `OpenSpec Orchestrator ожидал root.source ${expected.source}, ` +
-        `но ответ \`${command}\` указал ${root.source ?? "не указан"}`,
+        `но ответ \`${command}\` указал ${actual.source}`,
     );
   }
-  if (root.store_id !== expected.storeId) {
+  if (actual.store_id !== expected.storeId) {
     throw new Error(
       `OpenSpec Orchestrator ожидал root.store_id ${expected.storeId}, ` +
-        `но ответ \`${command}\` указал ${root.store_id ?? "не указан"}`,
+        `но ответ \`${command}\` указал ${actual.store_id ?? "не указан"}`,
     );
   }
 }

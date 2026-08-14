@@ -197,8 +197,20 @@ export function validateOpenSpec(projectRoot, storeId, commandRunner) {
     projectRoot,
   );
   assertOpenSpecRoot(doctor.root, { path: projectRoot, storeId, source: "store" }, doctorCommand);
-  if (doctor.root.healthy !== true || doctor.store?.id !== storeId) {
-    throw new Error(`${doctorCommand} не подтвердила исправный Store`);
+  if (typeof doctor.root.healthy !== "boolean") {
+    throw openSpecContractError(doctorCommand, "root не содержит boolean healthy");
+  }
+  if (!isRecord(doctor.store) || typeof doctor.store.id !== "string") {
+    throw openSpecContractError(doctorCommand, "не передана обязательная Store identity");
+  }
+  if (doctor.root.healthy !== true) {
+    throw new Error(`Store ${storeId} не прошёл проверку здоровья \`${doctorCommand}\``);
+  }
+  if (doctor.store.id !== storeId) {
+    throw new Error(
+      `OpenSpec Orchestrator ожидал Store ${storeId}, ` +
+        `но ответ \`${doctorCommand}\` указал ${doctor.store.id}`,
+    );
   }
 
   const contextCommand = `openspec context --store ${storeId} --json`;

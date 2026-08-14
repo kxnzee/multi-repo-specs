@@ -13,7 +13,10 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?
 export function inspectOpenSpecCli(commandRunner, cwd) {
   const version = commandRunner("openspec", ["--version"], { cwd }).trim();
   if (!VERSION_PATTERN.test(version)) {
-    throw new Error("OpenSpec CLI не вернула корректную semantic version");
+    throw new Error(
+      "OpenSpec Orchestrator не может определить версию OpenSpec CLI: " +
+        "ожидалась semantic version",
+    );
   }
   return version;
 }

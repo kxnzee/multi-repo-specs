@@ -5,9 +5,8 @@ import * as z from "zod";
 
 import { inspectOpenSpecCli } from "../shared/compatibility.js";
 import { resolveContainedExistingPath } from "../shared/files.js";
-import { runOpenSpecJson } from "../shared/openspec.js";
+import { parseOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
 import {
-  isOpenSpecRoot,
   openSpecContractError,
   parseOpenSpecContract,
 } from "../shared/schema.js";
@@ -46,14 +45,23 @@ const APPLY_SCHEMA = z.looseObject({
  */
 export function resolveHealthyStore(storeId, codeRoot, commandRunner) {
   inspectOpenSpecCli(commandRunner, codeRoot);
+  const command = "openspec doctor --json";
   const doctor = runOpenSpecJson(commandRunner, ["doctor", "--json"], codeRoot);
-  if (
-    !isOpenSpecRoot(doctor.root) || doctor.root.source !== "declared" ||
-    doctor.root.store_id !== storeId || doctor.root.healthy !== true
-  ) {
-    throw new Error(`openspec doctor --json не разрешила объявленный Store ${storeId}`);
+  const root = parseOpenSpecRoot(doctor.root, command);
+  if (root.source !== "declared" || root.store_id !== storeId) {
+    throw new Error(
+      `OpenSpec Orchestrator ожидал declared Store ${storeId}, ` +
+        `но ответ \`${command}\` указал source=${root.source}, ` +
+        `store_id=${root.store_id ?? "не указан"}`,
+    );
   }
-  const storeRoot = path.resolve(doctor.root.path);
+  if (typeof root.healthy !== "boolean") {
+    throw openSpecContractError(command, "root не содержит boolean healthy");
+  }
+  if (!root.healthy) {
+    throw new Error(`Store ${storeId} не прошёл проверку здоровья \`${command}\``);
+  }
+  const storeRoot = path.resolve(root.path);
   const storeDoctor = runOpenSpecJson(
     commandRunner,
     ["store", "doctor", storeId, "--json"],
@@ -65,8 +73,12 @@ export function resolveHealthyStore(storeId, codeRoot, commandRunner) {
 
 /** @param {unknown} root @param {string} expected @param {string} command */
 function assertNearestRoot(root, expected, command) {
-  if (!isOpenSpecRoot(root) || path.resolve(root.path) !== expected || root.source !== "nearest") {
-    throw new Error(`${command} не использовала точный runtime worktree`);
+  const actual = parseOpenSpecRoot(root, command);
+  if (path.resolve(actual.path) !== expected || actual.source !== "nearest") {
+    throw new Error(
+      `OpenSpec Orchestrator ожидал runtime root ${expected} с source=nearest, ` +
+        `но ответ \`${command}\` указал root=${actual.path}, source=${actual.source}`,
+    );
   }
 }
 

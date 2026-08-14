@@ -83,8 +83,13 @@ function buildApplyPrompt(
 async function inspectStoreConfig(root, storeId, repositoryId, codeOrigin, commandRunner, strict) {
   const metadata = parseStoreMetadata(await readRelativeRegularFile(root, ".openspec-store/store.yaml"));
   const config = parseOrchestratorConfig(await readRelativeRegularFile(root, "openspec-orch.yaml"));
-  if (metadata.id !== storeId || config.storeRepository.id !== storeId) {
-    throw new Error(`Store metadata и openspec-orch.yaml не подтверждают Store ${storeId}`);
+  if (metadata.id !== storeId) {
+    throw new Error(`Store metadata относится к ${metadata.id}, ожидался ${storeId}`);
+  }
+  if (config.storeRepository.id !== storeId) {
+    throw new Error(
+      `openspec-orch.yaml объявляет Store ${config.storeRepository.id}, ожидался ${storeId}`,
+    );
   }
   if (strict) inspectRepositoryIdentity(root, config.storeRepository, commandRunner);
   if (metadata.remote !== undefined && !sameGitRemote(metadata.remote, config.storeRepository.url)) {
@@ -92,7 +97,7 @@ async function inspectStoreConfig(root, storeId, repositoryId, codeOrigin, comma
   }
   const repository = config.codeRepositories.find(({ id }) => id === repositoryId);
   if (!repository) {
-    throw new Error(`repository-id ${repositoryId} не найден однозначно в openspec-orch.yaml`);
+    throw new Error(`repository-id ${repositoryId} не найден в openspec-orch.yaml`);
   }
   if (strict && !sameGitRemote(repository.url, codeOrigin ?? "")) {
     throw new Error(`repository-id ${repositoryId}: origin не совпадает с openspec-orch.yaml`);
@@ -131,7 +136,9 @@ export async function prepareLoad({
     new Set(workPackages).size !== workPackages.length ||
     workPackages.some((id) => typeof id !== "string" || id.length === 0)
   ) {
-    throw new Error("Work Package ID должны быть непустыми уникальными task.id из OpenSpec");
+    throw new Error(
+      "OpenSpec Orchestrator требует непустые уникальные Work Package ID из task.id",
+    );
   }
 
   const codeRoot = await fs.realpath(path.resolve(start));
@@ -156,11 +163,19 @@ export async function prepareLoad({
   }
   const executionMode = resolveExecutionMode(currentConfig.strict, noStrict);
   const strict = executionMode === "strict";
-  if (
-    currentMetadata.id !== storeId || currentConfig.storeRepository.id !== storeId ||
-    !currentMetadata.remote || !sameGitRemote(currentMetadata.remote, currentConfig.storeRepository.url)
-  ) {
-    throw new Error(`Store metadata не подтверждает Store ${storeId} и его remote`);
+  if (currentMetadata.id !== storeId) {
+    throw new Error(`Store metadata относится к ${currentMetadata.id}, ожидался ${storeId}`);
+  }
+  if (currentConfig.storeRepository.id !== storeId) {
+    throw new Error(
+      `openspec-orch.yaml объявляет Store ${currentConfig.storeRepository.id}, ожидался ${storeId}`,
+    );
+  }
+  if (!currentMetadata.remote) {
+    throw new Error(`Store metadata ${storeId} не содержит обязательный remote`);
+  }
+  if (!sameGitRemote(currentMetadata.remote, currentConfig.storeRepository.url)) {
+    throw new Error(`Store ${storeId}: metadata remote не совпадает с openspec-orch.yaml`);
   }
   if (strict && !isGitRevision(baseline)) {
     throw new Error("strict mode требует --baseline с полной lowercase Git SHA");

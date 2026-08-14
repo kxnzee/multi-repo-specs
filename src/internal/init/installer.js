@@ -57,7 +57,10 @@ export async function adaptGeneratedAgentPack(projectRoot, agent) {
   const source = path.join(projectRoot, agent.generatedDirectory);
   const sourceStat = await lstatOrNull(source);
   if (!sourceStat?.isDirectory() || sourceStat.isSymbolicLink()) {
-    throw new Error(`OpenSpec не создал ожидаемый agent pack ${agent.generatedDirectory}/`);
+    throw new Error(
+      `OpenSpec Orchestrator ожидал после \`openspec init\` обычный каталог ` +
+        `${agent.generatedDirectory}/ из agent mapping`,
+    );
   }
   if (agent.generatedDirectory === agent.targetDirectory) return;
   const destination = path.join(projectRoot, agent.targetDirectory);

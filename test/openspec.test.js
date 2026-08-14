@@ -5,8 +5,10 @@ import test from "node:test";
 import {
   assertOpenSpecRoot,
   assertOpenSpecStore,
+  parseOpenSpecRoot,
   parseOpenSpecJson,
 } from "../src/internal/shared/openspec.js";
+import { assertStoreDoctor } from "../src/internal/shared/store.js";
 import {
   assertRepositoryId,
   isGitRevision,
@@ -75,6 +77,21 @@ test("assertOpenSpecRoot rejects another root path", () => {
   );
 });
 
+test("OpenSpec root errors distinguish contract incompatibility from identity mismatch", () => {
+  assert.throws(
+    () => parseOpenSpecRoot({}, "openspec context --json"),
+    /OpenSpec Orchestrator не может обработать ответ `openspec context --json`/,
+  );
+  assert.throws(
+    () => assertOpenSpecRoot(
+      { path: "/tmp/other", store_id: "specs", source: "store" },
+      { path: "/tmp/specs", storeId: "specs", source: "store" },
+      "openspec context --json",
+    ),
+    /OpenSpec Orchestrator ожидал root\.path/,
+  );
+});
+
 test("assertOpenSpecStore requires the expected Store ID and root", () => {
   assert.doesNotThrow(() => assertOpenSpecStore(
     { id: "specs", root: "/tmp/specs" },
@@ -88,5 +105,23 @@ test("assertOpenSpecStore requires the expected Store ID and root", () => {
       "openspec store setup",
     ),
     /OpenSpec Orchestrator ожидал Store specs/,
+  );
+});
+
+test("Store doctor errors distinguish its JSON contract from an unhealthy Store", () => {
+  assert.throws(
+    () => assertStoreDoctor({ stores: [{ id: "specs" }] }, "specs", "/tmp/specs"),
+    /OpenSpec Orchestrator не может обработать ответ `openspec store doctor specs --json`/,
+  );
+  assert.throws(
+    () => assertStoreDoctor({
+      stores: [{
+        id: "specs",
+        root: "/tmp/specs",
+        metadata: { present: true, valid: true },
+        openspec_root: { healthy: false },
+      }],
+    }, "specs", "/tmp/specs"),
+    /Store specs не прошёл проверку здоровья/,
   );
 });
