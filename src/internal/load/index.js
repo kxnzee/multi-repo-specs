@@ -101,45 +101,6 @@ async function inspectStoreConfig(root, storeId, repositoryId, codeOrigin, comma
 }
 
 /**
- * Читает конфигурацию непосредственно из принятой commit, не доверяя рабочим файлам Store.
- *
- * @param {string} storeRoot
- * @param {string} storeId
- * @param {string} baseline
- * @param {string} repositoryId
- * @param {string} codeOrigin
- * @param {typeof runCommand} commandRunner
- * @returns {{config: ReturnType<typeof parseOrchestratorConfig>, repository: import("../config/index.js").Repository}}
- */
-function inspectBaselineConfig(
-  storeRoot,
-  storeId,
-  baseline,
-  repositoryId,
-  codeOrigin,
-  commandRunner,
-) {
-  const config = parseOrchestratorConfig(
-    commandRunner("git", ["show", `${baseline}:openspec-orch.yaml`], { cwd: storeRoot }),
-  );
-  if (config.storeRepository.id !== storeId) {
-    throw new Error(`openspec-orch.yaml на spec_baseline не подтверждает Store ${storeId}`);
-  }
-  const storeOrigin = commandRunner("git", ["remote", "get-url", "origin"], { cwd: storeRoot });
-  if (!sameGitRemote(config.storeRepository.url, storeOrigin)) {
-    throw new Error(`Store ${storeId}: origin не совпадает с openspec-orch.yaml на spec_baseline`);
-  }
-  const repository = config.codeRepositories.find(({ id }) => id === repositoryId);
-  if (!repository) {
-    throw new Error(`repository-id ${repositoryId} не найден однозначно в openspec-orch.yaml на spec_baseline`);
-  }
-  if (!sameGitRemote(repository.url, codeOrigin)) {
-    throw new Error(`repository-id ${repositoryId}: origin не совпадает с openspec-orch.yaml на spec_baseline`);
-  }
-  return { config, repository };
-}
-
-/**
  * Подготавливает Code Repository и точный Store worktree для шага 06.
  *
  * @param {object} options
@@ -229,17 +190,6 @@ export async function prepareLoad({
     await assertNoGitOperation(codeRoot, commandRunner);
     inspectRepositoryIdentity(storeRoot, currentConfig.storeRepository, commandRunner);
     fetchStoreObjects(storeRoot, baseline, commandRunner);
-    const acceptedStore = inspectBaselineConfig(
-      storeRoot,
-      storeId,
-      baseline,
-      repositoryId,
-      codeOrigin,
-      commandRunner,
-    );
-    if (!sameGitRemote(currentMetadata.remote, acceptedStore.config.storeRepository.url)) {
-      throw new Error(`Store ${storeId}: metadata remote не совпадает с openspec-orch.yaml на spec_baseline`);
-    }
     specRoot = path.join(runtimeRoot, "store");
     await ensureStoreWorktree({ storeRoot, worktreeRoot: specRoot, baseline, commandRunner });
     const worktreeRevision = commandRunner("git", ["rev-parse", "HEAD"], { cwd: specRoot });
@@ -254,6 +204,9 @@ export async function prepareLoad({
       commandRunner,
       true,
     );
+    if (!sameGitRemote(currentMetadata.remote, selectedStore.config.storeRepository.url)) {
+      throw new Error(`Store ${storeId}: metadata remote не совпадает с openspec-orch.yaml на spec_baseline`);
+    }
     effectiveBaseline = baseline;
   } else {
     specRoot = storeRoot;
