@@ -229,6 +229,46 @@ test("prepareChange creates a planning branch and standard OpenSpec Change", asy
   ].join(" ")));
 });
 
+test("prepareChange relaxed mode creates a Change without managing Git branches", async (t) => {
+  const scenario = await createScenario(t);
+  await fs.writeFile(path.join(scenario.storeRoot, "local.txt"), "intentional local state\n", "utf8");
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+  const result = await prepareChange({
+    start: scenario.storeRoot,
+    ticket: "PAY-420",
+    name: "local-flow",
+    noStrict: true,
+    commandRunner: openSpec.runner,
+  });
+
+  assert.equal(result.executionMode, "relaxed");
+  assert.equal(result.branch, null);
+  assert.equal(result.baseRevision, "unpinned");
+  assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.storeRoot }), "main");
+});
+
+test("prepareChange reports a concrete missing OpenSpec JSON capability", async (t) => {
+  const scenario = await createScenario(t);
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const runner = (command, args, options) => {
+    if (command === "openspec" && args.join(" ") === "store list --json") {
+      return JSON.stringify({ status: [] });
+    }
+    return openSpec.runner(command, args, options);
+  };
+
+  await assert.rejects(
+    prepareChange({
+      start: scenario.storeRoot,
+      ticket: "PAY-421",
+      name: "missing-capability",
+      commandRunner: runner,
+    }),
+    /обязательный capability: openspec store list --json: stores\[\]/,
+  );
+});
+
 test("prepareChange rejects an explicit Store ID from another checkout", async (t) => {
   const scenario = await createScenario(t);
   const openSpec = fakeOpenSpec(scenario.storeRoot);

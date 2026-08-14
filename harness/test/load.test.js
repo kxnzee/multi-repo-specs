@@ -121,6 +121,7 @@ function fakeOpenSpec(storeRoot, {
     if (command === "git") return runCommand(command, args, options);
     assert.equal(command, "openspec");
     calls.push({ args, cwd: options.cwd });
+    if (args.join(" ") === "--version") return "1.7.1";
     if (args.join(" ") === "doctor --json") {
       return JSON.stringify({
         root: { path: storeRoot, source: "declared", store_id: "payments-specs", healthy: true },
@@ -230,7 +231,7 @@ test("prepareLoad creates an exact Store worktree, implementation branch and min
   assert.deepEqual(Object.keys(context).sort(), [
     "allowed_edit_roots", "change_id", "code_base_revision", "code_root", "immutable_roots",
     "implementation_branch", "repository_id", "spec_baseline", "spec_root", "step_status", "schema",
-    "implementation_mode", "change_root", "context_files", "store_id", "version", "work_packages",
+    "implementation_mode", "change_root", "context_files", "execution_mode", "store_id", "version", "work_packages",
   ].sort());
   assert.equal(context.version, 2);
   assert.equal(context.implementation_mode, "package");
@@ -344,6 +345,65 @@ test("prepareLoad rejects OpenSpec context paths outside the Change root", async
     /выходит за разрешённый root/,
   );
   assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.codeRoot }), "main");
+});
+
+test("prepareLoad relaxed mode stays unpinned and preserves path security checks", async (t) => {
+  const scenario = await createScenario(t);
+  await fs.writeFile(path.join(scenario.codeRoot, "local.txt"), "intentional local state\n", "utf8");
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const result = await prepareLoad({
+    start: scenario.codeRoot,
+    storeId: "payments-specs",
+    repositoryId: "payments-api",
+    changeId: "pay-412-payment-status",
+    workPackages: ["1"],
+    noStrict: true,
+    commandRunner: openSpec.runner,
+  });
+
+  assert.equal(result.executionMode, "relaxed");
+  assert.equal(result.specBaseline, "unpinned");
+  assert.equal(result.implementationBranch, null);
+  assert.equal(result.branchStatus, "unmanaged");
+  assert.equal(result.codeBaseRevision, "unpinned");
+  assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.codeRoot }), "main");
+  const context = JSON.parse(await fs.readFile(result.runtimePath, "utf8"));
+  assert.equal(context.execution_mode, "relaxed");
+  assert.equal(context.spec_root, scenario.storeRoot);
+  assert.deepEqual(context.immutable_roots, []);
+  assert.ok(openSpec.calls.some(({ args }) => args.join(" ") === [
+    "validate", "pay-412-payment-status", "--type", "change", "--no-interactive", "--json",
+  ].join(" ")));
+
+  const unsafeOpenSpec = fakeOpenSpec(scenario.storeRoot, { contextOutsideChange: true });
+  await assert.rejects(
+    prepareLoad({
+      start: scenario.codeRoot,
+      storeId: "payments-specs",
+      repositoryId: "payments-api",
+      changeId: "pay-412-payment-status",
+      workPackages: ["1"],
+      noStrict: true,
+      commandRunner: unsafeOpenSpec.runner,
+    }),
+    /выходит за разрешённый root/,
+  );
+});
+
+test("prepareLoad never falls back from strict mode when baseline is missing", async (t) => {
+  const scenario = await createScenario(t);
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  await assert.rejects(
+    prepareLoad({
+      start: scenario.codeRoot,
+      storeId: "payments-specs",
+      repositoryId: "payments-api",
+      changeId: "pay-412-payment-status",
+      workPackages: ["1"],
+      commandRunner: openSpec.runner,
+    }),
+    /strict mode требует --baseline/,
+  );
 });
 
 test("prepareLoad uses the current subtask Baseline after implementation commits", async (t) => {
@@ -468,7 +528,10 @@ test("openspec-orch load CLI returns structured JSON and YAML contracts", async 
 const args = process.argv.slice(2);
 const storeRoot = ${JSON.stringify(scenario.storeRoot)};
 let result;
-if (args.join(" ") === "doctor --json") {
+if (args.join(" ") === "--version") {
+  console.log("1.7.1");
+  process.exit(0);
+} else if (args.join(" ") === "doctor --json") {
   result = { root: { path: storeRoot, source: "declared", store_id: "payments-specs", healthy: true }, status: [] };
 } else if (args[0] === "store" && args[1] === "doctor") {
   result = { stores: [{ id: "payments-specs", root: storeRoot, metadata: { present: true, valid: true }, openspec_root: { present: true, healthy: true }, status: [] }], status: [] };
@@ -512,6 +575,7 @@ console.log(JSON.stringify(result));
   const output = JSON.parse(result.stdout);
   assert.deepEqual(Object.keys(output), [
     "step_status",
+    "execution_mode",
     "store_id",
     "change_id",
     "spec_baseline",

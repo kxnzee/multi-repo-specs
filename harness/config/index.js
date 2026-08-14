@@ -8,7 +8,6 @@ import { assertOrchestratorConfigSchema, assertStoreMetadataSchema } from "./sch
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ROLES = new Set(["store", "code"]);
 const AGENT_ARCHITECTURE = "markdown-commands";
-export const OPEN_SPEC_VERSION = "1.7.0";
 
 /**
  * Репозиторий в нормализованном внутреннем формате CLI.
@@ -140,7 +139,7 @@ function normalizeAgent(value) {
  *
  * @param {string} source Содержимое openspec-orch.yaml.
  * @returns {{
- *   openSpecVersion: string,
+ *   strict: boolean,
  *   agent: ReturnType<typeof normalizeAgent>,
  *   repositories: Repository[],
  *   storeRepository: Repository,
@@ -163,7 +162,7 @@ export function parseOrchestratorConfig(source) {
     throw new Error("openspec-orch.yaml должен содержать ровно одну запись role: store");
   }
   return {
-    openSpecVersion: value.versions.openspec,
+    strict: value.strict ?? true,
     agent,
     repositories,
     storeRepository: stores[0],
@@ -190,20 +189,33 @@ export function requireAgentHandoff(agent, name, command) {
 }
 
 /**
+ * Разрешает режим выполнения без скрытого fallback из strict в relaxed.
+ *
+ * @param {boolean} projectStrict
+ * @param {boolean} noStrict
+ * @returns {"strict" | "relaxed"}
+ */
+export function resolveExecutionMode(projectStrict, noStrict = false) {
+  if (typeof projectStrict !== "boolean" || typeof noStrict !== "boolean") {
+    throw new Error("Некорректная конфигурация execution mode");
+  }
+  return noStrict || !projectStrict ? "relaxed" : "strict";
+}
+
+/**
  * Заполняет встроенный шаблон openspec-orch.yaml выбранным агентом и репозиториями.
  *
  * @param {string} template YAML-шаблон из skeleton.
  * @param {Repository[]} repositories
  * @param {{id: string, openSpecId: string, architecture: string, commandsDirectory: string, instructionsFile: string, handoffs?: Record<string, string>}} agent
- * @param {string} [openSpecVersion] Версия OpenSpec, которую требуется зафиксировать.
+ * @param {boolean} [strict] Project default для Git-гарантий Core.
  * @returns {string}
  */
-export function serializeOrchestratorConfig(template, repositories, agent, openSpecVersion) {
+export function serializeOrchestratorConfig(template, repositories, agent, strict = true) {
   const value = parseYaml(template, "Некорректный шаблон openspec-orch.yaml");
-  value.versions ??= {};
-  value.versions.openspec = assertSupportedOpenSpecVersion(
-    openSpecVersion ?? value.versions.openspec,
-  );
+  if (typeof strict !== "boolean") throw new Error("strict должен быть boolean");
+  delete value.versions;
+  value.strict = strict;
   value.agent = {
     id: agent.id,
     openspec_adapter: agent.openSpecId,
@@ -221,19 +233,6 @@ export function serializeOrchestratorConfig(template, repositories, agent, openS
     default_branch: defaultBranch,
   }));
   return stringify(value, { lineWidth: 0 });
-}
-
-/**
- * Проверяет закреплённую версию OpenSpec.
- *
- * @param {unknown} version
- * @returns {string}
- */
-export function assertSupportedOpenSpecVersion(version) {
-  if (version !== OPEN_SPEC_VERSION) {
-    throw new Error(`OpenSpec Orchestrator требует OpenSpec ${OPEN_SPEC_VERSION}`);
-  }
-  return version;
 }
 
 /**

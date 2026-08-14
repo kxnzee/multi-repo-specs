@@ -110,6 +110,7 @@ function printExploreResult(result) {
   console.log(`Намерение: ${result.intent}`);
   console.log(`Spec Root: ${result.projectRoot}`);
   console.log(`Workspace: ${result.workspace}`);
+  console.log(`Execution mode: ${result.executionMode}`);
   console.log(`Store revision: ${result.store.revision}`);
   if (result.projectSpecsOnly) {
     console.log(`Code Repositories: нет, Explore только по ${result.storeRepositoryId}`);
@@ -147,6 +148,7 @@ export async function runExplore(args) {
     const result = await prepareExplore({
       ticket: options.ticket,
       workspace: options.workspace,
+      noStrict: options.noStrict,
       selectRepositories: (repositories) => selectRepositories(prompt, repositories),
       confirmArchivedChange: async (changes) => {
         console.log(`Найдены архивные Changes с ticket ${options.ticket}:`);

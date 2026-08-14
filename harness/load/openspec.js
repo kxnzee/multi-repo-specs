@@ -2,6 +2,7 @@
 
 import path from "node:path";
 
+import { inspectOpenSpecCli } from "../shared/compatibility.js";
 import { resolveContainedExistingPath } from "../shared/files.js";
 import { runOpenSpecJson } from "../shared/openspec.js";
 import { isOpenSpecRoot, isRecord } from "../shared/schema.js";
@@ -15,6 +16,7 @@ import { isOpenSpecRoot, isRecord } from "../shared/schema.js";
  * @returns {string}
  */
 export function resolveHealthyStore(storeId, codeRoot, commandRunner) {
+  inspectOpenSpecCli(commandRunner, codeRoot);
   const doctor = runOpenSpecJson(commandRunner, ["doctor", "--json"], codeRoot);
   if (
     !isOpenSpecRoot(doctor.root) || doctor.root.source !== "declared" ||
@@ -96,6 +98,7 @@ async function normalizeContextFiles(changeRoot, value) {
  * @param {string} options.changeId
  * @param {string[]} options.workPackages
  * @param {typeof import("../shared/command.js").runCommand} options.commandRunner
+ * @param {boolean} options.strict OpenSpec validation mode.
  * @returns {Promise<{schema: string, changeRoot: string, implementationMode: "package" | "whole-change", contextFiles: Record<string, string[]>, selectedTasks: Array<{id: string, description: string}>}>}
  */
 export async function validateImplementationInput({
@@ -103,10 +106,20 @@ export async function validateImplementationInput({
   changeId,
   workPackages,
   commandRunner,
+  strict,
 }) {
+  const validationArgs = [
+    "validate",
+    changeId,
+    "--type",
+    "change",
+    ...(strict ? ["--strict"] : []),
+    "--no-interactive",
+    "--json",
+  ];
   const validation = runOpenSpecJson(
     commandRunner,
-    ["validate", changeId, "--type", "change", "--strict", "--no-interactive", "--json"],
+    validationArgs,
     worktreeRoot,
   );
   assertNearestRoot(validation.root, worktreeRoot, "openspec validate");

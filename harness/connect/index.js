@@ -4,12 +4,13 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import {
-  assertSupportedOpenSpecVersion,
   parseOrchestratorConfig,
   parseStoreMetadata,
+  resolveExecutionMode,
   sameGitRemote,
 } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
+import { inspectOpenSpecCli } from "../shared/compatibility.js";
 import { readRelativeRegularFile } from "../shared/files.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
 import { connectRepository } from "./repository.js";
@@ -77,6 +78,7 @@ function validateStoreDoctor(payload, storeId, storeRoot) {
  * @param {string} [options.start] Корень Store.
  * @param {string} [options.workspace] Корень workspace.
  * @param {(message: string) => void} [options.onProgress] Пользовательский вывод прогресса.
+ * @param {boolean} [options.noStrict] Отключить Git-гарантии для текущего вызова.
  * @param {typeof runCommand} [options.commandRunner] Исполнитель команд.
  * @returns {Promise<import("../shared/types.js").ConnectResult>} Проверенное состояние workspace.
  */
@@ -84,21 +86,19 @@ export async function connectProject({
   start = process.cwd(),
   workspace: requestedWorkspace,
   onProgress = () => {},
+  noStrict = false,
   commandRunner = runCommand,
 } = {}) {
   onProgress("Проверка Store и OpenSpec...");
   const storeRoot = await fs.realpath(path.resolve(start));
   const metadata = parseStoreMetadata(await readFile(storeRoot, PATHS.metadata));
   const config = parseOrchestratorConfig(await readFile(storeRoot, PATHS.orchestratorConfig));
+  const executionMode = resolveExecutionMode(config.strict, noStrict);
   if (config.storeRepository.id !== metadata.id) throw new Error("Store ID в openspec-orch.yaml не совпадает с Store metadata");
   if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
     throw new Error("URL role: store не совпадает с Store metadata");
   }
-  assertSupportedOpenSpecVersion(config.openSpecVersion);
-  const installedVersion = commandRunner("openspec", ["--version"], { cwd: storeRoot });
-  if (installedVersion !== config.openSpecVersion) {
-    throw new Error(`Установлен OpenSpec ${installedVersion}, ожидается ${config.openSpecVersion}`);
-  }
+  inspectOpenSpecCli(commandRunner, storeRoot);
   const registration = runOpenSpecJson(commandRunner, ["store", "register", storeRoot, "--id", metadata.id, "--yes", "--json"], storeRoot);
   assertStoreIdentity(registration, metadata.id, storeRoot, "openspec store register");
   const storeDoctor = runOpenSpecJson(commandRunner, ["store", "doctor", metadata.id, "--json"], storeRoot);
@@ -116,6 +116,7 @@ export async function connectProject({
     metadata.id,
     requestedWorkspace,
     commandRunner,
+    executionMode === "strict",
   );
   const sourceRoot = path.join(workspace, "src");
   await fs.mkdir(sourceRoot, { recursive: true });
@@ -129,15 +130,19 @@ export async function connectProject({
       storeRoot,
       onProgress: (message) => onProgress(`${prefix}: ${message}`),
       commandRunner,
+      executionMode,
     });
     repositories.push(connected);
     onProgress(`${prefix}: готово`);
   }
-  if (requestedWorkspace) rememberWorkspace(storeRoot, workspace, commandRunner);
+  if (requestedWorkspace && executionMode === "strict") {
+    rememberWorkspace(storeRoot, workspace, commandRunner);
+  }
   return {
     storeId: metadata.id,
     storeRoot,
     workspace,
+    executionMode,
     status: repositories.some(({ pointerPending }) => pointerPending) ? "needs_setup_pr" : "ready",
     repositories,
   };

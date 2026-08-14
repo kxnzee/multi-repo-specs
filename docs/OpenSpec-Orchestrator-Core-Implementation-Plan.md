@@ -154,9 +154,7 @@ Core не содержит agent commands, skills, subagents, prompts, project-l
 
 ## 1.4. Strict и relaxed mode
 
-Минимальный прототип остаётся полностью Git-based и сохраняет текущий strict-контракт. Relaxed mode ниже является следующим архитектурным этапом и не входит в прототип Template.
-
-Core по умолчанию работает в strict mode. Project configuration может явно выбрать другой default, а CLI-флаг переопределяет его для одного вызова. Рабочее имя флага до утверждения публичного контракта — `--no-strict`.
+Core по умолчанию работает в strict mode. Project configuration может явно выбрать другой default, а CLI-флаг переопределяет его для одного вызова. Публичный флаг для такого переопределения — `--no-strict`.
 
 Приоритет однозначен: явный CLI-флаг → project configuration → Core default `strict`. Core никогда не переходит в relaxed mode автоматически из-за неуспешной strict-проверки.
 
@@ -245,14 +243,13 @@ Template имеет приоритет над файлами, созданным
 
 Минимальная итоговая проверка агента требует корректные `id`, `openspec_adapter`, безопасные `commands_directory` и `instructions_file`, существующие command directory и instruction file, а также успешный OpenSpec adapter init. Конкретные `openspec-orch-*`, `opsx-*`, skills и subagents проверяются лениво только командой, которая их использует.
 
-`openspec-orch init` не является менеджером жизненного цикла Template: нет версий Template, npm metadata, update, registry, интерполяции, delete rules, произвольных hooks или автоматического merge. Минимальный прототип не меняет текущую exact-version проверку OpenSpec и strict Git-контракт; их ослабление остаётся следующим срезом.
+`openspec-orch init` не является менеджером жизненного цикла Template: нет версий Template, npm metadata, update, registry, интерполяции, delete rules, произвольных hooks или автоматического merge. Совместимость OpenSpec проверяется по фактически используемым CLI capabilities, а Git-гарантии выбираются через project setting и `--no-strict`.
 
 Минимальный Core-owned `openspec-orch.yaml`:
 
 ```yaml
 version: 1
-versions:
-  openspec: "1.7.0" # временный exact pin прототипа
+strict: true
 agent:
   id: qwen
   openspec_adapter: qwen
@@ -746,7 +743,7 @@ Plugins реализуются сразу после пилота Core/Template:
 | 3. Перевод `init` на Template engine | `completed` | `feat: initialize projects from local templates` |
 | 4. Независимость Core-команд от Template | `completed` | `refactor: decouple core commands from project templates` |
 | 5. Schema-neutral OpenSpec-интеграция | `completed` | `feat: support schema-neutral OpenSpec workflows` |
-| 6. Compatibility и strict/relaxed mode | `not_started` | — |
+| 6. Compatibility и strict/relaxed mode | `completed` | `feat: add OpenSpec compatibility modes` |
 | 7. Документация и реальный пилот | `not_started` | — |
 
 ```text

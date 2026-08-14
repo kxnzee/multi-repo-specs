@@ -43,6 +43,7 @@ export async function runChange(args) {
       ticket: options.ticket,
       name: options.name,
       storeId: options.storeId,
+      noStrict: options.noStrict,
       confirmArchivedChange: prompt
         ? async (changes) => {
             console.error(`Найдены архивные Changes с ticket ${options.ticket}:`);

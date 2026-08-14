@@ -387,6 +387,36 @@ test("connectProject preserves and blocks a dirty existing Code Repository", asy
   assert.equal(await fs.readFile(path.join(checkout, "local.txt"), "utf8"), "do not touch\n");
 });
 
+test("connectProject relaxed mode uses existing local directories without Git assumptions", async (t) => {
+  const scenario = await createScenario(t);
+  const checkout = path.join(scenario.workspace, "src", "api");
+  await fs.mkdir(checkout, { recursive: true });
+  await fs.writeFile(path.join(checkout, "local.txt"), "not a Git checkout\n", "utf8");
+  const configPath = path.join(scenario.storeRoot, "openspec-orch.yaml");
+  await fs.writeFile(
+    configPath,
+    (await fs.readFile(configPath, "utf8")).replace("strict: true", "strict: false"),
+    "utf8",
+  );
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+  const result = await connectProject({
+    start: scenario.storeRoot,
+    workspace: scenario.workspace,
+    commandRunner: openSpec.runner,
+  });
+
+  assert.equal(result.executionMode, "relaxed");
+  assert.equal(result.repositories[0].cloned, false);
+  assert.equal(result.repositories[0].branch, "unpinned");
+  assert.equal(result.repositories[0].revision, "unpinned");
+  assert.equal(result.repositories[0].pointerPending, false);
+  assert.equal(
+    await fs.readFile(path.join(checkout, "openspec", "config.yaml"), "utf8"),
+    "store: payments-specs\n",
+  );
+});
+
 test("connectProject refuses a registry conflict without unregistering it", async (t) => {
   const scenario = await createScenario(t, { pointer: true });
   const conflictingPath = path.join(scenario.root, "other-checkout");

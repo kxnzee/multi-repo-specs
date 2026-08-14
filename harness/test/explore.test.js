@@ -211,7 +211,7 @@ test("parseOrchestratorConfig reads agent, Store and Code Repository roles", () 
       { id: "api", role: "code", url: "ssh://git@example.test/api.git", defaultBranch: "develop" },
     ], QWEN),
   );
-  assert.equal(config.openSpecVersion, "1.7.0");
+  assert.equal(config.strict, true);
   assert.equal(config.storeRepository.id, "project-specs");
   assert.deepEqual(config.codeRepositories.map(({ id }) => id), ["api"]);
 });
@@ -474,6 +474,26 @@ test("prepareExplore preserves and blocks a dirty selected checkout", async (t) 
     }),
   );
   assert.equal(await fs.readFile(path.join(scenario.codeRoot, "local.txt"), "utf8"), "do not touch\n");
+});
+
+test("prepareExplore relaxed mode keeps identity checks but does not require clean Git revisions", async (t) => {
+  const scenario = await createScenario(t, { withCode: true });
+  await fs.writeFile(path.join(scenario.codeRoot, "local.txt"), "intentional local state\n", "utf8");
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+  const result = await prepareExplore({
+    start: scenario.storeRoot,
+    ticket: "PAY-426",
+    selectRepositories: async () => ["api"],
+    noStrict: true,
+    commandRunner: openSpec.runner,
+  });
+
+  assert.equal(result.executionMode, "relaxed");
+  assert.deepEqual(result.store, { branch: "unpinned", revision: "unpinned" });
+  assert.equal(result.repositories[0].branch, "unpinned");
+  assert.equal(result.repositories[0].revision, "unpinned");
+  assert.equal(result.repositories[0].path, scenario.codeRoot);
 });
 
 test("prepareExplore blocks a Code Repository that resolves another source", async (t) => {

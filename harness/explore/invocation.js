@@ -32,6 +32,7 @@ export function buildExploreInvocation(result) {
     `${EXPLORE_INVOCATION} ${result.ticket}.`,
     `Перед исследованием прочитай и выполни проектный контракт ${JSON.stringify(result.exploreInstructionsPath)}.`,
     `Исходное намерение: ${JSON.stringify(intent)}.`,
+    `Execution mode: ${result.executionMode}.`,
     `Используй OpenSpec Store ${JSON.stringify(result.storeRepositoryId)}, Spec Root ${JSON.stringify(result.projectRoot)}, branch=${result.store.branch}, revision=${result.store.revision} и workspace ${JSON.stringify(result.workspace)}.`,
     `${repositoryScope}.`,
     `Разрешённые корни чтения: ${allowedRoots.map((value) => JSON.stringify(value)).join(", ")}.`,

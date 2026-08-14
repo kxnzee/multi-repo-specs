@@ -1,12 +1,12 @@
 # Конфигурация `openspec-orch.yaml`
 
-`openspec-orch.yaml` находится в корне центрального Store Repository и описывает совместимую версию OpenSpec, выбранный агент и репозитории SDD-проекта. Файл создаётся командой `openspec-orch init` и используется командами Harness как машинная конфигурация.
+`openspec-orch.yaml` находится в корне центрального Store Repository и описывает режим Core, выбранный агент и репозитории проекта. Файл создаётся командой `openspec-orch init` и используется командами Core как машинная конфигурация. Версия OpenSpec здесь намеренно не закрепляется.
 
 ## Полный пример
 
 ```yaml
-versions:
-  openspec: "1.7.0"
+version: 1
+strict: true
 
 agent:
   id: qwen
@@ -27,19 +27,33 @@ repositories:
     default_branch: main
 ```
 
-## `versions`
+## `strict`
 
 | Поле | Назначение |
 |---|---|
-| `versions.openspec` | Версия OpenSpec, с которой совместим Harness. Сейчас поддерживается только `1.7.0`; другая версия блокирует команды OpenSpec Orchestrator. |
+| `strict` | Project default для Git-гарантий Core. Значение `true` используется по умолчанию, включая старые конфиги без этого поля. `false` включает relaxed mode для всех Core-команд. |
+
+Флаг `--no-strict` временно включает relaxed mode для одного вызова и имеет приоритет над project default. Обратного флага нет: Core не переходит в strict поверх `strict: false` и никогда не ослабляет режим автоматически после ошибки strict-проверки.
+
+В strict mode Core проверяет Git identity, origin, основную ветку и чистоту, управляет рабочими ветками и формирует runtime на точной Spec Baseline. В relaxed mode Core не клонирует репозитории, не проверяет Git remote/branch/clean state, не создаёт ветки, использует текущий OpenSpec root и маркирует ревизии как `unpinned`. Проверки OpenSpec identity и JSON, безопасных путей, symlink и разрешённых roots действуют в обоих режимах.
+
+| Команда | Strict | Relaxed |
+|---|---|---|
+| `init` | Создаёт проект с `strict: true`. | `--no-strict` сохраняет `strict: false` как project default. Сам `init` всё равно читает Git URL и текущую default branch центрального репозитория для обязательной конфигурации Store. |
+| `connect` | Клонирует отсутствующие Code Repositories и проверяет их Git-состояние. | Использует только уже существующие `<workspace>/src/<repository-id>` и не вызывает Git для их проверки. |
+| `explore` | Фиксирует чистые актуальные revisions Store и выбранных Code Repositories. | Передаёт текущие разрешённые roots с markers `unpinned`. |
+| `change` | Проверяет Store Git-state и создаёт или продолжает planning branch. | Создаёт или продолжает Change через OpenSpec без управления ветками. |
+| `load` | Требует `--baseline`, создаёт immutable Store worktree и implementation branch, запускает OpenSpec validation с `--strict`. | Не принимает `--baseline`, использует текущий Store root, не управляет Git и запускает validation без `--strict`. |
+
+Рекомендуемая и проверенная версия — OpenSpec `1.7.0`. Это рекомендация документации, а не exact pin: Core проверяет semantic version CLI, фактически вызываемые команды и обязательные поля их JSON-ответов. Обновление совместимого OpenSpec или project-local schema не требует изменения этого файла или повторного `init`.
 
 ## `agent`
 
-Секция определяет provider-specific пути и формат интеграции выбранного агента. Все её поля формируются согласованным набором и должны соответствовать встроенному адаптеру Harness.
+Секция определяет provider-specific пути и формат интеграции выбранного агента. Все её поля формируются согласованным mapping выбранного Project Template; Core не содержит registry конкретных агентов.
 
 | Поле | Назначение |
 |---|---|
-| `agent.id` | Выбранный агент. Поддерживаются `qwen` и `gigacode`. |
+| `agent.id` | Выбранный agent mapping из Project Template. Базовый Template поставляет `qwen` и `gigacode`. |
 | `agent.openspec_adapter` | Адаптер, через который OpenSpec устанавливает штатные команды. Для Qwen и GigaCode используется `qwen`. |
 | `agent.architecture` | Формат интеграции команд. Для поддерживаемых агентов используется `markdown-commands`. |
 | `agent.commands_directory` | Относительный путь к каталогу команд: `.qwen/commands` или `.gigacode/commands`. |
@@ -52,7 +66,7 @@ repositories:
 | `qwen` | `qwen` | `markdown-commands` | `.qwen/commands` | `QWEN.md` |
 | `gigacode` | `qwen` | `markdown-commands` | `.gigacode/commands` | `.gigacode/GIGACODE.md` |
 
-Не изменяйте отдельное поле этой секции независимо от остальных. Если значения не соответствуют выбранному `agent.id`, Harness отклонит конфигурацию.
+Пользовательский Template может определить другой согласованный набор. Core проверяет структуру и безопасность путей, но не сравнивает agent mapping со встроенным списком.
 
 ### Путь к инструкциям Code Repository
 

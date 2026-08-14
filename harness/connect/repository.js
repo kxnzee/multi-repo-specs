@@ -47,6 +47,7 @@ function inspectCheckout(repositoryRoot, repository, commandRunner) {
  * @param {string} options.storeRoot Абсолютный путь Store.
  * @param {(message: string) => void} options.onProgress Пользовательский вывод прогресса.
  * @param {typeof import("../shared/command.js").runCommand} options.commandRunner Исполнитель команд.
+ * @param {"strict" | "relaxed"} options.executionMode Режим Git-гарантий.
  * @returns {Promise<import("../shared/types.js").ConnectedRepository>} Проверенное состояние подключения.
  */
 export async function connectRepository({
@@ -56,11 +57,17 @@ export async function connectRepository({
   storeRoot,
   onProgress,
   commandRunner,
+  executionMode,
 }) {
   const repositoryRoot = path.join(sourceRoot, repository.id);
   const existing = await pathState(repositoryRoot);
   let cloned = false;
   if (!existing) {
+    if (executionMode === "relaxed") {
+      throw new Error(
+        `${repository.id}: relaxed mode требует существующий локальный каталог ${repositoryRoot}`,
+      );
+    }
     onProgress("клонирование...");
     commandRunner("git", ["clone", "--single-branch", "--no-tags", "--branch", repository.defaultBranch, "--", repository.url, repositoryRoot], {
       cwd: sourceRoot,
@@ -72,9 +79,15 @@ export async function connectRepository({
   } else {
     onProgress("проверка существующего checkout...");
   }
-  const git = inspectCheckout(repositoryRoot, repository, commandRunner);
+  const git = executionMode === "strict"
+    ? inspectCheckout(repositoryRoot, repository, commandRunner)
+    : { branch: "unpinned", revision: "unpinned" };
   const pointerCreated = await ensurePointer(repositoryRoot, storeId);
-  const pointerPending = Boolean(commandRunner("git", ["status", "--porcelain", "--untracked-files=all", "--", GIT_POINTER_PATH], { cwd: repositoryRoot }));
+  const pointerPending = executionMode === "strict" && Boolean(commandRunner(
+    "git",
+    ["status", "--porcelain", "--untracked-files=all", "--", GIT_POINTER_PATH],
+    { cwd: repositoryRoot },
+  ));
   onProgress("проверка OpenSpec pointer...");
   const doctorOutput = commandRunner("openspec", ["doctor"], {
     cwd: repositoryRoot,

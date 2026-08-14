@@ -28,10 +28,11 @@ openspec-orch change --ticket <ticket-id> --name <short-name> --store <store-id>
 Разбери единственный JSON из stdout. Требуй:
 
 - `changeStatus` равен `created` или `existing`;
-- `storeId`, `storeRoot`, `changeId`, `branch`, `baseRevision` и `changePath` непусты;
+- `executionMode` равен `strict` или `relaxed`, а `storeId`, `storeRoot`, `changeId` и `changePath` непусты;
 - `storeId` совпадает со Store структурированного итога Explore;
 - `changeId` равен `<ticket-lowercase>-<short-name>`;
-- `branch` равна `feature/<changeId>`;
+- в `strict` `branch` равна `feature/<changeId>`, а `baseRevision` содержит точную SHA;
+- в `relaxed` `branch` равна `null`, а `baseRevision` равна `unpinned`;
 - `schema` равна `spec-driven`;
 - вложенный `openSpecStatus` относится к тому же Store, Change и schema, содержит `artifactPaths` и полный граф `artifacts`;
 - в графе существует ровно один artifact `proposal` с `outputPath: proposal.md` и статусом `ready` либо `done`;
@@ -106,7 +107,8 @@ change_status: <created|existing>
 store_id: <storeId>
 ticket: <ticket-id>
 change_id: <changeId>
-branch: <branch>
+branch: <branch|null>
+execution_mode: <strict|relaxed>
 schema: spec-driven
 proposal_status: accepted
 next_step: 03

@@ -55,7 +55,6 @@ export async function resolveChangeStore(start, commandRunner) {
   const activeChanges = validateOpenSpec(
     projectRoot,
     metadata.id,
-    config.openSpecVersion,
     commandRunner,
   );
   return { projectRoot, storeId: metadata.id, config, activeChanges };

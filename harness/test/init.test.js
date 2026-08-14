@@ -8,9 +8,10 @@ import path from "node:path";
 import test from "node:test";
 import { parse } from "yaml";
 
-import { assertSupportedOpenSpecVersion, parseOrchestratorConfig } from "../config/index.js";
+import { parseOrchestratorConfig } from "../config/index.js";
 import { initProject, parseRepository } from "../init/index.js";
 import { runCommand } from "../shared/command.js";
+import { inspectOpenSpecCli, requireOpenSpecCapability } from "../shared/compatibility.js";
 import { agentFixture } from "../test-fixtures/agents.js";
 
 /**
@@ -341,6 +342,23 @@ test("initProject creates Store, official expanded pack and the complete skeleto
   assert.equal((await fs.stat(path.join(target, config.agent.instructionsFile))).isFile(), true);
 });
 
+test("initProject persists relaxed mode only when it is explicitly requested", async (t) => {
+  const target = await temporaryProject(t);
+  const openSpec = fakeOpenSpec(target);
+  const result = await initProject({
+    target,
+    storeId: "payments-specs",
+    agentId: "qwen",
+    noStrict: true,
+    commandRunner: openSpec.runner,
+  });
+  const config = parseOrchestratorConfig(
+    await fs.readFile(path.join(target, "openspec-orch.yaml"), "utf8"),
+  );
+  assert.equal(result.executionMode, "relaxed");
+  assert.equal(config.strict, false);
+});
+
 test("initProject persists the selected adapter after OpenSpec initialization", async (t) => {
   const target = await temporaryProject(t);
   const openSpec = fakeOpenSpec(target);
@@ -468,10 +486,15 @@ test("initProject rejects existing Store metadata with another ID", async (t) =>
   );
 });
 
-test("OpenSpec Orchestrator accepts only OpenSpec 1.7.0", () => {
-  assert.equal(assertSupportedOpenSpecVersion("1.7.0"), "1.7.0");
-  assert.throws(() => assertSupportedOpenSpecVersion("1.7.1"));
-  assert.throws(() => assertSupportedOpenSpecVersion("1.8.0"));
+test("OpenSpec compatibility accepts semantic versions and reports missing capabilities", () => {
+  for (const version of ["1.7.0", "1.7.1", "1.8.0", "2.0.0-beta.1"]) {
+    assert.equal(inspectOpenSpecCli(() => version, "/tmp"), version);
+  }
+  assert.throws(() => inspectOpenSpecCli(() => "OpenSpec dev", "/tmp"), /semantic version/);
+  assert.throws(
+    () => requireOpenSpecCapability(false, "openspec store list --json: stores[]"),
+    /обязательный capability.*stores\[\]/,
+  );
 });
 
 test("initProject does not modify a complete initialized Store", async (t) => {

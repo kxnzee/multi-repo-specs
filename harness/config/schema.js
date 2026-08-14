@@ -24,8 +24,15 @@ function assertString(value, key, label) {
  */
 export function assertOrchestratorConfigSchema(value) {
   if (!isRecord(value)) throw new Error("Некорректный openspec-orch.yaml должен содержать YAML-объект");
-  if (!isRecord(value.versions) || typeof value.versions.openspec !== "string") {
-    throw new Error("В openspec-orch.yaml отсутствует versions.openspec");
+  if (value.strict !== undefined && typeof value.strict !== "boolean") {
+    throw new Error("strict в openspec-orch.yaml должен быть boolean");
+  }
+  if (
+    value.versions !== undefined &&
+    (!isRecord(value.versions) ||
+      (value.versions.openspec !== undefined && typeof value.versions.openspec !== "string"))
+  ) {
+    throw new Error("legacy versions в openspec-orch.yaml должен быть YAML-объектом");
   }
   if (!isRecord(value.agent)) throw new Error("В openspec-orch.yaml отсутствует agent");
   for (const key of [

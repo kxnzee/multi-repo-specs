@@ -2,6 +2,7 @@
 
 import process from "node:process";
 
+import { resolveExecutionMode } from "../config/index.js";
 import { findDuplicates } from "../explore/validation/ticket.js";
 import { runCommand } from "../shared/command.js";
 import { runOpenSpecJson } from "../shared/openspec.js";
@@ -30,6 +31,7 @@ export { buildChangeId, validateChangeName } from "./id.js";
  * @param {(changes: string[]) => Promise<boolean> | boolean} [options.confirmArchivedChange]
  * Подтверждение повторной работы по архивному ticket.
  * @param {typeof runCommand} [options.commandRunner] Исполнитель команд; переопределяется в тестах.
+ * @param {boolean} [options.noStrict] Отключить Git-гарантии для текущего вызова.
  * @returns {Promise<import("../shared/types.js").ChangePreparation>} Проверенный результат.
  */
 export async function prepareChange({
@@ -38,11 +40,13 @@ export async function prepareChange({
   name,
   storeId: requestedStoreId,
   confirmArchivedChange,
+  noStrict = false,
   commandRunner = runCommand,
 } = {}) {
   const changeId = buildChangeId(ticket, name);
   const branch = `feature/${changeId}`;
   const store = await resolveChangeStore(start, commandRunner);
+  const executionMode = resolveExecutionMode(store.config.strict, noStrict);
   if (requestedStoreId !== undefined && requestedStoreId !== store.storeId) {
     throw new Error(`Указан Store ${requestedStoreId}, текущий checkout принадлежит Store ${store.storeId}`);
   }
@@ -63,16 +67,18 @@ export async function prepareChange({
       changeId,
       commandRunner,
     );
-    git = inspectContinuationChangeGit(
-      store.projectRoot,
-      store.config.storeRepository,
-      branch,
-      statusResult.changeRoot,
-      commandRunner,
-    );
+    git = executionMode === "strict"
+      ? inspectContinuationChangeGit(
+          store.projectRoot,
+          store.config.storeRepository,
+          branch,
+          statusResult.changeRoot,
+          commandRunner,
+        )
+      : { branch: null, revision: "unpinned" };
     changeStatus = "existing";
   } else {
-    if (currentBranch(store.projectRoot, commandRunner) === branch) {
+    if (executionMode === "strict" && currentBranch(store.projectRoot, commandRunner) === branch) {
       throw new Error("needs_recovery: planning-ветка существует без Change");
     }
     if (duplicates.archived.length > 0) {
@@ -83,13 +89,17 @@ export async function prepareChange({
         throw new Error("Создание Change отменено: архивный ticket не подтверждён");
       }
     }
-    git = inspectInitialChangeGit(
-      store.projectRoot,
-      store.config.storeRepository,
-      branch,
-      commandRunner,
-    );
-    commandRunner("git", ["switch", "-c", branch], { cwd: store.projectRoot });
+    git = executionMode === "strict"
+      ? inspectInitialChangeGit(
+          store.projectRoot,
+          store.config.storeRepository,
+          branch,
+          commandRunner,
+        )
+      : { branch: null, revision: "unpinned" };
+    if (executionMode === "strict") {
+      commandRunner("git", ["switch", "-c", branch], { cwd: store.projectRoot });
+    }
     const created = runOpenSpecJson(
       commandRunner,
       [
@@ -115,15 +125,16 @@ export async function prepareChange({
       createdChange,
     );
     changeStatus = "created";
-    git = { ...git, branch };
+    if (executionMode === "strict") git = { ...git, branch };
   }
   return {
     changeStatus,
+    executionMode,
     storeId: store.storeId,
     storeRoot: store.projectRoot,
     ticket,
     changeId,
-    branch,
+    branch: git.branch,
     baseRevision: git.revision,
     changePath: statusResult.changeRoot,
     schema: statusResult.schema,

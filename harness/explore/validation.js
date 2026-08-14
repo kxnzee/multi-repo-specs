@@ -7,6 +7,7 @@ import {
   parseOrchestratorConfig,
   parseStoreMetadata,
   requireAgentHandoff,
+  resolveExecutionMode,
   sameGitRemote,
 } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
@@ -51,6 +52,7 @@ const readStoreFile = readRelativeRegularFile;
  * @param {(changes: string[]) => Promise<boolean> | boolean} [options.confirmArchivedChange]
  * Подтверждение повторного Explore для архивного ticket.
  * @param {(message: string) => void} [options.onProgress] Пользовательский вывод прогресса.
+ * @param {boolean} [options.noStrict] Отключить Git-гарантии для текущего вызова.
  * @param {typeof runCommand} [options.commandRunner] Исполнитель команд; переопределяется в тестах.
  * @returns {Promise<import("../shared/types.js").ExplorePreparation>} Проверенная область.
  */
@@ -61,6 +63,7 @@ export async function prepareExplore({
   selectRepositories,
   confirmArchivedChange,
   onProgress = () => {},
+  noStrict = false,
   commandRunner = runCommand,
 } = {}) {
   validateTicket(ticket);
@@ -76,6 +79,7 @@ export async function prepareExplore({
   ]);
   const metadata = parseStoreMetadata(metadataSource);
   const config = parseOrchestratorConfig(configSource);
+  const executionMode = resolveExecutionMode(config.strict, noStrict);
   const exploreInstructionsRelativePath = requireAgentHandoff(
     config.agent,
     "explore",
@@ -94,7 +98,6 @@ export async function prepareExplore({
   const activeChanges = validateOpenSpec(
     projectRoot,
     metadata.id,
-    config.openSpecVersion,
     commandRunner,
   );
 
@@ -116,11 +119,13 @@ export async function prepareExplore({
     metadata.id,
     requestedWorkspace,
     commandRunner,
+    executionMode === "strict",
   );
   const available = await resolveCodeRepositories(
     workspace,
     config.codeRepositories,
     commandRunner,
+    executionMode,
   );
   if (
     startContext.codeRoot &&
@@ -129,7 +134,9 @@ export async function prepareExplore({
     throw new Error("Текущий Code Repository не зарегистрирован в openspec-orch.yaml этого Store");
   }
 
-  const store = inspectFreshCheckout(projectRoot, config.storeRepository, commandRunner);
+  const store = executionMode === "strict"
+    ? inspectFreshCheckout(projectRoot, config.storeRepository, commandRunner)
+    : { branch: "unpinned", revision: "unpinned" };
   const duplicates = await findDuplicates(projectRoot, ticket, activeChanges);
   if (duplicates.active.length > 0) {
     throw new Error(
@@ -150,7 +157,9 @@ export async function prepareExplore({
   for (const [index, repository] of selected.entries()) {
     const prefix = `[${index + 1}/${selected.length}] ${repository.id}`;
     onProgress(`${prefix}: проверка актуальности...`);
-    const git = inspectFreshCheckout(repository.path, repository, commandRunner);
+    const git = executionMode === "strict"
+      ? inspectFreshCheckout(repository.path, repository, commandRunner)
+      : { branch: "unpinned", revision: "unpinned" };
     await validatePointer(repository, metadata.id, projectRoot, commandRunner);
     repositories.push({ id: repository.id, path: repository.path, ...git });
     onProgress(`${prefix}: готово`);
@@ -165,5 +174,6 @@ export async function prepareExplore({
     projectSpecsOnly: repositories.length === 0,
     repositories,
     exploreInstructionsPath,
+    executionMode,
   };
 }

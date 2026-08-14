@@ -29,9 +29,15 @@ async function pathState(target) {
  * @param {string} workspace Абсолютный путь multi-repo workspace.
  * @param {import("../../shared/types.js").RegisteredRepository[]} repositories Записи `role: code`.
  * @param {typeof import("../../shared/command.js").runCommand} commandRunner Исполнитель Git.
+ * @param {"strict" | "relaxed"} [executionMode] Режим Git identity.
  * @returns {Promise<import("../../shared/types.js").ResolvedRepository[]>} Канонические checkout.
  */
-export async function resolveCodeRepositories(workspace, repositories, commandRunner) {
+export async function resolveCodeRepositories(
+  workspace,
+  repositories,
+  commandRunner,
+  executionMode = "strict",
+) {
   const sourceRoot = path.join(workspace, "src");
   const resolved = [];
   for (const repository of repositories) {
@@ -41,7 +47,9 @@ export async function resolveCodeRepositories(workspace, repositories, commandRu
       throw new Error(`${repository.id}: отсутствует checkout ${repositoryRoot}; выполните openspec-orch connect`);
     }
     const canonicalRoot = await fs.realpath(repositoryRoot);
-    inspectRepositoryIdentity(canonicalRoot, repository, commandRunner);
+    if (executionMode === "strict") {
+      inspectRepositoryIdentity(canonicalRoot, repository, commandRunner);
+    }
     resolved.push({ ...repository, path: canonicalRoot });
   }
   return resolved;

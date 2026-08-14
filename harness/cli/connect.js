@@ -18,11 +18,17 @@ export async function runConnect(args) {
   }
   const result = await connectProject({
     workspace: options.workspace,
+    noStrict: options.noStrict,
     onProgress: reportProgress,
   });
   console.log(`Store: ${result.storeId} (${result.storeRoot})`);
   console.log(`Workspace: ${result.workspace}`);
-  if (options.workspace) console.log("Workspace сохранён локально для следующих команд OpenSpec Orchestrator.");
+  console.log(`Execution mode: ${result.executionMode}`);
+  if (options.workspace && result.executionMode === "strict") {
+    console.log("Workspace сохранён локально для следующих команд OpenSpec Orchestrator.");
+  } else if (options.workspace) {
+    console.log("Workspace использован только для текущего relaxed-вызова и не сохранён в Git config.");
+  }
   console.log("Локальная регистрация Store проверена OpenSpec.");
   for (const repository of result.repositories) {
     console.log(`${repository.id}: ${repository.status}${repository.cloned ? ", cloned" : ", existing"}`);

@@ -30,6 +30,7 @@ export async function pathState(target) {
  * @param {string} storeId Store ID из проверенных metadata.
  * @param {string | undefined} requestedWorkspace Явно переданный workspace.
  * @param {typeof runCommand} [commandRunner] Исполнитель Git.
+ * @param {boolean} [useGitConfig] Читать локальную Git-настройку workspace.
  * @returns {Promise<string>} Канонический абсолютный путь workspace.
  */
 export async function resolveWorkspace(
@@ -37,8 +38,9 @@ export async function resolveWorkspace(
   storeId,
   requestedWorkspace,
   commandRunner = runCommand,
+  useGitConfig = true,
 ) {
-  const configuredWorkspace = requestedWorkspace
+  const configuredWorkspace = requestedWorkspace || !useGitConfig
     ? ""
     : commandRunner(
       "git",

@@ -57,14 +57,17 @@ export async function runInit(args) {
     agentId: options.agentId,
     templateRoot: options.templateRoot,
     repositories: options.repositories,
+    noStrict: options.noStrict,
   });
   if (result.alreadyInitialized) {
     console.log(`Store ${result.storeId} уже инициализирован; файлы не изменены.`);
+    console.log(`Execution mode: ${result.executionMode}`);
     console.log(buildConnectHint(result.target, result.storeId));
     return;
   }
   console.log(`Store ${result.storeId}: ${result.target}`);
   console.log(`Agent: ${options.agentId}`);
+  console.log(`Execution mode: ${result.executionMode}`);
   printPaths("Создано", result.created);
   if (result.updated.length > 0) printPaths("Дополнено", result.updated);
   console.log(buildConnectHint(result.target, result.storeId));

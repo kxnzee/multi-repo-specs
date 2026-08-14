@@ -24,10 +24,12 @@ export async function runLoad(args) {
     changeId: options.change,
     baseline: options.baseline,
     workPackages: options.workPackages,
+    noStrict: options.noStrict,
   });
   if (options.json) {
     console.log(JSON.stringify({
       step_status: result.stepStatus,
+      execution_mode: result.executionMode,
       store_id: result.storeId,
       change_id: result.changeId,
       spec_baseline: result.specBaseline,
@@ -49,6 +51,7 @@ export async function runLoad(args) {
   }
   console.log(stringifyYaml({
     step_status: result.stepStatus,
+    execution_mode: result.executionMode,
     store_id: result.storeId,
     change_id: result.changeId,
     spec_baseline: result.specBaseline,

@@ -7,13 +7,13 @@ import { fileURLToPath } from "node:url";
 
 import {
   assertRepositoryId,
-  assertSupportedOpenSpecVersion,
   parseOrchestratorConfig,
   parseStoreMetadata,
   sameGitRemote,
   serializeOrchestratorConfig,
 } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
+import { inspectOpenSpecCli, requireOpenSpecCapability } from "../shared/compatibility.js";
 import { parseOpenSpecJson } from "../shared/openspec.js";
 import { BASE_TEMPLATE_ROOT, buildTemplatePlan } from "../template/index.js";
 import { inspectGit } from "./validation.js";
@@ -63,7 +63,7 @@ async function pathState(target) {
  * @param {string} projectRoot Корень Store.
  * @param {string} agentAdapter Официальный OpenSpec adapter.
  * @param {typeof runCommand} commandRunner Исполнитель команд.
- * @returns {Promise<void>}
+ * @returns {Promise<ReturnType<typeof parseOrchestratorConfig>>}
  */
 async function installOpenSpec(projectRoot, agentAdapter, commandRunner) {
   const configRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-openspec-profile-"));
@@ -100,6 +100,10 @@ function assertStorePathAvailable(projectRoot, commandRunner) {
   const registry = parseOpenSpecJson(
     commandRunner("openspec", ["store", "list", "--json"], { cwd: projectRoot }),
     "openspec store list --json",
+  );
+  requireOpenSpecCapability(
+    Array.isArray(registry.stores),
+    "openspec store list --json: stores[]",
   );
   const registrations = Array.isArray(registry.stores)
     ? registry.stores.filter(({ root }) => path.resolve(root ?? "") === projectRoot)
@@ -189,7 +193,6 @@ async function assertInitializationComplete({ projectRoot, storeId, agentId, met
       config = parseOrchestratorConfig(
         await fs.readFile(path.join(projectRoot, PATHS.orchestratorConfig), "utf8"),
       );
-      assertSupportedOpenSpecVersion(config.openSpecVersion);
       if (config.storeRepository.id !== storeId) {
         issues.push(`Store ID в ${PATHS.orchestratorConfig} не совпадает с Store metadata`);
       }
@@ -225,6 +228,7 @@ async function assertInitializationComplete({ projectRoot, storeId, agentId, met
       "Автоматический ремонт не выполняется; файлы проекта не изменены",
     );
   }
+  return config;
 }
 
 /**
@@ -352,6 +356,7 @@ async function applyTemplatePlan({ projectRoot, files, unchangedPreExisting }) {
  * @param {string} options.agentId Agent mapping из выбранного Template.
  * @param {string} [options.templateRoot] Локальный Template root; по умолчанию встроенный.
  * @param {Array<{id: string, role: "code", url: string, defaultBranch: string}>} [options.repositories]
+ * @param {boolean} [options.noStrict] Сохранить relaxed mode как project default.
  * @param {typeof runCommand} [options.commandRunner] Исполнитель внешних команд.
  * @returns {Promise<import("../shared/types.js").InitResult>}
  */
@@ -361,6 +366,7 @@ export async function initProject({
   agentId,
   templateRoot = BASE_TEMPLATE_ROOT,
   repositories = [],
+  noStrict = false,
   commandRunner = runCommand,
 } = {}) {
   assertRepositoryId(storeId, "Store ID");
@@ -395,11 +401,12 @@ export async function initProject({
     if (metadata.id !== storeId) {
       throw new Error(`Store уже инициализирован с ID ${metadata.id}, а не ${storeId}`);
     }
-    await assertInitializationComplete({ projectRoot, storeId, agentId, metadata });
+    const config = await assertInitializationComplete({ projectRoot, storeId, agentId, metadata });
     return {
       target: projectRoot,
       storeId,
       alreadyInitialized: true,
+      executionMode: config.strict ? "strict" : "relaxed",
       created: [],
       updated: [],
     };
@@ -422,14 +429,13 @@ export async function initProject({
     },
     ...repositories,
   ];
-  const installedVersion = commandRunner("openspec", ["--version"], { cwd: projectRoot });
-  assertSupportedOpenSpecVersion(installedVersion);
+  inspectOpenSpecCli(commandRunner, projectRoot);
   assertStorePathAvailable(projectRoot, commandRunner);
   const orchestratorContents = serializeOrchestratorConfig(
     await fs.readFile(PATHS.orchestratorTemplate, "utf8"),
     configuredRepositories,
     templatePlan.agent,
-    installedVersion,
+    !noStrict,
   );
   parseOrchestratorConfig(orchestratorContents);
 
@@ -457,6 +463,7 @@ export async function initProject({
     target: projectRoot,
     storeId,
     alreadyInitialized: false,
+    executionMode: noStrict ? "relaxed" : "strict",
     created: [PATHS.metadata, ...installed.created.sort()],
     updated: installed.updated,
   };

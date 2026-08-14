@@ -2,7 +2,7 @@
 
 import path from "node:path";
 
-import { assertSupportedOpenSpecVersion } from "../config/index.js";
+import { inspectOpenSpecCli, requireOpenSpecCapability } from "./compatibility.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "./openspec.js";
 
 /**
@@ -41,21 +41,18 @@ function assertStoreDoctor(payload, storeId, projectRoot) {
  *
  * @param {string} projectRoot Абсолютный путь Store.
  * @param {string} storeId Ожидаемый Store ID.
- * @param {string} configuredVersion Закреплённая версия OpenSpec из openspec-orch.yaml.
  * @param {typeof import("./command.js").runCommand} commandRunner Исполнитель OpenSpec.
  * @returns {Array<{name: string}>} Активные Changes из разрешённого Store.
  */
-export function validateOpenSpec(projectRoot, storeId, configuredVersion, commandRunner) {
-  assertSupportedOpenSpecVersion(configuredVersion);
-  const installedVersion = commandRunner("openspec", ["--version"], { cwd: projectRoot });
-  if (installedVersion !== configuredVersion) {
-    throw new Error(`Установлен OpenSpec ${installedVersion}, ожидается ${configuredVersion}`);
-  }
+export function validateOpenSpec(projectRoot, storeId, commandRunner) {
+  inspectOpenSpecCli(commandRunner, projectRoot);
 
   const storeList = runOpenSpecJson(commandRunner, ["store", "list", "--json"], projectRoot);
-  const registrations = Array.isArray(storeList.stores)
-    ? storeList.stores.filter(({ id }) => id === storeId)
-    : [];
+  requireOpenSpecCapability(
+    Array.isArray(storeList.stores),
+    "openspec store list --json: stores[]",
+  );
+  const registrations = storeList.stores.filter(({ id }) => id === storeId);
   if (registrations.length !== 1 || path.resolve(registrations[0].root ?? "") !== projectRoot) {
     throw new Error(`Store ${storeId} не зарегистрирован по ожидаемому пути ${projectRoot}`);
   }
@@ -91,7 +88,10 @@ export function validateOpenSpec(projectRoot, storeId, configuredVersion, comman
     ["list", "--specs", "--store", storeId, "--json"],
     projectRoot,
   );
-  if (!Array.isArray(specs.specs)) throw new Error("openspec list --specs не вернула specs");
+  requireOpenSpecCapability(
+    Array.isArray(specs.specs),
+    "openspec list --specs --json: specs[]",
+  );
   assertOpenSpecRoot(
     specs.root,
     { path: projectRoot, storeId, source: "store" },
@@ -103,9 +103,10 @@ export function validateOpenSpec(projectRoot, storeId, configuredVersion, comman
     ["list", "--changes", "--store", storeId, "--json"],
     projectRoot,
   );
-  if (!Array.isArray(changes.changes)) {
-    throw new Error("openspec list --changes не вернула Changes");
-  }
+  requireOpenSpecCapability(
+    Array.isArray(changes.changes),
+    "openspec list --changes --json: changes[]",
+  );
   assertOpenSpecRoot(
     changes.root,
     { path: projectRoot, storeId, source: "store" },

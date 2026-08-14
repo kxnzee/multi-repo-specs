@@ -7,11 +7,11 @@ import { parseRepository } from "../init/index.js";
 import { isGitRevision } from "../shared/schema.js";
 
 export const HELP = `Использование:
-  openspec-orch init [path] --store <store-id> --agent <agent-id> [--template <path>] [--repo <id=url#branch>]...
-  openspec-orch connect [--workspace <path>]
-  openspec-orch explore --ticket <ticket-id> [--workspace <path>]
-  openspec-orch change --ticket <ticket-id> --name <short-name> [--store <store-id>]
-  openspec-orch load --store <store-id> --repo <repository-id> --change <change-id> --baseline <40-char-sha> [--work-package <id>]... [--json]
+  openspec-orch init [path] --store <store-id> --agent <agent-id> [--template <path>] [--repo <id=url#branch>]... [--no-strict]
+  openspec-orch connect [--workspace <path>] [--no-strict]
+  openspec-orch explore --ticket <ticket-id> [--workspace <path>] [--no-strict]
+  openspec-orch change --ticket <ticket-id> --name <short-name> [--store <store-id>] [--no-strict]
+  openspec-orch load --store <store-id> --repo <repository-id> --change <change-id> [--baseline <40-char-sha>] [--work-package <id>]... [--no-strict] [--json]
 
 Команды:
   init    Один раз создать OpenSpec Store и каркас центрального проекта
@@ -32,6 +32,8 @@ export const HELP = `Использование:
   --change <id>   Полный ID принятого OpenSpec Change
   --baseline <sha> Полная 40-символьная SHA принятого Store
   --work-package <id> Назначенный task.id из OpenSpec; обязателен только для schema с Tasks
+  --no-strict     Для init сохранить relaxed default; для других команд отключить Git pinning
+                  и automation текущего вызова
   --json          Вернуть результат openspec-orch load в JSON
   -h, --help      Показать эту справку
 `;
@@ -65,11 +67,17 @@ export function parseInitArgs(args) {
   let agentId;
   let templateRoot;
   const repositories = [];
+  let noStrict = false;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "-h" || arg === "--help") {
       return { help: true, target, storeId, agentId, templateRoot, repositories };
+    }
+    if (arg === "--no-strict") {
+      if (noStrict) throw new Error("--no-strict можно указать только один раз");
+      noStrict = true;
+      continue;
     }
     if (arg === "--store" || arg.startsWith("--store=")) {
       const value = readOptionValue(args, index, "--store", "для --store требуется Store ID");
@@ -106,20 +114,26 @@ export function parseInitArgs(args) {
 
   if (!storeId) throw new Error("для openspec-orch init требуется --store <store-id>");
   if (!agentId) throw new Error("для openspec-orch init требуется --agent <agent-id>");
-  return { help: false, target, storeId, agentId, templateRoot, repositories };
+  return { help: false, target, storeId, agentId, templateRoot, repositories, noStrict };
 }
 
 /**
  * Разбирает необязательный путь workspace для `openspec-orch connect`.
  *
  * @param {string[]} args Аргументы после имени команды `connect`.
- * @returns {{help: boolean, workspace?: string}} Нормализованные параметры запуска.
+ * @returns {{help: boolean, workspace?: string, noStrict?: boolean}} Нормализованные параметры запуска.
  */
 export function parseConnectArgs(args) {
   let workspace;
+  let noStrict = false;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "-h" || arg === "--help") return { help: true };
+    if (arg === "--no-strict") {
+      if (noStrict) throw new Error("--no-strict можно указать только один раз");
+      noStrict = true;
+      continue;
+    }
     if (arg === "--workspace" || arg.startsWith("--workspace=")) {
       const value = readOptionValue(args, index, "--workspace", "для --workspace требуется путь");
       if (workspace) throw new Error("--workspace можно указать только один раз");
@@ -129,21 +143,27 @@ export function parseConnectArgs(args) {
     }
     throw new Error(`Неизвестный параметр connect: ${arg}`);
   }
-  return { help: false, workspace };
+  return { help: false, workspace, noStrict };
 }
 
 /**
  * Разбирает ticket и необязательный workspace для `openspec-orch explore`.
  *
  * @param {string[]} args Аргументы после имени команды `explore`.
- * @returns {{help: boolean, ticket?: string, workspace?: string}} Нормализованные параметры запуска.
+ * @returns {{help: boolean, ticket?: string, workspace?: string, noStrict?: boolean}} Нормализованные параметры запуска.
  */
 export function parseExploreArgs(args) {
   let ticket;
   let workspace;
+  let noStrict = false;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "-h" || arg === "--help") return { help: true };
+    if (arg === "--no-strict") {
+      if (noStrict) throw new Error("--no-strict можно указать только один раз");
+      noStrict = true;
+      continue;
+    }
     if (arg === "--ticket" || arg.startsWith("--ticket=")) {
       const value = readOptionValue(args, index, "--ticket", "для --ticket требуется Jira key");
       if (ticket) throw new Error("--ticket можно указать только один раз");
@@ -161,22 +181,28 @@ export function parseExploreArgs(args) {
     throw new Error(`Неизвестный параметр explore: ${arg}`);
   }
   if (!ticket) throw new Error("для openspec-orch explore требуется --ticket <ticket-id>");
-  return { help: false, ticket, workspace };
+  return { help: false, ticket, workspace, noStrict };
 }
 
 /**
  * Разбирает ticket и короткое имя для `openspec-orch change`.
  *
  * @param {string[]} args Аргументы после имени команды `change`.
- * @returns {{help: boolean, ticket?: string, name?: string, storeId?: string}} Нормализованные параметры запуска.
+ * @returns {{help: boolean, ticket?: string, name?: string, storeId?: string, noStrict?: boolean}} Нормализованные параметры запуска.
  */
 export function parseChangeArgs(args) {
   let ticket;
   let name;
   let storeId;
+  let noStrict = false;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "-h" || arg === "--help") return { help: true };
+    if (arg === "--no-strict") {
+      if (noStrict) throw new Error("--no-strict можно указать только один раз");
+      noStrict = true;
+      continue;
+    }
     if (arg === "--ticket" || arg.startsWith("--ticket=")) {
       const value = readOptionValue(args, index, "--ticket", "для --ticket требуется Jira key");
       if (ticket) throw new Error("--ticket можно указать только один раз");
@@ -202,14 +228,14 @@ export function parseChangeArgs(args) {
   }
   if (!ticket) throw new Error("для openspec-orch change требуется --ticket <ticket-id>");
   if (!name) throw new Error("для openspec-orch change требуется --name <short-name>");
-  return { help: false, ticket, name, storeId };
+  return { help: false, ticket, name, storeId, noStrict };
 }
 
 /**
  * Разбирает параметры подготовки реализации.
  *
  * @param {string[]} args Аргументы после имени команды `load`.
- * @returns {{help: boolean, storeId?: string, repositoryId?: string, change?: string, baseline?: string, workPackages?: string[], json?: boolean}}
+ * @returns {{help: boolean, storeId?: string, repositoryId?: string, change?: string, baseline?: string, workPackages?: string[], noStrict?: boolean, json?: boolean}}
  */
 export function parseLoadArgs(args) {
   let storeId;
@@ -217,10 +243,16 @@ export function parseLoadArgs(args) {
   let change;
   let baseline;
   let json = false;
+  let noStrict = false;
   const workPackages = [];
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "-h" || arg === "--help") return { help: true };
+    if (arg === "--no-strict") {
+      if (noStrict) throw new Error("--no-strict можно указать только один раз");
+      noStrict = true;
+      continue;
+    }
     if (arg === "--json") {
       if (json) throw new Error("--json можно указать только один раз");
       json = true;
@@ -267,6 +299,5 @@ export function parseLoadArgs(args) {
   if (!storeId) throw new Error("для openspec-orch load требуется --store <store-id>");
   if (!repositoryId) throw new Error("для openspec-orch load требуется --repo <repository-id>");
   if (!change) throw new Error("для openspec-orch load требуется --change <change-id>");
-  if (!baseline) throw new Error("для openspec-orch load требуется --baseline <40-char-sha>");
-  return { help: false, storeId, repositoryId, change, baseline, workPackages, json };
+  return { help: false, storeId, repositoryId, change, baseline, workPackages, noStrict, json };
 }

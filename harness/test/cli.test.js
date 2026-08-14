@@ -87,6 +87,7 @@ test("parseInitArgs accepts positional and inline options", () => {
       storeId: "specs",
       agentId: "qwen",
       templateRoot: undefined,
+      noStrict: false,
       repositories: [{
         id: "api",
         role: "code",
@@ -104,6 +105,7 @@ test("parseInitArgs accepts split options and rejects ambiguous input", () => {
     parseInitArgs(["--store", "specs", "--agent", "team", "--template", "./team-template"]).templateRoot,
     "./team-template",
   );
+  assert.equal(parseInitArgs(["--store", "specs", "--agent", "qwen", "--no-strict"]).noStrict, true);
   assert.throws(() => parseInitArgs(["--agent", "qwen"]));
   assert.throws(() => parseInitArgs(["--store", "specs"]));
   assert.throws(() => parseInitArgs(["--store", "specs", "--store=other", "--agent=qwen"]));
@@ -124,8 +126,8 @@ test("reportProgress writes one event to the selected output", () => {
 
 test("parseConnectArgs covers help, split and inline workspace", () => {
   assert.deepEqual(parseConnectArgs(["--help"]), { help: true });
-  assert.deepEqual(parseConnectArgs(["--workspace", "/tmp/work"]), { help: false, workspace: "/tmp/work" });
-  assert.deepEqual(parseConnectArgs(["--workspace=/tmp/work"]), { help: false, workspace: "/tmp/work" });
+  assert.deepEqual(parseConnectArgs(["--workspace", "/tmp/work"]), { help: false, workspace: "/tmp/work", noStrict: false });
+  assert.deepEqual(parseConnectArgs(["--workspace=/tmp/work", "--no-strict"]), { help: false, workspace: "/tmp/work", noStrict: true });
   assert.throws(() => parseConnectArgs(["--workspace=/a", "--workspace=/b"]));
   assert.throws(() => parseConnectArgs(["unexpected"]));
 });
@@ -134,15 +136,15 @@ test("parseExploreArgs covers ticket and workspace variants", () => {
   assert.deepEqual(parseExploreArgs(["--help"]), { help: true });
   assert.deepEqual(
     parseExploreArgs(["--ticket", "PAY-412", "--workspace", "/tmp/work"]),
-    { help: false, ticket: "PAY-412", workspace: "/tmp/work" },
+    { help: false, ticket: "PAY-412", workspace: "/tmp/work", noStrict: false },
   );
   assert.deepEqual(
     parseExploreArgs(["--ticket=PAY-412", "--workspace=/tmp/work"]),
-    { help: false, ticket: "PAY-412", workspace: "/tmp/work" },
+    { help: false, ticket: "PAY-412", workspace: "/tmp/work", noStrict: false },
   );
   assert.deepEqual(
     parseExploreArgs(["--ticket=TEST1-TEST0", "--workspace=/tmp/work"]),
-    { help: false, ticket: "TEST1-TEST0", workspace: "/tmp/work" },
+    { help: false, ticket: "TEST1-TEST0", workspace: "/tmp/work", noStrict: false },
   );
   assert.throws(() => parseExploreArgs([]));
   assert.throws(() => parseExploreArgs(["--ticket=pay-412"]));
@@ -155,11 +157,11 @@ test("parseChangeArgs requires a canonical ticket and short name", () => {
   assert.deepEqual(parseChangeArgs(["--help"]), { help: true });
   assert.deepEqual(
     parseChangeArgs(["--ticket", "PAY-412", "--name", "payment-status"]),
-    { help: false, ticket: "PAY-412", name: "payment-status", storeId: undefined },
+    { help: false, ticket: "PAY-412", name: "payment-status", storeId: undefined, noStrict: false },
   );
   assert.deepEqual(
     parseChangeArgs(["--ticket=PAY-412", "--name=payment-status", "--store=payments-specs"]),
-    { help: false, ticket: "PAY-412", name: "payment-status", storeId: "payments-specs" },
+    { help: false, ticket: "PAY-412", name: "payment-status", storeId: "payments-specs", noStrict: false },
   );
   assert.throws(() => parseChangeArgs([]));
   assert.throws(() => parseChangeArgs(["--ticket=PAY-412"]));
@@ -176,7 +178,7 @@ test("parseChangeArgs requires a canonical ticket and short name", () => {
   );
 });
 
-test("parseLoadArgs requires exact baseline and accepts optional unique Work Packages", () => {
+test("parseLoadArgs accepts optional baseline, relaxed mode and unique Work Packages", () => {
   const baseline = "0123456789abcdef0123456789abcdef01234567";
   assert.deepEqual(parseLoadArgs(["--help"]), { help: true });
   assert.deepEqual(
@@ -198,6 +200,7 @@ test("parseLoadArgs requires exact baseline and accepts optional unique Work Pac
       change: "pay-412-payment-status",
       baseline,
       workPackages: ["1", "task-a"],
+      noStrict: false,
       json: true,
     },
   );
@@ -207,6 +210,21 @@ test("parseLoadArgs requires exact baseline and accepts optional unique Work Pac
     "--change=pay-412-payment-status",
     `--baseline=${"a".repeat(40)}`,
   ]).workPackages, []);
+  assert.deepEqual(parseLoadArgs([
+    "--store=payments-specs",
+    "--repo=payments-api",
+    "--change=pay-412-payment-status",
+    "--no-strict",
+  ]), {
+    help: false,
+    storeId: "payments-specs",
+    repositoryId: "payments-api",
+    change: "pay-412-payment-status",
+    baseline: undefined,
+    workPackages: [],
+    noStrict: true,
+    json: false,
+  });
   assert.throws(() => parseLoadArgs([]));
   assert.throws(
     () => parseLoadArgs([

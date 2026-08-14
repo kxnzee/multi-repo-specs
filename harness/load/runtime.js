@@ -9,6 +9,7 @@ import { isGitRevision, isRecord } from "../shared/schema.js";
 const CONTEXT_KEYS = [
   "version",
   "step_status",
+  "execution_mode",
   "store_id",
   "change_id",
   "spec_baseline",
@@ -61,10 +62,14 @@ function isRuntimeContext(value) {
   return (
     value.version === 2 &&
     value.step_status === "implementation_ready" &&
-    ["store_id", "change_id", "spec_root", "repository_id", "code_root", "implementation_branch"]
+    ["store_id", "change_id", "spec_root", "repository_id", "code_root"]
       .every((key) => typeof value[key] === "string") &&
-    isGitRevision(value.spec_baseline) &&
-    isGitRevision(value.code_base_revision) &&
+    ["strict", "relaxed"].includes(value.execution_mode) &&
+    (value.execution_mode === "strict"
+      ? isGitRevision(value.spec_baseline) && isGitRevision(value.code_base_revision) &&
+        typeof value.implementation_branch === "string" && value.implementation_branch.length > 0
+      : value.spec_baseline === "unpinned" && value.code_base_revision === "unpinned" &&
+        value.implementation_branch === null) &&
     path.isAbsolute(value.spec_root) && path.isAbsolute(value.code_root) &&
     typeof value.schema === "string" && value.schema.length > 0 &&
     ["package", "whole-change"].includes(value.implementation_mode) &&
@@ -85,8 +90,10 @@ function isRuntimeContext(value) {
         !path.isAbsolute(path.relative(value.change_root, item)))) &&
     Array.isArray(value.allowed_edit_roots) && value.allowed_edit_roots.length === 1 &&
     value.allowed_edit_roots.every((item) => typeof item === "string" && path.isAbsolute(item)) &&
-    Array.isArray(value.immutable_roots) && value.immutable_roots.length === 1 &&
-    value.immutable_roots.every((item) => typeof item === "string" && path.isAbsolute(item))
+    Array.isArray(value.immutable_roots) &&
+    (value.execution_mode === "strict"
+      ? value.immutable_roots.length === 1 && value.immutable_roots[0] === value.spec_root
+      : value.immutable_roots.length === 0)
   );
 }
 

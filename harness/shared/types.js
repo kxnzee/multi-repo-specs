@@ -58,6 +58,7 @@
  * @property {string} storeId
  * @property {string} storeRoot
  * @property {string} workspace
+ * @property {"strict" | "relaxed"} executionMode
  * @property {"ready" | "needs_setup_pr"} status
  * @property {ConnectedRepository[]} repositories
  */
@@ -78,6 +79,7 @@
  * @property {string} target
  * @property {string} storeId
  * @property {boolean} alreadyInitialized
+ * @property {"strict" | "relaxed"} executionMode
  * @property {string[]} created
  * @property {string[]} updated
  */
@@ -113,6 +115,7 @@
  * @property {boolean} projectSpecsOnly
  * @property {Array<{id: string, path: string, branch: string, revision: string}>} repositories
  * @property {string} exploreInstructionsPath
+ * @property {"strict" | "relaxed"} executionMode
  */
 
 /**
@@ -120,11 +123,12 @@
  *
  * @typedef {object} ChangePreparation
  * @property {"created" | "existing"} changeStatus
+ * @property {"strict" | "relaxed"} executionMode
  * @property {string} storeId
  * @property {string} storeRoot
  * @property {string} ticket
  * @property {string} changeId
- * @property {string} branch
+ * @property {string | null} branch
  * @property {string} baseRevision
  * @property {string} changePath
  * @property {string} schema
@@ -137,12 +141,13 @@
  *
  * @typedef {object} LoadPreparation
  * @property {"implementation_ready"} stepStatus
+ * @property {"strict" | "relaxed"} executionMode
  * @property {string} storeId
  * @property {string} changeId
  * @property {string} specBaseline
  * @property {string} repositoryId
- * @property {string} implementationBranch
- * @property {"created" | "tracking" | "existing"} branchStatus
+ * @property {string | null} implementationBranch
+ * @property {"created" | "tracking" | "existing" | "unmanaged"} branchStatus
  * @property {string} codeBaseRevision
  * @property {string} schema
  * @property {"package" | "whole-change"} implementationMode

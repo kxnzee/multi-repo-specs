@@ -2,7 +2,12 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseOrchestratorConfig, parseStoreMetadata } from "../config/index.js";
+import {
+  parseOrchestratorConfig,
+  parseStoreMetadata,
+  resolveExecutionMode,
+  serializeOrchestratorConfig,
+} from "../config/index.js";
 
 /**
  * Создаёт минимальный валидный openspec-orch.yaml для негативных тестов.
@@ -11,9 +16,7 @@ import { parseOrchestratorConfig, parseStoreMetadata } from "../config/index.js"
  * @returns {string} Полный YAML.
  */
 function config(repositories) {
-  return `versions:
-  openspec: "1.7.0"
-agent:
+  return `agent:
   id: qwen
   openspec_adapter: qwen
   architecture: markdown-commands
@@ -42,16 +45,42 @@ test("parseOrchestratorConfig blocks credentials embedded in repository URL", ()
 });
 
 test("parseOrchestratorConfig rejects missing schema sections and repository fields", () => {
-  assert.throws(() => parseOrchestratorConfig("versions: {}\nagent: {}\nrepositories: []\n"));
-  assert.throws(() => parseOrchestratorConfig("versions:\n  openspec: '1.7.0'\nrepositories: []\n"));
+  assert.throws(() => parseOrchestratorConfig("agent: {}\nrepositories: []\n"));
+  assert.throws(() => parseOrchestratorConfig("repositories: []\n"));
   assert.throws(
-    () => parseOrchestratorConfig("versions:\n  openspec: '1.7.0'\nagent: {}\nrepositories: []\n"),
+    () => parseOrchestratorConfig("agent: {}\nrepositories: []\n"),
   );
-  const prefix = "versions:\n  openspec: '1.7.0'\nagent:\n  id: qwen\n  openspec_adapter: qwen\n  architecture: markdown-commands\n  commands_directory: .qwen/commands\n  instructions_file: QWEN.md\n";
+  const prefix = "agent:\n  id: qwen\n  openspec_adapter: qwen\n  architecture: markdown-commands\n  commands_directory: .qwen/commands\n  instructions_file: QWEN.md\n";
   assert.throws(() => parseOrchestratorConfig(`${prefix}repositories:\n  - invalid\n`));
   assert.throws(
     () => parseOrchestratorConfig(`${prefix}repositories:\n  - id: specs\n    role: store\n    url: https://example.test/specs.git\n`),
   );
+});
+
+test("strict defaults to true and may be disabled without an OpenSpec version pin", () => {
+  const repositories =
+    "  - id: specs\n    role: store\n    url: https://example.test/specs.git\n    default_branch: main";
+  assert.equal(parseOrchestratorConfig(config(repositories)).strict, true);
+  assert.equal(parseOrchestratorConfig(`strict: false\n${config(repositories)}`).strict, false);
+  assert.equal(resolveExecutionMode(true, false), "strict");
+  assert.equal(resolveExecutionMode(false, false), "relaxed");
+  assert.equal(resolveExecutionMode(true, true), "relaxed");
+  assert.throws(() => parseOrchestratorConfig(`strict: disabled\n${config(repositories)}`));
+});
+
+test("serializeOrchestratorConfig removes a legacy version pin", () => {
+  const source = `version: 1\nversions:\n  openspec: "1.7.0"\nagent: null\nrepositories: []\n`;
+  const serialized = serializeOrchestratorConfig(source, [{
+    id: "specs", role: "store", url: "https://example.test/specs.git", defaultBranch: "main",
+  }], {
+    id: "qwen",
+    openSpecId: "qwen",
+    architecture: "markdown-commands",
+    commandsDirectory: ".qwen/commands",
+    instructionsFile: "QWEN.md",
+  }, false);
+  assert.doesNotMatch(serialized, /versions:|openspec: "1\.7\.0"/);
+  assert.equal(parseOrchestratorConfig(serialized).strict, false);
 });
 
 test("parseOrchestratorConfig accepts a Template-defined agent without a Core registry", () => {
