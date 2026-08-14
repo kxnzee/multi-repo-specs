@@ -1,8 +1,8 @@
 /** @fileoverview Подключение и проверка одного Code Repository. */
 
 import path from "node:path";
-import { sameGitRemote } from "../config/index.js";
 import { lstatOrNull } from "../shared/files.js";
+import { inspectRepositoryIdentity } from "../shared/git.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
 import { isGitRevision } from "../shared/schema.js";
 import { ensurePointer } from "./pointer.js";
@@ -18,10 +18,7 @@ const GIT_POINTER_PATH = "openspec/config.yaml";
  * @returns {{branch: string, revision: string}} Проверенное Git-состояние.
  */
 function inspectCheckout(repositoryRoot, repository, commandRunner) {
-  const gitRoot = path.resolve(commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd: repositoryRoot }));
-  if (gitRoot !== repositoryRoot) throw new Error(`${repository.id}: каталог не является корнем Git-репозитория`);
-  const origin = commandRunner("git", ["remote", "get-url", "origin"], { cwd: repositoryRoot });
-  if (!sameGitRemote(origin, repository.url)) throw new Error(`${repository.id}: origin не совпадает с openspec-orch.yaml`);
+  inspectRepositoryIdentity(repositoryRoot, repository, commandRunner);
   const branch = commandRunner("git", ["branch", "--show-current"], { cwd: repositoryRoot });
   if (branch !== repository.defaultBranch) throw new Error(`${repository.id}: ожидается ветка ${repository.defaultBranch}`);
   const changes = commandRunner("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: repositoryRoot })

@@ -16,12 +16,12 @@ import {
 import { readPointer } from "../connect/pointer.js";
 import { runCommand } from "../shared/command.js";
 import { readRelativeRegularFile } from "../shared/files.js";
+import { inspectRepositoryIdentity } from "../shared/git.js";
 import { isGitRevision } from "../shared/schema.js";
 import { resolveCodeWorkspace } from "../shared/workspace.js";
 import {
   assertClean,
   assertNoGitOperation,
-  assertRepositoryIdentity,
   ensureStoreWorktree,
   fetchStoreObjects,
   prepareImplementationBranch,
@@ -97,7 +97,7 @@ async function inspectStoreConfig(root, storeId, repositoryId, codeOrigin, comma
   if (metadata.id !== storeId || config.storeRepository.id !== storeId) {
     throw new Error(`Store metadata и openspec-orch.yaml не подтверждают Store ${storeId}`);
   }
-  if (strict) assertRepositoryIdentity(root, config.storeRepository.url, storeId, commandRunner);
+  if (strict) inspectRepositoryIdentity(root, config.storeRepository, commandRunner);
   if (metadata.remote !== undefined && !sameGitRemote(metadata.remote, config.storeRepository.url)) {
     throw new Error(`Store ${storeId}: metadata remote не совпадает с openspec-orch.yaml`);
   }
@@ -238,7 +238,7 @@ export async function prepareLoad({
     const codeOrigin = commandRunner("git", ["remote", "get-url", "origin"], { cwd: codeRoot });
     assertClean(codeRoot, commandRunner);
     await assertNoGitOperation(codeRoot, commandRunner);
-    assertRepositoryIdentity(storeRoot, currentMetadata.remote, storeId, commandRunner);
+    inspectRepositoryIdentity(storeRoot, currentConfig.storeRepository, commandRunner);
     fetchStoreObjects(storeRoot, baseline, commandRunner);
     const acceptedStore = inspectBaselineConfig(
       storeRoot,

@@ -3,30 +3,13 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { sameGitRemote } from "../config/index.js";
+import { inspectRepositoryIdentity } from "../shared/git.js";
 import { isGitRevision } from "../shared/schema.js";
 
 /** @param {string} root @param {typeof import("../shared/command.js").runCommand} runner */
 export function assertClean(root, runner) {
   const status = runner("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: root });
   if (status) throw new Error(`${root}: рабочее дерево должно быть чистым`);
-}
-
-/**
- * Проверяет корень и origin checkout.
- *
- * @param {string} root
- * @param {string} expectedRemote
- * @param {string} label
- * @param {typeof import("../shared/command.js").runCommand} runner
- * @returns {string} Фактический origin.
- */
-export function assertRepositoryIdentity(root, expectedRemote, label, runner) {
-  const gitRoot = path.resolve(runner("git", ["rev-parse", "--show-toplevel"], { cwd: root }));
-  if (gitRoot !== root) throw new Error(`${label}: команда должна запускаться из корня Git-репозитория`);
-  const origin = runner("git", ["remote", "get-url", "origin"], { cwd: root });
-  if (!sameGitRemote(origin, expectedRemote)) throw new Error(`${label}: origin не совпадает с openspec-orch.yaml`);
-  return origin;
 }
 
 /**
@@ -147,7 +130,7 @@ export async function prepareImplementationBranch({
   changeId,
   commandRunner,
 }) {
-  assertRepositoryIdentity(codeRoot, repository.url, repository.id, commandRunner);
+  inspectRepositoryIdentity(codeRoot, repository, commandRunner);
   assertClean(codeRoot, commandRunner);
   await assertNoGitOperation(codeRoot, commandRunner);
   commandRunner("git", ["fetch", "--no-tags", "origin"], { cwd: codeRoot });
