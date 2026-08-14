@@ -138,20 +138,18 @@ export async function validateImplementationInput({
   );
   const contextFiles = await normalizeContextFiles(changeRoot, instructions.contextFiles);
 
-  const tasks = [];
-  const taskIds = new Set();
+  const tasks = new Map();
   for (const task of instructions.tasks) {
     if (
-      !isRecord(task) || typeof task.id !== "string" || !task.id || taskIds.has(task.id) ||
+      !isRecord(task) || typeof task.id !== "string" || !task.id || tasks.has(task.id) ||
       typeof task.description !== "string" || !task.description || typeof task.done !== "boolean"
     ) {
       throw new Error("OpenSpec Tasks имеют некорректный JSON contract");
     }
-    taskIds.add(task.id);
-    tasks.push(task);
+    tasks.set(task.id, task);
   }
 
-  if (tasks.length === 0) {
+  if (tasks.size === 0) {
     if (workPackages.length > 0) {
       throw new Error("Эта OpenSpec schema не возвращает адресуемые Tasks; --work-package использовать нельзя");
     }
@@ -169,7 +167,7 @@ export async function validateImplementationInput({
 
   const selectedTasks = [];
   for (const workPackage of workPackages) {
-    const task = tasks.find((candidate) => candidate.id === workPackage);
+    const task = tasks.get(workPackage);
     if (!task) throw new Error(`Work Package ${workPackage} не найден в OpenSpec Tasks`);
     if (task.done) throw new Error(`Work Package ${workPackage} уже выполнен`);
     selectedTasks.push({ id: task.id, description: task.description });
