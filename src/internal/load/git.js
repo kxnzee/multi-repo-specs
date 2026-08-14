@@ -88,11 +88,8 @@ export async function ensureStoreWorktree({ storeRoot, worktreeRoot, baseline, c
       reusable = false;
     }
     if (reusable) return "reused";
-    commandRunner("git", ["worktree", "remove", "--force", worktreeRoot], { cwd: storeRoot });
-    commandRunner("git", ["worktree", "add", "--detach", worktreeRoot, baseline], { cwd: storeRoot });
-    return "recreated";
   }
-  if (registered.has(worktreeRoot)) {
+  if (state || registered.has(worktreeRoot)) {
     commandRunner("git", ["worktree", "remove", "--force", worktreeRoot], { cwd: storeRoot });
     commandRunner("git", ["worktree", "add", "--detach", worktreeRoot, baseline], { cwd: storeRoot });
     return "recreated";
