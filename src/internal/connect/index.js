@@ -17,7 +17,7 @@ import { connectRepository } from "./repository.js";
  * @param {object} [options] Параметры подключения.
  * @param {string} [options.start] Корень Store.
  * @param {string} [options.workspace] Корень workspace.
- * @param {(message: string) => void} [options.onProgress] Пользовательский вывод прогресса.
+ * @param {(message: string, status?: "running" | "success" | "info" | "warning" | "failure") => void} [options.onProgress] Пользовательский вывод прогресса.
  * @param {boolean} [options.noStrict] Отключить Git-гарантии для текущего вызова.
  * @param {typeof runCommand} [options.commandRunner] Исполнитель команд.
  * @returns {Promise<import("../shared/types.js").ConnectResult>} Проверенное состояние workspace.
@@ -41,9 +41,9 @@ export async function connectProject({
   const doctorOutput = await commandRunner("openspec", ["doctor", "--store", metadata.id], {
     cwd: storeRoot,
     environment: { NODE_NO_WARNINGS: "1" },
-    onStderr: (message) => onProgress(`Предупреждение OpenSpec:\n${message}`),
+    onStderr: (message) => onProgress(`Предупреждение OpenSpec:\n${message}`, "warning"),
   });
-  if (doctorOutput) onProgress(doctorOutput);
+  if (doctorOutput) onProgress(doctorOutput, "info");
   const context = await runOpenSpecJson(commandRunner, ["context", "--store", metadata.id, "--json"], storeRoot);
   assertOpenSpecRoot(context.root, { path: storeRoot, storeId: metadata.id, source: "store" }, `openspec context --store ${metadata.id} --json`);
   const workspace = await resolveWorkspace(
@@ -63,12 +63,12 @@ export async function connectProject({
       sourceRoot,
       storeId: metadata.id,
       storeRoot,
-      onProgress: (message) => onProgress(`${prefix}: ${message}`),
+      onProgress: (message, status) => onProgress(`${prefix}: ${message}`, status),
       commandRunner,
       executionMode,
     });
     repositories.push(connected);
-    onProgress(`${prefix}: готово`);
+    onProgress(`${prefix}: готово`, "success");
   }
   if (requestedWorkspace && executionMode === "strict") {
     await rememberWorkspace(storeRoot, workspace, commandRunner);

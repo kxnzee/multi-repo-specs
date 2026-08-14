@@ -1,7 +1,7 @@
 /** @fileoverview Пользовательский сценарий команды `openspec-orch connect`. */
 
 import { connectProject } from "../../internal/connect/index.js";
-import { reportProgress } from "../progress.js";
+import { reportProgress, withProgress } from "../progress.js";
 
 /**
  * Выполняет `openspec-orch connect` и печатает состояние каждого Code Repository.
@@ -10,11 +10,18 @@ import { reportProgress } from "../progress.js";
  * @returns {Promise<void>}
  */
 export async function runConnect(options) {
-  const result = await connectProject({
-    workspace: options.workspace,
-    noStrict: options.noStrict,
-    onProgress: reportProgress,
-  });
+  const result = await withProgress(
+    {
+      start: "Подключение Store и Code Repositories",
+      success: "Store и Code Repositories подключены",
+      failure: "Подключение не завершено",
+    },
+    () => connectProject({
+      workspace: options.workspace,
+      noStrict: options.noStrict,
+      onProgress: reportProgress,
+    }),
+  );
   console.log(`Store: ${result.storeId} (${result.storeRoot})`);
   console.log(`Workspace: ${result.workspace}`);
   console.log(`Execution mode: ${result.executionMode}`);

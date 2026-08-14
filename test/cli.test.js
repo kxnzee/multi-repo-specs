@@ -9,7 +9,7 @@ import { pathToFileURL } from "node:url";
 
 import { buildConnectHint } from "../src/cli/commands/init.js";
 import { createProgram } from "../src/cli/program.js";
-import { reportProgress } from "../src/cli/progress.js";
+import { reportProgress, withProgress } from "../src/cli/progress.js";
 
 /**
  * Разбирает одну команду без запуска production-сценария.
@@ -237,10 +237,29 @@ test("Commander rejects invalid baseline and missing split values", async () => 
 
 test("reportProgress writes one event to the selected output", () => {
   let written = "";
-  reportProgress("progress-event", {
+  reportProgress("progress-event", "running", {
     write(chunk) {
       written += chunk;
     },
   });
-  assert.equal(written, "progress-event\n");
+  assert.equal(written, "… progress-event\n");
+});
+
+test("withProgress reports success and failure without changing operation results", async () => {
+  let written = "";
+  const output = { write: (chunk) => { written += chunk; } };
+  assert.equal(
+    await withProgress(
+      { start: "start", success: "done", failure: "failed" },
+      async () => "result",
+      output,
+    ),
+    "result",
+  );
+  await assert.rejects(withProgress(
+    { start: "retry", success: "done", failure: "failed" },
+    async () => { throw new Error("operation error"); },
+    output,
+  ));
+  assert.equal(written, "… start\n✓ done\n… retry\n✗ failed\n");
 });

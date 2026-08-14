@@ -2,7 +2,7 @@
 
 import { prepareLoad } from "../../internal/load/index.js";
 import { stringify as stringifyYaml } from "yaml";
-import { reportProgress } from "../progress.js";
+import { withProgress } from "../progress.js";
 
 /**
  * Выполняет `openspec-orch load` и печатает машинный или компактный человекочитаемый результат.
@@ -11,15 +11,21 @@ import { reportProgress } from "../progress.js";
  * @returns {Promise<void>}
  */
 export async function runLoad(options) {
-  reportProgress("Подготовка контекста реализации...");
-  const result = await prepareLoad({
-    storeId: options.storeId,
-    repositoryId: options.repositoryId,
-    changeId: options.change,
-    baseline: options.baseline,
-    workPackages: options.workPackages,
-    noStrict: options.noStrict,
-  });
+  const result = await withProgress(
+    {
+      start: "Подготовка контекста реализации",
+      success: "Контекст реализации подготовлен",
+      failure: "Контекст реализации не подготовлен",
+    },
+    () => prepareLoad({
+      storeId: options.storeId,
+      repositoryId: options.repositoryId,
+      changeId: options.change,
+      baseline: options.baseline,
+      workPackages: options.workPackages,
+      noStrict: options.noStrict,
+    }),
+  );
   const output = {
     step_status: result.stepStatus,
     execution_mode: result.executionMode,

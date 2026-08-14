@@ -40,7 +40,7 @@ async function inspectCheckout(repositoryRoot, repository, commandRunner) {
  * @param {string} options.sourceRoot Каталог `<workspace>/src`.
  * @param {string} options.storeId ID центрального Store.
  * @param {string} options.storeRoot Абсолютный путь Store.
- * @param {(message: string) => void} options.onProgress Пользовательский вывод прогресса.
+ * @param {(message: string, status?: "running" | "success" | "info" | "warning" | "failure") => void} options.onProgress Пользовательский вывод прогресса.
  * @param {typeof import("../shared/command.js").runCommand} options.commandRunner Исполнитель команд.
  * @param {"strict" | "relaxed"} options.executionMode Режим Git-гарантий.
  * @returns {Promise<import("../shared/types.js").ConnectedRepository>} Проверенное состояние подключения.
@@ -87,9 +87,9 @@ export async function connectRepository({
   const doctorOutput = await commandRunner("openspec", ["doctor"], {
     cwd: repositoryRoot,
     environment: { NODE_NO_WARNINGS: "1" },
-    onStderr: (message) => onProgress(`Предупреждение OpenSpec:\n${message}`),
+    onStderr: (message) => onProgress(`Предупреждение OpenSpec:\n${message}`, "warning"),
   });
-  if (doctorOutput) onProgress(doctorOutput);
+  if (doctorOutput) onProgress(doctorOutput, "info");
   const context = await runOpenSpecJson(commandRunner, ["context", "--json"], repositoryRoot);
   assertOpenSpecRoot(context.root, { path: storeRoot, storeId, source: "declared" }, "openspec context --json");
   return {

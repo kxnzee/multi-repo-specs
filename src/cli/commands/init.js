@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { initProject } from "../../internal/init/index.js";
 import { inferStandardWorkspace } from "../../internal/shared/workspace.js";
-import { reportProgress } from "../progress.js";
+import { withProgress } from "../progress.js";
 
 /**
  * Печатает именованный список созданных или дополненных файлов.
@@ -40,15 +40,21 @@ export function buildConnectHint(storeRoot, storeId) {
  * @returns {Promise<void>}
  */
 export async function runInit(options) {
-  reportProgress("Инициализация Store...");
-  const result = await initProject({
-    target: options.target,
-    storeId: options.storeId,
-    agentId: options.agentId,
-    templateRoot: options.templateRoot,
-    repositories: options.repositories,
-    noStrict: options.noStrict,
-  });
+  const result = await withProgress(
+    {
+      start: "Инициализация Store",
+      success: "Store инициализирован",
+      failure: "Инициализация Store не завершена",
+    },
+    () => initProject({
+      target: options.target,
+      storeId: options.storeId,
+      agentId: options.agentId,
+      templateRoot: options.templateRoot,
+      repositories: options.repositories,
+      noStrict: options.noStrict,
+    }),
+  );
   if (result.alreadyInitialized) {
     console.log(`Store ${result.storeId} уже инициализирован; файлы не изменены.`);
     console.log(`Execution mode: ${result.executionMode}`);

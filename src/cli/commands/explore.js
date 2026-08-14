@@ -3,7 +3,7 @@
 import { checkbox, confirm, input } from "@inquirer/prompts";
 import process from "node:process";
 import { buildExploreInvocation, prepareExplore } from "../../internal/explore/index.js";
-import { reportProgress } from "../progress.js";
+import { reportProgress, stopProgress, withProgress } from "../progress.js";
 
 /**
  * Показывает и подтверждает область Explore.
@@ -12,6 +12,7 @@ import { reportProgress } from "../progress.js";
  * @returns {Promise<string[]>} Подтверждённые repository-id.
  */
 async function selectRepositories(repositories) {
+  stopProgress();
   while (true) {
     const selected = repositories.length === 0
       ? []
@@ -68,19 +69,26 @@ export async function runExplore(options) {
   if (process.stdin.isTTY !== true) {
     throw new Error("openspec-orch explore требует интерактивный TTY для выбора и ввода намерения");
   }
-  reportProgress("Проверка Store и Code Repositories...");
-  const result = await prepareExplore({
-    ticket: options.ticket,
-    workspace: options.workspace,
-    noStrict: options.noStrict,
-    selectRepositories,
-    confirmArchivedChange: async (changes) => {
-      console.log(`Найдены архивные Changes с ticket ${options.ticket}:`);
-      for (const change of changes) console.log(`  ${change}`);
-      return confirm({ message: "Продолжить новый Explore для этого ticket?", default: false });
+  const result = await withProgress(
+    {
+      start: "Проверка Store и Code Repositories",
+      success: "Область Explore проверена",
+      failure: "Explore не подготовлен",
     },
-    onProgress: reportProgress,
-  });
+    () => prepareExplore({
+      ticket: options.ticket,
+      workspace: options.workspace,
+      noStrict: options.noStrict,
+      selectRepositories,
+      confirmArchivedChange: async (changes) => {
+        stopProgress();
+        console.log(`Найдены архивные Changes с ticket ${options.ticket}:`);
+        for (const change of changes) console.log(`  ${change}`);
+        return confirm({ message: "Продолжить новый Explore для этого ticket?", default: false });
+      },
+      onProgress: reportProgress,
+    }),
+  );
   const intent = (await input({
     message: "Кратко опишите намерение запроса",
     validate: (value) => value.trim().length > 0 || "Введите непустой ответ.",

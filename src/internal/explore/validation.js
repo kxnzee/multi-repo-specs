@@ -35,7 +35,7 @@ export { validateTicket } from "../shared/change.js";
  * Интерактивный выбор Code Repositories.
  * @param {(changes: string[]) => Promise<boolean> | boolean} [options.confirmArchivedChange]
  * Подтверждение повторного Explore для архивного ticket.
- * @param {(message: string) => void} [options.onProgress] Пользовательский вывод прогресса.
+ * @param {(message: string, status?: "running" | "success" | "info" | "warning" | "failure") => void} [options.onProgress] Пользовательский вывод прогресса.
  * @param {boolean} [options.noStrict] Отключить Git-гарантии для текущего вызова.
  * @param {typeof runCommand} [options.commandRunner] Исполнитель команд; переопределяется в тестах.
  * @returns {Promise<import("../shared/types.js").ExplorePreparation>} Проверенная область.
@@ -135,7 +135,7 @@ export async function prepareExplore({
       : { branch: "unpinned", revision: "unpinned" };
     await validatePointer(repository, metadata.id, projectRoot, commandRunner);
     repositories.push({ id: repository.id, path: repository.path, ...git });
-    onProgress(`${prefix}: готово`);
+    onProgress(`${prefix}: готово`, "success");
   }
 
   return {
