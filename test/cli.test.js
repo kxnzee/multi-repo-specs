@@ -7,7 +7,6 @@ import process from "node:process";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { confirm } from "../src/cli/prompt.js";
 import { buildConnectHint } from "../src/cli/commands/init.js";
 import { createProgram } from "../src/cli/program.js";
 import { reportProgress } from "../src/cli/progress.js";
@@ -244,17 +243,4 @@ test("reportProgress writes one event to the selected output", () => {
     },
   });
   assert.equal(written, "progress-event\n");
-});
-
-test("confirm retries invalid input and accepts localized answers", async () => {
-  const answers = ["maybe", "да"];
-  const issues = [];
-  const accepted = await confirm(
-    { question: async () => answers.shift() },
-    "Продолжить?",
-    (message) => issues.push(message),
-  );
-  assert.equal(accepted, true);
-  assert.deepEqual(issues, ["Введите yes/да или no/нет."]);
-  assert.equal(await confirm({ question: async () => "" }, "Продолжить?"), false);
 });

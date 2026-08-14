@@ -1,85 +1,32 @@
 /** @fileoverview Интерактивный пользовательский сценарий `openspec-orch explore`. */
 
+import { checkbox, confirm, input } from "@inquirer/prompts";
 import process from "node:process";
-import { createInterface } from "node:readline/promises";
 import { buildExploreInvocation, prepareExplore } from "../../internal/explore/index.js";
-import { confirm } from "../prompt.js";
 import { reportProgress } from "../progress.js";
-
-/**
- * Минимальный интерфейс интерактивного терминала.
- *
- * @typedef {object} Prompt
- * @property {(question: string) => Promise<string>} question
- * @property {() => void} close
- */
-
-/**
- * Запрашивает непустой текст.
- *
- * @param {Prompt} prompt Терминальный интерфейс.
- * @param {string} question Текст приглашения.
- * @returns {Promise<string>} Непустой ответ.
- */
-async function askRequiredText(prompt, question) {
-  while (true) {
-    const answer = (await prompt.question(question)).trim();
-    if (answer) return answer;
-    console.log("Введите непустой ответ.");
-  }
-}
-
-/**
- * Преобразует номера выбора в repository-id.
- *
- * @param {string} answer Ввод пользователя.
- * @param {Array<{id: string}>} repositories Доступные репозитории.
- * @returns {string[]} Выбранные repository-id.
- */
-function parseRepositoryNumbers(answer, repositories) {
-  if (!answer.trim()) return [];
-  const tokens = answer.trim().split(/[\s,]+/);
-  const indexes = [];
-  const seen = new Set();
-  for (const token of tokens) {
-    if (!/^\d+$/.test(token)) throw new Error(`Некорректный номер: ${token}`);
-    const index = Number(token) - 1;
-    if (index < 0 || index >= repositories.length) {
-      throw new Error(`Репозитория с номером ${token} нет в checklist`);
-    }
-    if (seen.has(index)) throw new Error(`Репозиторий с номером ${token} выбран повторно`);
-    seen.add(index);
-    indexes.push(index);
-  }
-  return indexes.map((index) => repositories[index].id);
-}
 
 /**
  * Показывает и подтверждает область Explore.
  *
- * @param {Prompt} prompt Терминальный интерфейс.
  * @param {Array<{id: string, defaultBranch: string}>} repositories Доступные репозитории.
  * @returns {Promise<string[]>} Подтверждённые repository-id.
  */
-async function selectRepositories(prompt, repositories) {
-  console.log("Code Repositories для Explore:");
-  if (repositories.length === 0) console.log("  Зарегистрированных Code Repositories нет.");
-  for (const [index, repository] of repositories.entries()) {
-    console.log(`  [ ] ${index + 1}. ${repository.id} (${repository.defaultBranch})`);
-  }
+async function selectRepositories(repositories) {
   while (true) {
-    const answer = await prompt.question(
-      "Введите номера через запятую; Enter — Explore только по Spec Root: ",
-    );
-    let selected;
-    try {
-      selected = parseRepositoryNumbers(answer, repositories);
-    } catch (error) {
-      console.log(error.message);
-      continue;
-    }
+    const selected = repositories.length === 0
+      ? []
+      : await checkbox({
+          message: "Выберите Code Repositories для Explore",
+          choices: repositories.map((repository) => ({
+            name: `${repository.id} (${repository.defaultBranch})`,
+            value: repository.id,
+          })),
+        });
     const description = selected.length === 0 ? "только Spec Root" : selected.join(", ");
-    if (await confirm(prompt, `Подтвердить область Explore: ${description}?`)) return selected;
+    if (await confirm({
+      message: `Подтвердить область Explore: ${description}?`,
+      default: false,
+    })) return selected;
   }
 }
 
@@ -121,24 +68,22 @@ export async function runExplore(options) {
   if (process.stdin.isTTY !== true) {
     throw new Error("openspec-orch explore требует интерактивный TTY для выбора и ввода намерения");
   }
-  const prompt = createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    reportProgress("Проверка Store и Code Repositories...");
-    const result = await prepareExplore({
-      ticket: options.ticket,
-      workspace: options.workspace,
-      noStrict: options.noStrict,
-      selectRepositories: (repositories) => selectRepositories(prompt, repositories),
-      confirmArchivedChange: async (changes) => {
-        console.log(`Найдены архивные Changes с ticket ${options.ticket}:`);
-        for (const change of changes) console.log(`  ${change}`);
-        return confirm(prompt, "Продолжить новый Explore для этого ticket?");
-      },
-      onProgress: reportProgress,
-    });
-    const intent = await askRequiredText(prompt, "Кратко опишите намерение запроса: ");
-    printExploreResult({ ...result, intent });
-  } finally {
-    prompt.close();
-  }
+  reportProgress("Проверка Store и Code Repositories...");
+  const result = await prepareExplore({
+    ticket: options.ticket,
+    workspace: options.workspace,
+    noStrict: options.noStrict,
+    selectRepositories,
+    confirmArchivedChange: async (changes) => {
+      console.log(`Найдены архивные Changes с ticket ${options.ticket}:`);
+      for (const change of changes) console.log(`  ${change}`);
+      return confirm({ message: "Продолжить новый Explore для этого ticket?", default: false });
+    },
+    onProgress: reportProgress,
+  });
+  const intent = (await input({
+    message: "Кратко опишите намерение запроса",
+    validate: (value) => value.trim().length > 0 || "Введите непустой ответ.",
+  })).trim();
+  printExploreResult({ ...result, intent });
 }
