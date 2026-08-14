@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+import { lstatOrNull } from "../shared/files.js";
 import { isContainedPath } from "../shared/paths.js";
 import { isGitRevision, isRecord } from "../shared/schema.js";
 
@@ -39,12 +40,7 @@ export async function ensureRuntimeDirectory(workspace, segments) {
   let current = workspace;
   for (const segment of [".openspec-orch", "runtime", ...segments]) {
     current = path.join(current, segment);
-    let stat;
-    try {
-      stat = await fs.lstat(current);
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
+    const stat = await lstatOrNull(current);
     if (!stat) {
       await fs.mkdir(current);
     } else if (!stat.isDirectory() || stat.isSymbolicLink()) {

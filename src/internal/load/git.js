@@ -1,8 +1,8 @@
 /** @fileoverview Ограниченные Git-операции шага подготовки реализации. */
 
-import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { lstatOrNull } from "../shared/files.js";
 import { inspectRepositoryIdentity } from "../shared/git.js";
 import { isGitRevision } from "../shared/schema.js";
 
@@ -24,11 +24,8 @@ export async function assertNoGitOperation(root, runner) {
   for (const marker of markers) {
     const gitPath = runner("git", ["rev-parse", "--git-path", marker], { cwd: root });
     const target = path.resolve(root, gitPath);
-    try {
-      await fs.lstat(target);
+    if (await lstatOrNull(target)) {
       throw new Error(`${root}: обнаружена незавершённая Git-операция (${marker})`);
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
     }
   }
 }
@@ -71,12 +68,7 @@ export async function ensureStoreWorktree({ storeRoot, worktreeRoot, baseline, c
   const registered = worktreePaths(
     commandRunner("git", ["worktree", "list", "--porcelain"], { cwd: storeRoot }),
   );
-  let state;
-  try {
-    state = await fs.lstat(worktreeRoot);
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
+  const state = await lstatOrNull(worktreeRoot);
   if (state?.isSymbolicLink() || (state && !state.isDirectory())) {
     throw new Error(`Runtime Store path должен быть обычным каталогом: ${worktreeRoot}`);
   }

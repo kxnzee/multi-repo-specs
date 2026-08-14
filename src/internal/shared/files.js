@@ -66,13 +66,8 @@ export async function resolveContainedDeclaredPath(root, candidate, label) {
   let current = root;
   for (const segment of path.relative(root, target).split(path.sep)) {
     current = path.join(current, segment);
-    let stat;
-    try {
-      stat = await fs.lstat(current);
-    } catch (error) {
-      if (error.code === "ENOENT") break;
-      throw error;
-    }
+    const stat = await lstatOrNull(current);
+    if (!stat) break;
     if (stat.isSymbolicLink()) throw new Error(`${label} содержит symlink`);
   }
   return target;
@@ -94,15 +89,8 @@ export async function readRelativeRegularFile(root, relativePath) {
   const segments = relativePath.split("/");
   for (const [index, segment] of segments.entries()) {
     current = path.join(current, segment);
-    let stat;
-    try {
-      stat = await fs.lstat(current);
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        throw new Error(`Отсутствует обычный файл ${relativePath}`);
-      }
-      throw error;
-    }
+    const stat = await lstatOrNull(current);
+    if (!stat) throw new Error(`Отсутствует обычный файл ${relativePath}`);
     if (stat.isSymbolicLink()) {
       throw new Error(`Путь ${relativePath} содержит symlink`);
     }
