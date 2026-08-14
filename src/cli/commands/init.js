@@ -3,6 +3,7 @@
 import path from "node:path";
 
 import { initProject } from "../../internal/init/index.js";
+import { inferStandardWorkspace } from "../../internal/shared/workspace.js";
 import { reportProgress } from "../progress.js";
 
 /**
@@ -26,12 +27,7 @@ function printPaths(title, paths) {
  */
 export function buildConnectHint(storeRoot, storeId) {
   const workspace = path.dirname(storeRoot);
-  const standardLayout = (
-    path.basename(storeRoot) === storeId &&
-    path.basename(workspace) !== "openspec" &&
-    path.dirname(workspace) !== workspace
-  );
-  const command = standardLayout
+  const command = inferStandardWorkspace(storeRoot, storeId)
     ? "openspec-orch connect"
     : `openspec-orch connect --workspace ${JSON.stringify(workspace)}`;
   return `Далее: выполните ${command}`;

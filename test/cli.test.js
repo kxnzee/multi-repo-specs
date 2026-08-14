@@ -8,6 +8,7 @@ import test from "node:test";
 import { pathToFileURL } from "node:url";
 
 import { confirm } from "../src/cli/prompt.js";
+import { buildConnectHint } from "../src/cli/commands/init.js";
 import { createProgram } from "../src/cli/program.js";
 import { reportProgress } from "../src/cli/progress.js";
 
@@ -62,6 +63,17 @@ test("public binary exposes generated help", () => {
   for (const command of ["init", "connect", "explore", "change", "load"]) {
     assert.match(result.stdout, new RegExp(`^  ${command}`, "m"));
   }
+});
+
+test("init hint follows the workspace layout accepted by connect", () => {
+  assert.equal(
+    buildConnectHint("/work/payments-specs", "payments-specs"),
+    "Далее: выполните openspec-orch connect",
+  );
+  assert.equal(
+    buildConnectHint("/work/central-store", "payments-specs"),
+    "Далее: выполните openspec-orch connect --workspace \"/work\"",
+  );
 });
 
 test("every subcommand exposes generated help without running its action", () => {

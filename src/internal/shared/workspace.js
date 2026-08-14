@@ -9,6 +9,22 @@ import { lstatOrNull } from "./files.js";
 const WORKSPACE_CONFIG_KEY = "openspec-orch.workspace";
 
 /**
+ * Определяет стандартный workspace для Store в раскладке `<workspace>/<store-id>`.
+ *
+ * @param {string} storeRoot Абсолютный путь центрального Store.
+ * @param {string} storeId Store ID из проверенных metadata.
+ * @returns {string | null} Путь workspace либо `null` для нестандартной раскладки.
+ */
+export function inferStandardWorkspace(storeRoot, storeId) {
+  const workspace = path.dirname(storeRoot);
+  return (
+    path.basename(storeRoot) === storeId &&
+    path.basename(workspace) !== "openspec" &&
+    path.dirname(workspace) !== workspace
+  ) ? workspace : null;
+}
+
+/**
  * Определяет общий workspace по явному аргументу, локальной Git-настройке
  * или стандартной раскладке `<workspace>/<store-id>`.
  *
@@ -33,17 +49,11 @@ export async function resolveWorkspace(
       ["config", "--local", "--get", "--default", "", WORKSPACE_CONFIG_KEY],
       { cwd: storeRoot },
     );
-  const storeParent = path.dirname(storeRoot);
-  const standardWorkspace = (
-    path.basename(storeRoot) === storeId &&
-    path.basename(storeParent) !== "openspec" &&
-    path.dirname(storeParent) !== storeParent
-  ) ? storeParent : null;
   const workspace = requestedWorkspace
     ? path.resolve(requestedWorkspace)
     : configuredWorkspace
       ? path.resolve(configuredWorkspace)
-      : standardWorkspace;
+      : inferStandardWorkspace(storeRoot, storeId);
   if (!workspace) {
     throw new Error(
       `Не удалось определить workspace; разместите Store как <workspace>/${storeId} ` +
