@@ -784,8 +784,8 @@ Plugins реализуются сразу после пилота Core/Template:
 ### 4.3.1. Изменения
 
 1. Разделить текущие файлы по владельцу:
-   - `harness/bin`, `harness/cli`, Git/Store mechanics, OpenSpec runner и security checks оставить в Core;
-   - содержимое прежних `harness/init/skeleton`, `commands`, `agents` и `subagents` перенести в `harness/templates/base/`;
+   - `src/bin`, `src/cli`, Git/Store mechanics, OpenSpec runner и security checks оставить в Core;
+   - содержимое прежних каталогов `init/skeleton`, `commands`, `agents` и `subagents` перенести в `src/templates/base/`;
    - файлы официального OpenSpec pack не включать в Template: их по-прежнему создаёт `openspec init`;
    - специальный merge-код и проверки состава workflow пометить на удаление на этапе 3.
 2. Добавить в базовый Template минимальный `template.yaml` с Qwen/GigaCode agent mappings и упорядоченным `copy`.
@@ -961,7 +961,7 @@ Core умеет безопасно прочитать произвольный �
 После каждого commit выполняются затронутые test files. После каждого этапа выполняются:
 
 ```bash
-cd harness
+cd src
 npm run check
 npm pack --dry-run --cache /private/tmp/multi-repo-specs-npm-cache
 node bin/openspec-orch.js --help

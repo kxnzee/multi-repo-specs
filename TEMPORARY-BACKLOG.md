@@ -87,7 +87,7 @@ Proposal, Delta Specs, Design и Tasks.
 
 История Git и ссылка на Sync PR достаточны для первой версии. Полная SHA merge Sync
 PR может использоваться для аудита, но не вводится как новый обязательный параметр
-Harness или implementation subtask.
+Orchestrator Core или implementation subtask.
 
 ## 5. Пользовательский процесс
 
@@ -121,7 +121,7 @@ sync/<change-a>
 
 Перед публикацией Change Owner просматривает результат стандартного OpenSpec
 workflow и diff Master Specs, затем создаёт commit и открывает отдельный Sync PR.
-Специальная строгая валидация Harness и собственный автоматический поиск конфликтов
+Специальная строгая валидация Orchestrator Core и собственный автоматический поиск конфликтов
 не добавляются. Согласование дельты выполняют стандартный OpenSpec workflow, агент и
 обычный review PR.
 
@@ -265,7 +265,7 @@ Sync PR.
 Затронутые места:
 
 - `AGENTS.md`;
-- `harness/templates/base/skeleton/openspec/config.yaml`;
+- `src/templates/base/skeleton/openspec/config.yaml`;
 - `docs/reference/changes.md`;
 - `docs/steps/README.md`;
 - `docs/steps/03.md` и `docs/steps/04.md` в части подготовки зависимого Change и Sync
@@ -304,7 +304,7 @@ Sync PR.
 - отдельная команда, schema, runtime-state, строгая валидация и поиск конфликтов не
   добавлялись;
 - встроенные OpenSpec skills и `opsx-*` commands не изменялись;
-- функциональные тесты Harness не зависят от текста пользовательской документации.
+- функциональные тесты Orchestrator Core не зависят от текста пользовательской документации.
 
 ### DEP-LATER — Возможные улучшения только по фактической потребности
 
@@ -316,7 +316,7 @@ Sync PR.
 - собственная строгая валидация Sync или зависимого Change;
 - автоматический поиск конфликтов активных Delta Specs;
 - schema/manifest статуса `dependency_ready`;
-- обязательный `dependency_spec_revision` как новый параметр Harness;
+- обязательный `dependency_spec_revision` как новый параметр Orchestrator Core;
 - dependency graph, поиск циклов и транзитивная инвалидация;
 - автоматическая перепривязка Work Packages;
 - собственная оркестрация Composite Verification или Archive;
@@ -464,7 +464,7 @@ capability и не создаст конкурирующий нормативн�
 - `openspec/config.yaml` требует сравнить intent с Master Spec, сохранить capability
   path и полный `MODIFIED`, а при неоднозначности запросить решение Change Owner;
 - Planning PR фиксирует ожидаемый результат Archive, который подтверждает Spec Owner;
-- собственный валидатор Harness и тесты формулировок документации не добавлялись.
+- собственный валидатор Orchestrator Core и тесты формулировок документации не добавлялись.
 
 ## 10. Критерии завершения backlog
 
@@ -489,7 +489,7 @@ Backlog можно закрыть и удалить, когда:
    утверждается.
 3. Для Sync PR используются обычные правила review центрального Store без нового
    набора обязательных ролей.
-4. OpenSpec и агент выполняют анализ дельты; Harness не дублирует их строгой
+4. OpenSpec и агент выполняют анализ дельты; Orchestrator Core не дублирует их строгой
    валидацией и поиском конфликтов.
 5. Зависимость B от A фиксируется обычным текстом и ссылками, без schema и graph.
 6. Изменение A после Sync обрабатывается новым Sync PR и обычным `/opsx-update B`.

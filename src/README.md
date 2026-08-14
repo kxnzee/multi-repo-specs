@@ -1,6 +1,6 @@
 # OpenSpec Orchestrator
 
-`harness/` — автономная реализация Orchestrator Core и встроенного базового Project Template. Код Core не является нормативным описанием процесса: базовый процесс задают файлы Template и `docs/`, а рабочее состояние проекта — OpenSpec Store и project-local agent assets.
+`src/` — автономная реализация Orchestrator Core и встроенного базового Project Template. Код Core не является нормативным описанием процесса: базовый процесс задают файлы Template и `docs/`, а рабочее состояние проекта — OpenSpec Store и project-local agent assets.
 
 ## Архитектурная граница
 
@@ -16,7 +16,7 @@ Core вызывает только публичный CLI OpenSpec и прове
 Требуется Node.js `20+`; поддерживаются macOS, Linux и Windows. Рекомендуемая и проверенная версия — OpenSpec `1.7.0`, но она не закрепляется в `openspec-orch.yaml`: Core проверяет используемые CLI capabilities и обязательные JSON fields. Назначение всех полей описано в [справочнике `openspec-orch.yaml`](../docs/reference/openspec-orch-yaml.md). Из корня репозитория выполните:
 
 ```bash
-cd harness
+cd src
 npm install
 npm link
 cd ..
@@ -29,7 +29,7 @@ openspec-orch --help
 openspec-orch init --help
 ```
 
-Регистрация выполняется один раз для каждой активной версии Node.js. После переключения версии через NVM повторите `npm link` из директории `harness/`.
+Регистрация выполняется один раз для каждой активной версии Node.js. После переключения версии через NVM повторите `npm link` из директории `src/`.
 
 ## Создание центрального проекта
 
@@ -60,7 +60,7 @@ Template определяет копируемые project files, перенос
 Запуск без регистрации в `PATH`:
 
 ```bash
-node harness/bin/openspec-orch.js init --store payments-specs --agent qwen
+node src/bin/openspec-orch.js init --store payments-specs --agent qwen
 ```
 
 ## Подключение рабочей машины
@@ -144,7 +144,7 @@ CLI разрешает только центральный Store, проверя
 
 Содержательные замечания Planning PR передаются агенту точным списком через официальный `/opsx-update <change-id>`. Штатная команда изменяет существующие planning-артефакты и подтверждает каждую запись, а компактный routing override в project instructions отвечает только за завершённый `/opsx-continue`: вместо Apply или Archive он направляет на шаг 04. Commit, push, закрытие threads, approvals и merge остаются действиями Change Owner и владельцев в Git-провайдере. Каждый Work Package остаётся стандартным checkbox `tasks.md` с явной целью; машинный ID берётся только из `tasks[].id` структурированного `openspec instructions apply` на принятом Baseline. Стандартный `openspec validate` не проверяет проектную цель Work Package, а отдельный валидатор OpenSpec Orchestrator не вводится.
 
-Spec Baseline равен полной Git SHA, принятой в основной ветке Store после merge. Harness не создаёт `openspec-orch review`, `openspec-orch baseline`, Git tag или state-файл. После merge Change Owner вручную создаёт в исходной Story по одной parameter-only implementation subtask на каждый окончательно затронутый `repository-id`; отдельная QA-subtask пока не является обязательным гейтом.
+Spec Baseline равен полной Git SHA, принятой в основной ветке Store после merge. Orchestrator Core не создаёт `openspec-orch review`, `openspec-orch baseline`, Git tag или state-файл. После merge Change Owner вручную создаёт в исходной Story по одной parameter-only implementation subtask на каждый окончательно затронутый `repository-id`; отдельная QA-subtask пока не является обязательным гейтом.
 
 ## Подготовка реализации
 
@@ -166,7 +166,7 @@ openspec-orch load \
 
 ## Реализация
 
-Шаг 06 не добавляет исполняемую команду harness. Агент сначала читает provider-файл, затем Apply handoff выбранного Template из immutable Store worktree, проверяет точное совпадение параметров с `context.json`, повторяет штатные `openspec validate` и `openspec instructions apply`, затем изменяет только текущий Code Repository и выполняет его локальные проверки.
+Шаг 06 не добавляет новую исполняемую команду `openspec-orch`. Агент сначала читает provider-файл, затем Apply handoff выбранного Template из immutable Store worktree, проверяет точное совпадение параметров с `context.json`, повторяет штатные `openspec validate` и `openspec instructions apply`, затем изменяет только текущий Code Repository и выполняет его локальные проверки.
 
 Инструкция поддерживает обычное продолжение с тем же runtime и не создаёт собственный progress-state. Provider-файл из runtime Store обязателен и уже загружен через `next_action`; отдельный файл технических инструкций в текущем Code Repository остаётся опциональным, а при его отсутствии агент адресно читает необходимые код и тесты. Commit, rebase, push, PR и tracker выполняются только по отдельному явному поручению пользователя. Центральный `tasks.md` не меняется, implementation PR не сливается, а успешная реализация передаётся в Composite Verification шага 07. Полный контракт находится в [`docs/steps/06.md`](../docs/steps/06.md).
 
@@ -193,7 +193,7 @@ openspec-orch load \
 Из корня репозитория:
 
 ```bash
-npm --prefix harness run check
-npm --prefix harness test
-node harness/bin/openspec-orch.js --help
+npm --prefix src run check
+npm --prefix src test
+node src/bin/openspec-orch.js --help
 ```

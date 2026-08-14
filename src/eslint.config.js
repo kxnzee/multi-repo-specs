@@ -1,4 +1,4 @@
-/** @fileoverview ESLint flat config для production-кода и тестов Harness. */
+/** @fileoverview ESLint flat config для production-кода и тестов OpenSpec Orchestrator. */
 
 import js from "@eslint/js";
 import jsdoc from "eslint-plugin-jsdoc";
