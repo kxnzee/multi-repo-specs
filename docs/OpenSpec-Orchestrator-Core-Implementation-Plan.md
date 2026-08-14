@@ -744,7 +744,7 @@ Plugins реализуются сразу после пилота Core/Template:
 | 4. Независимость Core-команд от Template | `completed` | `refactor: decouple core commands from project templates` |
 | 5. Schema-neutral OpenSpec-интеграция | `completed` | `feat: support schema-neutral OpenSpec workflows` |
 | 6. Compatibility и strict/relaxed mode | `completed` | `feat: add OpenSpec compatibility modes` |
-| 7. Документация и реальный пилот | `not_started` | — |
+| 7. Документация и реальный пилот | `completed` | `fix: complete template-neutral Orchestrator pilot` |
 
 ```text
 текущий контракт -> публичное переименование -> базовый Template

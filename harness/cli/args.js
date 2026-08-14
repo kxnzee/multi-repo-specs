@@ -17,8 +17,8 @@ export const HELP = `Использование:
   init    Один раз создать OpenSpec Store и каркас центрального проекта
   connect Подключить рабочую машину и загрузить Code Repositories
   explore Проверить workspace и подготовить единый вызов /opsx-explore
-  change  Создать или безопасно продолжить OpenSpec Change в planning-ветке
-  load    Подготовить Code Repository к реализации на принятом Spec Baseline
+  change  Создать или безопасно продолжить OpenSpec Change
+  load    Подготовить Code Repository и проверенный runtime реализации
 
 Параметры:
   --store <id>    Store ID для openspec-orch init, openspec-orch change или openspec-orch load

@@ -1,6 +1,15 @@
 # OpenSpec Orchestrator
 
-`harness/` — автономная техническая реализация пользовательских команд OpenSpec Orchestrator. Код из этой директории не является нормативным описанием процесса: правила процесса находятся в `docs/`, а рабочее состояние проекта — в корневом `openspec/` и каталоге выбранного agent adapter.
+`harness/` — автономная реализация Orchestrator Core и встроенного базового Project Template. Код Core не является нормативным описанием процесса: базовый процесс задают файлы Template и `docs/`, а рабочее состояние проекта — OpenSpec Store и project-local agent assets.
+
+## Архитектурная граница
+
+- **OpenSpec** управляет Specs, Changes, schemas, artifact graph и штатными `opsx-*` commands/skills.
+- **Orchestrator Core** предоставляет исполняемый CLI `openspec-orch`, безопасно устанавливает Template, маршрутизирует Store и Code Repositories и проверяет технические контракты.
+- **Project Template** определяет agent mapping, skeleton, schemas, commands, skills, subagents, инструкции и процесс конкретной команды.
+- **Orchestrator Plugins** пока не реализованы. После пилота они смогут добавлять Core capabilities для внешних интеграций; обязательность и место их использования останутся правилом Template.
+
+Core вызывает только публичный CLI OpenSpec и проверяет его структурированные ответы. Он не подменяет пути OpenSpec, не изменяет встроенные `openspec-*` skills/`opsx-*` commands и не интерпретирует процессный смысл файлов Template.
 
 ## Первый запуск
 
@@ -37,6 +46,8 @@ openspec-orch init --store payments-specs --agent qwen \
 ```bash
 openspec-orch init --store payments-specs --agent team-agent --template ../team-template
 ```
+
+Как скопировать базовую директорию, собрать минимальный `template.yaml`, добавить handoffs или project-local schema, описано в [руководстве по Project Template](../docs/reference/project-template.md).
 
 Template определяет копируемые project files, перенос официального agent pack и необязательные handoffs Core-команд. Его mapping сохраняется в `openspec-orch.yaml`, поэтому после успешного `init` исходный Template не нужен. Файлы Template имеют приоритет над файлами, созданными текущим OpenSpec init. Существовавший до запуска идентичный файл пропускается, а отличающийся останавливает preflight без merge или overwrite.
 
@@ -75,9 +86,9 @@ openspec-orch connect
 openspec-orch connect --workspace /absolute/path/to/workspace
 ```
 
-`openspec-orch connect` сохраняет канонический путь как локальную Git-настройку `openspec-orch.workspace` центрального Store. Настройка не коммитится и используется последующими `openspec-orch connect` и `openspec-orch explore`; явный `--workspace` заменяет сохранённое значение.
+В strict mode `openspec-orch connect` сохраняет канонический путь как локальную Git-настройку `openspec-orch.workspace` центрального Store. Настройка не коммитится и используется последующими `openspec-orch connect` и `openspec-orch explore`; явный `--workspace` заменяет сохранённое значение. В relaxed mode явный workspace действует только для текущего вызова и не записывается в Git config.
 
-Команда валидирует Core config, Store metadata и repositories, передаёт Store identity официальным `store register`, `store doctor`, `doctor --store` и `context --store`, структурно проверяет их JSON, затем загружает все записи `role: code` из `openspec-orch.yaml` в `<workspace>/src/<repository-id>`. Process assets выбранного Template ей не нужны: конкретный handoff проверяется только при вызове зависящей от него команды. Существующие checkout не обновляются и не перезаписываются: проверяются только их `origin`, ветка и чистота.
+Команда валидирует Core config, Store metadata и repositories, передаёт Store identity официальным `store register`, `store doctor`, `doctor --store` и `context --store`, структурно проверяет их JSON, затем обрабатывает все записи `role: code` из `openspec-orch.yaml`. В strict mode отсутствующие checkout клонируются в `<workspace>/src/<repository-id>`, а существующие проверяются по `origin`, ветке и чистоте. В relaxed mode каталоги должны уже существовать, Git не проверяется и клонирование не выполняется. Process assets выбранного Template ей не нужны: конкретный handoff проверяется только при вызове зависящей от него команды.
 
 Если в Code Repository отсутствует единственный допустимый `openspec/config.yaml`, команда создаёт pointer `store: <store-id>` и возвращает `needs_setup_pr`. Она не делает commit, push или PR. После принятия setup PR обновите checkout и повторите `openspec-orch connect`.
 
@@ -93,7 +104,7 @@ openspec-orch explore --ticket PAY-412
 
 Для нестандартной раскладки можно передать `--workspace <path>`. Команда через официальный Store API проверяет OpenSpec root, оригинальный agent action `/opsx-explore`, `openspec-orch.yaml`, активные и архивные Changes, а также наличие всех checkout, подготовленных `openspec-orch connect`. Затем она интерактивно предлагает выбрать Code Repositories и запрашивает одно непустое исходное намерение. Это цель исследования, а не готовая проблема или ожидаемый результат: их агент уточняет во время Explore. Пустой подтверждённый выбор репозиториев запускает Explore только по нормативному контексту и Master Specs центрального репозитория с `role: store`.
 
-Explore не клонирует репозитории и не создаёт ticket-specific workspace. Для Store и выбранных постоянных checkout команда проверяет чистоту, `default_branch`, выполняет только `git fetch` и требует совпадения `HEAD` с `origin/<default_branch>`. Для каждого выбранного Code Repository дополнительно проверяется точный config-only pointer и разрешение того же Store через `doctor/context` с `source: declared`. Файловые права не меняются.
+Explore не клонирует репозитории и не создаёт ticket-specific workspace. В strict mode для Store и выбранных checkout команда проверяет чистоту, `default_branch`, выполняет только `git fetch` и требует совпадения `HEAD` с `origin/<default_branch>`. В relaxed mode Git-проверки пропускаются, а revisions явно передаются как `unpinned`. Для каждого выбранного Code Repository в обоих режимах проверяется точный config-only pointer и разрешение того же Store через `doctor/context` с `source: declared`. Файловые права не меняются.
 
 После успешной проверки CLI формирует готовый prompt со штатным `/opsx-explore`, runtime-параметрами и точным путём из `agent.handoffs.explore`. В prompt входят ticket, исходное намерение, Store ID, workspace, точные пути и ревизии. Постоянные границы, порядок исследования и формат результата находятся в handoff-файле Template, а не в JavaScript. Во встроенном Template это `.sdd/instructions/explore.md`; пользовательский Template может выбрать другой путь или не объявлять Explore вообще.
 
@@ -121,7 +132,7 @@ Explore не клонирует репозитории и не создаёт ti
 openspec-orch change --ticket PAY-412 --name payment-status --store payments-specs
 ```
 
-CLI разрешает только центральный Store, проверяет совпадение явного `--store` с текущим checkout, его регистрацию и identity, активные и архивные Changes, чистую актуальную основную ветку, отсутствие локальной и remote planning-ветки, затем создаёт `feature/pay-412-payment-status` и вызывает официальный `openspec new change`. При повторном запуске допускаются изменения только внутри того же Change; существующий Proposal продолжается без перезаписи. Ветка без Change, другая schema, commit или изменения вне Change возвращают `needs_recovery`.
+CLI разрешает только центральный Store, проверяет совпадение явного `--store` с текущим checkout, его регистрацию и identity, активные и архивные Changes, затем вызывает официальный `openspec new change`. В strict mode дополнительно проверяются чистая актуальная основная ветка и отсутствие локальной/remote planning-ветки, после чего создаётся `feature/pay-412-payment-status`. В relaxed mode Core веткой не управляет и возвращает `branch: null`, `baseRevision: unpinned`. При повторном запуске OpenSpec Change продолжается без пересоздания; strict mode дополнительно ограничивает допустимый Git diff текущим Change.
 
 После JSON-результата agent command получает официальные `openspec instructions proposal`, создаёт только `proposal.md` из подтверждённого Explore и завершает шаг лишь после явного подтверждения Change Owner. Delta Specs, `design.md`, `tasks.md`, commit, push и PR на этом этапе не создаются. `/opsx-propose` не вызывается, встроенные команды и skills OpenSpec не изменяются.
 
@@ -149,7 +160,7 @@ openspec-orch load \
   --work-package 2
 ```
 
-Команда принимает Store ID, repository-id, Change, Baseline и Work Package ID непосредственно из актуальной implementation subtask. Она сверяет Store с project pointer, repository-id — с cwd, `origin` и `openspec-orch.yaml`, проверяет существование точной Store commit, открывает её в отдельном detached worktree, вызывает штатные OpenSpec validation и apply instructions, показывает descriptions, создаёт или возобновляет локальную `feature/<change-id>` и записывает минимальный `context.json` без descriptions.
+В strict mode команда принимает точную Baseline, сверяет repository-id с cwd, `origin` и `openspec-orch.yaml`, открывает Store commit в отдельном immutable worktree, вызывает OpenSpec validation с `--strict`, создаёт или возобновляет локальную `feature/<change-id>` и записывает воспроизводимый runtime. В relaxed mode `--baseline` не передаётся: команда использует текущий Store root, не вызывает Git, запускает validation без `--strict` и записывает `unpinned`/`branch: null`. В обоих режимах Store, repository, Change, schema, context paths и Work Package ID проверяются по структурированным ответам OpenSpec.
 
 `openspec-orch load` не читает tracker, не доказывает историю Planning PR или amendment, не сравнивает параметры с прежним runtime, не копирует Tasks, не меняет код или planning-артефакты и не запускает Apply. Каждый запуск полностью определяется текущими параметрами subtask. После `implementation_ready` начните новую агентскую сессию из того же Code Repository и передайте ей готовое первое сообщение `next_action`: оно сначала указывает на `agent.instructions_file`, затем на файл из `agent.handoffs.apply` внутри точного runtime Store и содержит те же Store, repository, Change, Baseline и Work Packages. Во встроенном Template этим файлом является `sdd-apply.md`. Копировать slash-команду в Code Repository не требуется. Подробности находятся в [`docs/steps/05.md`](../docs/steps/05.md).
 
@@ -162,12 +173,12 @@ openspec-orch load \
 ## Границы
 
 - `bin/` — минимальные точки входа командной строки.
-- `config/index.js` — строгий разбор Store identity и реестра `openspec-orch.yaml`.
+- `config/index.js` — разбор Store identity, agent mapping, repositories и project execution mode из `openspec-orch.yaml`.
 - `connect/index.js` — техническая логика `openspec-orch connect`.
 - `change/index.js` — создание и безопасное продолжение Change шага 02.
 - `explore/index.js` — read-only-проверки уже подключённого workspace шага 01.
 - `init/` — техническая логика `openspec-orch init` и Core-owned шаблон `openspec-orch.yaml`.
-- `load/index.js` — подготовка implementation-ветки и runtime точного Spec Baseline.
+- `load/index.js` — подготовка strict Baseline runtime либо явно `unpinned` relaxed runtime.
 - `shared/` — единый безопасный запуск внешних команд.
 - `template/` — Core-owned parser и безопасный copy planner Project Template; применение plan выполняет только `init`.
 - `templates/base/` — встроенный базовый Project Template: skeleton, agent commands, инструкции и subagents без исполняемой логики Core.

@@ -10,8 +10,6 @@ const REQUIRED_ROOT_PATHS = Object.freeze([
   path.join(".openspec-store", "store.yaml"),
   "openspec-orch.yaml",
   path.join("openspec", "config.yaml"),
-  path.join("openspec", "context", "00-start-here.md"),
-  path.join("openspec", "context", "system-map.yaml"),
 ]);
 
 /**

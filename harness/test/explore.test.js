@@ -239,6 +239,15 @@ test("findSpecRoot resolves the nearest Store from a nested directory", async (t
   assert.equal(await findSpecRoot(nested), scenario.storeRoot);
 });
 
+test("findSpecRoot does not require files owned by the base Template", async (t) => {
+  const scenario = await createScenario(t);
+  await fs.rm(path.join(scenario.storeRoot, "openspec", "context"), { recursive: true });
+  const nested = path.join(scenario.storeRoot, "openspec", "schemas", "team-flow");
+  await fs.mkdir(nested, { recursive: true });
+
+  assert.equal(await findSpecRoot(nested), scenario.storeRoot);
+});
+
 test("prepareExplore reports a lazy error when Template did not declare Explore handoff", async (t) => {
   const scenario = await createScenario(t);
   const configPath = path.join(scenario.storeRoot, "openspec-orch.yaml");
