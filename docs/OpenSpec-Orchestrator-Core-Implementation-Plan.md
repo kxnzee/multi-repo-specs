@@ -742,7 +742,7 @@ Plugins реализуются сразу после пилота Core/Template:
 |---|---|---|
 | 0. Исходное поведение и публичное имя | `completed` | `dea9186`, корректировка границы Template `ec675e5` |
 | 1. Базовый Template | `completed` | `refactor: extract base project template` |
-| 2. Общий Template engine | `not_started` | — |
+| 2. Общий Template engine | `completed` | `feat: add safe project template engine` |
 | 3. Перевод `init` на Template engine | `not_started` | — |
 | 4. Независимость Core-команд от Template | `not_started` | — |
 | 5. Schema-neutral OpenSpec-интеграция | `not_started` | — |
@@ -812,20 +812,19 @@ Plugins реализуются сразу после пилота Core/Template:
 ### 4.4.1. Изменения
 
 1. Добавить разбор локального `template.yaml` без package, registry и version protocol.
-2. Получать список допустимых `--agent` из выбранного Template, а не из встроенного реестра Qwen/GigaCode.
+2. Возвращать список допустимых agent ID из выбранного Template, а не из встроенного реестра Qwen/GigaCode. Подключение списка к `--agent` выполняется вместе с `init` на этапе 3.
 3. Построить полный copy plan до первой записи:
    - проверить обязательные поля agent mapping;
    - разрешить `from` только внутри Template root, а `to` — только внутри target;
    - отклонить symlink, специальные файлы, path traversal, пересечение source/target и file-directory collisions;
    - отклонить запись в защищённые Core paths;
    - сохранить порядок `copy` и executable bit.
-4. Добавить `--template <local-directory>` в `openspec-orch init`. Без флага автоматически выбирать внутренний базовый Template; указанный каталог полностью его заменяет.
-5. Не добавлять интерполяцию, условия, hooks, delete, merge или наследование Templates.
+4. Не добавлять интерполяцию, условия, hooks, delete, merge или наследование Templates.
 
 ### 4.4.2. Проверка этапа
 
 - один parser и copy planner обслуживают встроенный и пользовательский Template;
-- неизвестный agent, некорректный descriptor и небезопасный путь останавливают `init` до внешних вызовов и записи;
+- неизвестный agent, некорректный descriptor и небезопасный путь останавливают построение plan до записи; подключение этого preflight к внешним вызовам `init` проверяется на этапе 3;
 - дополнительные обычные файлы и каталоги копируются без регистрации их имён в Core;
 - отсутствие необязательных файлов и директорий не считается ошибкой.
 
@@ -837,20 +836,21 @@ Core умеет безопасно прочитать произвольный �
 
 ### 4.5.1. Изменения
 
-1. Собрать `init` в один фиксированный технический pipeline:
+1. Добавить `--template <local-directory>` в `openspec-orch init`. Без флага автоматически выбирать внутренний базовый Template; указанный каталог полностью его заменяет.
+2. Собрать `init` в один фиксированный технический pipeline:
    `preflight -> openspec init -> перенос generated pack -> copy Template -> Store setup -> openspec-orch.yaml -> post-check`.
-2. Разрешить Template переопределять файлы, созданные текущим вызовом `openspec init`, включая agent-specific и OpenSpec config.
-3. Защитить файлы, существовавшие до запуска: идентичные пропускать, отличающиеся считать конфликтом без автоматического overwrite.
-4. Сохранить выбранный agent mapping и объявленные Core handoffs в `openspec-orch.yaml`; после успешного `init` исходный Template больше не требуется.
-5. Удалить из Core:
+3. Разрешить Template переопределять файлы, созданные текущим вызовом `openspec init`, включая agent-specific и OpenSpec config.
+4. Защитить файлы, существовавшие до запуска: идентичные пропускать, отличающиеся считать конфликтом без автоматического overwrite.
+5. Сохранить выбранный agent mapping и объявленные Core handoffs в `openspec-orch.yaml`; после успешного `init` исходный Template больше не требуется.
+6. Удалить из Core:
    - `SHARED_PROJECT_FILES` и специальный merge `CODEOWNERS`/`.gitignore`;
    - принудительный merge `openspec/config.yaml` под `spec-driven`;
    - `REQUIRED_AGENT_COMMANDS`, `REQUIRED_OPEN_SPEC_DIRECTORIES` и обязательный список subagents;
    - сравнение agent config со встроенным Qwen/GigaCode registry.
-6. Оставить только минимальный post-check: OpenSpec root, корректный agent mapping, command directory, instruction file и Core-owned config/metadata.
-7. Проверять объявленный Template handoff лениво только при вызове зависящей от него Core-команды; не зашивать имя Template-файла в Core.
-8. Для partial init возвращать `needs_recovery`, показывать завершённые и незавершённые шаги и продолжать только доказуемо безопасные операции. Не добавлять rollback, Template lifecycle или отдельную transaction subsystem.
-9. После полностью успешного `init` повторный запуск должен быть no-op. Пользователь удаляет или меняет скопированные project files вручную.
+7. Оставить только минимальный post-check: OpenSpec root, корректный agent mapping, command directory, instruction file и Core-owned config/metadata.
+8. Проверять объявленный Template handoff лениво только при вызове зависящей от него Core-команды; не зашивать имя Template-файла в Core.
+9. Для partial init возвращать `needs_recovery`, показывать завершённые и незавершённые шаги и продолжать только доказуемо безопасные операции. Не добавлять rollback, Template lifecycle или отдельную transaction subsystem.
+10. После полностью успешного `init` повторный запуск должен быть no-op. Пользователь удаляет или меняет скопированные project files вручную.
 
 ### 4.5.2. Проверка этапа
 

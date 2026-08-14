@@ -13,6 +13,7 @@
     "init",
     "load",
     "shared",
+    "template",
     "templates"
   ],
   "bin": {

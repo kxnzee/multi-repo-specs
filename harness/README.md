@@ -163,6 +163,7 @@ openspec-orch load \
 - `init/` — техническая логика `openspec-orch init` и Core-owned шаблон `openspec-orch.yaml`.
 - `load/index.js` — подготовка implementation-ветки и runtime точного Spec Baseline.
 - `shared/` — единый безопасный запуск внешних команд.
+- `template/` — Core-owned parser и безопасный copy planner Project Template без файловых записей.
 - `templates/base/` — встроенный базовый Project Template: skeleton, agent commands, инструкции и subagents без исполняемой логики Core.
 - `test/` — тесты технической обвязки, не входящие в публикуемый пакет.
 
