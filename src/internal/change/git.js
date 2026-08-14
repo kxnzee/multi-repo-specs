@@ -3,6 +3,7 @@
 import path from "node:path";
 
 import { inspectFreshCheckout, inspectRepositoryIdentity } from "../shared/git.js";
+import { isContainedPath } from "../shared/paths.js";
 import { isGitRevision } from "../shared/schema.js";
 
 /**
@@ -121,10 +122,7 @@ export function inspectContinuationChangeGit(
     { cwd: projectRoot },
   );
   const changeRelativePath = path.relative(projectRoot, changeRoot);
-  if (
-    !changeRelativePath || changeRelativePath === ".." ||
-    changeRelativePath.startsWith(`..${path.sep}`) || path.isAbsolute(changeRelativePath)
-  ) {
+  if (!isContainedPath(projectRoot, changeRoot)) {
     throw new Error("needs_recovery: OpenSpec Change root выходит за Store");
   }
   const allowedRoot = changeRelativePath.split(path.sep).join("/");

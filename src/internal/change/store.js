@@ -1,12 +1,11 @@
 /** @fileoverview Проверки Store и schema-neutral OpenSpec Change. */
 
-import path from "node:path";
-
 import {
   resolveContainedDeclaredPath,
   resolveContainedExistingPath,
 } from "../shared/files.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
+import { isPortableRelativePath } from "../shared/paths.js";
 import { isRecord } from "../shared/schema.js";
 import { findSpecRoot, readStoreConfiguration, validateOpenSpec } from "../shared/store.js";
 
@@ -14,10 +13,7 @@ const ARTIFACT_STATUSES = new Set(["done", "skipped", "ready", "blocked"]);
 
 /** @param {unknown} value @param {string} label @returns {string} */
 function assertRelativeArtifactPath(value, label) {
-  if (
-    typeof value !== "string" || !value || path.isAbsolute(value) ||
-    value.split(/[\\/]/).some((segment) => !segment || segment === "." || segment === "..")
-  ) {
+  if (!isPortableRelativePath(value, { allowDot: false })) {
     throw new Error(`${label} содержит некорректный относительный путь`);
   }
   return value;
