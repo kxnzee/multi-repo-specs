@@ -7,7 +7,7 @@ import { resolveExecutionMode } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
 import { inspectOpenSpecCli } from "../shared/compatibility.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
-import { readStoreConfiguration } from "../shared/store.js";
+import { assertStoreDoctor, readStoreConfiguration } from "../shared/store.js";
 import { rememberWorkspace, resolveWorkspace } from "../shared/workspace.js";
 import { connectRepository } from "./repository.js";
 
@@ -23,32 +23,6 @@ import { connectRepository } from "./repository.js";
 function assertStoreIdentity(payload, storeId, storeRoot, command) {
   if (payload.store?.id !== storeId || path.resolve(payload.store?.root ?? "") !== storeRoot) {
     throw new Error(`${command} вернула другой Store`);
-  }
-}
-
-/**
- * Проверяет результат `openspec store doctor`.
- *
- * @param {import("../shared/types.js").OpenSpecResponse} payload Ответ OpenSpec.
- * @param {string} storeId Ожидаемый Store ID.
- * @param {string} storeRoot Ожидаемый путь.
- * @returns {void}
- */
-function validateStoreDoctor(payload, storeId, storeRoot) {
-  const stores = Array.isArray(payload.stores) ? payload.stores.filter(({ id }) => id === storeId) : [];
-  if (stores.length !== 1) throw new Error(`openspec store doctor не вернула ровно один Store ${storeId}`);
-  const store = stores[0];
-  if (path.resolve(store.root ?? "") !== storeRoot) {
-    throw new Error(`openspec store doctor вернула другой путь Store: ${store.root ?? "не указан"}`);
-  }
-  if (store.metadata?.present !== true || store.metadata?.valid !== true) {
-    throw new Error("openspec store doctor не подтвердила валидную Store metadata");
-  }
-  if (store.metadata.id !== undefined && store.metadata.id !== storeId) {
-    throw new Error(`openspec store doctor вернула другой Store ID: ${store.metadata.id}`);
-  }
-  if (store.openspec_root?.healthy !== true) {
-    throw new Error("openspec store doctor не подтвердила исправный OpenSpec root");
   }
 }
 
@@ -78,7 +52,7 @@ export async function connectProject({
   const registration = runOpenSpecJson(commandRunner, ["store", "register", storeRoot, "--id", metadata.id, "--yes", "--json"], storeRoot);
   assertStoreIdentity(registration, metadata.id, storeRoot, "openspec store register");
   const storeDoctor = runOpenSpecJson(commandRunner, ["store", "doctor", metadata.id, "--json"], storeRoot);
-  validateStoreDoctor(storeDoctor, metadata.id, storeRoot);
+  assertStoreDoctor(storeDoctor, metadata.id, storeRoot);
   const doctorOutput = commandRunner("openspec", ["doctor", "--store", metadata.id], {
     cwd: storeRoot,
     environment: { NODE_NO_WARNINGS: "1" },

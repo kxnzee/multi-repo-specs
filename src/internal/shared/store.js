@@ -10,6 +10,7 @@ import {
 import { inspectOpenSpecCli, requireOpenSpecCapability } from "./compatibility.js";
 import { readRelativeRegularFile } from "./files.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "./openspec.js";
+import { isRecord } from "./schema.js";
 
 /**
  * Читает Core-owned Store metadata и конфигурацию и проверяет их общую identity.
@@ -44,9 +45,9 @@ export async function readStoreConfiguration(projectRoot) {
  * @param {string} projectRoot Ожидаемый абсолютный путь Store.
  * @returns {void}
  */
-function assertStoreDoctor(payload, storeId, projectRoot) {
+export function assertStoreDoctor(payload, storeId, projectRoot) {
   const stores = Array.isArray(payload.stores)
-    ? payload.stores.filter(({ id }) => id === storeId)
+    ? payload.stores.filter((store) => isRecord(store) && store.id === storeId)
     : [];
   if (stores.length !== 1) {
     throw new Error(`openspec store doctor не вернула ровно один Store ${storeId}`);
@@ -56,9 +57,11 @@ function assertStoreDoctor(payload, storeId, projectRoot) {
     throw new Error(`Store ${storeId} зарегистрирован по другому пути: ${store.root ?? "не указан"}`);
   }
   if (
-    store.metadata?.present !== true ||
-    store.metadata?.valid !== true ||
-    store.openspec_root?.healthy !== true
+    !isRecord(store.metadata) ||
+    store.metadata.present !== true ||
+    store.metadata.valid !== true ||
+    !isRecord(store.openspec_root) ||
+    store.openspec_root.healthy !== true
   ) {
     throw new Error(`openspec store doctor не подтвердила исправный Store ${storeId}`);
   }

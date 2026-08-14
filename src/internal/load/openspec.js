@@ -6,6 +6,7 @@ import { inspectOpenSpecCli } from "../shared/compatibility.js";
 import { resolveContainedExistingPath } from "../shared/files.js";
 import { runOpenSpecJson } from "../shared/openspec.js";
 import { isOpenSpecRoot, isRecord } from "../shared/schema.js";
+import { assertStoreDoctor } from "../shared/store.js";
 
 /**
  * Проверяет официальный Store doctor и возвращает зарегистрированный root.
@@ -30,22 +31,7 @@ export function resolveHealthyStore(storeId, codeRoot, commandRunner) {
     ["store", "doctor", storeId, "--json"],
     codeRoot,
   );
-  if (!Array.isArray(storeDoctor.stores)) {
-    throw new Error("openspec store doctor вернула некорректный список Stores");
-  }
-  const matches = storeDoctor.stores.filter((item) => isRecord(item) && item.id === storeId);
-  if (matches.length !== 1) throw new Error(`openspec store doctor не подтвердила Store ${storeId}`);
-  const inspected = matches[0];
-  if (path.resolve(String(inspected.root ?? "")) !== storeRoot) {
-    throw new Error(`openspec store doctor разрешила другой root для Store ${storeId}`);
-  }
-  if (
-    !isRecord(inspected.metadata) || inspected.metadata.present !== true || inspected.metadata.valid !== true ||
-    (inspected.metadata.id !== undefined && inspected.metadata.id !== storeId) ||
-    !isRecord(inspected.openspec_root) || inspected.openspec_root.healthy !== true
-  ) {
-    throw new Error(`openspec store doctor не подтвердила исправный Store ${storeId}`);
-  }
+  assertStoreDoctor(storeDoctor, storeId, storeRoot);
   return storeRoot;
 }
 
