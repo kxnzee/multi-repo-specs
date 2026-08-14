@@ -250,7 +250,7 @@ test("prepareChange reports a concrete missing OpenSpec JSON capability", async 
       name: "missing-capability",
       commandRunner: runner,
     }),
-    /обязательный capability: openspec store list --json: stores\[\]/,
+    /OpenSpec Orchestrator требует JSON capability: openspec store list --json: stores\[\]/,
   );
 });
 

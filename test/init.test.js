@@ -488,7 +488,7 @@ test("OpenSpec compatibility accepts semantic versions and reports missing capab
   assert.throws(() => inspectOpenSpecCli(() => "OpenSpec dev", "/tmp"), /semantic version/);
   assert.throws(
     () => requireOpenSpecCapability(false, "openspec store list --json: stores[]"),
-    /обязательный capability.*stores\[\]/,
+    /OpenSpec Orchestrator требует JSON capability.*stores\[\]/,
   );
 });
 

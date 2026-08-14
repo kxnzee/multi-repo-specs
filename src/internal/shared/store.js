@@ -3,13 +3,33 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import * as z from "zod";
 
 import { parseOrchestratorConfig, parseStoreMetadata } from "../config/index.js";
 import { inspectOpenSpecCli, requireOpenSpecCapability } from "./compatibility.js";
 import { lstatOrNull, readRelativeRegularFile } from "./files.js";
 import { sameGitRemote } from "./git.js";
-import { assertOpenSpecRoot, runOpenSpecJson } from "./openspec.js";
-import { isRecord } from "./schema.js";
+import {
+  assertOpenSpecRoot,
+  assertOpenSpecStore,
+  runOpenSpecJson,
+} from "./openspec.js";
+import {
+  isRecord,
+  openSpecContractError,
+  parseOpenSpecContract,
+} from "./schema.js";
+
+const STORE_DOCTOR_ENTRY_SCHEMA = z.looseObject({
+  id: z.string().min(1),
+  root: z.string().min(1),
+  metadata: z.looseObject({
+    id: z.string().min(1).optional(),
+    present: z.boolean(),
+    valid: z.boolean(),
+  }),
+  openspec_root: z.looseObject({ healthy: z.boolean() }),
+});
 
 const REQUIRED_ROOT_PATHS = Object.freeze([
   path.join(".openspec-store", "store.yaml"),
@@ -102,27 +122,36 @@ export async function readStoreConfiguration(projectRoot) {
  * @returns {void}
  */
 export function assertStoreDoctor(payload, storeId, projectRoot) {
-  const stores = Array.isArray(payload.stores)
-    ? payload.stores.filter((store) => isRecord(store) && store.id === storeId)
-    : [];
-  if (stores.length !== 1) {
-    throw new Error(`openspec store doctor не вернула ровно один Store ${storeId}`);
+  const command = `openspec store doctor ${storeId} --json`;
+  if (!Array.isArray(payload.stores)) {
+    throw openSpecContractError(command, "отсутствует stores[]");
   }
-  const store = stores[0];
-  if (path.resolve(store.root ?? "") !== projectRoot) {
-    throw new Error(`Store ${storeId} зарегистрирован по другому пути: ${store.root ?? "не указан"}`);
+  const stores = payload.stores.filter((store) => isRecord(store) && store.id === storeId);
+  if (stores.length !== 1) {
+    throw new Error(
+      `OpenSpec Orchestrator ожидал в ответе \`${command}\` ровно один Store ${storeId}, ` +
+        `получено: ${stores.length}`,
+    );
+  }
+  const store = parseOpenSpecContract(STORE_DOCTOR_ENTRY_SCHEMA, stores[0], command);
+  if (path.resolve(store.root) !== projectRoot) {
+    throw new Error(
+      `OpenSpec Orchestrator ожидал Store ${storeId} по пути ${projectRoot}, ` +
+        `но ответ \`${command}\` указал ${store.root}`,
+    );
   }
   if (
-    !isRecord(store.metadata) ||
     store.metadata.present !== true ||
     store.metadata.valid !== true ||
-    !isRecord(store.openspec_root) ||
     store.openspec_root.healthy !== true
   ) {
-    throw new Error(`openspec store doctor не подтвердила исправный Store ${storeId}`);
+    throw new Error(`Store ${storeId} не прошёл проверку здоровья \`${command}\``);
   }
   if (store.metadata.id !== undefined && store.metadata.id !== storeId) {
-    throw new Error(`openspec store doctor вернула другой Store ID: ${store.metadata.id}`);
+    throw new Error(
+      `OpenSpec Orchestrator ожидал metadata.id ${storeId}, ` +
+        `но ответ \`${command}\` указал ${store.metadata.id}`,
+    );
   }
 }
 
@@ -142,10 +171,17 @@ export function validateOpenSpec(projectRoot, storeId, commandRunner) {
     Array.isArray(storeList.stores),
     "openspec store list --json: stores[]",
   );
-  const registrations = storeList.stores.filter(({ id }) => id === storeId);
-  if (registrations.length !== 1 || path.resolve(registrations[0].root ?? "") !== projectRoot) {
-    throw new Error(`Store ${storeId} не зарегистрирован по ожидаемому пути ${projectRoot}`);
+  const registrations = storeList.stores.filter(
+    (store) => isRecord(store) && store.id === storeId,
+  );
+  if (registrations.length !== 1) {
+    throw new Error(`Store ${storeId} должен иметь ровно одну локальную регистрацию`);
   }
+  assertOpenSpecStore(
+    registrations[0],
+    { path: projectRoot, storeId },
+    "openspec store list --json",
+  );
 
   const storeDoctor = runOpenSpecJson(
     commandRunner,
@@ -177,10 +213,6 @@ export function validateOpenSpec(projectRoot, storeId, commandRunner) {
     commandRunner,
     ["list", "--specs", "--store", storeId, "--json"],
     projectRoot,
-  );
-  requireOpenSpecCapability(
-    Array.isArray(specs.specs),
-    "openspec list --specs --json: specs[]",
   );
   assertOpenSpecRoot(
     specs.root,

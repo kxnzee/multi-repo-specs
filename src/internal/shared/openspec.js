@@ -5,6 +5,8 @@ import {
   isOpenSpecDiagnostic,
   isOpenSpecResponse,
   isOpenSpecRoot,
+  isRecord,
+  openSpecContractError,
 } from "./schema.js";
 
 /**
@@ -33,10 +35,10 @@ export function parseOpenSpecJson(output, command) {
   try {
     value = JSON.parse(output);
   } catch {
-    throw new Error(`${command} вернула невалидный JSON`);
+    throw openSpecContractError(command, "ответ не является валидным JSON");
   }
   if (!isOpenSpecResponse(value)) {
-    throw new Error(`${command} вернула некорректный OpenSpec JSON response`);
+    throw openSpecContractError(command, "несовместимый базовый формат JSON response");
   }
   assertNoOpenSpecErrors(value, command);
   return value;
@@ -69,7 +71,7 @@ export function assertNoOpenSpecErrors(value, command) {
       if (key === "status" && Array.isArray(item)) {
         for (const diagnostic of item) {
           if (!isOpenSpecDiagnostic(diagnostic)) {
-            throw new Error(`${command} вернула некорректную OpenSpec diagnostic`);
+            throw openSpecContractError(command, "несовместимый формат diagnostic в status[]");
           }
           if (diagnostic.severity === "error") errors.push(diagnostic);
         }
@@ -97,17 +99,24 @@ export function assertNoOpenSpecErrors(value, command) {
  */
 export function assertOpenSpecRoot(root, expected, command) {
   if (!isOpenSpecRoot(root)) {
-    throw new Error(`${command} не вернула корректный OpenSpec root`);
+    throw openSpecContractError(command, "не передана обязательная identity OpenSpec root");
   }
   if (path.resolve(root.path ?? "") !== path.resolve(expected.path)) {
-    throw new Error(`${command} разрешила другой OpenSpec root: ${root.path ?? "не указан"}`);
+    throw new Error(
+      `OpenSpec Orchestrator ожидал root.path ${expected.path}, ` +
+        `но ответ \`${command}\` указал ${root.path ?? "не указан"}`,
+    );
   }
   if (root.source !== expected.source) {
-    throw new Error(`${command} вернула source: ${root.source ?? "не указан"}, ожидался ${expected.source}`);
+    throw new Error(
+      `OpenSpec Orchestrator ожидал root.source ${expected.source}, ` +
+        `но ответ \`${command}\` указал ${root.source ?? "не указан"}`,
+    );
   }
   if (root.store_id !== expected.storeId) {
     throw new Error(
-      `${command} вернула Store ID ${root.store_id ?? "не указан"}, ожидался ${expected.storeId}`,
+      `OpenSpec Orchestrator ожидал root.store_id ${expected.storeId}, ` +
+        `но ответ \`${command}\` указал ${root.store_id ?? "не указан"}`,
     );
   }
 }
@@ -121,7 +130,13 @@ export function assertOpenSpecRoot(root, expected, command) {
  * @returns {void}
  */
 export function assertOpenSpecStore(store, expected, command) {
-  if (store?.id !== expected.storeId || path.resolve(store?.root ?? "") !== path.resolve(expected.path)) {
-    throw new Error(`${command} вернула другой Store`);
+  if (!isRecord(store) || typeof store.id !== "string" || typeof store.root !== "string") {
+    throw openSpecContractError(command, "не передана обязательная identity Store (id, root)");
+  }
+  if (store.id !== expected.storeId || path.resolve(store.root) !== path.resolve(expected.path)) {
+    throw new Error(
+      `OpenSpec Orchestrator ожидал Store ${expected.storeId} по пути ${expected.path}, ` +
+        `но ответ \`${command}\` указал ${store.id} по пути ${store.root}`,
+    );
   }
 }

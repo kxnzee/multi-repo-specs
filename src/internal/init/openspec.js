@@ -6,7 +6,7 @@ import path from "node:path";
 
 import { requireOpenSpecCapability } from "../shared/compatibility.js";
 import { assertOpenSpecStore, parseOpenSpecJson } from "../shared/openspec.js";
-import { assertRepositoryId } from "../shared/schema.js";
+import { assertRepositoryId, isRecord } from "../shared/schema.js";
 
 const EXPANDED_WORKFLOWS = Object.freeze([
   "propose",
@@ -71,9 +71,11 @@ export function assertStorePathAvailable(projectRoot, commandRunner) {
     Array.isArray(registry.stores),
     "openspec store list --json: stores[]",
   );
-  const registrations = Array.isArray(registry.stores)
-    ? registry.stores.filter(({ root }) => path.resolve(root ?? "") === projectRoot)
-    : [];
+  const registrations = registry.stores.filter(
+    (store) => isRecord(store) &&
+      typeof store.root === "string" &&
+      path.resolve(store.root) === projectRoot,
+  );
   if (registrations.length === 0) return;
   const registeredIds = registrations.map(({ id }) => {
     assertRepositoryId(id, "Store ID в локальном registry OpenSpec");

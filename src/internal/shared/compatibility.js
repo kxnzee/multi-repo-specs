@@ -27,6 +27,6 @@ export function inspectOpenSpecCli(commandRunner, cwd) {
  */
 export function requireOpenSpecCapability(condition, capability) {
   if (!condition) {
-    throw new Error(`OpenSpec CLI не поддерживает обязательный capability: ${capability}`);
+    throw new Error(`OpenSpec Orchestrator требует JSON capability: ${capability}`);
   }
 }

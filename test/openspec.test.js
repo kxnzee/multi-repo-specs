@@ -87,6 +87,6 @@ test("assertOpenSpecStore requires the expected Store ID and root", () => {
       { path: "/tmp/specs", storeId: "specs" },
       "openspec store setup",
     ),
-    /вернула другой Store/,
+    /OpenSpec Orchestrator ожидал Store specs/,
   );
 });

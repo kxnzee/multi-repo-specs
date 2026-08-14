@@ -3,7 +3,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { assertRepositoryId } from "./schema.js";
+import { assertRepositoryId, openSpecContractError } from "./schema.js";
 
 const ARCHIVE_PREFIX = /^\d{4}-\d{2}-\d{2}-(.+)$/;
 const CHANGE_NAME_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
@@ -72,7 +72,10 @@ export async function findDuplicates(projectRoot, ticket, activeChanges) {
   const active = [];
   for (const change of activeChanges) {
     if (typeof change?.name !== "string" || !change.name) {
-      throw new Error("openspec list --changes вернула Change без корректного name");
+      throw openSpecContractError(
+        "openspec list --changes --json",
+        "элемент changes[] не содержит непустой name",
+      );
     }
     if (matchesTicket(change.name, ticket)) active.push(change.name);
   }

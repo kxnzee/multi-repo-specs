@@ -94,7 +94,7 @@ export async function validatePointer(repository, storeId, projectRoot, commandR
  */
 export function validateSelection(available, selectedIds) {
   if (!Array.isArray(selectedIds)) {
-    throw new Error("Интерактивный выбор репозиториев вернул некорректный результат");
+    throw new Error("OpenSpec Orchestrator получил некорректный результат выбора репозиториев");
   }
   const byId = new Map(available.map((repository) => [repository.id, repository]));
   const selected = [];
