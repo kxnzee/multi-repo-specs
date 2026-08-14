@@ -2,7 +2,11 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertOpenSpecRoot, parseOpenSpecJson } from "../src/internal/shared/openspec.js";
+import {
+  assertOpenSpecRoot,
+  assertOpenSpecStore,
+  parseOpenSpecJson,
+} from "../src/internal/shared/openspec.js";
 import { isGitRevision, isOpenSpecResponse } from "../src/internal/shared/schema.js";
 
 test("parseOpenSpecJson rejects invalid JSON", () => {
@@ -54,5 +58,21 @@ test("assertOpenSpecRoot rejects another root path", () => {
   );
   assert.throws(
     () => assertOpenSpecRoot({}, { path: "/tmp/specs", storeId: "specs", source: "store" }, "openspec doctor"),
+  );
+});
+
+test("assertOpenSpecStore requires the expected Store ID and root", () => {
+  assert.doesNotThrow(() => assertOpenSpecStore(
+    { id: "specs", root: "/tmp/specs" },
+    { path: "/tmp/specs", storeId: "specs" },
+    "openspec store setup",
+  ));
+  assert.throws(
+    () => assertOpenSpecStore(
+      { id: "other", root: "/tmp/specs" },
+      { path: "/tmp/specs", storeId: "specs" },
+      "openspec store setup",
+    ),
+    /вернула другой Store/,
   );
 });

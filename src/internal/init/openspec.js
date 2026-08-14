@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { requireOpenSpecCapability } from "../shared/compatibility.js";
-import { parseOpenSpecJson } from "../shared/openspec.js";
+import { assertOpenSpecStore, parseOpenSpecJson } from "../shared/openspec.js";
 import { assertRepositoryId } from "../shared/schema.js";
 
 const EXPANDED_WORKFLOWS = Object.freeze([
@@ -116,7 +116,5 @@ export function setupStore(projectRoot, storeId, remote, commandRunner) {
     { cwd: projectRoot, sensitiveValues: [remote] },
   );
   const result = parseOpenSpecJson(output, `openspec store setup ${storeId}`);
-  if (result.store?.id !== storeId || path.resolve(result.store?.root ?? "") !== projectRoot) {
-    throw new Error("openspec store setup вернула другой Store");
-  }
+  assertOpenSpecStore(result.store, { path: projectRoot, storeId }, "openspec store setup");
 }

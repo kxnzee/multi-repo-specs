@@ -6,25 +6,10 @@ import process from "node:process";
 import { resolveExecutionMode } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
 import { inspectOpenSpecCli } from "../shared/compatibility.js";
-import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
+import { assertOpenSpecRoot, assertOpenSpecStore, runOpenSpecJson } from "../shared/openspec.js";
 import { assertStoreDoctor, readStoreConfiguration } from "../shared/store.js";
 import { rememberWorkspace, resolveWorkspace } from "../shared/workspace.js";
 import { connectRepository } from "./repository.js";
-
-/**
- * Проверяет Store ID и путь в ответе OpenSpec.
- *
- * @param {import("../shared/types.js").OpenSpecResponse} payload Ответ OpenSpec.
- * @param {string} storeId Ожидаемый Store ID.
- * @param {string} storeRoot Ожидаемый путь.
- * @param {string} command Команда для ошибки.
- * @returns {void}
- */
-function assertStoreIdentity(payload, storeId, storeRoot, command) {
-  if (payload.store?.id !== storeId || path.resolve(payload.store?.root ?? "") !== storeRoot) {
-    throw new Error(`${command} вернула другой Store`);
-  }
-}
 
 /**
  * Подключает текущий компьютер к готовому Store и собирает workspace.
@@ -50,7 +35,7 @@ export async function connectProject({
   const executionMode = resolveExecutionMode(config.strict, noStrict);
   inspectOpenSpecCli(commandRunner, storeRoot);
   const registration = runOpenSpecJson(commandRunner, ["store", "register", storeRoot, "--id", metadata.id, "--yes", "--json"], storeRoot);
-  assertStoreIdentity(registration, metadata.id, storeRoot, "openspec store register");
+  assertOpenSpecStore(registration.store, { path: storeRoot, storeId: metadata.id }, "openspec store register");
   const storeDoctor = runOpenSpecJson(commandRunner, ["store", "doctor", metadata.id, "--json"], storeRoot);
   assertStoreDoctor(storeDoctor, metadata.id, storeRoot);
   const doctorOutput = commandRunner("openspec", ["doctor", "--store", metadata.id], {

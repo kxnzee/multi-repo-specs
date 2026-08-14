@@ -111,3 +111,17 @@ export function assertOpenSpecRoot(root, expected, command) {
     );
   }
 }
+
+/**
+ * Проверяет Store identity в результате команды OpenSpec store setup/register.
+ *
+ * @param {unknown} store Store из JSON-ответа OpenSpec.
+ * @param {{path: string, storeId: string}} expected Ожидаемые ID и root Store.
+ * @param {string} command Название команды для диагностического сообщения.
+ * @returns {void}
+ */
+export function assertOpenSpecStore(store, expected, command) {
+  if (store?.id !== expected.storeId || path.resolve(store?.root ?? "") !== path.resolve(expected.path)) {
+    throw new Error(`${command} вернула другой Store`);
+  }
+}
