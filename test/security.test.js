@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { initProject } from "../init/index.js";
-import { readRelativeRegularFile } from "../shared/files.js";
+import { initProject } from "../src/init/index.js";
+import { readRelativeRegularFile } from "../src/shared/files.js";
 
 /**
  * Создаёт временный каталог и регистрирует его удаление.

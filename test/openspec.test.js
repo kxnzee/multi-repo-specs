@@ -2,8 +2,8 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertOpenSpecRoot, parseOpenSpecJson } from "../shared/openspec.js";
-import { isGitRevision, isOpenSpecResponse } from "../shared/schema.js";
+import { assertOpenSpecRoot, parseOpenSpecJson } from "../src/shared/openspec.js";
+import { isGitRevision, isOpenSpecResponse } from "../src/shared/schema.js";
 
 test("parseOpenSpecJson rejects invalid JSON", () => {
   assert.throws(() => parseOpenSpecJson("not-json", "openspec doctor"));

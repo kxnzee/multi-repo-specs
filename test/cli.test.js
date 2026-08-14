@@ -13,13 +13,13 @@ import {
   parseExploreArgs,
   parseInitArgs,
   parseLoadArgs,
-} from "../cli/args.js";
-import { runChange } from "../cli/change.js";
-import { runConnect } from "../cli/connect.js";
-import { runExplore } from "../cli/explore.js";
-import { runInit } from "../cli/init.js";
-import { runLoad } from "../cli/load.js";
-import { reportProgress } from "../cli/progress.js";
+} from "../src/cli/args.js";
+import { runChange } from "../src/cli/change.js";
+import { runConnect } from "../src/cli/connect.js";
+import { runExplore } from "../src/cli/explore.js";
+import { runInit } from "../src/cli/init.js";
+import { runLoad } from "../src/cli/load.js";
+import { reportProgress } from "../src/cli/progress.js";
 
 /**
  * Перехватывает строки `console.log` только на время одного последовательного smoke-сценария.
@@ -40,7 +40,7 @@ async function captureLogs(action) {
 }
 
 test("rejects unsupported Node versions", () => {
-  const entrypoint = pathToFileURL(path.resolve("bin/openspec-orch.js")).href;
+  const entrypoint = pathToFileURL(path.resolve("src/bin/openspec-orch.js")).href;
   const script = `
     Object.defineProperty(process.versions, "node", { value: "18.20.0" });
     await import(${JSON.stringify(entrypoint)});
@@ -55,7 +55,7 @@ test("rejects unsupported Node versions", () => {
 });
 
 test("public binary exposes the documented CLI contract", () => {
-  const result = spawnSync(process.execPath, ["bin/openspec-orch.js", "--help"], {
+  const result = spawnSync(process.execPath, ["src/bin/openspec-orch.js", "--help"], {
     cwd: path.resolve("."),
     encoding: "utf8",
   });

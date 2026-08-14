@@ -7,7 +7,7 @@ import {
   parseStoreMetadata,
   resolveExecutionMode,
   serializeOrchestratorConfig,
-} from "../config/index.js";
+} from "../src/config/index.js";
 
 /**
  * Создаёт минимальный валидный openspec-orch.yaml для негативных тестов.

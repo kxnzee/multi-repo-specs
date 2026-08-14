@@ -1,6 +1,6 @@
 # OpenSpec Orchestrator
 
-`src/` — автономная реализация Orchestrator Core и встроенного базового Project Template. Код Core не является нормативным описанием процесса: базовый процесс задают файлы Template и `docs/`, а рабочее состояние проекта — OpenSpec Store и project-local agent assets.
+`src/` содержит исполняемый Orchestrator Core, а `templates/base/` — отдельно поставляемый встроенный Project Template. Код Core не является нормативным описанием процесса: базовый процесс задают файлы Template и `docs/`, а рабочее состояние проекта — OpenSpec Store и project-local agent assets.
 
 ## Архитектурная граница
 
@@ -13,13 +13,11 @@ Core вызывает только публичный CLI OpenSpec и прове
 
 ## Первый запуск
 
-Требуется Node.js `20+`; поддерживаются macOS, Linux и Windows. Рекомендуемая и проверенная версия — OpenSpec `1.7.0`, но она не закрепляется в `openspec-orch.yaml`: Core проверяет используемые CLI capabilities и обязательные JSON fields. Назначение всех полей описано в [справочнике `openspec-orch.yaml`](../docs/reference/openspec-orch-yaml.md). Из корня репозитория выполните:
+Требуется Node.js `20+`; поддерживаются macOS, Linux и Windows. Рекомендуемая и проверенная версия — OpenSpec `1.7.0`, но она не закрепляется в `openspec-orch.yaml`: Core проверяет используемые CLI capabilities и обязательные JSON fields. Назначение всех полей описано в [справочнике `openspec-orch.yaml`](docs/reference/openspec-orch-yaml.md). Из корня репозитория выполните:
 
 ```bash
-cd src
 npm install
 npm link
-cd ..
 openspec-orch --help
 ```
 
@@ -29,7 +27,7 @@ openspec-orch --help
 openspec-orch init --help
 ```
 
-Регистрация выполняется один раз для каждой активной версии Node.js. После переключения версии через NVM повторите `npm link` из директории `src/`.
+Регистрация выполняется один раз для каждой активной версии Node.js. После переключения версии через NVM повторите `npm link` из корня репозитория.
 
 ## Создание центрального проекта
 
@@ -47,7 +45,7 @@ openspec-orch init --store payments-specs --agent qwen \
 openspec-orch init --store payments-specs --agent team-agent --template ../team-template
 ```
 
-Как скопировать базовую директорию, собрать минимальный `template.yaml`, добавить handoffs или project-local schema, описано в [руководстве по Project Template](../docs/reference/project-template.md).
+Как скопировать базовую директорию, собрать минимальный `template.yaml`, добавить handoffs или project-local schema, описано в [руководстве по Project Template](docs/reference/project-template.md).
 
 Template определяет копируемые project files, перенос официального agent pack и необязательные handoffs Core-команд. Его mapping сохраняется в `openspec-orch.yaml`, поэтому после успешного `init` исходный Template не нужен. Файлы Template имеют приоритет над файлами, созданными текущим OpenSpec init. Существовавший до запуска идентичный файл пропускается, а отличающийся останавливает preflight без merge или overwrite.
 
@@ -140,7 +138,7 @@ CLI разрешает только центральный Store, проверя
 
 ## Planning PR и Spec Baseline
 
-После завершения Proposal, Delta Specs, Design и Tasks шаг 04 не вызывает отдельную команду OpenSpec Orchestrator. Change Owner выполняет штатные `openspec status`, `openspec show` и строгий `openspec validate`, синхронизирует `feature/<change-id>` через rebase и открывает единый Planning PR средствами Git-провайдера. Полный пользовательский процесс описан в [`docs/steps/04.md`](../docs/steps/04.md).
+После завершения Proposal, Delta Specs, Design и Tasks шаг 04 не вызывает отдельную команду OpenSpec Orchestrator. Change Owner выполняет штатные `openspec status`, `openspec show` и строгий `openspec validate`, синхронизирует `feature/<change-id>` через rebase и открывает единый Planning PR средствами Git-провайдера. Полный пользовательский процесс описан в [`docs/steps/04.md`](docs/steps/04.md).
 
 Содержательные замечания Planning PR передаются агенту точным списком через официальный `/opsx-update <change-id>`. Штатная команда изменяет существующие planning-артефакты и подтверждает каждую запись, а компактный routing override в project instructions отвечает только за завершённый `/opsx-continue`: вместо Apply или Archive он направляет на шаг 04. Commit, push, закрытие threads, approvals и merge остаются действиями Change Owner и владельцев в Git-провайдере. Каждый Work Package остаётся стандартным checkbox `tasks.md` с явной целью; машинный ID берётся только из `tasks[].id` структурированного `openspec instructions apply` на принятом Baseline. Стандартный `openspec validate` не проверяет проектную цель Work Package, а отдельный валидатор OpenSpec Orchestrator не вводится.
 
@@ -162,38 +160,38 @@ openspec-orch load \
 
 В strict mode команда принимает точную Baseline, сверяет repository-id с cwd, `origin` и `openspec-orch.yaml`, открывает Store commit в отдельном immutable worktree, вызывает OpenSpec validation с `--strict`, создаёт или возобновляет локальную `feature/<change-id>` и записывает воспроизводимый runtime. В relaxed mode `--baseline` не передаётся: команда использует текущий Store root, не вызывает Git, запускает validation без `--strict` и записывает `unpinned`/`branch: null`. В обоих режимах Store, repository, Change, schema, context paths и Work Package ID проверяются по структурированным ответам OpenSpec.
 
-`openspec-orch load` не читает tracker, не доказывает историю Planning PR или amendment, не сравнивает параметры с прежним runtime, не копирует Tasks, не меняет код или planning-артефакты и не запускает Apply. Каждый запуск полностью определяется текущими параметрами subtask. После `implementation_ready` начните новую агентскую сессию из того же Code Repository и передайте ей готовое первое сообщение `next_action`: оно сначала указывает на `agent.instructions_file`, затем на файл из `agent.handoffs.apply` внутри точного runtime Store и содержит те же Store, repository, Change, Baseline и Work Packages. Во встроенном Template этим файлом является `sdd-apply.md`. Копировать slash-команду в Code Repository не требуется. Подробности находятся в [`docs/steps/05.md`](../docs/steps/05.md).
+`openspec-orch load` не читает tracker, не доказывает историю Planning PR или amendment, не сравнивает параметры с прежним runtime, не копирует Tasks, не меняет код или planning-артефакты и не запускает Apply. Каждый запуск полностью определяется текущими параметрами subtask. После `implementation_ready` начните новую агентскую сессию из того же Code Repository и передайте ей готовое первое сообщение `next_action`: оно сначала указывает на `agent.instructions_file`, затем на файл из `agent.handoffs.apply` внутри точного runtime Store и содержит те же Store, repository, Change, Baseline и Work Packages. Во встроенном Template этим файлом является `sdd-apply.md`. Копировать slash-команду в Code Repository не требуется. Подробности находятся в [`docs/steps/05.md`](docs/steps/05.md).
 
 ## Реализация
 
 Шаг 06 не добавляет новую исполняемую команду `openspec-orch`. Агент сначала читает provider-файл, затем Apply handoff выбранного Template из immutable Store worktree, проверяет точное совпадение параметров с `context.json`, повторяет штатные `openspec validate` и `openspec instructions apply`, затем изменяет только текущий Code Repository и выполняет его локальные проверки.
 
-Инструкция поддерживает обычное продолжение с тем же runtime и не создаёт собственный progress-state. Provider-файл из runtime Store обязателен и уже загружен через `next_action`; отдельный файл технических инструкций в текущем Code Repository остаётся опциональным, а при его отсутствии агент адресно читает необходимые код и тесты. Commit, rebase, push, PR и tracker выполняются только по отдельному явному поручению пользователя. Центральный `tasks.md` не меняется, implementation PR не сливается, а успешная реализация передаётся в Composite Verification шага 07. Полный контракт находится в [`docs/steps/06.md`](../docs/steps/06.md).
+Инструкция поддерживает обычное продолжение с тем же runtime и не создаёт собственный progress-state. Provider-файл из runtime Store обязателен и уже загружен через `next_action`; отдельный файл технических инструкций в текущем Code Repository остаётся опциональным, а при его отсутствии агент адресно читает необходимые код и тесты. Commit, rebase, push, PR и tracker выполняются только по отдельному явному поручению пользователя. Центральный `tasks.md` не меняется, implementation PR не сливается, а успешная реализация передаётся в Composite Verification шага 07. Полный контракт находится в [`docs/steps/06.md`](docs/steps/06.md).
 
 ## Границы
 
-- `bin/` — минимальные точки входа командной строки.
-- `config/index.js` — разбор Store identity, agent mapping, repositories и project execution mode из `openspec-orch.yaml`.
-- `connect/index.js` — техническая логика `openspec-orch connect`.
-- `change/index.js` — создание и безопасное продолжение Change шага 02.
-- `explore/index.js` — read-only-проверки уже подключённого workspace шага 01.
-- `init/` — техническая логика `openspec-orch init` и Core-owned шаблон `openspec-orch.yaml`.
-- `load/index.js` — подготовка strict Baseline runtime либо явно `unpinned` relaxed runtime.
-- `shared/` — единый безопасный запуск внешних команд.
-- `template/` — Core-owned parser и безопасный copy planner Project Template; применение plan выполняет только `init`.
+- `src/bin/` — минимальные точки входа командной строки.
+- `src/config/index.js` — разбор Store identity, agent mapping, repositories и project execution mode из `openspec-orch.yaml`.
+- `src/connect/index.js` — техническая логика `openspec-orch connect`.
+- `src/change/index.js` — создание и безопасное продолжение Change шага 02.
+- `src/explore/index.js` — read-only-проверки уже подключённого workspace шага 01.
+- `src/init/` — техническая логика `openspec-orch init` и Core-owned шаблон `openspec-orch.yaml`.
+- `src/load/index.js` — подготовка strict Baseline runtime либо явно `unpinned` relaxed runtime.
+- `src/shared/` — единый безопасный запуск внешних команд.
+- `src/template/` — Core-owned parser и безопасный copy planner Project Template; применение plan выполняет только `init`.
 - `templates/base/` — встроенный базовый Project Template: skeleton, agent commands, инструкции и subagents без исполняемой логики Core.
 - `test/` — тесты технической обвязки, не входящие в публикуемый пакет.
 
 Встроенный Template явно отображает `assets/gitignore.template` в `.gitignore`; общего правила удаления суффиксов в Core нет.
 
-`init/index.js` выполняет короткую Git-проверку, вызывает официальные Store/init API OpenSpec и раскладывает базовый Template. `connect/index.js` вызывает официальные register/doctor, создаёт workspace, загружает Code Repositories и проверяет project pointer. Внутренние правила OpenSpec адаптер не дублирует. Стандартная схема `spec-driven` и её шаблоны берутся из установленного OpenSpec; текущий базовый workflow находится в `templates/base/` и устанавливается поверх результата OpenSpec.
+`src/init/index.js` выполняет короткую Git-проверку, вызывает официальные Store/init API OpenSpec и раскладывает базовый Template. `src/connect/index.js` вызывает официальные register/doctor, создаёт workspace, загружает Code Repositories и проверяет project pointer. Внутренние правила OpenSpec адаптер не дублирует. Стандартная схема `spec-driven` и её шаблоны берутся из установленного OpenSpec; текущий базовый workflow находится в `templates/base/` и устанавливается поверх результата OpenSpec.
 
 ## Разработка
 
 Из корня репозитория:
 
 ```bash
-npm --prefix src run check
-npm --prefix src test
+npm run check
+npm test
 node src/bin/openspec-orch.js --help
 ```

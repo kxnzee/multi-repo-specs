@@ -7,7 +7,11 @@ import { fileURLToPath } from "node:url";
 import { parseTemplateDescriptor } from "./descriptor.js";
 
 const MODULE_ROOT = path.dirname(fileURLToPath(import.meta.url));
-export const BASE_TEMPLATE_ROOT = path.join(path.dirname(MODULE_ROOT), "templates", "base");
+export const BASE_TEMPLATE_ROOT = path.join(
+  path.dirname(path.dirname(MODULE_ROOT)),
+  "templates",
+  "base",
+);
 const PROTECTED_ROOTS = new Set([".git", ".openspec-store", "openspec-orch.yaml"]);
 
 /**

@@ -7,9 +7,9 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { buildChangeId, prepareChange } from "../change/index.js";
-import { serializeOrchestratorConfig } from "../config/index.js";
-import { runCommand } from "../shared/command.js";
+import { buildChangeId, prepareChange } from "../src/change/index.js";
+import { serializeOrchestratorConfig } from "../src/config/index.js";
+import { runCommand } from "../src/shared/command.js";
 import { agentFixture } from "../test-fixtures/agents.js";
 
 const QWEN = agentFixture("qwen");

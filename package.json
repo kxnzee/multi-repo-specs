@@ -4,20 +4,20 @@
   "private": true,
   "type": "module",
   "files": [
-    "bin",
-    "cli",
-    "config",
-    "connect",
-    "change",
-    "explore",
-    "init",
-    "load",
-    "shared",
-    "template",
+    "src/bin",
+    "src/cli",
+    "src/config",
+    "src/connect",
+    "src/change",
+    "src/explore",
+    "src/init",
+    "src/load",
+    "src/shared",
+    "src/template",
     "templates"
   ],
   "bin": {
-    "openspec-orch": "./bin/openspec-orch.js"
+    "openspec-orch": "./src/bin/openspec-orch.js"
   },
   "dependencies": {
     "cross-spawn": "7.0.6",

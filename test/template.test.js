@@ -12,7 +12,7 @@ import {
   BASE_TEMPLATE_ROOT,
   buildTemplatePlan,
   parseTemplateDescriptor,
-} from "../template/index.js";
+} from "../src/template/index.js";
 
 /**
  * Создаёт изолированные Template и target roots.

@@ -8,14 +8,14 @@ import process from "node:process";
 import test from "node:test";
 import { parse, stringify } from "yaml";
 
-import { parseOrchestratorConfig, serializeOrchestratorConfig } from "../config/index.js";
+import { parseOrchestratorConfig, serializeOrchestratorConfig } from "../src/config/index.js";
 import {
   buildExploreInvocation,
   findSpecRoot,
   prepareExplore,
   validateTicket,
-} from "../explore/index.js";
-import { runCommand } from "../shared/command.js";
+} from "../src/explore/index.js";
+import { runCommand } from "../src/shared/command.js";
 import { agentFixture } from "../test-fixtures/agents.js";
 
 const QWEN = agentFixture("qwen");
@@ -558,7 +558,7 @@ test("prepareExplore blocks a Code Repository that resolves another Store ID", a
 
 test("CLI rejects non-interactive explore before touching a project", () => {
   assert.throws(
-    () => runCommand(process.execPath, [path.resolve("bin/openspec-orch.js"), "explore", "--ticket", "PAY-421"], {
+    () => runCommand(process.execPath, [path.resolve("src/bin/openspec-orch.js"), "explore", "--ticket", "PAY-421"], {
       cwd: path.resolve("."),
     }),
   );

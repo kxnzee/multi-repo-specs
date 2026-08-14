@@ -10,14 +10,14 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 
-import { serializeOrchestratorConfig } from "../config/index.js";
-import { prepareLoad } from "../load/index.js";
-import { runCommand } from "../shared/command.js";
+import { serializeOrchestratorConfig } from "../src/config/index.js";
+import { prepareLoad } from "../src/load/index.js";
+import { runCommand } from "../src/shared/command.js";
 import { agentFixture } from "../test-fixtures/agents.js";
 
 const TEMPLATE =
   'version: 1\nversions:\n  process: draft\n  openspec: "1.7.0"\nagent: null\nrepositories: []\n';
-const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../bin/openspec-orch.js");
+const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/bin/openspec-orch.js");
 
 /** @param {string} repository */
 function configureGit(repository) {

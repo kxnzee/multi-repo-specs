@@ -265,7 +265,7 @@ Sync PR.
 Затронутые места:
 
 - `AGENTS.md`;
-- `src/templates/base/skeleton/openspec/config.yaml`;
+- `templates/base/skeleton/openspec/config.yaml`;
 - `docs/reference/changes.md`;
 - `docs/steps/README.md`;
 - `docs/steps/03.md` и `docs/steps/04.md` в части подготовки зависимого Change и Sync
