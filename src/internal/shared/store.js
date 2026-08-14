@@ -221,17 +221,6 @@ export function validateOpenSpec(projectRoot, storeId, commandRunner) {
   );
   assertOpenSpecRoot(context.root, { path: projectRoot, storeId, source: "store" }, contextCommand);
 
-  const specs = runOpenSpecJson(
-    commandRunner,
-    ["list", "--specs", "--store", storeId, "--json"],
-    projectRoot,
-  );
-  assertOpenSpecRoot(
-    specs.root,
-    { path: projectRoot, storeId, source: "store" },
-    "openspec list --specs",
-  );
-
   const changes = runOpenSpecJson(
     commandRunner,
     ["list", "--changes", "--store", storeId, "--json"],

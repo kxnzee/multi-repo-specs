@@ -100,9 +100,6 @@ function fakeOpenSpec(storeRoot, initialChanges = [], { schema = "spec-driven" }
     if (args[0] === "context") {
       return JSON.stringify({ root, members: [], status: [] });
     }
-    if (args[0] === "list" && args.includes("--specs")) {
-      return JSON.stringify({ specs: [], root, status: [] });
-    }
     if (args[0] === "list" && args.includes("--changes")) {
       return JSON.stringify({ changes: changes.map((name) => ({ name })), root, status: [] });
     }
@@ -116,7 +113,6 @@ function fakeOpenSpec(storeRoot, initialChanges = [], { schema = "spec-driven" }
         change: {
           id: changeId,
           path: changeRoot,
-          metadataPath: path.join(changeRoot, ".openspec.yaml"),
           schema,
         },
         root,

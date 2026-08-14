@@ -144,9 +144,6 @@ function fakeOpenSpec(
     if (args[0] === "context") {
       return JSON.stringify({ root: { ...root, role: "openspec_root" }, members: [], status: [] });
     }
-    if (args[0] === "list" && args.includes("--specs")) {
-      return JSON.stringify({ specs: [], root });
-    }
     if (args[0] === "list" && args.includes("--changes")) {
       return JSON.stringify({ changes: activeChanges.map((name) => ({ name })), root });
     }

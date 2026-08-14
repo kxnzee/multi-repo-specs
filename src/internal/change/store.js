@@ -15,7 +15,6 @@ const NON_EMPTY_STRING = z.string().min(1);
 const CREATED_CHANGE_SCHEMA = z.looseObject({
   id: NON_EMPTY_STRING,
   path: NON_EMPTY_STRING,
-  metadataPath: NON_EMPTY_STRING,
   schema: NON_EMPTY_STRING,
 });
 const ARTIFACT_SCHEMA = z.looseObject({
@@ -72,7 +71,7 @@ export async function resolveChangeStore(start, commandRunner) {
  *
  * @param {import("../shared/types.js").OpenSpecResponse} payload
  * @param {{projectRoot: string, storeId: string, changeId: string}} expected
- * @returns {Promise<{changeRoot: string, metadataPath: string, schema: string}>}
+ * @returns {Promise<{changeRoot: string, schema: string}>}
  */
 export async function assertCreatedChange(payload, expected) {
   assertOpenSpecRoot(
@@ -96,13 +95,7 @@ export async function assertCreatedChange(payload, expected) {
     "OpenSpec Change path",
     "directory",
   );
-  const metadataPath = await resolveContainedExistingPath(
-    changeRoot,
-    change.metadataPath,
-    "OpenSpec Change metadataPath",
-    "file",
-  );
-  return { changeRoot, metadataPath, schema: change.schema };
+  return { changeRoot, schema: change.schema };
 }
 
 /**
