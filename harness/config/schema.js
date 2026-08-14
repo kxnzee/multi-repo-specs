@@ -37,6 +37,14 @@ export function assertOrchestratorConfigSchema(value) {
   ]) {
     assertString(value.agent, key, `agent.${key}`);
   }
+  if (value.agent.handoffs !== undefined) {
+    if (!isRecord(value.agent.handoffs)) {
+      throw new Error("agent.handoffs в openspec-orch.yaml должен быть YAML-объектом");
+    }
+    for (const key of Object.keys(value.agent.handoffs)) {
+      assertString(value.agent.handoffs, key, `agent.handoffs.${key}`);
+    }
+  }
   if (!Array.isArray(value.repositories)) {
     throw new Error("В openspec-orch.yaml отсутствует список repositories");
   }

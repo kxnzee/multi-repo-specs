@@ -14,17 +14,8 @@ import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
 import { connectRepository } from "./repository.js";
 import { pathState, rememberWorkspace, resolveWorkspace } from "./workspace.js";
 
-const REQUIRED_AGENT_COMMANDS = Object.freeze([
-  "opsx-explore.md",
-  "opsx-continue.md",
-  "opsx-update.md",
-  "sdd-context.md",
-  "sdd-change.md",
-  "sdd-apply.md",
-]);
 const PATHS = Object.freeze({
   metadata: path.join(".openspec-store", "store.yaml"),
-  exploreInstructions: path.join(".sdd", "instructions", "explore.md"),
   orchestratorConfig: "openspec-orch.yaml",
 });
 
@@ -103,8 +94,6 @@ export async function connectProject({
   const storeRoot = await fs.realpath(path.resolve(start));
   const metadata = parseStoreMetadata(await readFile(storeRoot, PATHS.metadata));
   const config = parseOrchestratorConfig(await readFile(storeRoot, PATHS.orchestratorConfig));
-  await readFile(storeRoot, PATHS.exploreInstructions);
-  await readFile(storeRoot, config.agent.instructionsFile);
   if (config.storeRepository.id !== metadata.id) throw new Error("Store ID в openspec-orch.yaml не совпадает с Store metadata");
   if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
     throw new Error("URL role: store не совпадает с Store metadata");
@@ -113,12 +102,6 @@ export async function connectProject({
   const installedVersion = commandRunner("openspec", ["--version"], { cwd: storeRoot });
   if (installedVersion !== config.openSpecVersion) {
     throw new Error(`Установлен OpenSpec ${installedVersion}, ожидается ${config.openSpecVersion}`);
-  }
-  for (const command of REQUIRED_AGENT_COMMANDS) {
-    await readFile(storeRoot, path.join(config.agent.commandsDirectory, command));
-  }
-  for (const subagent of config.agent.requiredSubagents) {
-    await readFile(storeRoot, path.join(config.agent.agentsDirectory, subagent));
   }
   const registration = runOpenSpecJson(commandRunner, ["store", "register", storeRoot, "--id", metadata.id, "--yes", "--json"], storeRoot);
   assertStoreIdentity(registration, metadata.id, storeRoot, "openspec store register");

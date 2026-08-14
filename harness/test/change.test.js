@@ -8,11 +8,11 @@ import path from "node:path";
 import test from "node:test";
 
 import { buildChangeId, prepareChange } from "../change/index.js";
-import { resolveAgentAdapter } from "../config/agents.js";
 import { serializeOrchestratorConfig } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
+import { agentFixture } from "../test-fixtures/agents.js";
 
-const QWEN = resolveAgentAdapter("qwen");
+const QWEN = agentFixture("qwen");
 const ORCHESTRATOR_TEMPLATE =
   'version: 1\nversions:\n  process: draft\n  openspec: "1.7.0"\nagent: null\nrepositories: []\n';
 

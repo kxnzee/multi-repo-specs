@@ -1,4 +1,4 @@
-/** @fileoverview Сборка и установка центрального OpenSpec Orchestrator/OpenSpec проекта. */
+/** @fileoverview Инициализация OpenSpec Store через декларативный Project Template. */
 
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -13,16 +13,12 @@ import {
   sameGitRemote,
   serializeOrchestratorConfig,
 } from "../config/index.js";
-import { resolveAgentAdapter } from "../config/agents.js";
 import { runCommand } from "../shared/command.js";
 import { parseOpenSpecJson } from "../shared/openspec.js";
-import { mergeOpenSpecConfig, mergeSharedProjectFile } from "./merge.js";
+import { BASE_TEMPLATE_ROOT, buildTemplatePlan } from "../template/index.js";
 import { inspectGit } from "./validation.js";
 
 const MODULE_ROOT = path.dirname(fileURLToPath(import.meta.url));
-const PACKAGE_ROOT = path.dirname(MODULE_ROOT);
-const BASE_TEMPLATE_ROOT = path.join(PACKAGE_ROOT, "templates", "base");
-const TEMPLATE_SUFFIX = ".template";
 const EXPANDED_WORKFLOWS = Object.freeze([
   "propose",
   "explore",
@@ -39,46 +35,18 @@ const EXPANDED_WORKFLOWS = Object.freeze([
 ]);
 
 const PATHS = Object.freeze({
-  skeleton: path.join(BASE_TEMPLATE_ROOT, "skeleton"),
-  commandTemplates: path.join(BASE_TEMPLATE_ROOT, "commands"),
-  subagentTemplates: path.join(BASE_TEMPLATE_ROOT, "subagents"),
-  agentTemplates: path.join(BASE_TEMPLATE_ROOT, "agents"),
-  orchestratorTemplate: path.join(MODULE_ROOT, "openspec-orch.yaml"),
   metadata: path.join(".openspec-store", "store.yaml"),
   openSpecConfig: path.join("openspec", "config.yaml"),
   alternateOpenSpecConfig: path.join("openspec", "config.yml"),
   orchestratorConfig: "openspec-orch.yaml",
-  gitIgnore: ".gitignore",
-  codeOwners: "CODEOWNERS",
+  orchestratorTemplate: path.join(MODULE_ROOT, "openspec-orch.yaml"),
 });
-
-const SHARED_PROJECT_FILES = new Set([PATHS.gitIgnore, PATHS.codeOwners]);
-const REQUIRED_AGENT_COMMANDS = Object.freeze([
-  "opsx-explore.md",
-  "opsx-continue.md",
-  "opsx-update.md",
-  "sdd-context.md",
-  "sdd-change.md",
-  "sdd-apply.md",
-]);
-const REQUIRED_OPEN_SPEC_DIRECTORIES = Object.freeze([
-  path.join("openspec", "specs"),
-  path.join("openspec", "changes", "archive"),
-]);
-
-/**
- * Файл встроенного bundle и его итоговый путь в проекте.
- *
- * @typedef {object} BundleFile
- * @property {string} source Абсолютный путь файла шаблона.
- * @property {string} target Относительный путь назначения.
- */
 
 /**
  * Возвращает состояние пути, не считая отсутствие ошибкой.
  *
  * @param {string} target Проверяемый путь.
- * @returns {Promise<import("node:fs").Stats | null>} Состояние пути либо `null` для ENOENT.
+ * @returns {Promise<import("node:fs").Stats | null>} Состояние пути либо `null`.
  */
 async function pathState(target) {
   try {
@@ -90,43 +58,11 @@ async function pathState(target) {
 }
 
 /**
- * Рекурсивно перечисляет обычные файлы bundle в стабильном порядке.
+ * Устанавливает официальный expanded agent pack без изменения профиля пользователя.
  *
- * @param {string} root Абсолютный корень bundle.
- * @param {string} [relativeDirectory] Текущий относительный подкаталог рекурсии.
- * @returns {Promise<string[]>} Отсортированные относительные пути файлов.
- */
-async function listFiles(root, relativeDirectory = "") {
-  const entries = await fs.readdir(path.join(root, relativeDirectory), {
-    withFileTypes: true,
-  });
-  const files = [];
-  for (const entry of entries) {
-    const relativePath = path.join(relativeDirectory, entry.name);
-    if (entry.isDirectory()) files.push(...(await listFiles(root, relativePath)));
-    else if (entry.isFile()) files.push(relativePath);
-  }
-  return files.sort();
-}
-
-/**
- * Преобразует имя шаблона в итоговый путь проекта.
- *
- * @param {string} relativePath Относительный путь внутри bundle.
- * @returns {string} Путь назначения без служебного суффикса `.template`.
- */
-function bundleTarget(relativePath) {
-  return relativePath.endsWith(TEMPLATE_SUFFIX)
-    ? relativePath.slice(0, -TEMPLATE_SUFFIX.length)
-    : relativePath;
-}
-
-/**
- * Устанавливает официальный expanded agent pack без изменения глобального профиля пользователя.
- *
- * @param {string} projectRoot Абсолютный путь центрального репозитория.
- * @param {string} agentAdapter ID официального OpenSpec adapter.
- * @param {typeof runCommand} commandRunner Исполнитель внешних команд.
+ * @param {string} projectRoot Корень Store.
+ * @param {string} agentAdapter Официальный OpenSpec adapter.
+ * @param {typeof runCommand} commandRunner Исполнитель команд.
  * @returns {Promise<void>}
  */
 async function installOpenSpec(projectRoot, agentAdapter, commandRunner) {
@@ -154,10 +90,10 @@ async function installOpenSpec(projectRoot, agentAdapter, commandRunner) {
 }
 
 /**
- * Блокирует `openspec-orch init`, если текущий путь уже зарегистрирован как Store.
+ * Блокирует init, если путь уже зарегистрирован как Store.
  *
- * @param {string} projectRoot Абсолютный путь центрального репозитория.
- * @param {typeof runCommand} commandRunner Исполнитель внешних команд.
+ * @param {string} projectRoot Корень Store.
+ * @param {typeof runCommand} commandRunner Исполнитель команд.
  * @returns {void}
  */
 function assertStorePathAvailable(projectRoot, commandRunner) {
@@ -168,30 +104,29 @@ function assertStorePathAvailable(projectRoot, commandRunner) {
   const registrations = Array.isArray(registry.stores)
     ? registry.stores.filter(({ root }) => path.resolve(root ?? "") === projectRoot)
     : [];
-  if (registrations.length > 0) {
-    const registeredIds = registrations.map(({ id }) => {
-      assertRepositoryId(id, "Store ID в локальном registry OpenSpec");
-      return id;
-    });
-    const commands = registeredIds
-      .map((registeredId) => `openspec store unregister ${registeredId}`)
-      .join("\n");
-    throw new Error(
-      `Локальный registry OpenSpec уже регистрирует путь ${projectRoot} как Store: ` +
-        `${registeredIds.join(", ")}. Для чистого первого запуска выполните:\n${commands}\n` +
-        "Команда unregister удаляет только локальную регистрацию и не удаляет файлы. " +
-        "После этого повторите openspec-orch init",
-    );
-  }
+  if (registrations.length === 0) return;
+  const registeredIds = registrations.map(({ id }) => {
+    assertRepositoryId(id, "Store ID в локальном registry OpenSpec");
+    return id;
+  });
+  const commands = registeredIds
+    .map((registeredId) => `openspec store unregister ${registeredId}`)
+    .join("\n");
+  throw new Error(
+    `Локальный registry OpenSpec уже регистрирует путь ${projectRoot} как Store: ` +
+      `${registeredIds.join(", ")}. Для чистого первого запуска выполните:\n${commands}\n` +
+      "Команда unregister удаляет только локальную регистрацию и не удаляет файлы. " +
+      "После этого повторите openspec-orch init",
+  );
 }
 
 /**
- * Создаёт Store официальной командой OpenSpec и проверяет её identity.
+ * Создаёт Store официальной командой OpenSpec и проверяет identity.
  *
- * @param {string} projectRoot Абсолютный путь центрального репозитория.
- * @param {string} storeId Общий Store ID и repository-id.
- * @param {string} remote Канонический Git URL центрального репозитория.
- * @param {typeof runCommand} commandRunner Исполнитель внешних команд.
+ * @param {string} projectRoot Корень Store.
+ * @param {string} storeId Store ID.
+ * @param {string} remote Git URL Store.
+ * @param {typeof runCommand} commandRunner Исполнитель команд.
  * @returns {void}
  */
 function setupStore(projectRoot, storeId, remote, commandRunner) {
@@ -217,114 +152,48 @@ function setupStore(projectRoot, storeId, remote, commandRunner) {
 }
 
 /**
- * Блокирует конфликтующие управляемые пути до первого изменения проекта.
+ * Проверяет обязательный обычный файл.
  *
- * @param {string} projectRoot Абсолютный путь центрального репозитория.
- * @param {BundleFile[]} bundleFiles Файлы, которые установит OpenSpec Orchestrator.
- * @param {{id: string, commandsDirectory: string, generatedDirectory: string | null}} agent
- * Выбранный agent adapter.
+ * @param {string} projectRoot Корень Store.
+ * @param {string} relativePath Относительный путь.
+ * @param {string[]} issues Получатель диагностик.
  * @returns {Promise<void>}
  */
-async function assertSkeletonDoesNotExist(projectRoot, bundleFiles, agent) {
-  const conflicts = [];
-  for (const relativePath of bundleFiles.map(({ target }) => target)) {
-    const stat = await pathState(path.join(projectRoot, relativePath));
-    if (!stat) continue;
-    if (SHARED_PROJECT_FILES.has(relativePath) || relativePath === PATHS.openSpecConfig) {
-      if (!stat.isFile() || stat.isSymbolicLink()) {
-        throw new Error(`${relativePath} должен быть обычным файлом`);
-      }
-      continue;
-    }
-    conflicts.push(relativePath);
-  }
-  if (conflicts.length > 0) {
-    throw new Error(`Инициализации мешают существующие OpenSpec Orchestrator/OpenSpec-пути: ${conflicts.join(", ")}`);
-  }
-
-  const agentRoot = agent.commandsDirectory.split("/")[0];
-  const agentDirectory = await pathState(path.join(projectRoot, agentRoot));
-  if (agentDirectory && agent.generatedDirectory) {
-    throw new Error(`${agentRoot}/ должен отсутствовать до первичной настройки ${agent.id}`);
-  }
-  if (agentDirectory && (!agentDirectory.isDirectory() || agentDirectory.isSymbolicLink())) {
-    throw new Error(`${agentRoot}/ должна быть обычным каталогом`);
-  }
-  if (agent.generatedDirectory) {
-    const generatedDirectory = await pathState(
-      path.join(projectRoot, agent.generatedDirectory),
-    );
-    if (
-      generatedDirectory &&
-      (!generatedDirectory.isDirectory() || generatedDirectory.isSymbolicLink())
-    ) {
-      throw new Error(`${agent.generatedDirectory}/ должна быть обычным каталогом`);
-    }
+async function inspectRequiredFile(projectRoot, relativePath, issues) {
+  const stat = await pathState(path.join(projectRoot, relativePath));
+  if (!stat) issues.push(`отсутствует ${relativePath}`);
+  else if (!stat.isFile() || stat.isSymbolicLink()) {
+    issues.push(`${relativePath} не является обычным файлом`);
   }
 }
 
 /**
- * Проверяет, что Store metadata относится к полностью завершённому `openspec-orch init`.
- * Проверка только читает проект и не пытается продолжить или откатить частичный запуск.
+ * Проверяет завершённый init только по автономному runtime-контракту Core.
+ * Исходный Template для повторного запуска не требуется.
  *
  * @param {object} options Параметры проверки.
- * @param {string} options.projectRoot Абсолютный путь центрального репозитория.
+ * @param {string} options.projectRoot Корень Store.
  * @param {string} options.storeId Ожидаемый Store ID.
- * @param {{remote: string | undefined}} options.metadata Прочитанная Store metadata.
- * @param {BundleFile[]} options.bundleFiles Полный проектный bundle.
- * @param {ReturnType<typeof resolveAgentAdapter>} options.agent Выбранный agent adapter.
+ * @param {string} options.agentId Ожидаемый agent ID.
+ * @param {{remote: string | undefined}} options.metadata Store metadata.
  * @returns {Promise<void>}
  */
-async function assertInitializationComplete({
-  projectRoot,
-  storeId,
-  metadata,
-  bundleFiles,
-  agent,
-}) {
+async function assertInitializationComplete({ projectRoot, storeId, agentId, metadata }) {
   const issues = [];
-  const requiredSubagentTargets = new Set(
-    agent.requiredSubagents.map((name) => path.join(agent.agentsDirectory, name)),
-  );
-  const requiredFiles = new Set(
-    bundleFiles
-      .map(({ target }) => target)
-      .filter(
-        (target) =>
-          !target.startsWith(`${agent.agentsDirectory}${path.sep}`) ||
-          requiredSubagentTargets.has(target),
-      ),
-  );
-  for (const command of REQUIRED_AGENT_COMMANDS) {
-    requiredFiles.add(path.join(agent.commandsDirectory, command));
-  }
-
-  for (const relativePath of [...requiredFiles].sort()) {
-    const stat = await pathState(path.join(projectRoot, relativePath));
-    if (!stat) issues.push(`отсутствует ${relativePath}`);
-    else if (!stat.isFile() || stat.isSymbolicLink()) {
-      issues.push(`${relativePath} не является обычным файлом`);
-    }
-  }
-  for (const relativePath of REQUIRED_OPEN_SPEC_DIRECTORIES) {
-    const stat = await pathState(path.join(projectRoot, relativePath));
-    if (!stat) issues.push(`отсутствует ${relativePath}/`);
-    else if (!stat.isDirectory() || stat.isSymbolicLink()) {
-      issues.push(`${relativePath}/ не является обычным каталогом`);
-    }
-  }
-
+  let config;
   const configStat = await pathState(path.join(projectRoot, PATHS.orchestratorConfig));
-  if (configStat?.isFile() && !configStat.isSymbolicLink()) {
+  if (!configStat?.isFile() || configStat.isSymbolicLink()) {
+    issues.push(`отсутствует обычный файл ${PATHS.orchestratorConfig}`);
+  } else {
     try {
-      const config = parseOrchestratorConfig(
+      config = parseOrchestratorConfig(
         await fs.readFile(path.join(projectRoot, PATHS.orchestratorConfig), "utf8"),
       );
       assertSupportedOpenSpecVersion(config.openSpecVersion);
       if (config.storeRepository.id !== storeId) {
         issues.push(`Store ID в ${PATHS.orchestratorConfig} не совпадает с Store metadata`);
       }
-      if (config.agent.id !== agent.id) {
+      if (config.agent.id !== agentId) {
         issues.push(`agent в ${PATHS.orchestratorConfig} не совпадает с аргументом openspec-orch init`);
       }
       if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
@@ -335,109 +204,167 @@ async function assertInitializationComplete({
     }
   }
 
+  if (config) {
+    await inspectRequiredFile(projectRoot, config.agent.instructionsFile, issues);
+    const commandsStat = await pathState(path.join(projectRoot, config.agent.commandsDirectory));
+    if (!commandsStat?.isDirectory() || commandsStat.isSymbolicLink()) {
+      issues.push(`${config.agent.commandsDirectory}/ не является обычным каталогом`);
+    }
+  }
+  await inspectRequiredFile(projectRoot, PATHS.openSpecConfig, issues);
+  for (const relativePath of ["openspec/specs", "openspec/changes/archive"]) {
+    const stat = await pathState(path.join(projectRoot, relativePath));
+    if (!stat?.isDirectory() || stat.isSymbolicLink()) {
+      issues.push(`${relativePath}/ не является обычным каталогом`);
+    }
+  }
+
   if (issues.length > 0) {
     throw new Error(
-      `needs_recovery: Store metadata существует, но openspec-orch init не завершён: ${issues.join("; ")}. ` +
-        "Автоматический ремонт не выполняется; файлы проекта не изменены",
+      `needs_recovery: завершено: создана Store metadata; не завершено: ${issues.join("; ")}. ` +
+      "Автоматический ремонт не выполняется; файлы проекта не изменены",
     );
   }
 }
 
 /**
- * Переносит совместимый Qwen pack в provider-specific каталог GigaCode.
+ * Блокирует занятые до запуска agent-pack paths.
  *
- * @param {string} projectRoot Абсолютный путь центрального репозитория.
- * @param {{id: string, commandsDirectory: string, generatedDirectory: string | null}} agent
- * Выбранный agent adapter.
+ * @param {string} projectRoot Корень Store.
+ * @param {import("../template/types.js").TemplateAgent} agent Mapping выбранного агента.
+ * @returns {Promise<void>}
+ */
+async function assertAgentPackPathsAvailable(projectRoot, agent) {
+  for (const relativePath of new Set([agent.generatedDirectory, agent.targetDirectory])) {
+    if (await pathState(path.join(projectRoot, relativePath))) {
+      throw new Error(`Инициализации мешает существующий agent pack: ${relativePath}/`);
+    }
+  }
+}
+
+/**
+ * Фиксирует существовавшие до запуска файлы plan и блокирует различающийся контент.
+ *
+ * @param {import("../template/types.js").TemplatePlanFile[]} files Copy plan.
+ * @returns {Promise<Set<string>>} Пути идентичных файлов, которые не нужно менять.
+ */
+async function inspectPreExistingTemplateFiles(files) {
+  const finalFiles = new Map();
+  for (const file of files) finalFiles.set(file.targetRelative, file);
+  const unchanged = new Set();
+  for (const file of finalFiles.values()) {
+    const stat = await pathState(file.target);
+    if (!stat) continue;
+    const [actual, expected] = await Promise.all([
+      fs.readFile(file.target),
+      fs.readFile(file.source),
+    ]);
+    if (!actual.equals(expected)) {
+      throw new Error(`Инициализации мешает существующий файл с другим содержимым: ${file.targetRelative}`);
+    }
+    unchanged.add(file.targetRelative);
+  }
+  return unchanged;
+}
+
+/**
+ * Повторно проверяет путь после внешнего OpenSpec init перед записью Template.
+ *
+ * @param {string} targetRoot Корень Store.
+ * @param {string} relativePath Относительный путь назначения.
+ * @returns {Promise<import("node:fs").Stats | null>} Состояние конечного пути.
+ */
+async function inspectWritableTarget(targetRoot, relativePath) {
+  let current = targetRoot;
+  const segments = relativePath.split("/");
+  for (const [index, segment] of segments.entries()) {
+    current = path.join(current, segment);
+    const stat = await pathState(current);
+    if (!stat) return null;
+    if (stat.isSymbolicLink()) throw new Error(`Target содержит symlink: ${relativePath}`);
+    const final = index === segments.length - 1;
+    if (!final && !stat.isDirectory()) {
+      throw new Error(`Target содержит file-directory collision: ${relativePath}`);
+    }
+    if (final && !stat.isFile()) {
+      throw new Error(`Target конфликтует с каталогом или специальным объектом: ${relativePath}`);
+    }
+    if (final) return stat;
+  }
+  return null;
+}
+
+/**
+ * Переносит официальный agent pack в provider-specific каталог из Template mapping.
+ *
+ * @param {string} projectRoot Корень Store.
+ * @param {import("../template/types.js").TemplateAgent} agent Mapping выбранного агента.
  * @returns {Promise<void>}
  */
 async function adaptGeneratedAgentPack(projectRoot, agent) {
-  if (!agent.generatedDirectory) return;
   const source = path.join(projectRoot, agent.generatedDirectory);
-  const destination = path.join(projectRoot, agent.commandsDirectory.split("/")[0]);
   const sourceStat = await pathState(source);
   if (!sourceStat?.isDirectory() || sourceStat.isSymbolicLink()) {
-    throw new Error(`OpenSpec не создал ожидаемый совместимый pack ${agent.generatedDirectory}/`);
+    throw new Error(`OpenSpec не создал ожидаемый agent pack ${agent.generatedDirectory}/`);
   }
-  const destinationStat = await pathState(destination);
-  if (destinationStat) {
-    throw new Error(`Нельзя перенести agent pack: уже существует ${destination}`);
+  if (agent.generatedDirectory === agent.targetDirectory) return;
+  const destination = path.join(projectRoot, agent.targetDirectory);
+  if (await pathState(destination)) {
+    throw new Error(`Нельзя перенести agent pack: уже существует ${agent.targetDirectory}/`);
   }
+  await fs.mkdir(path.dirname(destination), { recursive: true });
   await fs.rename(source, destination);
 }
 
 /**
- * Устанавливает подготовленный skeleton и безопасно объединяет общие проектные файлы.
+ * Применяет рассчитанный Template plan. Template имеет приоритет над файлами,
+ * созданными OpenSpec в рамках текущего запуска.
  *
- * @param {object} options Параметры установки.
- * @param {string} options.projectRoot Абсолютный путь центрального репозитория.
- * @param {BundleFile[]} options.bundleFiles Подготовленные файлы bundle.
- * @param {string} options.orchestratorContents Готовое содержимое openspec-orch.yaml.
- * @returns {Promise<{created: string[], updated: string[]}>} Созданные и дополненные пути.
+ * @param {object} options Параметры применения.
+ * @param {string} options.projectRoot Корень Store.
+ * @param {import("../template/types.js").TemplatePlanFile[]} options.files Copy plan.
+ * @param {Set<string>} options.unchangedPreExisting Идентичные пользовательские файлы.
+ * @returns {Promise<{created: string[], updated: string[]}>} Изменённые пути.
  */
-async function installSkeleton({ projectRoot, bundleFiles, orchestratorContents }) {
-  const created = [];
-  const updated = [];
-  for (const file of bundleFiles) {
-    const destination = path.join(projectRoot, file.target);
-    const source = file.source;
-    await fs.mkdir(path.dirname(destination), { recursive: true });
-
-    if (file.target === PATHS.orchestratorConfig) {
-      const destinationStat = await pathState(destination);
-      if (destinationStat) {
-        throw new Error(`${PATHS.orchestratorConfig} уже существует`);
-      }
-      await fs.writeFile(destination, orchestratorContents, "utf8");
-    } else if (file.target === PATHS.openSpecConfig) {
-      const destinationStat = await pathState(destination);
-      if (destinationStat) {
-        if (await mergeOpenSpecConfig(source, destination)) updated.push(file.target);
-        continue;
-      }
-      await fs.copyFile(source, destination);
-    } else {
-      const destinationStat = await pathState(destination);
-      if (destinationStat && SHARED_PROJECT_FILES.has(file.target)) {
-        if (await mergeSharedProjectFile(source, destination, file.target)) {
-          updated.push(file.target);
-        }
-        continue;
-      }
-      if (destinationStat) {
-        throw new Error(`OpenSpec создал конфликтующий файл skeleton: ${file.target}`);
-      }
-      await fs.copyFile(source, destination);
+async function applyTemplatePlan({ projectRoot, files, unchangedPreExisting }) {
+  const created = new Set();
+  const updated = new Set();
+  for (const file of files) {
+    if (unchangedPreExisting.has(file.targetRelative)) continue;
+    const targetStat = await inspectWritableTarget(projectRoot, file.targetRelative);
+    await fs.mkdir(path.dirname(file.target), { recursive: true });
+    await fs.copyFile(file.source, file.target);
+    await fs.chmod(file.target, file.mode);
+    if (!created.has(file.targetRelative) && !updated.has(file.targetRelative)) {
+      if (targetStat) updated.add(file.targetRelative);
+      else created.add(file.targetRelative);
     }
-    created.push(file.target);
   }
-  return { created, updated };
+  return { created: [...created].sort(), updated: [...updated].sort() };
 }
 
 /**
  * Один раз подготавливает центральный репозиторий как OpenSpec Store.
- * Команда повторно безопасна только для Store с тем же ID; подключение новых
- * рабочих машин и code-репозиториев выполняет `openspec-orch connect`.
  *
  * @param {object} [options]
  * @param {string} [options.target] Корень центрального Git-репозитория.
- * @param {string} options.storeId Общий ID Store и центрального репозитория.
- * @param {string} options.agentId Поддерживаемый OpenSpec agent ID.
+ * @param {string} options.storeId Store ID.
+ * @param {string} options.agentId Agent mapping из выбранного Template.
+ * @param {string} [options.templateRoot] Локальный Template root; по умолчанию встроенный.
  * @param {Array<{id: string, role: "code", url: string, defaultBranch: string}>} [options.repositories]
- * @param {string} [options.skeletonRoot] Переопределяется только в тестах.
- * @param {typeof runCommand} [options.commandRunner] Переопределяется только в тестах.
+ * @param {typeof runCommand} [options.commandRunner] Исполнитель внешних команд.
  * @returns {Promise<import("../shared/types.js").InitResult>}
  */
 export async function initProject({
   target = ".",
   storeId,
   agentId,
+  templateRoot = BASE_TEMPLATE_ROOT,
   repositories = [],
-  skeletonRoot = PATHS.skeleton,
   commandRunner = runCommand,
 } = {}) {
   assertRepositoryId(storeId, "Store ID");
-  const agent = resolveAgentAdapter(agentId);
+  assertRepositoryId(agentId, "Agent ID");
   const requestedRoot = path.resolve(target);
   const rootStat = await pathState(requestedRoot);
   if (!rootStat?.isDirectory() || rootStat.isSymbolicLink()) {
@@ -450,32 +377,6 @@ export async function initProject({
     );
   }
 
-  const bundleFiles = (await listFiles(skeletonRoot)).map((source) => ({
-    source: path.join(skeletonRoot, source),
-    target: bundleTarget(source),
-  }));
-  bundleFiles.push({
-    source: PATHS.orchestratorTemplate,
-    target: PATHS.orchestratorConfig,
-  });
-  for (const source of await listFiles(PATHS.commandTemplates)) {
-    bundleFiles.push({
-      source: path.join(PATHS.commandTemplates, source),
-      target: path.join(agent.commandsDirectory, source),
-    });
-  }
-  for (const source of await listFiles(PATHS.subagentTemplates)) {
-    bundleFiles.push({
-      source: path.join(PATHS.subagentTemplates, source),
-      target: path.join(agent.agentsDirectory, source),
-    });
-  }
-  if (agent.instructionsFile) {
-    bundleFiles.push({
-      source: path.join(PATHS.agentTemplates, agent.templateDirectory, agent.instructionsFile),
-      target: agent.instructionsFile,
-    });
-  }
   const ids = new Set([storeId]);
   for (const repository of repositories) {
     assertRepositoryId(repository.id);
@@ -494,13 +395,7 @@ export async function initProject({
     if (metadata.id !== storeId) {
       throw new Error(`Store уже инициализирован с ID ${metadata.id}, а не ${storeId}`);
     }
-    await assertInitializationComplete({
-      projectRoot,
-      storeId,
-      metadata,
-      bundleFiles,
-      agent,
-    });
+    await assertInitializationComplete({ projectRoot, storeId, agentId, metadata });
     return {
       target: projectRoot,
       storeId,
@@ -509,6 +404,13 @@ export async function initProject({
       updated: [],
     };
   }
+
+  if (await pathState(path.join(projectRoot, PATHS.orchestratorConfig))) {
+    throw new Error(`Инициализации мешает существующий ${PATHS.orchestratorConfig}`);
+  }
+  const templatePlan = await buildTemplatePlan({ templateRoot, targetRoot: projectRoot, agentId });
+  await assertAgentPackPathsAvailable(projectRoot, templatePlan.agent);
+  const unchangedPreExisting = await inspectPreExistingTemplateFiles(templatePlan.files);
 
   const git = await inspectGit(projectRoot, commandRunner);
   const configuredRepositories = [
@@ -520,36 +422,42 @@ export async function initProject({
     },
     ...repositories,
   ];
-  await assertSkeletonDoesNotExist(projectRoot, bundleFiles, agent);
   const installedVersion = commandRunner("openspec", ["--version"], { cwd: projectRoot });
   assertSupportedOpenSpecVersion(installedVersion);
   assertStorePathAvailable(projectRoot, commandRunner);
-  const orchestratorTemplate = await fs.readFile(PATHS.orchestratorTemplate, "utf8");
   const orchestratorContents = serializeOrchestratorConfig(
-    orchestratorTemplate,
+    await fs.readFile(PATHS.orchestratorTemplate, "utf8"),
     configuredRepositories,
-    agent,
+    templatePlan.agent,
     installedVersion,
   );
   parseOrchestratorConfig(orchestratorContents);
-  const hasProjectFiles = (await fs.readdir(projectRoot)).some((entry) => entry !== ".git");
-  // Для существующего проекта OpenSpec root нужен до Store setup; для пустого
-  // репозитория Store setup сначала создаёт root, который затем принимает init.
-  if (hasProjectFiles) await installOpenSpec(projectRoot, agent.openSpecId, commandRunner);
-  setupStore(projectRoot, storeId, git.remote, commandRunner);
-  if (!hasProjectFiles) await installOpenSpec(projectRoot, agent.openSpecId, commandRunner);
-  await adaptGeneratedAgentPack(projectRoot, agent);
 
-  const installed = await installSkeleton({
+  await installOpenSpec(projectRoot, templatePlan.agent.openSpecId, commandRunner);
+  await adaptGeneratedAgentPack(projectRoot, templatePlan.agent);
+  setupStore(projectRoot, storeId, git.remote, commandRunner);
+
+  const installed = await applyTemplatePlan({
     projectRoot,
-    bundleFiles,
-    orchestratorContents,
+    files: templatePlan.files,
+    unchangedPreExisting,
   });
+  await fs.writeFile(
+    path.join(projectRoot, PATHS.orchestratorConfig),
+    orchestratorContents,
+    { encoding: "utf8", flag: "wx" },
+  );
+  installed.created.push(PATHS.orchestratorConfig);
+
+  const metadata = parseStoreMetadata(
+    await fs.readFile(path.join(projectRoot, PATHS.metadata), "utf8"),
+  );
+  await assertInitializationComplete({ projectRoot, storeId, agentId, metadata });
   return {
     target: projectRoot,
     storeId,
     alreadyInitialized: false,
-    created: [PATHS.metadata, ...installed.created],
+    created: [PATHS.metadata, ...installed.created.sort()],
     updated: installed.updated,
   };
 }

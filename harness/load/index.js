@@ -232,10 +232,10 @@ export async function prepareLoad({
     codeOrigin,
     commandRunner,
   );
-  const applyInstructionRelativePath = path.join(
-    baselineStore.config.agent.commandsDirectory,
-    "sdd-apply.md",
-  );
+  const applyInstructionRelativePath = baselineStore.config.agent.handoffs.apply;
+  if (!applyInstructionRelativePath) {
+    throw new Error("Project Template не объявил agent.handoffs.apply для openspec-orch load");
+  }
   const agentInstructionsRelativePath = baselineStore.config.agent.instructionsFile;
   await Promise.all([
     readStoreFile(worktreeRoot, agentInstructionsRelativePath),

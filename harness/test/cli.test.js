@@ -86,6 +86,7 @@ test("parseInitArgs accepts positional and inline options", () => {
       target: "project",
       storeId: "specs",
       agentId: "qwen",
+      templateRoot: undefined,
       repositories: [{
         id: "api",
         role: "code",
@@ -99,11 +100,16 @@ test("parseInitArgs accepts positional and inline options", () => {
 
 test("parseInitArgs accepts split options and rejects ambiguous input", () => {
   assert.equal(parseInitArgs(["--store", "specs", "--agent", "qwen"]).storeId, "specs");
+  assert.equal(
+    parseInitArgs(["--store", "specs", "--agent", "team", "--template", "./team-template"]).templateRoot,
+    "./team-template",
+  );
   assert.throws(() => parseInitArgs(["--agent", "qwen"]));
   assert.throws(() => parseInitArgs(["--store", "specs"]));
   assert.throws(() => parseInitArgs(["--store", "specs", "--store=other", "--agent=qwen"]));
   assert.throws(() => parseInitArgs(["--store=specs", "--agent=qwen", "one", "two"]));
   assert.throws(() => parseInitArgs(["--store=specs", "--agent=qwen", "--unknown"]));
+  assert.throws(() => parseInitArgs(["--store=specs", "--agent=qwen", "--template=one", "--template=two"]));
 });
 
 test("reportProgress writes one event to the selected output", () => {

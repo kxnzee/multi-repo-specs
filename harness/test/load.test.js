@@ -10,10 +10,10 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 
-import { resolveAgentAdapter } from "../config/agents.js";
 import { serializeOrchestratorConfig } from "../config/index.js";
 import { prepareLoad } from "../load/index.js";
 import { runCommand } from "../shared/command.js";
+import { agentFixture } from "../test-fixtures/agents.js";
 
 const TEMPLATE =
   'version: 1\nversions:\n  process: draft\n  openspec: "1.7.0"\nagent: null\nrepositories: []\n';
@@ -66,13 +66,13 @@ async function createScenario(t, {
     { id: "payments-specs", role: "store", url: storeRemote, defaultBranch: "main" },
     { id: "payments-api", role: "code", url: codeRemote, defaultBranch: "main" },
   ];
-  const agent = resolveAgentAdapter(agentId);
+  const agent = agentFixture(agentId);
   const storeFiles = {
     ".openspec-store/store.yaml":
       `version: 1\nid: payments-specs\nremote: ${JSON.stringify(storeRemote)}\n`,
     "openspec-orch.yaml": serializeOrchestratorConfig(TEMPLATE, repositories, agent),
     "openspec/config.yaml": "schema: spec-driven\n",
-    [path.join(agent.commandsDirectory, "sdd-apply.md")]: "Apply from verified runtime.\n",
+    [agent.handoffs.apply]: "Apply from verified runtime.\n",
     "openspec/changes/pay-412-payment-status/proposal.md": "# Proposal\n",
     "openspec/changes/pay-412-payment-status/tasks.md": "- [ ] 2.1 API\n- [ ] 2.2 tests\n",
   };

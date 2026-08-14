@@ -1,6 +1,5 @@
 /** @fileoverview Разбор аргументов команд OpenSpec Orchestrator CLI. */
 
-import { supportedAgentIds } from "../config/agents.js";
 import { assertRepositoryId } from "../config/index.js";
 import { validateChangeName } from "../change/index.js";
 import { validateTicket } from "../explore/index.js";
@@ -8,7 +7,7 @@ import { parseRepository } from "../init/index.js";
 import { isGitRevision } from "../shared/schema.js";
 
 export const HELP = `Использование:
-  openspec-orch init [path] --store <store-id> --agent <agent-id> [--repo <id=url#branch>]...
+  openspec-orch init [path] --store <store-id> --agent <agent-id> [--template <path>] [--repo <id=url#branch>]...
   openspec-orch connect [--workspace <path>]
   openspec-orch explore --ticket <ticket-id> [--workspace <path>]
   openspec-orch change --ticket <ticket-id> --name <short-name> [--store <store-id>]
@@ -23,7 +22,8 @@ export const HELP = `Использование:
 
 Параметры:
   --store <id>    Store ID для openspec-orch init, openspec-orch change или openspec-orch load
-  --agent <id>    Agent adapter: ${supportedAgentIds().join(", ")}
+  --agent <id>    Agent mapping из выбранного Project Template
+  --template <path> Локальный Project Template; без флага используется встроенный
   --repo <value>  Для init: добавить id=url#branch; для load: указать repository-id
                   Пример init: --repo ui=https://example.test/ui.git#main
   --workspace     Задать workspace; openspec-orch connect запоминает его локально
@@ -56,19 +56,20 @@ function readOptionValue(args, index, option, errorMessage) {
  * Разбирает аргументы `openspec-orch init` и проверяет обязательные одиночные флаги.
  *
  * @param {string[]} args Аргументы после имени команды `init`.
- * @returns {{help: boolean, target: string, storeId: string | undefined, agentId: string | undefined, repositories: Array<{id: string, role: "code", url: string, defaultBranch: string}>}} Нормализованные параметры запуска.
+ * @returns {{help: boolean, target: string, storeId: string | undefined, agentId: string | undefined, templateRoot: string | undefined, repositories: Array<{id: string, role: "code", url: string, defaultBranch: string}>}} Нормализованные параметры запуска.
  */
 export function parseInitArgs(args) {
   let target = ".";
   let targetWasSet = false;
   let storeId;
   let agentId;
+  let templateRoot;
   const repositories = [];
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "-h" || arg === "--help") {
-      return { help: true, target, storeId, agentId, repositories };
+      return { help: true, target, storeId, agentId, templateRoot, repositories };
     }
     if (arg === "--store" || arg.startsWith("--store=")) {
       const value = readOptionValue(args, index, "--store", "для --store требуется Store ID");
@@ -82,6 +83,13 @@ export function parseInitArgs(args) {
       if (agentId) throw new Error("--agent можно указать только один раз");
       agentId = value;
       if (arg === "--agent") index += 1;
+      continue;
+    }
+    if (arg === "--template" || arg.startsWith("--template=")) {
+      const value = readOptionValue(args, index, "--template", "для --template требуется локальный путь");
+      if (templateRoot) throw new Error("--template можно указать только один раз");
+      templateRoot = value;
+      if (arg === "--template") index += 1;
       continue;
     }
     if (arg === "--repo" || arg.startsWith("--repo=")) {
@@ -98,7 +106,7 @@ export function parseInitArgs(args) {
 
   if (!storeId) throw new Error("для openspec-orch init требуется --store <store-id>");
   if (!agentId) throw new Error("для openspec-orch init требуется --agent <agent-id>");
-  return { help: false, target, storeId, agentId, repositories };
+  return { help: false, target, storeId, agentId, templateRoot, repositories };
 }
 
 /**

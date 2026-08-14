@@ -55,6 +55,7 @@ export async function runInit(args) {
     target: options.target,
     storeId: options.storeId,
     agentId: options.agentId,
+    templateRoot: options.templateRoot,
     repositories: options.repositories,
   });
   if (result.alreadyInitialized) {

@@ -7,7 +7,6 @@ import path from "node:path";
 import test from "node:test";
 
 import { initProject } from "../init/index.js";
-import { mergeOpenSpecConfig } from "../init/merge.js";
 
 /**
  * Создаёт временный каталог и регистрирует его удаление.
@@ -20,21 +19,6 @@ async function temporaryDirectory(t) {
   t.after(async () => fs.rm(directory, { recursive: true, force: true }));
   return directory;
 }
-
-test("mergeOpenSpecConfig blocks a config symlink", async (t) => {
-  const directory = await temporaryDirectory(t);
-  const source = path.join(directory, "template.yaml");
-  const external = path.join(directory, "external.yaml");
-  const destination = path.join(directory, "config.yaml");
-  await fs.writeFile(source, "schema: spec-driven\ncontext: required\nrules: {}\n");
-  await fs.writeFile(external, "schema: spec-driven\n");
-  await fs.symlink(external, destination);
-
-  await assert.rejects(
-    mergeOpenSpecConfig(source, destination),
-  );
-  assert.equal(await fs.readFile(external, "utf8"), "schema: spec-driven\n");
-});
 
 test("initProject blocks a Store metadata symlink", async (t) => {
   const directory = await temporaryDirectory(t);

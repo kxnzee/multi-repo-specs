@@ -11,6 +11,8 @@ agents:
     copy:
       - from: skeleton
         to: .
+      - from: assets/gitignore.template
+        to: .gitignore
       - from: commands
         to: .qwen/commands
       - from: subagents
@@ -30,6 +32,8 @@ agents:
     copy:
       - from: skeleton
         to: .
+      - from: assets/gitignore.template
+        to: .gitignore
       - from: commands
         to: .gigacode/commands
       - from: subagents

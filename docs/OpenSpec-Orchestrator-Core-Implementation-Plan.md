@@ -743,7 +743,7 @@ Plugins реализуются сразу после пилота Core/Template:
 | 0. Исходное поведение и публичное имя | `completed` | `dea9186`, корректировка границы Template `ec675e5` |
 | 1. Базовый Template | `completed` | `refactor: extract base project template` |
 | 2. Общий Template engine | `completed` | `feat: add safe project template engine` |
-| 3. Перевод `init` на Template engine | `not_started` | — |
+| 3. Перевод `init` на Template engine | `completed` | `feat: initialize projects from local templates` |
 | 4. Независимость Core-команд от Template | `not_started` | — |
 | 5. Schema-neutral OpenSpec-интеграция | `not_started` | — |
 | 6. Compatibility и strict/relaxed mode | `not_started` | — |
@@ -838,7 +838,8 @@ Core умеет безопасно прочитать произвольный �
 
 1. Добавить `--template <local-directory>` в `openspec-orch init`. Без флага автоматически выбирать внутренний базовый Template; указанный каталог полностью его заменяет.
 2. Собрать `init` в один фиксированный технический pipeline:
-   `preflight -> openspec init -> перенос generated pack -> copy Template -> Store setup -> openspec-orch.yaml -> post-check`.
+   `preflight -> openspec init -> перенос generated pack -> Store setup -> copy Template -> openspec-orch.yaml -> post-check`.
+   Template применяется после технической настройки Store, чтобы его файлы имели итоговый приоритет.
 3. Разрешить Template переопределять файлы, созданные текущим вызовом `openspec init`, включая agent-specific и OpenSpec config.
 4. Защитить файлы, существовавшие до запуска: идентичные пропускать, отличающиеся считать конфликтом без автоматического overwrite.
 5. Сохранить выбранный agent mapping и объявленные Core handoffs в `openspec-orch.yaml`; после успешного `init` исходный Template больше не требуется.

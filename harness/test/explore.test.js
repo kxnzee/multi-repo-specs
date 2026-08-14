@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
+import { parse, stringify } from "yaml";
 
-import { resolveAgentAdapter } from "../config/agents.js";
 import { parseOrchestratorConfig, serializeOrchestratorConfig } from "../config/index.js";
 import {
   buildExploreInvocation,
@@ -16,8 +16,9 @@ import {
   validateTicket,
 } from "../explore/index.js";
 import { runCommand } from "../shared/command.js";
+import { agentFixture } from "../test-fixtures/agents.js";
 
-const QWEN = resolveAgentAdapter("qwen");
+const QWEN = agentFixture("qwen");
 const ORCHESTRATOR_TEMPLATE =
   'version: 1\nversions:\n  process: draft\n  openspec: "1.7.0"\nagent: null\nrepositories: []\n';
 
@@ -236,6 +237,26 @@ test("findSpecRoot resolves the nearest Store from a nested directory", async (t
   const scenario = await createScenario(t);
   const nested = path.join(scenario.storeRoot, "openspec", "context");
   assert.equal(await findSpecRoot(nested), scenario.storeRoot);
+});
+
+test("prepareExplore reports a lazy error when Template did not declare Explore handoff", async (t) => {
+  const scenario = await createScenario(t);
+  const configPath = path.join(scenario.storeRoot, "openspec-orch.yaml");
+  const config = parse(await fs.readFile(configPath, "utf8"));
+  delete config.agent.handoffs.explore;
+  await fs.writeFile(configPath, stringify(config), "utf8");
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+
+  await assert.rejects(
+    prepareExplore({
+      start: scenario.storeRoot,
+      workspace: scenario.workspace,
+      ticket: "PAY-412",
+      selectRepositories: () => [],
+      commandRunner: openSpec.runner,
+    }),
+    /не объявил agent\.handoffs\.explore/,
+  );
 });
 
 test("prepareExplore uses the connected workspace for Store-only Explore", async (t) => {

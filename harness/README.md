@@ -32,13 +32,19 @@ openspec-orch init --store payments-specs --agent qwen \
   --repo api=https://example.test/api.git#main
 ```
 
-Команда проверяет совместимость OpenSpec, создаёт Store через официальный `openspec store setup`, устанавливает официальный expanded agent pack и раскладывает project skeleton OpenSpec Orchestrator. Набор workflows передаётся профилю `custom` через временную изолированную конфигурацию, поэтому глобальный профиль OpenSpec пользователя не изменяется. `--agent` обязателен и принимает `qwen` или `gigacode`. GigaCode использует официальный OpenSpec adapter `qwen`, но готовый pack переносится в `.gigacode/`, а инструкция записывается в `.gigacode/GIGACODE.md`; фактическое соответствие сохраняется в `openspec-orch.yaml`. Уже существующий официальный `.qwen/` также переносится целиком и после успешного `init` не остаётся.
+Команда проверяет совместимость OpenSpec, устанавливает официальный expanded agent pack, создаёт Store через `openspec store setup` и поверх результата применяет Project Template. Набор workflows передаётся профилю `custom` через временную изолированную конфигурацию, поэтому глобальный профиль OpenSpec пользователя не изменяется. `--agent` обязателен и выбирает mapping из Template. Без `--template` используется встроенный Template с mappings `qwen` и `gigacode`; локальный Template полностью заменяет встроенный:
 
-Существующий OpenSpec root без Store metadata принимается без удаления specs, Changes и собственных настроек config: адаптер добавляет только обязательные настройки OpenSpec Orchestrator. Обычные `.gitignore` и `CODEOWNERS` также сохраняются и дополняются. При повторном запуске Store metadata считается только признаком начатой инициализации: `openspec-orch init` проверяет согласованность конфигурации, OpenSpec root, проектный skeleton и обязательные команды агента. Полное состояние не изменяется, а частичное возвращает `needs_recovery` с перечнем причин. Автоматического ремонта пока нет.
+```bash
+openspec-orch init --store payments-specs --agent team-agent --template ../team-template
+```
+
+Template определяет копируемые project files, перенос официального agent pack и необязательные handoffs Core-команд. Его mapping сохраняется в `openspec-orch.yaml`, поэтому после успешного `init` исходный Template не нужен. Файлы Template имеют приоритет над файлами, созданными текущим OpenSpec init. Существовавший до запуска идентичный файл пропускается, а отличающийся останавливает preflight без merge или overwrite.
+
+При повторном запуске Store metadata считается только признаком начатой инициализации: `openspec-orch init` проверяет согласованность Core config, минимальный OpenSpec root и agent mapping. Полное состояние не изменяется, а частичное возвращает `needs_recovery` с перечнем причин. Автоматического ремонта пока нет.
 
 Если этот же путь остался зарегистрирован в локальном registry OpenSpec после предыдущего теста, `openspec-orch init` останавливается до изменения файлов и показывает существующий Store ID. Для чистого первого запуска выполните показанную команду `openspec store unregister <store-id>`, затем повторите `openspec-orch init`. `unregister` забывает только локальную регистрацию и не удаляет файлы репозитория; `openspec store remove` для этого сценария не используется.
 
-В рамках этой однократной инициализации Technical Owner заменяет созданные placeholder-владельцы в `CODEOWNERS` реальными account handles и активирует правила для нормативного контекста. Настроенный CODEOWNERS входит в initialization PR центрального репозитория; участники команды не настраивают его повторно при `openspec-orch connect`.
+Встроенный Template содержит `CODEOWNERS`; если команда его использует, Technical Owner заменяет placeholder-владельцев реальными account handles. Пользовательский Template может не содержать этот файл вообще.
 
 Запуск без регистрации в `PATH`:
 
@@ -71,7 +77,7 @@ openspec-orch connect --workspace /absolute/path/to/workspace
 
 `openspec-orch connect` сохраняет канонический путь как локальную Git-настройку `openspec-orch.workspace` центрального Store. Настройка не коммитится и используется последующими `openspec-orch connect` и `openspec-orch explore`; явный `--workspace` заменяет сохранённое значение.
 
-Команда проверяет наличие `agent.instructions_file`, обязательных agent actions `/opsx-explore`, `/opsx-continue`, `/opsx-update`, `/sdd-context`, `/sdd-change`, невызваемой проектной инструкции `.sdd/instructions/explore.md` и runtime-инструкции `sdd-apply.md`, передаёт Store identity официальным `store register`, `store doctor`, `doctor --store` и `context --store`, структурно проверяет их JSON, затем загружает все записи `role: code` из `openspec-orch.yaml` в `<workspace>/src/<repository-id>`. Существующие checkout не обновляются и не перезаписываются: проверяются только их `origin`, ветка и чистота.
+Команда валидирует Core config, Store metadata и repositories, передаёт Store identity официальным `store register`, `store doctor`, `doctor --store` и `context --store`, структурно проверяет их JSON, затем загружает все записи `role: code` из `openspec-orch.yaml` в `<workspace>/src/<repository-id>`. Process assets выбранного Template ей не нужны: конкретный handoff проверяется только при вызове зависящей от него команды. Существующие checkout не обновляются и не перезаписываются: проверяются только их `origin`, ветка и чистота.
 
 Если в Code Repository отсутствует единственный допустимый `openspec/config.yaml`, команда создаёт pointer `store: <store-id>` и возвращает `needs_setup_pr`. Она не делает commit, push или PR. После принятия setup PR обновите checkout и повторите `openspec-orch connect`.
 
@@ -119,7 +125,7 @@ CLI разрешает только центральный Store, проверя
 
 После JSON-результата agent command получает официальные `openspec instructions proposal`, создаёт только `proposal.md` из подтверждённого Explore и завершает шаг лишь после явного подтверждения Change Owner. Delta Specs, `design.md`, `tasks.md`, commit, push и PR на этом этапе не создаются. `/opsx-propose` не вызывается, встроенные команды и skills OpenSpec не изменяются.
 
-При последующих `/opsx-continue` правила `openspec/config.yaml` определяют, когда основному planning-agent нужен read-only Repository Context Pass. `openspec-orch init` устанавливает обязательный базовый `repository-context-pass` и доступные optional специализации из шаблонов в provider-specific каталог `agents/`; основной агент подбирает профиль по `description` и запускает его штатным инструментом runtime. `openspec-orch connect` и recovery-проверка требуют только базовый профиль, поэтому optional subagents можно добавлять и удалять независимо. Отдельного пользовательского вызова и автоматического запуска со стороны Harness нет. Человеческое объяснение механизма и пример расширения находятся в `docs/reference/subagents.md` и агенту не передаются.
+Во встроенном Template правила `openspec/config.yaml` определяют, когда основному planning-agent нужен read-only Repository Context Pass. Этот Template устанавливает базовый `repository-context-pass` и optional специализации в provider-specific каталог `agents/`; основной агент подбирает профиль по `description` и запускает его штатным инструментом runtime. Core не знает список subagents и не требует их при `init` или `connect`: пользовательский Template может изменить или полностью убрать этот механизм. Человеческое объяснение встроенного варианта и пример расширения находятся в `docs/reference/subagents.md` и агенту не передаются.
 
 ## Planning PR и Spec Baseline
 
@@ -163,11 +169,11 @@ openspec-orch load \
 - `init/` — техническая логика `openspec-orch init` и Core-owned шаблон `openspec-orch.yaml`.
 - `load/index.js` — подготовка implementation-ветки и runtime точного Spec Baseline.
 - `shared/` — единый безопасный запуск внешних команд.
-- `template/` — Core-owned parser и безопасный copy planner Project Template без файловых записей.
+- `template/` — Core-owned parser и безопасный copy planner Project Template; применение plan выполняет только `init`.
 - `templates/base/` — встроенный базовый Project Template: skeleton, agent commands, инструкции и subagents без исполняемой логики Core.
 - `test/` — тесты технической обвязки, не входящие в публикуемый пакет.
 
-Суффикс `.template` у файла каркаса удаляется при установке. Например, `.gitignore.template` становится `.gitignore`; это позволяет npm включить файл в пакет.
+Встроенный Template явно отображает `assets/gitignore.template` в `.gitignore`; общего правила удаления суффиксов в Core нет.
 
 `init/index.js` выполняет короткую Git-проверку, вызывает официальные Store/init API OpenSpec и раскладывает базовый Template. `connect/index.js` вызывает официальные register/doctor, создаёт workspace, загружает Code Repositories и проверяет project pointer. Внутренние правила OpenSpec адаптер не дублирует. Стандартная схема `spec-driven` и её шаблоны берутся из установленного OpenSpec; текущий базовый workflow находится в `templates/base/` и устанавливается поверх результата OpenSpec.
 

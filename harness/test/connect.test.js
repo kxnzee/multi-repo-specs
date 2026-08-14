@@ -8,12 +8,12 @@ import path from "node:path";
 import test from "node:test";
 
 import { connectProject } from "../connect/index.js";
-import { resolveAgentAdapter } from "../config/agents.js";
 import { serializeOrchestratorConfig } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
+import { agentFixture } from "../test-fixtures/agents.js";
 
-const QWEN_AGENT = resolveAgentAdapter("qwen");
-const GIGACODE_AGENT = resolveAgentAdapter("gigacode");
+const QWEN_AGENT = agentFixture("qwen");
+const GIGACODE_AGENT = agentFixture("gigacode");
 
 /**
  * Создаёт удаляемый после теста корень multi-repo workspace.
@@ -110,10 +110,6 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
       { id: "api", role: "code", url: codeRemote, defaultBranch: "main" },
     ], agent),
   };
-  for (const subagent of agent.requiredSubagents) {
-    centralFiles[path.join(agent.agentsDirectory, subagent)] =
-      `---\nname: ${path.basename(subagent, ".md")}\n---\n`;
-  }
   for (const [relativePath, contents] of Object.entries(centralFiles)) {
     const target = path.join(centralSource, relativePath);
     await fs.mkdir(path.dirname(target), { recursive: true });
@@ -301,29 +297,21 @@ test("connectProject does not infer workspace from the legacy openspec container
 });
 
 for (const agent of [QWEN_AGENT, GIGACODE_AGENT]) {
-  test(`connectProject requires agent.instructions_file for ${agent.id}`, async (t) => {
+  test(`connectProject does not require Template process assets for ${agent.id}`, async (t) => {
     const scenario = await createScenario(t, { pointer: true, agent });
-    const missing = path.join(scenario.storeRoot, agent.instructionsFile);
-    await fs.rm(missing);
+    await fs.rm(path.join(scenario.storeRoot, agent.instructionsFile));
+    await fs.rm(path.join(scenario.storeRoot, ".sdd", "instructions", "explore.md"));
+    await fs.rm(path.join(scenario.storeRoot, agent.commandsDirectory), { recursive: true });
     const openSpec = fakeOpenSpec(scenario.storeRoot);
 
-    await assert.rejects(
-      connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner }),
-    );
-    assert.deepEqual(openSpec.calls, []);
+    const result = await connectProject({
+      start: scenario.storeRoot,
+      commandRunner: openSpec.runner,
+    });
+    assert.equal(result.status, "ready");
+    assert.notEqual(openSpec.calls.length, 0);
   });
 }
-
-test("connectProject requires the non-command Explore instructions", async (t) => {
-  const scenario = await createScenario(t, { pointer: true });
-  await fs.rm(path.join(scenario.storeRoot, ".sdd", "instructions", "explore.md"));
-  const openSpec = fakeOpenSpec(scenario.storeRoot);
-
-  await assert.rejects(
-    connectProject({ start: scenario.storeRoot, commandRunner: openSpec.runner }),
-  );
-  assert.deepEqual(openSpec.calls, []);
-});
 
 test("connectProject keeps an uncommitted generated pointer as needs_setup_pr", async (t) => {
   const scenario = await createScenario(t);

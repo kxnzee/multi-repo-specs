@@ -8,10 +8,10 @@ import path from "node:path";
 import test from "node:test";
 import { parse } from "yaml";
 
-import { resolveAgentAdapter } from "../config/agents.js";
 import { assertSupportedOpenSpecVersion, parseOrchestratorConfig } from "../config/index.js";
 import { initProject, parseRepository } from "../init/index.js";
 import { runCommand } from "../shared/command.js";
+import { agentFixture } from "../test-fixtures/agents.js";
 
 /**
  * Создаёт тестовый центральный Git-репозиторий с origin.
@@ -86,6 +86,48 @@ const PROJECT_SUBAGENTS = Object.freeze([
 const BASE_TEMPLATE_ROOT = new URL("../templates/base/", import.meta.url);
 
 /**
+ * Создаёт минимальный пользовательский Template с новым agent mapping.
+ *
+ * @param {import("node:test").TestContext} t Контекст теста.
+ * @returns {Promise<string>} Путь Template root.
+ */
+async function customTemplate(t) {
+  const root = await fs.realpath(
+    await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-custom-template-")),
+  );
+  t.after(async () => fs.rm(root, { recursive: true, force: true }));
+  const files = {
+    "template.yaml": `agents:
+  team-agent:
+    openspec_adapter: qwen
+    generated_directory: .qwen
+    target_directory: .team-agent
+    commands_directory: .team-agent/actions
+    instructions_file: TEAM.md
+    handoffs:
+      apply: .team-agent/actions/team-apply.md
+    copy:
+      - from: skeleton
+        to: .
+      - from: commands
+        to: .team-agent/actions
+      - from: TEAM.md
+        to: TEAM.md
+`,
+    "skeleton/openspec/config.yaml": "schema: team-custom\n",
+    "skeleton/team-required.txt": "custom project asset\n",
+    "commands/team-apply.md": "# Team apply\n",
+    "TEAM.md": "# Team agent instructions\n",
+  };
+  for (const [relativePath, contents] of Object.entries(files)) {
+    const target = path.join(root, relativePath);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, contents, "utf8");
+  }
+  return root;
+}
+
+/**
  * Имитирует OpenSpec init и Store API для тестов `openspec-orch init`.
  *
  * @param {string} projectRoot Корень тестового проекта.
@@ -147,11 +189,13 @@ function fakeOpenSpec(projectRoot, { registeredStoreId } = {}) {
         "verify",
         "onboard",
       ]);
-      const agent = resolveAgentAdapter(args[args.indexOf("--tools") + 1]);
-      fsSync.mkdirSync(path.join(projectRoot, agent.commandsDirectory), { recursive: true });
+      const adapter = args[args.indexOf("--tools") + 1];
+      assert.equal(adapter, "qwen");
+      const commandsDirectory = ".qwen/commands";
+      fsSync.mkdirSync(path.join(projectRoot, commandsDirectory), { recursive: true });
       for (const action of ["explore", "continue", "update"]) {
         fsSync.writeFileSync(
-          path.join(projectRoot, agent.commandsDirectory, `opsx-${action}.md`),
+          path.join(projectRoot, commandsDirectory, `opsx-${action}.md`),
           "original OpenSpec action\n",
         );
       }
@@ -293,7 +337,7 @@ test("initProject creates Store, official expanded pack and the complete skeleto
   });
   assert.deepEqual(config.codeRepositories.map(({ id }) => id), ["ui"]);
   assert.equal((await fs.stat(path.join(target, config.agent.commandsDirectory))).isDirectory(), true);
-  assert.equal((await fs.stat(path.join(target, config.agent.agentsDirectory))).isDirectory(), true);
+  assert.equal((await fs.stat(path.join(target, ".qwen", "agents"))).isDirectory(), true);
   assert.equal((await fs.stat(path.join(target, config.agent.instructionsFile))).isFile(), true);
 });
 
@@ -309,11 +353,19 @@ test("initProject persists the selected adapter after OpenSpec initialization", 
   });
 
   const config = parseOrchestratorConfig(await fs.readFile(path.join(target, "openspec-orch.yaml"), "utf8"));
-  assert.deepEqual(config.agent, resolveAgentAdapter("gigacode"));
+  const selected = agentFixture("gigacode");
+  assert.deepEqual(config.agent, {
+    id: selected.id,
+    openSpecId: selected.openSpecId,
+    architecture: selected.architecture,
+    commandsDirectory: selected.commandsDirectory,
+    instructionsFile: selected.instructionsFile,
+    handoffs: selected.handoffs,
+  });
   assert.equal((await fs.stat(path.join(target, config.agent.commandsDirectory))).isDirectory(), true);
-  assert.equal((await fs.stat(path.join(target, config.agent.agentsDirectory))).isDirectory(), true);
+  assert.equal((await fs.stat(path.join(target, ".gigacode", "agents"))).isDirectory(), true);
   assert.equal((await fs.stat(path.join(target, config.agent.instructionsFile))).isFile(), true);
-  assert.equal(fsSync.existsSync(path.join(target, resolveAgentAdapter("qwen").commandsDirectory)), false);
+  assert.equal(fsSync.existsSync(path.join(target, ".qwen")), false);
   assert.ok(
     openSpec.calls.some(
       (args) => args[0] === "init" && args[args.indexOf("--tools") + 1] === "qwen",
@@ -444,7 +496,7 @@ test("initProject does not modify a complete initialized Store", async (t) => {
   assert.equal(openSpec.calls.length, callsBeforeRepeat);
 });
 
-test("initProject reports recovery when a completed Store loses Explore instructions", async (t) => {
+test("initProject does not require an optional handoff file on successful repeat", async (t) => {
   const target = await temporaryProject(t);
   const openSpec = fakeOpenSpec(target);
   await initProject({
@@ -457,14 +509,13 @@ test("initProject reports recovery when a completed Store loses Explore instruct
   const missingInstructions = path.join(target, ".sdd", "instructions", "explore.md");
   await fs.unlink(missingInstructions);
 
-  await assert.rejects(
-    initProject({
-      target,
-      storeId: "payments-specs",
-      agentId: "qwen",
-      commandRunner: openSpec.runner,
-    }),
-  );
+  const result = await initProject({
+    target,
+    storeId: "payments-specs",
+    agentId: "qwen",
+    commandRunner: openSpec.runner,
+  });
+  assert.equal(result.alreadyInitialized, true);
   assert.equal(openSpec.calls.length, callsBeforeRepeat);
   await assert.rejects(fs.stat(missingInstructions));
 });
@@ -490,13 +541,98 @@ test("initProject blocks conflicting skeleton paths instead of overwriting them"
   assert.equal(await fs.readFile(path.join(target, "openspec-orch.yaml"), "utf8"), "user owned\n");
 });
 
-test("initProject preserves and extends existing gitignore and CODEOWNERS", async (t) => {
+test("initProject rejects differing pre-existing Template files without merging them", async (t) => {
   const target = await temporaryProject(t);
   await fs.writeFile(path.join(target, ".gitignore"), "node_modules/\n.openspec-orch/cache/\n", "utf8");
   await fs.writeFile(path.join(target, "CODEOWNERS"), "* @existing-team\n", "utf8");
   configureRepository(target);
   runCommand("git", ["-C", target, "add", ".gitignore", "CODEOWNERS"]);
   runCommand("git", ["-C", target, "commit", "-m", "existing project files"]);
+  const openSpec = fakeOpenSpec(target);
+
+  await assert.rejects(
+    initProject({
+      target,
+      storeId: "payments-specs",
+      agentId: "qwen",
+      commandRunner: openSpec.runner,
+    }),
+    /существующий файл с другим содержимым/,
+  );
+  assert.deepEqual(openSpec.calls, []);
+  assert.equal(await fs.readFile(path.join(target, "CODEOWNERS"), "utf8"), "* @existing-team\n");
+});
+
+test("initProject applies a custom Template and persists its runtime agent mapping", async (t) => {
+  const target = await temporaryProject(t);
+  const templateRoot = await customTemplate(t);
+  const openSpec = fakeOpenSpec(target);
+
+  const result = await initProject({
+    target,
+    storeId: "payments-specs",
+    agentId: "team-agent",
+    templateRoot,
+    commandRunner: openSpec.runner,
+  });
+
+  assert.equal(result.alreadyInitialized, false);
+  assert.equal(await fs.readFile(path.join(target, "openspec", "config.yaml"), "utf8"), "schema: team-custom\n");
+  assert.equal(await fs.readFile(path.join(target, "team-required.txt"), "utf8"), "custom project asset\n");
+  assert.equal(fsSync.existsSync(path.join(target, "CODEOWNERS")), false);
+  assert.equal(fsSync.existsSync(path.join(target, ".sdd")), false);
+  assert.equal(fsSync.existsSync(path.join(target, ".qwen")), false);
+  assert.equal((await fs.stat(path.join(target, ".team-agent", "actions"))).isDirectory(), true);
+
+  const config = parseOrchestratorConfig(
+    await fs.readFile(path.join(target, "openspec-orch.yaml"), "utf8"),
+  );
+  assert.deepEqual(config.agent, {
+    id: "team-agent",
+    openSpecId: "qwen",
+    architecture: "markdown-commands",
+    commandsDirectory: ".team-agent/actions",
+    instructionsFile: "TEAM.md",
+    handoffs: { apply: ".team-agent/actions/team-apply.md" },
+  });
+
+  const repeat = await initProject({
+    target,
+    storeId: "payments-specs",
+    agentId: "team-agent",
+    commandRunner: openSpec.runner,
+  });
+  assert.equal(repeat.alreadyInitialized, true);
+});
+
+test("initProject rejects an agent absent from the selected Template before OpenSpec calls", async (t) => {
+  const target = await temporaryProject(t);
+  const templateRoot = await customTemplate(t);
+  const openSpec = fakeOpenSpec(target);
+
+  await assert.rejects(
+    initProject({
+      target,
+      storeId: "payments-specs",
+      agentId: "qwen",
+      templateRoot,
+      commandRunner: openSpec.runner,
+    }),
+    /Template не поддерживает agent 'qwen'/,
+  );
+  assert.deepEqual(openSpec.calls, []);
+});
+
+test("initProject skips an identical file that existed before the run", async (t) => {
+  const target = await temporaryProject(t);
+  const gitIgnore = await fs.readFile(
+    new URL("assets/gitignore.template", BASE_TEMPLATE_ROOT),
+    "utf8",
+  );
+  await fs.writeFile(path.join(target, ".gitignore"), gitIgnore, "utf8");
+  configureRepository(target);
+  runCommand("git", ["-C", target, "add", ".gitignore"]);
+  runCommand("git", ["-C", target, "commit", "-m", "existing identical template file"]);
   const openSpec = fakeOpenSpec(target);
 
   const result = await initProject({
@@ -506,21 +642,9 @@ test("initProject preserves and extends existing gitignore and CODEOWNERS", asyn
     commandRunner: openSpec.runner,
   });
 
-  const gitIgnore = await fs.readFile(path.join(target, ".gitignore"), "utf8");
-  const ignoredPaths = gitIgnore.trim().split("\n");
-  assert.equal(ignoredPaths.includes("node_modules/"), true);
-  assert.equal(ignoredPaths.filter((entry) => entry === ".openspec-orch/cache/").length, 1);
-  assert.equal(ignoredPaths.includes(".openspec-orch/logs/"), true);
-  assert.equal(ignoredPaths.includes(".openspec-orch/credentials/"), true);
-  assert.equal(ignoredPaths.includes(".openspec-orch/checkouts/"), false);
-
-  const codeOwners = await fs.readFile(path.join(target, "CODEOWNERS"), "utf8");
-  const ownershipRules = codeOwners.trim().split("\n");
-  assert.equal(ownershipRules.includes("* @existing-team"), true);
-  assert.equal(ownershipRules.includes("# /openspec/specs/** @spec-owner"), true);
-  assert.deepEqual(result.updated.sort(), [".gitignore", "CODEOWNERS", "openspec/config.yaml"]);
   assert.equal(result.created.includes(".gitignore"), false);
-  assert.equal(result.created.includes("CODEOWNERS"), false);
+  assert.equal(result.updated.includes(".gitignore"), false);
+  assert.equal(await fs.readFile(path.join(target, ".gitignore"), "utf8"), gitIgnore);
 });
 
 test("initProject adopts a non-empty central repository through the official OpenSpec root", async (t) => {

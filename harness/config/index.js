@@ -1,11 +1,13 @@
 /** @fileoverview Разбор и строгая проверка принадлежащей OpenSpec Orchestrator конфигурации. */
 
+import path from "node:path";
+
 import { parse, stringify } from "yaml";
-import { resolveAgentAdapter } from "./agents.js";
 import { assertOrchestratorConfigSchema, assertStoreMetadataSchema } from "./schema.js";
 
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ROLES = new Set(["store", "code"]);
+const AGENT_ARCHITECTURE = "markdown-commands";
 export const OPEN_SPEC_VERSION = "1.7.0";
 
 /**
@@ -83,13 +85,63 @@ function normalizeRepository(value) {
 }
 
 /**
+ * Проверяет безопасный относительный POSIX-путь, сохранённый Project Template.
+ *
+ * @param {unknown} value Значение из openspec-orch.yaml.
+ * @param {string} label Полный путь поля.
+ * @returns {string} Проверенный путь.
+ */
+function normalizeAgentPath(value, label) {
+  if (
+    typeof value !== "string" ||
+    !value ||
+    value.includes("\0") ||
+    value.includes("\\") ||
+    path.posix.isAbsolute(value) ||
+    path.win32.isAbsolute(value) ||
+    /^[A-Za-z]:/.test(value) ||
+    value.split("/").some((segment) => !segment || segment === "." || segment === "..")
+  ) {
+    throw new Error(`${label} должен быть безопасным относительным POSIX-путём`);
+  }
+  return value;
+}
+
+/**
+ * Нормализует runtime mapping агента без обращения к исходному Template.
+ *
+ * @param {Record<string, unknown>} value Agent mapping из YAML.
+ * @returns {{id: string, openSpecId: string, architecture: "markdown-commands", commandsDirectory: string, instructionsFile: string, handoffs: Record<string, string>}}
+ */
+function normalizeAgent(value) {
+  const id = assertRepositoryId(value.id, "agent.id");
+  const openSpecId = assertRepositoryId(value.openspec_adapter, "agent.openspec_adapter");
+  if (value.architecture !== AGENT_ARCHITECTURE) {
+    throw new Error(`Неподдерживаемая agent.architecture: ${value.architecture}`);
+  }
+  const handoffs = {};
+  for (const [name, handoffPath] of Object.entries(value.handoffs ?? {})) {
+    assertRepositoryId(name, `agent.handoffs.${name}`);
+    handoffs[name] = normalizeAgentPath(handoffPath, `agent.handoffs.${name}`);
+  }
+  return {
+    id,
+    openSpecId,
+    architecture: AGENT_ARCHITECTURE,
+    commandsDirectory: normalizeAgentPath(value.commands_directory, "agent.commands_directory"),
+    instructionsFile: normalizeAgentPath(value.instructions_file, "agent.instructions_file"),
+    handoffs,
+  };
+}
+
+/**
  * Читает и проверяет принадлежащую OpenSpec Orchestrator часть конфигурации.
  * OpenSpec-конфигурацию эта функция намеренно не интерпретирует.
  *
  * @param {string} source Содержимое openspec-orch.yaml.
  * @returns {{
  *   openSpecVersion: string,
- *   agent: ReturnType<typeof resolveAgentAdapter>,
+ *   agent: ReturnType<typeof normalizeAgent>,
  *   repositories: Repository[],
  *   storeRepository: Repository,
  *   codeRepositories: Repository[]
@@ -99,15 +151,7 @@ export function parseOrchestratorConfig(source) {
   const value = parseYaml(source, "Некорректный openspec-orch.yaml");
   assertOrchestratorConfigSchema(value);
 
-  const agent = resolveAgentAdapter(value.agent?.id);
-  if (
-    value.agent.openspec_adapter !== agent.openSpecId ||
-    value.agent.architecture !== agent.architecture ||
-    value.agent.commands_directory !== agent.commandsDirectory ||
-    value.agent.instructions_file !== agent.instructionsFile
-  ) {
-    throw new Error(`Конфигурация agent '${agent.id}' в openspec-orch.yaml не совпадает с адаптером OpenSpec Orchestrator`);
-  }
+  const agent = normalizeAgent(value.agent);
 
   const repositories = value.repositories.map(normalizeRepository);
   const ids = new Set(repositories.map(({ id }) => id));
@@ -132,7 +176,7 @@ export function parseOrchestratorConfig(source) {
  *
  * @param {string} template YAML-шаблон из skeleton.
  * @param {Repository[]} repositories
- * @param {ReturnType<typeof resolveAgentAdapter>} agent
+ * @param {{id: string, openSpecId: string, architecture: string, commandsDirectory: string, instructionsFile: string, handoffs?: Record<string, string>}} agent
  * @param {string} [openSpecVersion] Версия OpenSpec, которую требуется зафиксировать.
  * @returns {string}
  */
@@ -149,6 +193,9 @@ export function serializeOrchestratorConfig(template, repositories, agent, openS
     commands_directory: agent.commandsDirectory,
     instructions_file: agent.instructionsFile,
   };
+  if (agent.handoffs && Object.keys(agent.handoffs).length > 0) {
+    value.agent.handoffs = agent.handoffs;
+  }
   value.repositories = repositories.map(({ id, role, url, defaultBranch }) => ({
     id,
     role,

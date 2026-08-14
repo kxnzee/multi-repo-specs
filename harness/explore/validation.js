@@ -22,7 +22,6 @@ export { validateTicket } from "./validation/ticket.js";
 
 const PATHS = Object.freeze({
   metadata: path.join(".openspec-store", "store.yaml"),
-  exploreInstructions: path.join(".sdd", "instructions", "explore.md"),
   orchestratorConfig: "openspec-orch.yaml",
 });
 
@@ -79,8 +78,12 @@ export async function prepareExplore({
   ]);
   const metadata = parseStoreMetadata(metadataSource);
   const config = parseOrchestratorConfig(configSource);
-  const exploreInstructionsPath = path.join(projectRoot, PATHS.exploreInstructions);
-  await readStoreFile(projectRoot, PATHS.exploreInstructions);
+  const exploreInstructionsRelativePath = config.agent.handoffs.explore;
+  if (!exploreInstructionsRelativePath) {
+    throw new Error("Project Template не объявил agent.handoffs.explore для openspec-orch explore");
+  }
+  const exploreInstructionsPath = path.join(projectRoot, exploreInstructionsRelativePath);
+  await readStoreFile(projectRoot, exploreInstructionsRelativePath);
   if (config.storeRepository.id !== metadata.id) {
     throw new Error("Store ID в openspec-orch.yaml не совпадает с Store metadata");
   }

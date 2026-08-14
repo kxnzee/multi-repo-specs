@@ -54,6 +54,36 @@ test("parseOrchestratorConfig rejects missing schema sections and repository fie
   );
 });
 
+test("parseOrchestratorConfig accepts a Template-defined agent without a Core registry", () => {
+  const source = config(
+    "  - id: specs\n    role: store\n    url: https://example.test/specs.git\n    default_branch: main",
+  )
+    .replace("id: qwen", "id: team-agent")
+    .replace("openspec_adapter: qwen", "openspec_adapter: custom-adapter")
+    .replace("commands_directory: .qwen/commands", "commands_directory: .team/actions")
+    .replace("instructions_file: QWEN.md", "instructions_file: TEAM.md\n  handoffs:\n    explore: workflow/explore.md");
+
+  assert.deepEqual(parseOrchestratorConfig(source).agent, {
+    id: "team-agent",
+    openSpecId: "custom-adapter",
+    architecture: "markdown-commands",
+    commandsDirectory: ".team/actions",
+    instructionsFile: "TEAM.md",
+    handoffs: { explore: "workflow/explore.md" },
+  });
+});
+
+test("parseOrchestratorConfig rejects unsafe dynamic agent paths", () => {
+  const repositories =
+    "  - id: specs\n    role: store\n    url: https://example.test/specs.git\n    default_branch: main";
+  assert.throws(() => parseOrchestratorConfig(
+    config(repositories).replace(".qwen/commands", "../outside"),
+  ));
+  assert.throws(() => parseOrchestratorConfig(
+    config(repositories).replace("instructions_file: QWEN.md", "instructions_file: QWEN.md\n  handoffs:\n    apply: /tmp/apply.md"),
+  ));
+});
+
 test("parseStoreMetadata validates its schema before normalization", () => {
   assert.throws(() => parseStoreMetadata("[]"));
   assert.throws(() => parseStoreMetadata("id: specs\n"));
