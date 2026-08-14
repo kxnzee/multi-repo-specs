@@ -14,10 +14,10 @@ import {
   sameGitRemote,
 } from "../config/index.js";
 import { readPointer } from "../connect/pointer.js";
-import { resolveCodeWorkspace } from "../connect/workspace.js";
 import { runCommand } from "../shared/command.js";
 import { readRelativeRegularFile } from "../shared/files.js";
 import { isGitRevision } from "../shared/schema.js";
+import { resolveCodeWorkspace } from "../shared/workspace.js";
 import {
   assertClean,
   assertNoGitOperation,

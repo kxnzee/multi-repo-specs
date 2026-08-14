@@ -13,8 +13,8 @@ import { runCommand } from "../shared/command.js";
 import { inspectOpenSpecCli } from "../shared/compatibility.js";
 import { readRelativeRegularFile } from "../shared/files.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
+import { rememberWorkspace, resolveWorkspace } from "../shared/workspace.js";
 import { connectRepository } from "./repository.js";
-import { rememberWorkspace, resolveWorkspace } from "./workspace.js";
 
 const PATHS = Object.freeze({
   metadata: path.join(".openspec-store", "store.yaml"),

@@ -15,6 +15,7 @@ import { readRelativeRegularFile } from "../shared/files.js";
 import { inspectFreshCheckout } from "../shared/git.js";
 import { assertOpenSpecRoot } from "../shared/openspec.js";
 import { validateOpenSpec } from "../shared/store.js";
+import { resolveWorkspace } from "../shared/workspace.js";
 import {
   resolveCodeRepositories,
   validatePointer,
@@ -22,7 +23,7 @@ import {
 } from "./validation/repository.js";
 import { validateOpenSpecAction } from "./validation/store.js";
 import { findDuplicates, validateTicket } from "./validation/ticket.js";
-import { resolveStart, resolveWorkspace } from "./workspace.js";
+import { resolveStart } from "./workspace.js";
 
 export { validateTicket } from "./validation/ticket.js";
 

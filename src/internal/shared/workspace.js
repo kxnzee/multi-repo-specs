@@ -1,10 +1,10 @@
-/** @fileoverview Разрешение путей multi-repo workspace для connect. */
+/** @fileoverview Разрешение и сохранение путей multi-repo workspace. */
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { runCommand } from "../shared/command.js";
-import { lstatOrNull } from "../shared/files.js";
+import { runCommand } from "./command.js";
+import { lstatOrNull } from "./files.js";
 
 const WORKSPACE_CONFIG_KEY = "openspec-orch.workspace";
 

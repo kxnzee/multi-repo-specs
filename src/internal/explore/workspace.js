@@ -3,7 +3,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { resolveWorkspace as resolveConnectedWorkspace } from "../connect/workspace.js";
 import { lstatOrNull } from "../shared/files.js";
 import { runOpenSpecJson } from "../shared/openspec.js";
 
@@ -97,17 +96,4 @@ export async function resolveStart(start, commandRunner) {
     const projectRoot = await requireProjectRoot(path.resolve(context.root.path));
     return { projectRoot, codeRoot, discovery: { doctor, context } };
   }
-}
-
-/**
- * Определяет общий корень постоянного workspace.
- *
- * @param {string} projectRoot Абсолютный путь Store.
- * @param {string} storeId Store ID из проверенных metadata.
- * @param {string | undefined} requestedWorkspace Явный workspace.
- * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель Git.
- * @returns {Promise<string>} Канонический путь workspace.
- */
-export async function resolveWorkspace(projectRoot, storeId, requestedWorkspace, commandRunner) {
-  return resolveConnectedWorkspace(projectRoot, storeId, requestedWorkspace, commandRunner);
 }
