@@ -2,10 +2,10 @@
 
 import path from "node:path";
 import { sameGitRemote } from "../config/index.js";
+import { lstatOrNull } from "../shared/files.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
 import { isGitRevision } from "../shared/schema.js";
 import { ensurePointer } from "./pointer.js";
-import { pathState } from "./workspace.js";
 
 const GIT_POINTER_PATH = "openspec/config.yaml";
 
@@ -60,7 +60,7 @@ export async function connectRepository({
   executionMode,
 }) {
   const repositoryRoot = path.join(sourceRoot, repository.id);
-  const existing = await pathState(repositoryRoot);
+  const existing = await lstatOrNull(repositoryRoot);
   let cloned = false;
   if (!existing) {
     if (executionMode === "relaxed") {

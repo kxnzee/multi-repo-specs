@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { resolveWorkspace as resolveConnectedWorkspace } from "../connect/workspace.js";
+import { lstatOrNull } from "../shared/files.js";
 import { runOpenSpecJson } from "../shared/openspec.js";
 
 const REQUIRED_ROOT_PATHS = Object.freeze([
@@ -13,21 +14,6 @@ const REQUIRED_ROOT_PATHS = Object.freeze([
 ]);
 
 /**
- * Возвращает состояние пути, не считая отсутствие ошибкой.
- *
- * @param {string} target Проверяемый путь.
- * @returns {Promise<import("node:fs").Stats | null>} Состояние либо `null`.
- */
-async function pathState(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
-
-/**
  * Проверяет обязательные файлы Store и блокирует symlink до чтения.
  *
  * @param {string} candidate Предполагаемый Store.
@@ -35,7 +21,7 @@ async function pathState(target) {
  */
 async function hasRequiredRoot(candidate) {
   const stats = await Promise.all(
-    REQUIRED_ROOT_PATHS.map((relativePath) => pathState(path.join(candidate, relativePath))),
+    REQUIRED_ROOT_PATHS.map((relativePath) => lstatOrNull(path.join(candidate, relativePath))),
   );
   for (const [index, stat] of stats.entries()) {
     if (stat?.isSymbolicLink()) {
@@ -66,7 +52,7 @@ async function requireProjectRoot(candidate) {
  */
 export async function findSpecRoot(start = process.cwd()) {
   let candidate = path.resolve(start);
-  const initial = await pathState(candidate);
+  const initial = await lstatOrNull(candidate);
   if (!initial) throw new Error(`Начальный путь не существует: ${candidate}`);
   if (!initial.isDirectory()) candidate = path.dirname(candidate);
   while (true) {
@@ -90,7 +76,7 @@ export async function resolveStart(start, commandRunner) {
     return { projectRoot: await findSpecRoot(start), codeRoot: null, discovery: null };
   } catch (nearestError) {
     let cwd = path.resolve(start);
-    const stat = await pathState(cwd);
+    const stat = await lstatOrNull(cwd);
     if (!stat) throw nearestError;
     if (!stat.isDirectory()) cwd = path.dirname(cwd);
     const codeRoot = path.resolve(commandRunner("git", ["rev-parse", "--show-toplevel"], { cwd }));

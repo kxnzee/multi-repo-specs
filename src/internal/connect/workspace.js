@@ -4,23 +4,9 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { runCommand } from "../shared/command.js";
+import { lstatOrNull } from "../shared/files.js";
 
 const WORKSPACE_CONFIG_KEY = "openspec-orch.workspace";
-
-/**
- * Возвращает состояние пути, не считая отсутствие ошибкой.
- *
- * @param {string} target Проверяемый путь.
- * @returns {Promise<import("node:fs").Stats | null>} Состояние пути либо `null`.
- */
-export async function pathState(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
 
 /**
  * Определяет общий workspace по явному аргументу, локальной Git-настройке
@@ -64,7 +50,7 @@ export async function resolveWorkspace(
       "или один раз выполните openspec-orch connect --workspace <path>",
     );
   }
-  const stat = await pathState(workspace);
+  const stat = await lstatOrNull(workspace);
   if (!stat?.isDirectory() || stat.isSymbolicLink()) {
     if (configuredWorkspace) {
       throw new Error(
@@ -106,7 +92,7 @@ export async function resolveCodeWorkspace(repositoryRoot) {
     throw new Error(`Code Repository должен находиться в <workspace>/src/: ${repositoryRoot}`);
   }
   const workspace = path.dirname(sourceRoot);
-  const stat = await pathState(workspace);
+  const stat = await lstatOrNull(workspace);
   if (!stat?.isDirectory() || stat.isSymbolicLink()) {
     throw new Error(`Workspace должен быть обычным каталогом: ${workspace}`);
   }

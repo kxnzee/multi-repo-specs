@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { lstatOrNull } from "../shared/files.js";
 import { isContainedPath } from "../shared/paths.js";
 import { parseTemplateDescriptor } from "./descriptor.js";
 
@@ -11,21 +12,6 @@ const MODULE_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = path.dirname(path.dirname(path.dirname(MODULE_ROOT)));
 export const BASE_TEMPLATE_ROOT = path.join(PACKAGE_ROOT, "templates", "base");
 const PROTECTED_ROOTS = new Set([".git", ".openspec-store", "openspec-orch.yaml"]);
-
-/**
- * Возвращает состояние пути, не считая отсутствие ошибкой.
- *
- * @param {string} target Проверяемый путь.
- * @returns {Promise<import("node:fs").Stats | null>} Состояние пути либо `null`.
- */
-async function pathState(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
 
 /**
  * Проверяет существующий корневой каталог без symlink.
@@ -39,7 +25,7 @@ async function resolveDirectoryRoot(requestedRoot, label) {
     throw new Error(`${label} должен быть указан`);
   }
   const absolute = path.resolve(requestedRoot);
-  const stat = await pathState(absolute);
+  const stat = await lstatOrNull(absolute);
   if (!stat?.isDirectory() || stat.isSymbolicLink()) {
     throw new Error(`${label} должен быть существующим обычным каталогом: ${absolute}`);
   }
@@ -73,7 +59,7 @@ async function inspectSourcePath(root, relativePath, label) {
   const segments = relativePath.split("/");
   for (const [index, segment] of segments.entries()) {
     current = path.join(current, segment);
-    const stat = await pathState(current);
+    const stat = await lstatOrNull(current);
     if (!stat) throw new Error(`${label} не существует: ${relativePath}`);
     if (stat.isSymbolicLink()) throw new Error(`${label} содержит symlink: ${relativePath}`);
     if (index < segments.length - 1 && !stat.isDirectory()) {
@@ -175,7 +161,7 @@ async function assertSafeExistingTarget(targetRoot, file) {
   const segments = file.targetRelative.split("/");
   for (const [index, segment] of segments.entries()) {
     current = path.join(current, segment);
-    const stat = await pathState(current);
+    const stat = await lstatOrNull(current);
     if (!stat) return;
     if (stat.isSymbolicLink()) {
       throw new Error(`Target содержит symlink: ${file.targetRelative}`);
@@ -203,7 +189,7 @@ async function assertNoTargetSymlink(targetRoot, relativePath) {
   let current = targetRoot;
   for (const segment of relativePath.split("/")) {
     current = path.join(current, segment);
-    const stat = await pathState(current);
+    const stat = await lstatOrNull(current);
     if (!stat) return;
     if (stat.isSymbolicLink()) throw new Error(`Target содержит symlink: ${relativePath}`);
   }

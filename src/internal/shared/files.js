@@ -5,6 +5,21 @@ import path from "node:path";
 import { isContainedPath, isPortableRelativePath } from "./paths.js";
 
 /**
+ * Возвращает состояние пути, не считая отсутствие ошибкой.
+ *
+ * @param {string} target Проверяемый путь.
+ * @returns {Promise<import("node:fs").Stats | null>} Состояние пути либо `null`.
+ */
+export async function lstatOrNull(target) {
+  try {
+    return await fs.lstat(target);
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+/**
  * Проверяет абсолютный существующий путь и запрещает выход или symlink относительно root.
  *
  * @param {string} root

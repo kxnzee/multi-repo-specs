@@ -11,6 +11,7 @@ import {
 } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
 import { inspectOpenSpecCli } from "../shared/compatibility.js";
+import { lstatOrNull } from "../shared/files.js";
 import { BASE_TEMPLATE_ROOT, buildTemplatePlan } from "../template/index.js";
 import {
   adaptGeneratedAgentPack,
@@ -26,7 +27,6 @@ import {
 import {
   assertInitializationComplete,
   INIT_PATHS,
-  pathState,
 } from "./preflight.js";
 import { inspectGit } from "./validation.js";
 
@@ -55,12 +55,12 @@ export async function initProject({
   assertRepositoryId(storeId, "Store ID");
   assertRepositoryId(agentId, "Agent ID");
   const requestedRoot = path.resolve(target);
-  const rootStat = await pathState(requestedRoot);
+  const rootStat = await lstatOrNull(requestedRoot);
   if (!rootStat?.isDirectory() || rootStat.isSymbolicLink()) {
     throw new Error(`openspec-orch init требует существующий обычный каталог: ${requestedRoot}`);
   }
   const projectRoot = await fs.realpath(requestedRoot);
-  if (await pathState(path.join(projectRoot, INIT_PATHS.alternateOpenSpecConfig))) {
+  if (await lstatOrNull(path.join(projectRoot, INIT_PATHS.alternateOpenSpecConfig))) {
     throw new Error(
       `${INIT_PATHS.alternateOpenSpecConfig} нужно перенести в ` +
         `${INIT_PATHS.openSpecConfig} до openspec-orch init`,
@@ -74,7 +74,7 @@ export async function initProject({
     ids.add(repository.id);
   }
 
-  const metadataStat = await pathState(path.join(projectRoot, INIT_PATHS.metadata));
+  const metadataStat = await lstatOrNull(path.join(projectRoot, INIT_PATHS.metadata));
   if (metadataStat && (!metadataStat.isFile() || metadataStat.isSymbolicLink())) {
     throw new Error(`${INIT_PATHS.metadata} должна быть обычным файлом`);
   }
@@ -96,7 +96,7 @@ export async function initProject({
     };
   }
 
-  if (await pathState(path.join(projectRoot, INIT_PATHS.orchestratorConfig))) {
+  if (await lstatOrNull(path.join(projectRoot, INIT_PATHS.orchestratorConfig))) {
     throw new Error(`Инициализации мешает существующий ${INIT_PATHS.orchestratorConfig}`);
   }
   const templatePlan = await buildTemplatePlan({ templateRoot, targetRoot: projectRoot, agentId });

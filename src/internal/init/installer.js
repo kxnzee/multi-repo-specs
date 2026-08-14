@@ -3,7 +3,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { pathState } from "./preflight.js";
+import { lstatOrNull } from "../shared/files.js";
 
 /**
  * Блокирует занятые до запуска agent-pack paths.
@@ -14,7 +14,7 @@ import { pathState } from "./preflight.js";
  */
 export async function assertAgentPackPathsAvailable(projectRoot, agent) {
   for (const relativePath of new Set([agent.generatedDirectory, agent.targetDirectory])) {
-    if (await pathState(path.join(projectRoot, relativePath))) {
+    if (await lstatOrNull(path.join(projectRoot, relativePath))) {
       throw new Error(`Инициализации мешает существующий agent pack: ${relativePath}/`);
     }
   }
@@ -31,7 +31,7 @@ export async function inspectPreExistingTemplateFiles(files) {
   for (const file of files) finalFiles.set(file.targetRelative, file);
   const unchanged = new Set();
   for (const file of finalFiles.values()) {
-    const stat = await pathState(file.target);
+    const stat = await lstatOrNull(file.target);
     if (!stat) continue;
     const [actual, expected] = await Promise.all([
       fs.readFile(file.target),
@@ -57,7 +57,7 @@ async function inspectWritableTarget(targetRoot, relativePath) {
   const segments = relativePath.split("/");
   for (const [index, segment] of segments.entries()) {
     current = path.join(current, segment);
-    const stat = await pathState(current);
+    const stat = await lstatOrNull(current);
     if (!stat) return null;
     if (stat.isSymbolicLink()) throw new Error(`Target содержит symlink: ${relativePath}`);
     const final = index === segments.length - 1;
@@ -81,13 +81,13 @@ async function inspectWritableTarget(targetRoot, relativePath) {
  */
 export async function adaptGeneratedAgentPack(projectRoot, agent) {
   const source = path.join(projectRoot, agent.generatedDirectory);
-  const sourceStat = await pathState(source);
+  const sourceStat = await lstatOrNull(source);
   if (!sourceStat?.isDirectory() || sourceStat.isSymbolicLink()) {
     throw new Error(`OpenSpec не создал ожидаемый agent pack ${agent.generatedDirectory}/`);
   }
   if (agent.generatedDirectory === agent.targetDirectory) return;
   const destination = path.join(projectRoot, agent.targetDirectory);
-  if (await pathState(destination)) {
+  if (await lstatOrNull(destination)) {
     throw new Error(`Нельзя перенести agent pack: уже существует ${agent.targetDirectory}/`);
   }
   await fs.mkdir(path.dirname(destination), { recursive: true });

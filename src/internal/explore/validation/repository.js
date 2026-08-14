@@ -3,25 +3,11 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { lstatOrNull } from "../../shared/files.js";
 import { inspectRepositoryIdentity } from "../../shared/git.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../../shared/openspec.js";
 
 const OPEN_SPEC_CONFIG = path.join("openspec", "config.yaml");
-
-/**
- * Возвращает состояние пути, не считая отсутствие ошибкой.
- *
- * @param {string} target Проверяемый путь.
- * @returns {Promise<import("node:fs").Stats | null>} Состояние либо `null`.
- */
-async function pathState(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
 
 /**
  * Разрешает пути всех зарегистрированных Code Repositories в workspace.
@@ -42,7 +28,7 @@ export async function resolveCodeRepositories(
   const resolved = [];
   for (const repository of repositories) {
     const repositoryRoot = path.join(sourceRoot, repository.id);
-    const stat = await pathState(repositoryRoot);
+    const stat = await lstatOrNull(repositoryRoot);
     if (!stat?.isDirectory() || stat.isSymbolicLink()) {
       throw new Error(`${repository.id}: отсутствует checkout ${repositoryRoot}; выполните openspec-orch connect`);
     }
@@ -66,14 +52,14 @@ export async function resolveCodeRepositories(
  */
 export async function validatePointer(repository, storeId, projectRoot, commandRunner) {
   for (const directory of ["specs", "changes"]) {
-    if (await pathState(path.join(repository.path, "openspec", directory))) {
+    if (await lstatOrNull(path.join(repository.path, "openspec", directory))) {
       throw new Error(
         `${repository.id}: локальный openspec/${directory} запрещён в Code Repository`,
       );
     }
   }
   const pointerPath = path.join(repository.path, OPEN_SPEC_CONFIG);
-  const pointerStat = await pathState(pointerPath);
+  const pointerStat = await lstatOrNull(pointerPath);
   if (!pointerStat?.isFile() || pointerStat.isSymbolicLink()) {
     throw new Error(`${repository.id}: отсутствует принятый OpenSpec pointer; выполните openspec-orch connect`);
   }

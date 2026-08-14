@@ -8,6 +8,7 @@ import {
   parseOrchestratorConfig,
   sameGitRemote,
 } from "../config/index.js";
+import { lstatOrNull } from "../shared/files.js";
 
 const MODULE_ROOT = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,21 +21,6 @@ export const INIT_PATHS = Object.freeze({
 });
 
 /**
- * Возвращает состояние пути, не считая отсутствие ошибкой.
- *
- * @param {string} target Проверяемый путь.
- * @returns {Promise<import("node:fs").Stats | null>} Состояние пути либо `null`.
- */
-export async function pathState(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
-
-/**
  * Проверяет обязательный обычный файл.
  *
  * @param {string} projectRoot Корень Store.
@@ -43,7 +29,7 @@ export async function pathState(target) {
  * @returns {Promise<void>}
  */
 async function inspectRequiredFile(projectRoot, relativePath, issues) {
-  const stat = await pathState(path.join(projectRoot, relativePath));
+  const stat = await lstatOrNull(path.join(projectRoot, relativePath));
   if (!stat) issues.push(`отсутствует ${relativePath}`);
   else if (!stat.isFile() || stat.isSymbolicLink()) {
     issues.push(`${relativePath} не является обычным файлом`);
@@ -64,7 +50,7 @@ async function inspectRequiredFile(projectRoot, relativePath, issues) {
 export async function assertInitializationComplete({ projectRoot, storeId, agentId, metadata }) {
   const issues = [];
   let config;
-  const configStat = await pathState(path.join(projectRoot, INIT_PATHS.orchestratorConfig));
+  const configStat = await lstatOrNull(path.join(projectRoot, INIT_PATHS.orchestratorConfig));
   if (!configStat?.isFile() || configStat.isSymbolicLink()) {
     issues.push(`отсутствует обычный файл ${INIT_PATHS.orchestratorConfig}`);
   } else {
@@ -88,14 +74,14 @@ export async function assertInitializationComplete({ projectRoot, storeId, agent
 
   if (config) {
     await inspectRequiredFile(projectRoot, config.agent.instructionsFile, issues);
-    const commandsStat = await pathState(path.join(projectRoot, config.agent.commandsDirectory));
+    const commandsStat = await lstatOrNull(path.join(projectRoot, config.agent.commandsDirectory));
     if (!commandsStat?.isDirectory() || commandsStat.isSymbolicLink()) {
       issues.push(`${config.agent.commandsDirectory}/ не является обычным каталогом`);
     }
   }
   await inspectRequiredFile(projectRoot, INIT_PATHS.openSpecConfig, issues);
   for (const relativePath of ["openspec/specs", "openspec/changes/archive"]) {
-    const stat = await pathState(path.join(projectRoot, relativePath));
+    const stat = await lstatOrNull(path.join(projectRoot, relativePath));
     if (!stat?.isDirectory() || stat.isSymbolicLink()) {
       issues.push(`${relativePath}/ не является обычным каталогом`);
     }

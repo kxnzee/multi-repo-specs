@@ -2,7 +2,8 @@
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { pathState } from "./workspace.js";
+
+import { lstatOrNull } from "../shared/files.js";
 
 const POINTER_PATH = path.join("openspec", "config.yaml");
 
@@ -14,7 +15,7 @@ const POINTER_PATH = path.join("openspec", "config.yaml");
  */
 export async function readPointer(repositoryRoot) {
   const pointerPath = path.join(repositoryRoot, POINTER_PATH);
-  const pointerStat = await pathState(pointerPath);
+  const pointerStat = await lstatOrNull(pointerPath);
   if (!pointerStat?.isFile() || pointerStat.isSymbolicLink()) {
     throw new Error(`${POINTER_PATH} должна быть обычным файлом`);
   }
@@ -36,14 +37,14 @@ export async function readPointer(repositoryRoot) {
 export async function ensurePointer(repositoryRoot, storeId) {
   const openSpecRoot = path.join(repositoryRoot, "openspec");
   for (const directory of ["specs", "changes"]) {
-    if (await pathState(path.join(openSpecRoot, directory))) {
+    if (await lstatOrNull(path.join(openSpecRoot, directory))) {
       throw new Error(
         `${repositoryRoot} содержит локальный openspec/${directory}; требуется отдельная миграция`,
       );
     }
   }
   const pointerPath = path.join(repositoryRoot, POINTER_PATH);
-  const pointerStat = await pathState(pointerPath);
+  const pointerStat = await lstatOrNull(pointerPath);
   if (!pointerStat) {
     await fs.mkdir(openSpecRoot, { recursive: true });
     await fs.writeFile(pointerPath, `store: ${storeId}\n`, "utf8");
