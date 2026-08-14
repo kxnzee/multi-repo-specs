@@ -122,7 +122,7 @@ Owner и Spec Owner.
 | Этап | Что вызвать | Результат |
 |---|---|---|
 | Explore | `openspec-orch explore --ticket PAY-500` | Подтверждена одна бизнес-цель и найдены затронутые системы |
-| Change и Proposal | `/openspec-orch-change PAY-500 payment-recovery` | Создан один Change и одна planning-ветка |
+| Change и Proposal | `/sdd-change PAY-500 payment-recovery` | Создан один Change и одна planning-ветка |
 | Specs | первый `/opsx-continue pay-500-payment-recovery` | Созданы все Delta Specs этого Change |
 | Design | второй `/opsx-continue pay-500-payment-recovery` | Описаны связи между capabilities и репозиториями |
 | Tasks | третий `/opsx-continue pay-500-payment-recovery` | Созданы Work Packages для общей реализации |
@@ -182,7 +182,7 @@ openspec-orch explore --ticket PAY-500
 В той же агентской сессии выполните:
 
 ```text
-/openspec-orch-change PAY-500 payment-recovery
+/sdd-change PAY-500 payment-recovery
 ```
 
 Кастомная команда OpenSpec Orchestrator создаст:
@@ -210,7 +210,7 @@ artifact: proposal.md
 пути. `notifications/payment-failure` объявляется новой capability. После проверки
 подтвердите Proposal как обычно на [шаге 02](../steps/02.md).
 
-Не вызывайте `/openspec-orch-change` отдельно для каждой capability: это создаст три независимых
+Не вызывайте `/sdd-change` отдельно для каждой capability: это создаст три независимых
 Changes вместо одного согласованного изменения.
 
 ### Шаг 03. Создать все Delta Specs

@@ -71,7 +71,7 @@ openspec-orch connect --workspace /absolute/path/to/workspace
 
 `openspec-orch connect` сохраняет канонический путь как локальную Git-настройку `openspec-orch.workspace` центрального Store. Настройка не коммитится и используется последующими `openspec-orch connect` и `openspec-orch explore`; явный `--workspace` заменяет сохранённое значение.
 
-Команда проверяет наличие `agent.instructions_file`, обязательных agent actions `/opsx-explore`, `/opsx-continue`, `/opsx-update`, `/openspec-orch-context`, `/openspec-orch-change`, невызваемой проектной инструкции `.openspec-orch/instructions/explore.md` и runtime-инструкции `openspec-orch-apply.md`, передаёт Store identity официальным `store register`, `store doctor`, `doctor --store` и `context --store`, структурно проверяет их JSON, затем загружает все записи `role: code` из `openspec-orch.yaml` в `<workspace>/src/<repository-id>`. Существующие checkout не обновляются и не перезаписываются: проверяются только их `origin`, ветка и чистота.
+Команда проверяет наличие `agent.instructions_file`, обязательных agent actions `/opsx-explore`, `/opsx-continue`, `/opsx-update`, `/sdd-context`, `/sdd-change`, невызваемой проектной инструкции `.sdd/instructions/explore.md` и runtime-инструкции `sdd-apply.md`, передаёт Store identity официальным `store register`, `store doctor`, `doctor --store` и `context --store`, структурно проверяет их JSON, затем загружает все записи `role: code` из `openspec-orch.yaml` в `<workspace>/src/<repository-id>`. Существующие checkout не обновляются и не перезаписываются: проверяются только их `origin`, ветка и чистота.
 
 Если в Code Repository отсутствует единственный допустимый `openspec/config.yaml`, команда создаёт pointer `store: <store-id>` и возвращает `needs_setup_pr`. Она не делает commit, push или PR. После принятия setup PR обновите checkout и повторите `openspec-orch connect`.
 
@@ -89,15 +89,15 @@ openspec-orch explore --ticket PAY-412
 
 Explore не клонирует репозитории и не создаёт ticket-specific workspace. Для Store и выбранных постоянных checkout команда проверяет чистоту, `default_branch`, выполняет только `git fetch` и требует совпадения `HEAD` с `origin/<default_branch>`. Для каждого выбранного Code Repository дополнительно проверяется точный config-only pointer и разрешение того же Store через `doctor/context` с `source: declared`. Файловые права не меняются.
 
-После успешной проверки CLI формирует готовый prompt со штатным `/opsx-explore`, runtime-параметрами и точным путём к проектной инструкции `.openspec-orch/instructions/explore.md`. В prompt входят ticket, исходное намерение, Store ID, workspace, точные пути и ревизии. Постоянные границы, порядок исследования и формат результата находятся в `explore.md`, а не в JavaScript.
+После успешной проверки CLI формирует готовый prompt со штатным `/opsx-explore`, runtime-параметрами и точным путём к проектной инструкции `.sdd/instructions/explore.md`. В prompt входят ticket, исходное намерение, Store ID, workspace, точные пути и ревизии. Постоянные границы, порядок исследования и формат результата находятся в `explore.md`, а не в JavaScript.
 
 После проверки CLI печатает готовый prompt. Откройте новую сессию выбранного агента из корня Store и вставьте prompt целиком первым сообщением. Не отправляйте описание задачи отдельным сообщением до `/opsx-explore`.
 
 ```text
-/opsx-explore PAY-412. Перед исследованием прочитай и выполни проектный контракт "/workspace/payments-specs/.openspec-orch/instructions/explore.md". ...
+/opsx-explore PAY-412. Перед исследованием прочитай и выполни проектный контракт "/workspace/payments-specs/.sdd/instructions/explore.md". ...
 ```
 
-`openspec-orch explore` не изменяет содержимое `opsx-explore.md`: файл принадлежит OpenSpec и обновляется вместе с его версией. Общий `.openspec-orch/instructions/explore.md` содержит дополнительные правила multi-repo SDD и не регистрируется как slash-команда. Отдельной `/openspec-orch-explore` нет. Для Qwen отсутствующий action восстанавливается через `openspec update --force`. Для GigaCode прямой update не используется, пока официальный adapter создаёт `.qwen/`; совместимый `.gigacode/` pack обновляется вместе с адаптером OpenSpec Orchestrator.
+`openspec-orch explore` не изменяет содержимое `opsx-explore.md`: файл принадлежит OpenSpec и обновляется вместе с его версией. Общий `.sdd/instructions/explore.md` содержит дополнительные правила multi-repo SDD и не регистрируется как slash-команда. Отдельной `/openspec-orch-explore` нет. Для Qwen отсутствующий action восстанавливается через `openspec update --force`. Для GigaCode прямой update не используется, пока официальный adapter создаёт `.qwen/`; совместимый `.gigacode/` pack обновляется вместе с адаптером OpenSpec Orchestrator.
 
 `openspec-orch explore` требует интерактивный TTY для выбора репозиториев и ввода намерения, но самостоятельно агента не запускает.
 
@@ -106,7 +106,7 @@ Explore не клонирует репозитории и не создаёт ti
 После принятого Explore продолжайте в той же агентской сессии:
 
 ```text
-/openspec-orch-change PAY-412 payment-status
+/sdd-change PAY-412 payment-status
 ```
 
 Команда требует структурированный итог текущего `/opsx-explore`, вызывает детерминированный CLI:
@@ -145,11 +145,11 @@ openspec-orch load \
 
 Команда принимает Store ID, repository-id, Change, Baseline и Work Package ID непосредственно из актуальной implementation subtask. Она сверяет Store с project pointer, repository-id — с cwd, `origin` и `openspec-orch.yaml`, проверяет существование точной Store commit, открывает её в отдельном detached worktree, вызывает штатные OpenSpec validation и apply instructions, показывает descriptions, создаёт или возобновляет локальную `feature/<change-id>` и записывает минимальный `context.json` без descriptions.
 
-`openspec-orch load` не читает tracker, не доказывает историю Planning PR или amendment, не сравнивает параметры с прежним runtime, не копирует Tasks, не меняет код или planning-артефакты и не запускает Apply. Каждый запуск полностью определяется текущими параметрами subtask. После `implementation_ready` начните новую агентскую сессию из того же Code Repository и передайте ей готовое первое сообщение `next_action`: оно сначала указывает на `agent.instructions_file`, затем на `openspec-orch-apply.md` внутри точного runtime Store и содержит те же Store, repository, Change, Baseline и Work Packages. Копировать slash-команду в Code Repository не требуется. Подробности находятся в [`docs/steps/05.md`](../docs/steps/05.md).
+`openspec-orch load` не читает tracker, не доказывает историю Planning PR или amendment, не сравнивает параметры с прежним runtime, не копирует Tasks, не меняет код или planning-артефакты и не запускает Apply. Каждый запуск полностью определяется текущими параметрами subtask. После `implementation_ready` начните новую агентскую сессию из того же Code Repository и передайте ей готовое первое сообщение `next_action`: оно сначала указывает на `agent.instructions_file`, затем на `sdd-apply.md` внутри точного runtime Store и содержит те же Store, repository, Change, Baseline и Work Packages. Копировать slash-команду в Code Repository не требуется. Подробности находятся в [`docs/steps/05.md`](../docs/steps/05.md).
 
 ## Реализация
 
-Шаг 06 не добавляет исполняемую команду harness. Агент сначала читает provider-файл, затем `openspec-orch-apply.md` из immutable Store worktree, проверяет точное совпадение параметров с `context.json`, повторяет штатные `openspec validate` и `openspec instructions apply`, затем изменяет только текущий Code Repository и выполняет его локальные проверки.
+Шаг 06 не добавляет исполняемую команду harness. Агент сначала читает provider-файл, затем `sdd-apply.md` из immutable Store worktree, проверяет точное совпадение параметров с `context.json`, повторяет штатные `openspec validate` и `openspec instructions apply`, затем изменяет только текущий Code Repository и выполняет его локальные проверки.
 
 Инструкция поддерживает обычное продолжение с тем же runtime и не создаёт собственный progress-state. Provider-файл из runtime Store обязателен и уже загружен через `next_action`; отдельный файл технических инструкций в текущем Code Repository остаётся опциональным, а при его отсутствии агент адресно читает необходимые код и тесты. Commit, rebase, push, PR и tracker выполняются только по отдельному явному поручению пользователя. Центральный `tasks.md` не меняется, implementation PR не сливается, а успешная реализация передаётся в Composite Verification шага 07. Полный контракт находится в [`docs/steps/06.md`](../docs/steps/06.md).
 

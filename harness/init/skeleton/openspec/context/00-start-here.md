@@ -22,5 +22,5 @@
 <!-- TODO
 question: Какие ещё сведения требуется маршрутизировать в конкретный context-файл?
 owner: Spec Owner
-expected_source: Первичный /openspec-orch-context и подтверждения владельцев
+expected_source: Первичный /sdd-context и подтверждения владельцев
 -->

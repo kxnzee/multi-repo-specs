@@ -54,9 +54,9 @@ const REQUIRED_AGENT_COMMANDS = Object.freeze([
   "opsx-explore.md",
   "opsx-continue.md",
   "opsx-update.md",
-  "openspec-orch-context.md",
-  "openspec-orch-change.md",
-  "openspec-orch-apply.md",
+  "sdd-context.md",
+  "sdd-change.md",
+  "sdd-apply.md",
 ]);
 const REQUIRED_OPEN_SPEC_DIRECTORIES = Object.freeze([
   path.join("openspec", "specs"),

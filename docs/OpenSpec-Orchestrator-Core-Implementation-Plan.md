@@ -38,10 +38,11 @@ OpenSpec Orchestrator
 - Рабочее имя npm-пакета: `@<org>/openspec-orchestrator`; конкретный scope определяется перед публикацией.
 - Имя исполняемого CLI: `openspec-orch`.
 - Core-owned project configuration: `openspec-orch.yaml`.
-- Пространство имён agent-facing файлов Orchestrator: `openspec-orch-*`.
+- Пространство имён `openspec-orch` принадлежит исполняемым командам и техническим файлам Core, а не agent-facing assets Template.
+- Имена agent commands, skills и process instructions определяет Template. Рекомендуемый формат — `<template-prefix>-<action>`; базовый SDD Template использует `sdd-*`.
 - Официальные `openspec` CLI, `opsx-*` commands и `openspec-*` skills не переименовываются и не подменяются.
 
-`SDD` используется только как название методологии Spec-Driven Development, а не как имя продукта, CLI, конфигурации или внутреннего слоя.
+`SDD` используется как название методологии Spec-Driven Development и префикс assets базового Template, но не как имя продукта, CLI, конфигурации или внутреннего слоя Core.
 
 ### 0.2. Однонаправленная модель расширения
 
@@ -289,7 +290,7 @@ Core выполняет только техническую подготовку
 - проверяет Store, workspace и выбранные repositories;
 - в strict mode фиксирует точные Git revisions;
 - в relaxed mode помечает context sources как `unpinned`;
-- лениво проверяет `<commands_directory>/openspec-orch-explore.md`;
+- лениво проверяет Explore handoff, объявленный выбранным Template;
 - передаёт ему проверенные параметры и возвращает handoff.
 
 Что исследовать, какие context-файлы читать и в каком формате возвращать результат, определяет Template. Explore не является prerequisite других Core-команд.
@@ -346,7 +347,7 @@ openspec-orch load ... --whole-change
 
 ### 1.6.7. Apply boundary
 
-Отдельной исполняемой команды `openspec-orch apply` сейчас нет. Техническая подготовка заканчивается в `openspec-orch load`, а `openspec-orch-apply.md` и процесс реализации принадлежат Project Template.
+Отдельной исполняемой команды `openspec-orch apply` сейчас нет. Техническая подготовка заканчивается в `openspec-orch load`, а `sdd-apply.md` и процесс реализации принадлежат Project Template.
 
 Если в будущем появится исполняемая `openspec-orch apply`, команда станет частью Core, но agent-facing инструкция останется в Template.
 
@@ -394,7 +395,7 @@ Template внедряет дополнительную обвязку OpenSpec O
 
 - init skeleton;
 - `openspec/config.yaml` и project-local schemas;
-- `openspec-orch-*` agent commands;
+- agent commands с именами, выбранными автором Template; базовый Template использует префикс `sdd-*`;
 - skills, subagents и agent instructions;
 - project context;
 - роли, gates и процесс команды;
@@ -417,7 +418,7 @@ Template внедряет дополнительную обвязку OpenSpec O
 
 Список Code Repositories не является содержимым Template: его задают `--repo` при `init`, затем команда может вручную редактировать Core-owned `openspec-orch.yaml`. Изменение исходного Template не требует изменения Core. Обновление OpenSpec Orchestrator не требует повторного `init` и не меняет уже скопированные project files.
 
-Core не отвечает за смысловую целостность процесса внутри Template. Например, текущие `openspec-orch-context.md` и agent instructions ссылаются на `CODEOWNERS`; если команда удаляет `CODEOWNERS`, она должна также изменить или удалить зависимые инструкции. Для Core отсутствие файла допустимо, но Template author отвечает за согласованность оставшейся обвязки.
+Core не отвечает за смысловую целостность процесса внутри Template. Например, текущие `sdd-context.md` и agent instructions ссылаются на `CODEOWNERS`; если команда удаляет `CODEOWNERS`, она должна также изменить или удалить зависимые инструкции. Для Core отсутствие файла допустимо, но Template author отвечает за согласованность оставшейся обвязки.
 
 ## 2.3. Минимальный формат Template
 
@@ -431,6 +432,9 @@ agents:
     target_directory: .qwen
     commands_directory: .qwen/commands
     instructions_file: QWEN.md
+    handoffs:
+      explore: .sdd/instructions/explore.md
+      apply: .qwen/commands/sdd-apply.md
     copy:
       - from: skeleton
         to: .
@@ -445,6 +449,9 @@ agents:
     target_directory: .gigacode
     commands_directory: .gigacode/commands
     instructions_file: .gigacode/GIGACODE.md
+    handoffs:
+      explore: .sdd/instructions/explore.md
+      apply: .gigacode/commands/sdd-apply.md
     copy:
       - from: skeleton
         to: .
@@ -455,6 +462,8 @@ agents:
 ```
 
 Ключ в `agents` является значением обязательного `--agent`. Прототип поддерживает текущую архитектуру `markdown-commands`. `generated_directory -> target_directory` размещает pack официального OpenSpec adapter, после чего `copy` выполняется сверху вниз. При совпадении файлов побеждает последняя запись. Имена `skeleton`, `commands` и `providers` не являются соглашением Core — это лишь пример структуры базового Template.
+
+`handoffs` содержит только пути к Template-инструкциям, которые вызываются конкретными командами Core. Core сохраняет эти пути в `openspec-orch.yaml`, но не задаёт имена файлов и не интерпретирует их содержимое. Agent commands, которые пользователь вызывает напрямую, например `/sdd-context` и `/sdd-change` базового Template, просто копируются и не регистрируются в Core.
 
 Core проверяет только обязательные поля, базовые типы и безопасность путей; дополнительные поля не интерпретирует. Разрешены обычные файлы и каталоги, содержимое копируется без преобразования с сохранением executable bit. Symlink, специальные файловые объекты, выход за target, пересечение Template/target roots и file-directory collisions запрещены. Пустые директории не переносятся.
 
@@ -470,13 +479,16 @@ Template agent adapter настраивает обвязку OpenSpec Orchestrat
 
 - официальный OpenSpec adapter;
 - исходный и итоговый каталоги сгенерированного pack;
-- каталог `openspec-orch-*` commands;
+- каталог agent commands;
 - основной instruction file;
+- пути к используемым Core handoffs;
 - упорядоченные операции `copy`.
 
 После `init` необходимые runtime-поля сохраняются в `openspec-orch.yaml`; исходный `template.yaml` больше не нужен. Новый provider добавляется изменением Template, если он использует поддерживаемую `markdown-commands` архитектуру. Новый runtime-протокол потребует изменения Core либо Plugin.
 
-`init` проверяет только существование итоговых `commands_directory` и `instructions_file`. Затем каждая команда лениво проверяет собственный файл с фиксированным именем: например, `explore` требует `openspec-orch-explore.md`, а Apply handoff — `openspec-orch-apply.md`. Отсутствие одного процесса не ломает независимые Core-команды.
+`init` проверяет только существование итоговых `commands_directory` и `instructions_file`. Объявленный handoff лениво проверяется только при вызове зависящей от него Core-команды. Фиксированных имён process files в Core нет: базовый Template использует `.sdd/instructions/explore.md` и `sdd-apply.md`, а пользовательский Template может выбрать другие безопасные относительные пути. Отсутствие одного процесса не ломает независимые Core-команды.
+
+Template может использовать собственный префикс для всех agent-facing assets. Если в проекте совмещаются несколько Templates, разные префиксы предотвращают коллизии; Core файлы не переименовывает и соответствие префиксу не валидирует.
 
 Template может переопределить OpenSpec-owned или другие agent files, но Core не импортирует и не запускает Template scripts внутри своего процесса: ими управляет agent runtime. Базовый Template сохраняет OpenSpec-owned semantics; для пользовательского Template совместимость является ответственностью команды.
 
@@ -815,14 +827,14 @@ Core умеет безопасно прочитать произвольный �
    `preflight -> openspec init -> перенос generated pack -> copy Template -> Store setup -> openspec-orch.yaml -> post-check`.
 2. Разрешить Template переопределять файлы, созданные текущим вызовом `openspec init`, включая agent-specific и OpenSpec config.
 3. Защитить файлы, существовавшие до запуска: идентичные пропускать, отличающиеся считать конфликтом без автоматического overwrite.
-4. Сохранить выбранный agent mapping в `openspec-orch.yaml`; после успешного `init` исходный Template больше не требуется.
+4. Сохранить выбранный agent mapping и объявленные Core handoffs в `openspec-orch.yaml`; после успешного `init` исходный Template больше не требуется.
 5. Удалить из Core:
    - `SHARED_PROJECT_FILES` и специальный merge `CODEOWNERS`/`.gitignore`;
    - принудительный merge `openspec/config.yaml` под `spec-driven`;
    - `REQUIRED_AGENT_COMMANDS`, `REQUIRED_OPEN_SPEC_DIRECTORIES` и обязательный список subagents;
    - сравнение agent config со встроенным Qwen/GigaCode registry.
 6. Оставить только минимальный post-check: OpenSpec root, корректный agent mapping, command directory, instruction file и Core-owned config/metadata.
-7. Проверять конкретный `openspec-orch-*` command лениво только при вызове зависящей от него операции.
+7. Проверять объявленный Template handoff лениво только при вызове зависящей от него Core-команды; не зашивать имя Template-файла в Core.
 8. Для partial init возвращать `needs_recovery`, показывать завершённые и незавершённые шаги и продолжать только доказуемо безопасные операции. Не добавлять rollback, Template lifecycle или отдельную transaction subsystem.
 9. После полностью успешного `init` повторный запуск должен быть no-op. Пользователь удаляет или меняет скопированные project files вручную.
 
@@ -855,7 +867,7 @@ Core умеет безопасно прочитать произвольный �
 
 - оставить техническую подготовку workspace/repositories и безопасный agent handoff;
 - убрать знание о составе context, `CODEOWNERS`, ролях и содержании Explore-процесса;
-- требовать только файл `openspec-orch-explore.md`, если пользователь вызвал `explore`.
+- требовать только Explore handoff, объявленный выбранным Template, если пользователь вызвал `explore`.
 
 ### 4.6.3. Проверка этапа
 
@@ -878,7 +890,7 @@ Core умеет безопасно прочитать произвольный �
 - поддержать package-mode только когда OpenSpec возвращает адресуемые Tasks;
 - поддержать whole-change mode для схем без Tasks;
 - оставить Git Baseline, repository routing и immutable runtime в Core;
-- оставить процессные Apply-инструкции в Template и требовать `openspec-orch-apply.md` только при handoff.
+- оставить процессные Apply-инструкции в Template и требовать путь из Apply handoff только при его вызове.
 
 ### 4.7.3. Проверка этапа
 

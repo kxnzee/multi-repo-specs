@@ -18,13 +18,13 @@ const REQUIRED_AGENT_COMMANDS = Object.freeze([
   "opsx-explore.md",
   "opsx-continue.md",
   "opsx-update.md",
-  "openspec-orch-context.md",
-  "openspec-orch-change.md",
-  "openspec-orch-apply.md",
+  "sdd-context.md",
+  "sdd-change.md",
+  "sdd-apply.md",
 ]);
 const PATHS = Object.freeze({
   metadata: path.join(".openspec-store", "store.yaml"),
-  exploreInstructions: path.join(".openspec-orch", "instructions", "explore.md"),
+  exploreInstructions: path.join(".sdd", "instructions", "explore.md"),
   orchestratorConfig: "openspec-orch.yaml",
 });
 

@@ -22,7 +22,7 @@ export { validateTicket } from "./validation/ticket.js";
 
 const PATHS = Object.freeze({
   metadata: path.join(".openspec-store", "store.yaml"),
-  exploreInstructions: path.join(".openspec-orch", "instructions", "explore.md"),
+  exploreInstructions: path.join(".sdd", "instructions", "explore.md"),
   orchestratorConfig: "openspec-orch.yaml",
 });
 

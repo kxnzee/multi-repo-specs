@@ -234,7 +234,7 @@ export async function prepareLoad({
   );
   const applyInstructionRelativePath = path.join(
     baselineStore.config.agent.commandsDirectory,
-    "openspec-orch-apply.md",
+    "sdd-apply.md",
   );
   const agentInstructionsRelativePath = baselineStore.config.agent.instructionsFile;
   await Promise.all([

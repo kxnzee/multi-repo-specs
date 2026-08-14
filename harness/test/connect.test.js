@@ -95,11 +95,11 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
     [path.join(agent.commandsDirectory, "opsx-continue.md")]: "---\ndescription: continue\n---\n",
     [path.join(agent.commandsDirectory, "opsx-explore.md")]: "---\ndescription: explore\n---\n",
     [path.join(agent.commandsDirectory, "opsx-update.md")]: "---\ndescription: update\n---\n",
-    [path.join(agent.commandsDirectory, "openspec-orch-change.md")]: "---\ndescription: change\n---\n",
-    [path.join(agent.commandsDirectory, "openspec-orch-context.md")]: "---\ndescription: context\n---\n",
-    [path.join(agent.commandsDirectory, "openspec-orch-apply.md")]: "---\ndescription: apply\n---\n",
+    [path.join(agent.commandsDirectory, "sdd-change.md")]: "---\ndescription: change\n---\n",
+    [path.join(agent.commandsDirectory, "sdd-context.md")]: "---\ndescription: context\n---\n",
+    [path.join(agent.commandsDirectory, "sdd-apply.md")]: "---\ndescription: apply\n---\n",
     [agent.instructionsFile]: `# Instructions for ${agent.id}\n`,
-    [path.join(".openspec-orch", "instructions", "explore.md")]: "# Explore contract\n",
+    [path.join(".sdd", "instructions", "explore.md")]: "# Explore contract\n",
     "openspec-orch.yaml": serializeOrchestratorConfig(orchestratorTemplate, [
       {
         id: "payments-specs",
@@ -316,7 +316,7 @@ for (const agent of [QWEN_AGENT, GIGACODE_AGENT]) {
 
 test("connectProject requires the non-command Explore instructions", async (t) => {
   const scenario = await createScenario(t, { pointer: true });
-  await fs.rm(path.join(scenario.storeRoot, ".openspec-orch", "instructions", "explore.md"));
+  await fs.rm(path.join(scenario.storeRoot, ".sdd", "instructions", "explore.md"));
   const openSpec = fakeOpenSpec(scenario.storeRoot);
 
   await assert.rejects(

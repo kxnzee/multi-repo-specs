@@ -49,7 +49,7 @@ async function listProjectFiles(root, relativeDirectory = "") {
 const COMMON_INIT_FILES = Object.freeze([
   ".gitignore",
   ".openspec-store/store.yaml",
-  ".openspec-orch/instructions/explore.md",
+  ".sdd/instructions/explore.md",
   "CODEOWNERS",
   "openspec/config.yaml",
   "openspec/context/00-start-here.md",
@@ -71,9 +71,9 @@ const PROJECT_COMMANDS = Object.freeze([
   "opsx-continue.md",
   "opsx-explore.md",
   "opsx-update.md",
-  "openspec-orch-apply.md",
-  "openspec-orch-change.md",
-  "openspec-orch-context.md",
+  "sdd-apply.md",
+  "sdd-change.md",
+  "sdd-context.md",
 ]);
 
 const PROJECT_SUBAGENTS = Object.freeze([
@@ -416,7 +416,7 @@ test("initProject reports recovery when a completed Store loses Explore instruct
     commandRunner: openSpec.runner,
   });
   const callsBeforeRepeat = openSpec.calls.length;
-  const missingInstructions = path.join(target, ".openspec-orch", "instructions", "explore.md");
+  const missingInstructions = path.join(target, ".sdd", "instructions", "explore.md");
   await fs.unlink(missingInstructions);
 
   await assert.rejects(

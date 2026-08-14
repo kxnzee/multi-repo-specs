@@ -72,7 +72,7 @@ async function createScenario(t, {
       `version: 1\nid: payments-specs\nremote: ${JSON.stringify(storeRemote)}\n`,
     "openspec-orch.yaml": serializeOrchestratorConfig(TEMPLATE, repositories, agent),
     "openspec/config.yaml": "schema: spec-driven\n",
-    [path.join(agent.commandsDirectory, "openspec-orch-apply.md")]: "Apply from verified runtime.\n",
+    [path.join(agent.commandsDirectory, "sdd-apply.md")]: "Apply from verified runtime.\n",
     "openspec/changes/pay-412-payment-status/proposal.md": "# Proposal\n",
     "openspec/changes/pay-412-payment-status/tasks.md": "- [ ] 2.1 API\n- [ ] 2.2 tests\n",
   };

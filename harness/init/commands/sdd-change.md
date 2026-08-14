@@ -2,7 +2,7 @@
 description: "Создать OpenSpec Change и согласовать Proposal после Explore"
 ---
 
-Команда вызывается как `/openspec-orch-change <ticket-id> <short-name>` из центрального Store после завершённого Explore. Она объединяет создание стандартного OpenSpec Change и подготовку `proposal.md`, но не создаёт Delta Specs, `design.md`, `tasks.md`, код, commit, push или PR.
+Команда вызывается как `/sdd-change <ticket-id> <short-name>` из центрального Store после завершённого Explore. Она объединяет создание стандартного OpenSpec Change и подготовку `proposal.md`, но не создаёт Delta Specs, `design.md`, `tasks.md`, код, commit, push или PR.
 
 ## Обязательный вход
 

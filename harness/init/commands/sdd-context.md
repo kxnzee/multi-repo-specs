@@ -2,9 +2,9 @@
 description: Собрать или актуализировать общий контекст проекта
 ---
 
-# `/openspec-orch-context`
+# `/sdd-context`
 
-Собери или актуализируй подтверждённый контекст центрального OpenSpec Store в `openspec/context/`. Команда вызывается как `/openspec-orch-context` без аргументов и всегда выполняет один процесс. Она не исследует код и не проверяет Code Repositories: для этого используются `openspec-orch explore` и оригинальный `/opsx-explore`.
+Собери или актуализируй подтверждённый контекст центрального OpenSpec Store в `openspec/context/`. Команда вызывается как `/sdd-context` без аргументов и всегда выполняет один процесс. Она не исследует код и не проверяет Code Repositories: для этого используются `openspec-orch explore` и оригинальный `/opsx-explore`.
 
 ## Границы
 
