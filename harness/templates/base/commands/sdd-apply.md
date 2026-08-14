@@ -9,10 +9,10 @@ description: "Реализовать назначенные Work Packages в о�
 Новая агентская сессия запускается из корня целевого Code Repository готовым первым сообщением `next_action`. Сообщение сначала указывает на файл инструкций выбранного агента из runtime Store, затем на эту инструкцию и параметры:
 
 ```text
---store <store-id> --repo <repository-id> --change <change-id> --baseline <sha> --work-package <id>...
+--store <store-id> --repo <repository-id> --change <change-id> --baseline <sha> --implementation-mode package --work-package <id>...
 ```
 
-Требуй ровно по одному `--store`, `--repo`, `--change` и `--baseline`, а также один или несколько уникальных `--work-package`. Используй тот же набор значений, который был передан в успешный `openspec-orch load`. Не вычисляй Store, repository, Baseline или Work Packages автоматически и не подменяй их значениями из истории диалога, Git-ветки или свободного текста.
+Требуй ровно по одному `--store`, `--repo`, `--change`, `--baseline` и `--implementation-mode`, а также один или несколько уникальных `--work-package`. Базовый Template поддерживает только `--implementation-mode package`. Используй тот же набор значений, который был передан в успешный `openspec-orch load`. Не вычисляй Store, repository, Baseline, режим или Work Packages автоматически и не подменяй их значениями из истории диалога, Git-ветки или свободного текста.
 
 Из корня Code Repository определи workspace только по стандартному пути `<workspace>/src/<repository-id>` и открой точный runtime:
 
@@ -26,10 +26,11 @@ description: "Реализовать назначенные Work Packages в о�
 
 До любого изменения файлов прекрати выполнение, если выполняется хотя бы одно условие:
 
-- обязательный одиночный параметр отсутствует или повторён;
+- обязательный одиночный параметр отсутствует или повторён, либо `--implementation-mode` не равен `package`;
 - `--work-package` отсутствует, содержит пустой либо повторяющийся ID;
-- runtime отсутствует, не является обычным файлом, имеет неизвестную структуру или не содержит `version: 1` и `step_status: implementation_ready`;
-- переданные Store, repository, Change, Baseline или полный набор Work Packages не совпадают с runtime;
+- runtime отсутствует, не является обычным файлом, имеет неизвестную структуру или не содержит `version: 2` и `step_status: implementation_ready`;
+- переданные Store, repository, Change, Baseline, режим или полный набор Work Packages не совпадают с runtime;
+- `schema`, `implementation_mode` или `context_files` отсутствуют либо имеют некорректную форму;
 - cwd не равен `code_root` после разрешения реального пути;
 - текущая ветка не равна `implementation_branch`;
 - текущий HEAD не является потомком `code_base_revision`;
@@ -48,7 +49,7 @@ openspec validate <change-id> --type change --strict --no-interactive --json
 openspec instructions apply --change <change-id> --json
 ```
 
-Проверь, что обе команды разрешили тот же `spec_root` и тот же Change, строгая валидация успешна, а Apply имеет состояние `ready`. Каждый переданный Work Package должен существовать как точный `tasks[].id` официального ответа и оставаться невыполненным.
+Проверь, что обе команды разрешили тот же `spec_root` и тот же Change, строгая валидация успешна, schema совпадает с runtime, а Apply имеет состояние `ready`. `changeDir` и каждый путь из `contextFiles` должны совпадать с `change_root` и `context_files` runtime; другой или новый путь блокирует работу. Каждый переданный Work Package должен существовать как точный `tasks[].id` официального ответа и оставаться невыполненным.
 
 Сразу отфильтруй официальный `tasks[]` по полному набору ID из runtime и зафиксируй для текущей сессии точные пары `id → description`. Для каждого ID должна существовать ровно одна отдельная строка. Это единственное допустимое сопоставление Work Packages на шаге 06.
 
@@ -58,7 +59,7 @@ openspec instructions apply --change <change-id> --json
 
 ## 3. Собери минимальный контекст
 
-Из принятого Change прочитай только необходимое:
+Из принятого Change прочитай только необходимые обычные файлы, перечисленные в `context_files` runtime. Для базовой schema это:
 
 - Proposal — для границ изменения;
 - применимые Specs и Scenarios — для ожидаемого поведения;

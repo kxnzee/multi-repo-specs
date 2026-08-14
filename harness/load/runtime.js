@@ -17,6 +17,10 @@ const CONTEXT_KEYS = [
   "code_root",
   "implementation_branch",
   "code_base_revision",
+  "schema",
+  "implementation_mode",
+  "change_root",
+  "context_files",
   "work_packages",
   "allowed_edit_roots",
   "immutable_roots",
@@ -55,15 +59,30 @@ function isRuntimeContext(value) {
   }
   const workPackages = Array.isArray(value.work_packages) ? value.work_packages : [];
   return (
-    value.version === 1 &&
+    value.version === 2 &&
     value.step_status === "implementation_ready" &&
     ["store_id", "change_id", "spec_root", "repository_id", "code_root", "implementation_branch"]
       .every((key) => typeof value[key] === "string") &&
     isGitRevision(value.spec_baseline) &&
     isGitRevision(value.code_base_revision) &&
     path.isAbsolute(value.spec_root) && path.isAbsolute(value.code_root) &&
-    workPackages.length > 0 && new Set(workPackages).size === workPackages.length &&
+    typeof value.schema === "string" && value.schema.length > 0 &&
+    ["package", "whole-change"].includes(value.implementation_mode) &&
+    typeof value.change_root === "string" && path.isAbsolute(value.change_root) &&
+    path.relative(value.spec_root, value.change_root) !== "" &&
+    !path.relative(value.spec_root, value.change_root).startsWith(`..${path.sep}`) &&
+    path.relative(value.spec_root, value.change_root) !== ".." &&
+    !path.isAbsolute(path.relative(value.spec_root, value.change_root)) &&
+    new Set(workPackages).size === workPackages.length &&
     workPackages.every((item) => typeof item === "string" && item.length > 0) &&
+    (value.implementation_mode === "package" ? workPackages.length > 0 : workPackages.length === 0) &&
+    isRecord(value.context_files) && Object.entries(value.context_files).every(([artifactId, files]) =>
+      artifactId.length > 0 && Array.isArray(files) &&
+      files.every((item) => typeof item === "string" && path.isAbsolute(item) &&
+        path.relative(value.change_root, item) !== "" &&
+        !path.relative(value.change_root, item).startsWith(`..${path.sep}`) &&
+        path.relative(value.change_root, item) !== ".." &&
+        !path.isAbsolute(path.relative(value.change_root, item)))) &&
     Array.isArray(value.allowed_edit_roots) && value.allowed_edit_roots.length === 1 &&
     value.allowed_edit_roots.every((item) => typeof item === "string" && path.isAbsolute(item)) &&
     Array.isArray(value.immutable_roots) && value.immutable_roots.length === 1 &&

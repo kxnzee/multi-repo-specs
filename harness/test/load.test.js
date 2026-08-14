@@ -104,9 +104,18 @@ async function createScenario(t, {
 
 /**
  * @param {string} storeRoot
+ * @param {{schema?: string, tasks?: Array<{id: string, description: string, done: boolean}>, contextFile?: string, contextOutsideChange?: boolean}} [options]
  * @returns {{calls: Array<{args: string[], cwd: string}>, runner: typeof runCommand}}
  */
-function fakeOpenSpec(storeRoot) {
+function fakeOpenSpec(storeRoot, {
+  schema = "spec-driven",
+  tasks = [
+    { id: "1", description: "2.1 API", done: false },
+    { id: "2", description: "2.2 tests", done: false },
+  ],
+  contextFile = "proposal.md",
+  contextOutsideChange = false,
+} = {}) {
   const calls = [];
   const runner = (command, args, options = {}) => {
     if (command === "git") return runCommand(command, args, options);
@@ -139,13 +148,17 @@ function fakeOpenSpec(storeRoot) {
       });
     }
     if (args[0] === "instructions" && args[1] === "apply") {
+      const changeDir = path.join(options.cwd, "openspec", "changes", "pay-412-payment-status");
+      const contextPath = contextOutsideChange
+        ? path.join(options.cwd, "openspec", "config.yaml")
+        : path.join(changeDir, contextFile);
       return JSON.stringify({
         changeName: "pay-412-payment-status",
+        changeDir,
+        schemaName: schema,
+        contextFiles: { planning: [contextPath] },
         state: "ready",
-        tasks: [
-          { id: "1", description: "2.1 API", done: false },
-          { id: "2", description: "2.2 tests", done: false },
-        ],
+        tasks,
         root,
         status: [],
       });
@@ -216,9 +229,12 @@ test("prepareLoad creates an exact Store worktree, implementation branch and min
   const context = JSON.parse(await fs.readFile(result.runtimePath, "utf8"));
   assert.deepEqual(Object.keys(context).sort(), [
     "allowed_edit_roots", "change_id", "code_base_revision", "code_root", "immutable_roots",
-    "implementation_branch", "repository_id", "spec_baseline", "spec_root", "step_status",
-    "store_id", "version", "work_packages",
+    "implementation_branch", "repository_id", "spec_baseline", "spec_root", "step_status", "schema",
+    "implementation_mode", "change_root", "context_files", "store_id", "version", "work_packages",
   ].sort());
+  assert.equal(context.version, 2);
+  assert.equal(context.implementation_mode, "package");
+  assert.equal(context.schema, "spec-driven");
   assert.deepEqual(context.allowed_edit_roots, [scenario.codeRoot]);
   assert.deepEqual(context.immutable_roots, [context.spec_root]);
   assert.equal(runCommand("git", ["rev-parse", "HEAD"], { cwd: context.spec_root }), scenario.baseline);
@@ -287,6 +303,45 @@ test("prepareLoad rejects an unassigned or completed Work Package before creatin
       workPackages: ["9"],
       commandRunner: openSpec.runner,
     }),
+  );
+  assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.codeRoot }), "main");
+});
+
+test("prepareLoad supports whole-change mode when the schema has no addressable Tasks", async (t) => {
+  const scenario = await createScenario(t);
+  const openSpec = fakeOpenSpec(scenario.storeRoot, { schema: "research-only", tasks: [] });
+  const result = await prepareLoad({
+    start: scenario.codeRoot,
+    storeId: "payments-specs",
+    repositoryId: "payments-api",
+    changeId: "pay-412-payment-status",
+    baseline: scenario.baseline,
+    commandRunner: openSpec.runner,
+  });
+
+  assert.equal(result.implementationMode, "whole-change");
+  assert.equal(result.schema, "research-only");
+  assert.deepEqual(result.workPackages, []);
+  assert.deepEqual(result.selectedTasks, []);
+  const context = JSON.parse(await fs.readFile(result.runtimePath, "utf8"));
+  assert.equal(context.implementation_mode, "whole-change");
+  assert.deepEqual(context.work_packages, []);
+});
+
+test("prepareLoad rejects OpenSpec context paths outside the Change root", async (t) => {
+  const scenario = await createScenario(t);
+  const openSpec = fakeOpenSpec(scenario.storeRoot, { contextOutsideChange: true });
+  await assert.rejects(
+    prepareLoad({
+      start: scenario.codeRoot,
+      storeId: "payments-specs",
+      repositoryId: "payments-api",
+      changeId: "pay-412-payment-status",
+      baseline: scenario.baseline,
+      workPackages: ["1"],
+      commandRunner: openSpec.runner,
+    }),
+    /выходит за разрешённый root/,
   );
   assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.codeRoot }), "main");
 });
@@ -420,7 +475,8 @@ if (args.join(" ") === "doctor --json") {
 } else if (args[0] === "validate") {
   result = { items: [{ id: "pay-412-payment-status", type: "change", valid: true }], root: { path: process.cwd(), source: "nearest" }, status: [] };
 } else if (args[0] === "instructions" && args[1] === "apply") {
-  result = { changeName: "pay-412-payment-status", state: "ready", tasks: [{ id: "1", description: "2.1 API", done: false }], root: { path: process.cwd(), source: "nearest" }, status: [] };
+  const changeDir = require("node:path").join(process.cwd(), "openspec", "changes", "pay-412-payment-status");
+  result = { changeName: "pay-412-payment-status", changeDir, schemaName: "spec-driven", contextFiles: { proposal: [require("node:path").join(changeDir, "proposal.md")] }, state: "ready", tasks: [{ id: "1", description: "2.1 API", done: false }], root: { path: process.cwd(), source: "nearest" }, status: [] };
 } else {
   console.error("unexpected openspec call: " + args.join(" "));
   process.exit(2);
@@ -463,6 +519,10 @@ console.log(JSON.stringify(result));
     "implementation_branch",
     "branch_status",
     "code_base_revision",
+    "schema",
+    "implementation_mode",
+    "change_path",
+    "context_files",
     "work_packages",
     "selected_tasks",
     "runtime_context",

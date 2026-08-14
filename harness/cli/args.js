@@ -11,7 +11,7 @@ export const HELP = `Использование:
   openspec-orch connect [--workspace <path>]
   openspec-orch explore --ticket <ticket-id> [--workspace <path>]
   openspec-orch change --ticket <ticket-id> --name <short-name> [--store <store-id>]
-  openspec-orch load --store <store-id> --repo <repository-id> --change <change-id> --baseline <40-char-sha> --work-package <id>... [--json]
+  openspec-orch load --store <store-id> --repo <repository-id> --change <change-id> --baseline <40-char-sha> [--work-package <id>]... [--json]
 
 Команды:
   init    Один раз создать OpenSpec Store и каркас центрального проекта
@@ -31,7 +31,7 @@ export const HELP = `Использование:
   --name <value>  Короткое имя Change в lowercase kebab-case
   --change <id>   Полный ID принятого OpenSpec Change
   --baseline <sha> Полная 40-символьная SHA принятого Store
-  --work-package <id> Назначенный task.id из OpenSpec; параметр можно повторять
+  --work-package <id> Назначенный task.id из OpenSpec; обязателен только для schema с Tasks
   --json          Вернуть результат openspec-orch load в JSON
   -h, --help      Показать эту справку
 `;
@@ -268,8 +268,5 @@ export function parseLoadArgs(args) {
   if (!repositoryId) throw new Error("для openspec-orch load требуется --repo <repository-id>");
   if (!change) throw new Error("для openspec-orch load требуется --change <change-id>");
   if (!baseline) throw new Error("для openspec-orch load требуется --baseline <40-char-sha>");
-  if (workPackages.length === 0) {
-    throw new Error("для openspec-orch load требуется хотя бы один --work-package <id>");
-  }
   return { help: false, storeId, repositoryId, change, baseline, workPackages, json };
 }

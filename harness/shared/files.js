@@ -3,6 +3,71 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+/** @param {string} root @param {string} target @returns {boolean} */
+function isWithin(root, target) {
+  const relative = path.relative(root, target);
+  return relative !== "" && !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative);
+}
+
+/**
+ * Проверяет абсолютный существующий путь и запрещает выход или symlink относительно root.
+ *
+ * @param {string} root
+ * @param {unknown} candidate
+ * @param {string} label
+ * @param {"directory" | "file"} kind
+ * @returns {Promise<string>}
+ */
+export async function resolveContainedExistingPath(root, candidate, label, kind) {
+  if (typeof candidate !== "string" || !path.isAbsolute(candidate)) {
+    throw new Error(`${label} должен быть абсолютным путём`);
+  }
+  const target = path.resolve(candidate);
+  if (target !== candidate || !isWithin(root, target)) {
+    throw new Error(`${label} выходит за разрешённый root`);
+  }
+  const [realTarget, stat] = await Promise.all([fs.realpath(target), fs.lstat(target)]);
+  if (realTarget !== target || stat.isSymbolicLink()) {
+    throw new Error(`${label} не должен содержать symlink`);
+  }
+  if ((kind === "directory" && !stat.isDirectory()) || (kind === "file" && !stat.isFile())) {
+    throw new Error(`${label} должен быть обычным ${kind === "directory" ? "каталогом" : "файлом"}`);
+  }
+  return target;
+}
+
+/**
+ * Проверяет объявленный путь, включая ещё не существующие пути и glob-сегменты.
+ *
+ * @param {string} root
+ * @param {unknown} candidate
+ * @param {string} label
+ * @returns {Promise<string>}
+ */
+export async function resolveContainedDeclaredPath(root, candidate, label) {
+  if (typeof candidate !== "string" || !path.isAbsolute(candidate)) {
+    throw new Error(`${label} должен быть абсолютным путём`);
+  }
+  const target = path.resolve(candidate);
+  if (target !== candidate || !isWithin(root, target)) {
+    throw new Error(`${label} выходит за разрешённый root`);
+  }
+
+  let current = root;
+  for (const segment of path.relative(root, target).split(path.sep)) {
+    current = path.join(current, segment);
+    let stat;
+    try {
+      stat = await fs.lstat(current);
+    } catch (error) {
+      if (error.code === "ENOENT") break;
+      throw error;
+    }
+    if (stat.isSymbolicLink()) throw new Error(`${label} содержит symlink`);
+  }
+  return target;
+}
+
 /**
  * Читает обычный относительный файл, блокируя symlink в каждом компоненте пути.
  *

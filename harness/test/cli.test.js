@@ -176,7 +176,7 @@ test("parseChangeArgs requires a canonical ticket and short name", () => {
   );
 });
 
-test("parseLoadArgs requires exact baseline and explicit unique Work Packages", () => {
+test("parseLoadArgs requires exact baseline and accepts optional unique Work Packages", () => {
   const baseline = "0123456789abcdef0123456789abcdef01234567";
   assert.deepEqual(parseLoadArgs(["--help"]), { help: true });
   assert.deepEqual(
@@ -201,12 +201,13 @@ test("parseLoadArgs requires exact baseline and explicit unique Work Packages", 
       json: true,
     },
   );
+  assert.deepEqual(parseLoadArgs([
+    "--store=payments-specs",
+    "--repo=payments-api",
+    "--change=pay-412-payment-status",
+    `--baseline=${"a".repeat(40)}`,
+  ]).workPackages, []);
   assert.throws(() => parseLoadArgs([]));
-  assert.throws(
-    () => parseLoadArgs([
-      "--store=payments-specs", "--repo=payments-api", "--change=x", `--baseline=${baseline}`,
-    ]),
-  );
   assert.throws(
     () => parseLoadArgs([
       "--store=payments-specs", "--repo=payments-api", "--change=x", "--baseline=HEAD", "--work-package=1",

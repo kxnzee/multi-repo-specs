@@ -745,7 +745,7 @@ Plugins реализуются сразу после пилота Core/Template:
 | 2. Общий Template engine | `completed` | `feat: add safe project template engine` |
 | 3. Перевод `init` на Template engine | `completed` | `feat: initialize projects from local templates` |
 | 4. Независимость Core-команд от Template | `completed` | `refactor: decouple core commands from project templates` |
-| 5. Schema-neutral OpenSpec-интеграция | `not_started` | — |
+| 5. Schema-neutral OpenSpec-интеграция | `completed` | `feat: support schema-neutral OpenSpec workflows` |
 | 6. Compatibility и strict/relaxed mode | `not_started` | — |
 | 7. Документация и реальный пилот | `not_started` | — |
 

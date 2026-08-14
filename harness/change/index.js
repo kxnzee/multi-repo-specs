@@ -1,6 +1,5 @@
 /** @fileoverview Детерминированное создание или продолжение OpenSpec Change шага 02. */
 
-import path from "node:path";
 import process from "node:process";
 
 import { findDuplicates } from "../explore/validation/ticket.js";
@@ -14,7 +13,6 @@ import {
 import { buildChangeId } from "./id.js";
 import {
   assertCreatedChange,
-  inspectChangeDirectory,
   readChangeStatus,
   resolveChangeStore,
 } from "./store.js";
@@ -55,19 +53,21 @@ export async function prepareChange({
     throw new Error(`Активный Change с ticket ${ticket} уже существует: ${duplicates.active.join(", ")}`);
   }
 
-  let state = await inspectChangeDirectory(store.projectRoot, changeId);
-  if (exact.length !== Number(state.exists)) {
-    throw new Error("needs_recovery: OpenSpec list и каталог Change описывают разное состояние");
-  }
-
   let changeStatus;
+  let statusResult;
   let git;
-  if (state.exists) {
+  if (exact.length === 1) {
+    statusResult = await readChangeStatus(
+      store.projectRoot,
+      store.storeId,
+      changeId,
+      commandRunner,
+    );
     git = inspectContinuationChangeGit(
       store.projectRoot,
       store.config.storeRepository,
       branch,
-      changeId,
+      statusResult.changeRoot,
       commandRunner,
     );
     changeStatus = "existing";
@@ -96,35 +96,27 @@ export async function prepareChange({
         "new",
         "change",
         changeId,
-        "--schema",
-        "spec-driven",
         "--store",
         store.storeId,
         "--json",
       ],
       store.projectRoot,
     );
-    const expectedRoot = path.join(store.projectRoot, "openspec", "changes", changeId);
-    assertCreatedChange(created, {
+    const createdChange = await assertCreatedChange(created, {
       projectRoot: store.projectRoot,
       storeId: store.storeId,
       changeId,
-      changeRoot: expectedRoot,
     });
-    state = await inspectChangeDirectory(store.projectRoot, changeId);
-    if (!state.exists) throw new Error("needs_recovery: OpenSpec не создал каталог Change");
+    statusResult = await readChangeStatus(
+      store.projectRoot,
+      store.storeId,
+      changeId,
+      commandRunner,
+      createdChange,
+    );
     changeStatus = "created";
     git = { ...git, branch };
   }
-
-  const openSpecStatus = readChangeStatus(
-    store.projectRoot,
-    store.storeId,
-    changeId,
-    state.changeRoot,
-    state.proposalExists,
-    commandRunner,
-  );
   return {
     changeStatus,
     storeId: store.storeId,
@@ -133,10 +125,9 @@ export async function prepareChange({
     changeId,
     branch,
     baseRevision: git.revision,
-    changePath: state.changeRoot,
-    schema: "spec-driven",
-    proposalStatus: state.proposalExists ? "present" : "missing",
-    nextAction: state.proposalExists ? "review_proposal" : "create_proposal",
-    openSpecStatus,
+    changePath: statusResult.changeRoot,
+    schema: statusResult.schema,
+    nextArtifact: statusResult.nextArtifact,
+    openSpecStatus: statusResult.status,
   };
 }

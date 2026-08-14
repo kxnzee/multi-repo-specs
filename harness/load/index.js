@@ -43,6 +43,7 @@ import {
  * @param {string} changeId
  * @param {string} baseline
  * @param {string[]} workPackages
+ * @param {"package" | "whole-change"} implementationMode
  * @returns {string}
  */
 function buildApplyPrompt(
@@ -53,6 +54,7 @@ function buildApplyPrompt(
   changeId,
   baseline,
   workPackages,
+  implementationMode,
 ) {
   return [
     `Сначала прочитай файл инструкций агента ${JSON.stringify(agentInstructionsPath)}.`,
@@ -61,6 +63,7 @@ function buildApplyPrompt(
     `--repo ${repositoryId}`,
     `--change ${changeId}`,
     `--baseline ${baseline}`,
+    `--implementation-mode ${implementationMode}`,
     ...workPackages.map((id) => `--work-package ${JSON.stringify(id)}`),
   ].join(" ");
 }
@@ -154,7 +157,7 @@ function inspectBaselineConfig(
  * @param {string} options.repositoryId
  * @param {string} options.changeId
  * @param {string} options.baseline
- * @param {string[]} options.workPackages
+ * @param {string[]} [options.workPackages]
  * @param {typeof runCommand} [options.commandRunner]
  * @returns {Promise<import("../shared/types.js").LoadPreparation>}
  */
@@ -164,17 +167,14 @@ export async function prepareLoad({
   repositoryId,
   changeId,
   baseline,
-  workPackages,
+  workPackages = [],
   commandRunner = runCommand,
 } = {}) {
   assertRepositoryId(storeId, "Store ID");
   assertRepositoryId(repositoryId);
   validateChangeName(changeId);
   if (!isGitRevision(baseline)) throw new Error("spec_baseline должна быть полной lowercase Git SHA");
-  if (!Array.isArray(workPackages) || workPackages.length === 0) {
-    throw new Error("Требуется хотя бы один Work Package ID");
-  }
-  if (
+  if (!Array.isArray(workPackages) ||
     new Set(workPackages).size !== workPackages.length ||
     workPackages.some((id) => typeof id !== "string" || id.length === 0)
   ) {
@@ -241,7 +241,7 @@ export async function prepareLoad({
   ]);
   const agentInstructionsPath = path.join(worktreeRoot, agentInstructionsRelativePath);
   const applyInstructionPath = path.join(worktreeRoot, applyInstructionRelativePath);
-  const selectedTasks = validateImplementationInput({
+  const implementation = await validateImplementationInput({
     worktreeRoot,
     changeId,
     workPackages,
@@ -256,7 +256,7 @@ export async function prepareLoad({
     commandRunner,
   });
   const context = {
-    version: 1,
+    version: 2,
     step_status: "implementation_ready",
     store_id: storeId,
     change_id: changeId,
@@ -266,6 +266,10 @@ export async function prepareLoad({
     code_root: codeRoot,
     implementation_branch: branch.branch,
     code_base_revision: branch.codeBaseRevision,
+    schema: implementation.schema,
+    implementation_mode: implementation.implementationMode,
+    change_root: implementation.changeRoot,
+    context_files: implementation.contextFiles,
     work_packages: [...workPackages],
     allowed_edit_roots: [codeRoot],
     immutable_roots: [worktreeRoot],
@@ -280,8 +284,12 @@ export async function prepareLoad({
     implementationBranch: branch.branch,
     branchStatus: branch.branchStatus,
     codeBaseRevision: branch.codeBaseRevision,
+    schema: implementation.schema,
+    implementationMode: implementation.implementationMode,
+    changePath: implementation.changeRoot,
+    contextFiles: implementation.contextFiles,
     workPackages: [...workPackages],
-    selectedTasks,
+    selectedTasks: implementation.selectedTasks,
     nextStep: "06",
     nextAction: buildApplyPrompt(
       agentInstructionsPath,
@@ -291,6 +299,7 @@ export async function prepareLoad({
       changeId,
       baseline,
       workPackages,
+      implementation.implementationMode,
     ),
     runtimePath,
   };

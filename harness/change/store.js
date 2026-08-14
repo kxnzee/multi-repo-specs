@@ -1,12 +1,16 @@
-/** @fileoverview Проверки Store и стандартного OpenSpec Change для шага 02. */
+/** @fileoverview Проверки Store и schema-neutral OpenSpec Change. */
 
-import { promises as fs } from "node:fs";
 import path from "node:path";
-import { parse as parseYaml } from "yaml";
 
 import { parseOrchestratorConfig, parseStoreMetadata, sameGitRemote } from "../config/index.js";
 import { findSpecRoot } from "../explore/workspace.js";
+import {
+  readRelativeRegularFile,
+  resolveContainedDeclaredPath,
+  resolveContainedExistingPath,
+} from "../shared/files.js";
 import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
+import { isRecord } from "../shared/schema.js";
 import { validateOpenSpec } from "../shared/store.js";
 
 const PATHS = Object.freeze({
@@ -14,49 +18,31 @@ const PATHS = Object.freeze({
   orchestratorConfig: "openspec-orch.yaml",
 });
 
-/**
- * Возвращает состояние пути, не считая отсутствие ошибкой.
- *
- * @param {string} target Проверяемый путь.
- * @returns {Promise<import("node:fs").Stats | null>} Состояние либо `null`.
- */
-async function pathState(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
+const ARTIFACT_STATUSES = new Set(["done", "skipped", "ready", "blocked"]);
 
-/**
- * Читает обязательный обычный файл Store.
- *
- * @param {string} projectRoot Корень Store.
- * @param {string} relativePath Относительный путь.
- * @returns {Promise<string>} UTF-8 содержимое.
- */
-async function readStoreFile(projectRoot, relativePath) {
-  const target = path.join(projectRoot, relativePath);
-  const stat = await fs.lstat(target);
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new Error(`${relativePath} должна быть обычным файлом`);
+/** @param {unknown} value @param {string} label @returns {string} */
+function assertRelativeArtifactPath(value, label) {
+  if (
+    typeof value !== "string" || !value || path.isAbsolute(value) ||
+    value.split(/[\\/]/).some((segment) => !segment || segment === "." || segment === "..")
+  ) {
+    throw new Error(`${label} содержит некорректный относительный путь`);
   }
-  return fs.readFile(target, "utf8");
+  return value;
 }
 
 /**
  * Разрешает и проверяет центральный Store перед изменением Git.
  *
- * @param {string} start Текущий каталог внутри Store.
- * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель команд.
- * @returns {Promise<{projectRoot: string, storeId: string, config: ReturnType<typeof parseOrchestratorConfig>, activeChanges: Array<{name: string}>}>} Проверенный Store.
+ * @param {string} start
+ * @param {typeof import("../shared/command.js").runCommand} commandRunner
+ * @returns {Promise<{projectRoot: string, storeId: string, config: ReturnType<typeof parseOrchestratorConfig>, activeChanges: Array<{name: string}>}>}
  */
 export async function resolveChangeStore(start, commandRunner) {
   const projectRoot = await findSpecRoot(start);
   const [metadataSource, configSource] = await Promise.all([
-    readStoreFile(projectRoot, PATHS.metadata),
-    readStoreFile(projectRoot, PATHS.orchestratorConfig),
+    readRelativeRegularFile(projectRoot, PATHS.metadata),
+    readRelativeRegularFile(projectRoot, PATHS.orchestratorConfig),
   ]);
   const metadata = parseStoreMetadata(metadataSource);
   const config = parseOrchestratorConfig(configSource);
@@ -76,56 +62,13 @@ export async function resolveChangeStore(start, commandRunner) {
 }
 
 /**
- * Проверяет локальное состояние каталога Change.
+ * Проверяет JSON успешного `openspec new change` без предположений о schema и layout.
  *
- * @param {string} projectRoot Корень Store.
- * @param {string} changeId Change ID.
- * @returns {Promise<{exists: boolean, changeRoot: string, proposalExists: boolean}>} Состояние Change.
+ * @param {import("../shared/types.js").OpenSpecResponse} payload
+ * @param {{projectRoot: string, storeId: string, changeId: string}} expected
+ * @returns {Promise<{changeRoot: string, metadataPath: string, schema: string}>}
  */
-export async function inspectChangeDirectory(projectRoot, changeId) {
-  const changeRoot = path.join(projectRoot, "openspec", "changes", changeId);
-  const rootStat = await pathState(changeRoot);
-  if (!rootStat) return { exists: false, changeRoot, proposalExists: false };
-  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
-    throw new Error(`needs_recovery: каталог Change должен быть обычным: ${changeRoot}`);
-  }
-
-  const metadataPath = path.join(changeRoot, ".openspec.yaml");
-  const metadataStat = await pathState(metadataPath);
-  if (!metadataStat?.isFile() || metadataStat.isSymbolicLink()) {
-    throw new Error("needs_recovery: Change не содержит обычный .openspec.yaml");
-  }
-  let metadata;
-  try {
-    metadata = parseYaml(await fs.readFile(metadataPath, "utf8"));
-  } catch (error) {
-    throw new Error(`needs_recovery: некорректный .openspec.yaml: ${error.message}`);
-  }
-  if (metadata?.schema !== "spec-driven" || metadata.skip_specs === true) {
-    throw new Error("needs_recovery: Change должен использовать полную схему spec-driven");
-  }
-
-  for (const artifact of ["specs", "design.md", "tasks.md"]) {
-    if (await pathState(path.join(changeRoot, artifact))) {
-      throw new Error(`needs_recovery: шаг 02 уже пройден, найден последующий артефакт ${artifact}`);
-    }
-  }
-  const proposalPath = path.join(changeRoot, "proposal.md");
-  const proposalStat = await pathState(proposalPath);
-  if (proposalStat && (!proposalStat.isFile() || proposalStat.isSymbolicLink())) {
-    throw new Error("needs_recovery: proposal.md должен быть обычным файлом");
-  }
-  return { exists: true, changeRoot, proposalExists: Boolean(proposalStat) };
-}
-
-/**
- * Проверяет JSON успешного `openspec new change`.
- *
- * @param {import("../shared/types.js").OpenSpecResponse} payload Ответ OpenSpec.
- * @param {{projectRoot: string, storeId: string, changeId: string, changeRoot: string}} expected Ожидаемая identity.
- * @returns {void}
- */
-export function assertCreatedChange(payload, expected) {
+export async function assertCreatedChange(payload, expected) {
   assertOpenSpecRoot(
     payload.root,
     { path: expected.projectRoot, storeId: expected.storeId, source: "store" },
@@ -133,33 +76,42 @@ export function assertCreatedChange(payload, expected) {
   );
   const change = payload.change;
   if (
-    change?.id !== expected.changeId ||
-    change.schema !== "spec-driven" ||
-    path.resolve(change.path ?? "") !== expected.changeRoot ||
-    path.resolve(change.metadataPath ?? "") !== path.join(expected.changeRoot, ".openspec.yaml")
+    !isRecord(change) || change.id !== expected.changeId ||
+    typeof change.schema !== "string" || !change.schema
   ) {
-    throw new Error("openspec new change вернула другой Change, путь или schema");
+    throw new Error("openspec new change вернула другой Change или некорректную schema");
   }
+  const changeRoot = await resolveContainedExistingPath(
+    expected.projectRoot,
+    change.path,
+    "OpenSpec Change path",
+    "directory",
+  );
+  const metadataPath = await resolveContainedExistingPath(
+    changeRoot,
+    change.metadataPath,
+    "OpenSpec Change metadataPath",
+    "file",
+  );
+  return { changeRoot, metadataPath, schema: change.schema };
 }
 
 /**
- * Получает и проверяет стандартный статус Change.
+ * Получает и проверяет динамический статус Change.
  *
- * @param {string} projectRoot Корень Store.
- * @param {string} storeId Store ID.
- * @param {string} changeId Change ID.
- * @param {string} changeRoot Ожидаемый каталог Change.
- * @param {boolean} proposalExists Существует ли Proposal.
- * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель OpenSpec.
- * @returns {import("../shared/types.js").OpenSpecResponse} Проверенный статус.
+ * @param {string} projectRoot
+ * @param {string} storeId
+ * @param {string} changeId
+ * @param {typeof import("../shared/command.js").runCommand} commandRunner
+ * @param {{changeRoot?: string, schema?: string}} [expected]
+ * @returns {Promise<{status: import("../shared/types.js").OpenSpecResponse, changeRoot: string, schema: string, nextArtifact: Record<string, unknown> | null}>}
  */
-export function readChangeStatus(
+export async function readChangeStatus(
   projectRoot,
   storeId,
   changeId,
-  changeRoot,
-  proposalExists,
   commandRunner,
+  expected = {},
 ) {
   const status = runOpenSpecJson(
     commandRunner,
@@ -172,27 +124,90 @@ export function readChangeStatus(
     "openspec status",
   );
   if (
-    status.changeName !== changeId ||
-    status.schemaName !== "spec-driven" ||
-    path.resolve(status.changeRoot ?? "") !== changeRoot ||
-    !Array.isArray(status.artifacts)
+    status.changeName !== changeId || typeof status.schemaName !== "string" || !status.schemaName ||
+    typeof status.isComplete !== "boolean" || !Array.isArray(status.applyRequires) ||
+    status.applyRequires.some((item) => typeof item !== "string" || !item) ||
+    !Array.isArray(status.artifacts) || !isRecord(status.artifactPaths)
   ) {
-    throw new Error("openspec status вернула другой Change, путь или schema");
+    throw new Error("openspec status вернула некорректную identity или artifact graph Change");
   }
-  const artifacts = new Map(status.artifacts.map((artifact) => [artifact?.id, artifact]));
-  const proposal = artifacts.get("proposal");
-  if (
-    proposal?.outputPath !== "proposal.md" ||
-    (proposalExists && proposal.status !== "done") ||
-    (!proposalExists && proposal.status !== "ready")
-  ) {
-    throw new Error("openspec status вернула неожиданный статус Proposal");
+  const changeRoot = await resolveContainedExistingPath(
+    projectRoot,
+    status.changeRoot,
+    "OpenSpec status changeRoot",
+    "directory",
+  );
+  if (expected.changeRoot !== undefined && changeRoot !== expected.changeRoot) {
+    throw new Error("openspec status вернула другой Change root");
   }
-  for (const artifactId of ["specs", "design", "tasks"]) {
-    const artifact = artifacts.get(artifactId);
-    if (!artifact || ["done", "skipped"].includes(artifact.status)) {
-      throw new Error(`needs_recovery: неожиданный статус последующего артефакта ${artifactId}`);
+  if (expected.schema !== undefined && status.schemaName !== expected.schema) {
+    throw new Error("openspec status вернула другую schema");
+  }
+
+  const artifacts = [];
+  const ids = new Set();
+  for (const artifact of status.artifacts) {
+    if (
+      !isRecord(artifact) || typeof artifact.id !== "string" || !artifact.id || ids.has(artifact.id) ||
+      !ARTIFACT_STATUSES.has(artifact.status) || !Array.isArray(artifact.requires) ||
+      artifact.requires.some((item) => typeof item !== "string" || !item) ||
+      (artifact.missingDeps !== undefined &&
+        (!Array.isArray(artifact.missingDeps) ||
+          artifact.missingDeps.some((item) => typeof item !== "string" || !item)))
+    ) {
+      throw new Error("openspec status вернула некорректный artifact graph");
+    }
+    ids.add(artifact.id);
+    const outputPath = assertRelativeArtifactPath(
+      artifact.outputPath,
+      `OpenSpec artifact ${artifact.id}`,
+    );
+    const pathInfo = status.artifactPaths[artifact.id];
+    if (
+      !isRecord(pathInfo) || pathInfo.outputPath !== outputPath ||
+      !Array.isArray(pathInfo.existingOutputPaths)
+    ) {
+      throw new Error(`openspec status не вернула пути artifact ${artifact.id}`);
+    }
+    const resolvedOutputPath = await resolveContainedDeclaredPath(
+      changeRoot,
+      pathInfo.resolvedOutputPath,
+      `OpenSpec artifact ${artifact.id} resolvedOutputPath`,
+    );
+    const existingOutputPaths = [];
+    for (const existingPath of pathInfo.existingOutputPaths) {
+      existingOutputPaths.push(await resolveContainedExistingPath(
+        changeRoot,
+        existingPath,
+        `OpenSpec artifact ${artifact.id} existingOutputPath`,
+        "file",
+      ));
+    }
+    artifacts.push({
+      ...artifact,
+      outputPath,
+      resolvedOutputPath,
+      existingOutputPaths,
+    });
+  }
+  const pathIds = Object.keys(status.artifactPaths);
+  if (pathIds.length !== ids.size || pathIds.some((id) => !ids.has(id))) {
+    throw new Error("openspec status вернула пути вне artifact graph");
+  }
+  for (const artifact of artifacts) {
+    if (
+      artifact.requires.some((id) => !ids.has(id)) ||
+      (artifact.missingDeps ?? []).some((id) => !ids.has(id))
+    ) {
+      throw new Error(`OpenSpec artifact ${artifact.id} ссылается на неизвестную зависимость`);
     }
   }
-  return status;
+
+  const ready = artifacts.find((artifact) => artifact.status === "ready") ?? null;
+  return {
+    status,
+    changeRoot,
+    schema: status.schemaName,
+    nextArtifact: ready,
+  };
 }

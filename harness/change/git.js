@@ -1,5 +1,7 @@
 /** @fileoverview Git-инварианты первого и повторного запуска `openspec-orch change`. */
 
+import path from "node:path";
+
 import { inspectFreshCheckout, inspectRepositoryIdentity } from "../shared/git.js";
 import { isGitRevision } from "../shared/schema.js";
 
@@ -83,7 +85,7 @@ function parseStatusPaths(output) {
  * @param {string} projectRoot Корень Store.
  * @param {import("../shared/types.js").RegisteredRepository} repository Store из openspec-orch.yaml.
  * @param {string} branch Ожидаемая planning-ветка.
- * @param {string} changeId Change ID.
+ * @param {string} changeRoot Канонический каталог Change из OpenSpec status.
  * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель Git.
  * @returns {import("../shared/types.js").GitState} Текущая ветка и ревизия.
  */
@@ -91,7 +93,7 @@ export function inspectContinuationChangeGit(
   projectRoot,
   repository,
   branch,
-  changeId,
+  changeRoot,
   commandRunner,
 ) {
   inspectRepositoryIdentity(projectRoot, repository, commandRunner);
@@ -118,9 +120,17 @@ export function inspectContinuationChangeGit(
     ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
     { cwd: projectRoot },
   );
-  const allowedPrefix = `openspec/changes/${changeId}/`;
+  const changeRelativePath = path.relative(projectRoot, changeRoot);
+  if (
+    !changeRelativePath || changeRelativePath === ".." ||
+    changeRelativePath.startsWith(`..${path.sep}`) || path.isAbsolute(changeRelativePath)
+  ) {
+    throw new Error("needs_recovery: OpenSpec Change root выходит за Store");
+  }
+  const allowedRoot = changeRelativePath.split(path.sep).join("/");
+  const allowedPrefix = `${allowedRoot}/`;
   const unexpected = parseStatusPaths(status).filter(
-    (filePath) => filePath !== `openspec/changes/${changeId}` && !filePath.startsWith(allowedPrefix),
+    (filePath) => filePath !== allowedRoot && !filePath.startsWith(allowedPrefix),
   );
   if (unexpected.length > 0) {
     throw new Error(`needs_recovery: изменения вне текущего Change: ${unexpected.join(", ")}`);

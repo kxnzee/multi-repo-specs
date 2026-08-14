@@ -1,7 +1,8 @@
-/** @fileoverview Структурные проверки штатного OpenSpec API для шага 05. */
+/** @fileoverview Schema-neutral проверки штатного OpenSpec API для подготовки реализации. */
 
 import path from "node:path";
 
+import { resolveContainedExistingPath } from "../shared/files.js";
 import { runOpenSpecJson } from "../shared/openspec.js";
 import { isOpenSpecRoot, isRecord } from "../shared/schema.js";
 
@@ -54,16 +55,55 @@ function assertNearestRoot(root, expected, command) {
 }
 
 /**
- * Валидирует Change и выбранные Tasks штатными командами OpenSpec.
+ * Проверяет contextFiles из официального Apply response.
+ *
+ * @param {string} changeRoot
+ * @param {unknown} value
+ * @returns {Promise<Record<string, string[]>>}
+ */
+async function normalizeContextFiles(changeRoot, value) {
+  if (!isRecord(value)) {
+    throw new Error("openspec instructions apply вернула некорректный contextFiles");
+  }
+  const result = {};
+  for (const [artifactId, files] of Object.entries(value)) {
+    if (!artifactId || !Array.isArray(files)) {
+      throw new Error("openspec instructions apply вернула некорректный contextFiles");
+    }
+    const normalized = [];
+    for (const file of files) {
+      const resolved = await resolveContainedExistingPath(
+        changeRoot,
+        file,
+        `OpenSpec contextFiles.${artifactId}`,
+        "file",
+      );
+      if (normalized.includes(resolved)) {
+        throw new Error(`OpenSpec contextFiles.${artifactId} содержит повторяющийся путь`);
+      }
+      normalized.push(resolved);
+    }
+    result[artifactId] = normalized;
+  }
+  return result;
+}
+
+/**
+ * Валидирует Change и выбирает package-mode либо whole-change mode по Apply response.
  *
  * @param {object} options
  * @param {string} options.worktreeRoot
  * @param {string} options.changeId
  * @param {string[]} options.workPackages
  * @param {typeof import("../shared/command.js").runCommand} options.commandRunner
- * @returns {Array<{id: string, description: string}>}
+ * @returns {Promise<{schema: string, changeRoot: string, implementationMode: "package" | "whole-change", contextFiles: Record<string, string[]>, selectedTasks: Array<{id: string, description: string}>}>}
  */
-export function validateImplementationInput({ worktreeRoot, changeId, workPackages, commandRunner }) {
+export async function validateImplementationInput({
+  worktreeRoot,
+  changeId,
+  workPackages,
+  commandRunner,
+}) {
   const validation = runOpenSpecJson(
     commandRunner,
     ["validate", changeId, "--type", "change", "--strict", "--no-interactive", "--json"],
@@ -84,21 +124,62 @@ export function validateImplementationInput({ worktreeRoot, changeId, workPackag
     worktreeRoot,
   );
   assertNearestRoot(instructions.root, worktreeRoot, "openspec instructions apply");
-  if (instructions.changeName !== changeId || instructions.state !== "ready" || !Array.isArray(instructions.tasks)) {
+  if (
+    instructions.changeName !== changeId || instructions.state !== "ready" ||
+    typeof instructions.schemaName !== "string" || !instructions.schemaName ||
+    !Array.isArray(instructions.tasks)
+  ) {
     throw new Error(`OpenSpec Change ${changeId} не готов к apply`);
   }
+  const changeRoot = await resolveContainedExistingPath(
+    worktreeRoot,
+    instructions.changeDir,
+    "OpenSpec Apply changeDir",
+    "directory",
+  );
+  const contextFiles = await normalizeContextFiles(changeRoot, instructions.contextFiles);
+
+  const tasks = [];
+  const taskIds = new Set();
+  for (const task of instructions.tasks) {
+    if (
+      !isRecord(task) || typeof task.id !== "string" || !task.id || taskIds.has(task.id) ||
+      typeof task.description !== "string" || !task.description || typeof task.done !== "boolean"
+    ) {
+      throw new Error("OpenSpec Tasks имеют некорректный JSON contract");
+    }
+    taskIds.add(task.id);
+    tasks.push(task);
+  }
+
+  if (tasks.length === 0) {
+    if (workPackages.length > 0) {
+      throw new Error("Эта OpenSpec schema не возвращает адресуемые Tasks; --work-package использовать нельзя");
+    }
+    return {
+      schema: instructions.schemaName,
+      changeRoot,
+      implementationMode: "whole-change",
+      contextFiles,
+      selectedTasks: [],
+    };
+  }
+  if (workPackages.length === 0) {
+    throw new Error("OpenSpec вернула адресуемые Tasks; для package-mode требуется --work-package <id>");
+  }
+
   const selectedTasks = [];
   for (const workPackage of workPackages) {
-    const matches = instructions.tasks.filter((task) => isRecord(task) && task.id === workPackage);
-    if (matches.length !== 1) throw new Error(`Work Package ${workPackage} не найден однозначно в OpenSpec Tasks`);
-    if (
-      typeof matches[0].description !== "string" || matches[0].description.length === 0 ||
-      typeof matches[0].done !== "boolean"
-    ) {
-      throw new Error(`Work Package ${workPackage} имеет некорректный OpenSpec JSON contract`);
-    }
-    if (matches[0].done) throw new Error(`Work Package ${workPackage} уже выполнен`);
-    selectedTasks.push({ id: workPackage, description: matches[0].description });
+    const task = tasks.find((candidate) => candidate.id === workPackage);
+    if (!task) throw new Error(`Work Package ${workPackage} не найден в OpenSpec Tasks`);
+    if (task.done) throw new Error(`Work Package ${workPackage} уже выполнен`);
+    selectedTasks.push({ id: task.id, description: task.description });
   }
-  return selectedTasks;
+  return {
+    schema: instructions.schemaName,
+    changeRoot,
+    implementationMode: "package",
+    contextFiles,
+    selectedTasks,
+  };
 }

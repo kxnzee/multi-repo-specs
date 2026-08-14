@@ -127,9 +127,8 @@
  * @property {string} branch
  * @property {string} baseRevision
  * @property {string} changePath
- * @property {"spec-driven"} schema
- * @property {"missing" | "present"} proposalStatus
- * @property {"create_proposal" | "review_proposal"} nextAction
+ * @property {string} schema
+ * @property {Record<string, unknown> | null} nextArtifact
  * @property {OpenSpecResponse} openSpecStatus
  */
 
@@ -145,6 +144,10 @@
  * @property {string} implementationBranch
  * @property {"created" | "tracking" | "existing"} branchStatus
  * @property {string} codeBaseRevision
+ * @property {string} schema
+ * @property {"package" | "whole-change"} implementationMode
+ * @property {string} changePath
+ * @property {Record<string, string[]>} contextFiles
  * @property {string[]} workPackages
  * @property {Array<{id: string, description: string}>} selectedTasks
  * @property {"06"} nextStep

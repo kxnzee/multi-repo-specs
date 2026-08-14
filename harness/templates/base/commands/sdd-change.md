@@ -33,9 +33,9 @@ openspec-orch change --ticket <ticket-id> --name <short-name> --store <store-id>
 - `changeId` равен `<ticket-lowercase>-<short-name>`;
 - `branch` равна `feature/<changeId>`;
 - `schema` равна `spec-driven`;
-- `proposalStatus` равен `missing` или `present`;
-- `nextAction` согласован с состоянием Proposal;
-- вложенный `openSpecStatus` относится к тому же Store, Change и schema.
+- вложенный `openSpecStatus` относится к тому же Store, Change и schema, содержит `artifactPaths` и полный граф `artifacts`;
+- в графе существует ровно один artifact `proposal` с `outputPath: proposal.md` и статусом `ready` либо `done`;
+- если Proposal имеет статус `ready`, `nextArtifact.id` равен `proposal`; если Proposal уже `done`, не требуй, чтобы `nextArtifact` указывал на него.
 
 Не исправляй ошибку CLI через ручное создание каталога, `.openspec.yaml`, ветки, reset, stash, merge или rebase. При `needs_recovery` покажи причину и остановись.
 
@@ -82,7 +82,7 @@ openspec instructions proposal \
 - предположения и отрицательные результаты поиска не выданы за факты;
 - открытые вопросы соответствуют указанным ограничениям.
 
-Если хотя бы одна проверка не пройдена, перепиши черновик и повтори всю проверку. Только после успешной проверки запиши Proposal в проверенный `resolvedOutputPath`, перечитай записанный файл и покажи его Change Owner. Не закрепляй преждевременно реализацию и не переноси историю чата. Если `proposalStatus: present`, сначала прочитай существующий Proposal и не перезаписывай подтверждённый текст без явного изменения Change Owner.
+Если хотя бы одна проверка не пройдена, перепиши черновик и повтори всю проверку. Только после успешной проверки запиши Proposal в проверенный `resolvedOutputPath`, перечитай записанный файл и покажи его Change Owner. Не закрепляй преждевременно реализацию и не переноси историю чата. Если artifact `proposal` уже имеет статус `done`, сначала прочитай существующий Proposal и не перезаписывай подтверждённый текст без явного изменения Change Owner.
 
 ## 4. Получи человеческое подтверждение
 

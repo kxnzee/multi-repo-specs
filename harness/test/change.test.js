@@ -31,10 +31,10 @@ function configureGit(repository) {
  * Создаёт Store checkout с bare remote и автоматически удаляет сценарий.
  *
  * @param {import("node:test").TestContext} t Контекст теста.
- * @param {{archived?: string[]}} [options] Архивные Changes.
+ * @param {{archived?: string[], schema?: string}} [options] Архивные Changes и schema проекта.
  * @returns {Promise<{root: string, storeRoot: string, remote: string}>} Пути сценария.
  */
-async function createScenario(t, { archived = [] } = {}) {
+async function createScenario(t, { archived = [], schema = "spec-driven" } = {}) {
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-change-")));
   t.after(async () => fs.rm(root, { recursive: true, force: true }));
   const storeRoot = path.join(root, "payments-specs");
@@ -53,7 +53,7 @@ async function createScenario(t, { archived = [] } = {}) {
     ".openspec-store/store.yaml":
       `version: 1\nid: payments-specs\nremote: ${JSON.stringify(remote)}\n`,
     "openspec-orch.yaml": serializeOrchestratorConfig(ORCHESTRATOR_TEMPLATE, repositories, QWEN),
-    "openspec/config.yaml": "schema: spec-driven\n",
+    "openspec/config.yaml": `schema: ${schema}\n`,
     "openspec/context/00-start-here.md": "# Start\n",
     "openspec/context/system-map.yaml": "systems: []\nrelationships: []\n",
     "openspec/changes/archive/.gitkeep": "",
@@ -76,9 +76,10 @@ async function createScenario(t, { archived = [] } = {}) {
  *
  * @param {string} storeRoot Корень Store.
  * @param {string[]} [initialChanges] Исходные активные Changes.
+ * @param {{schema?: string}} [options] Динамическая OpenSpec schema.
  * @returns {{calls: string[][], runner: typeof runCommand}} Runner и журнал OpenSpec.
  */
-function fakeOpenSpec(storeRoot, initialChanges = []) {
+function fakeOpenSpec(storeRoot, initialChanges = [], { schema = "spec-driven" } = {}) {
   const calls = [];
   const changes = [...initialChanges];
   const root = { path: storeRoot, source: "store", store_id: "payments-specs" };
@@ -124,14 +125,14 @@ function fakeOpenSpec(storeRoot, initialChanges = []) {
       const changeId = args[2];
       const changeRoot = path.join(storeRoot, "openspec", "changes", changeId);
       fsSync.mkdirSync(changeRoot, { recursive: true });
-      fsSync.writeFileSync(path.join(changeRoot, ".openspec.yaml"), "schema: spec-driven\n");
+      fsSync.writeFileSync(path.join(changeRoot, ".openspec.yaml"), `schema: ${schema}\n`);
       changes.push(changeId);
       return JSON.stringify({
         change: {
           id: changeId,
           path: changeRoot,
           metadataPath: path.join(changeRoot, ".openspec.yaml"),
-          schema: "spec-driven",
+          schema,
         },
         root,
         status: [],
@@ -141,17 +142,36 @@ function fakeOpenSpec(storeRoot, initialChanges = []) {
       const changeId = args[args.indexOf("--change") + 1];
       const changeRoot = path.join(storeRoot, "openspec", "changes", changeId);
       const proposalExists = fsSync.existsSync(path.join(changeRoot, "proposal.md"));
+      const briefPath = path.join(changeRoot, "briefs", "change.md");
+      const artifacts = schema === "research-only"
+        ? [{
+            id: "brief",
+            outputPath: "briefs/change.md",
+            status: fsSync.existsSync(briefPath) ? "done" : "ready",
+            requires: [],
+          }]
+        : [
+            { id: "proposal", outputPath: "proposal.md", status: proposalExists ? "done" : "ready", requires: [] },
+            { id: "specs", outputPath: "specs/**/*.md", status: proposalExists ? "ready" : "blocked", requires: ["proposal"] },
+            { id: "design", outputPath: "design.md", status: proposalExists ? "ready" : "blocked", requires: ["proposal"] },
+            { id: "tasks", outputPath: "tasks.md", status: "blocked", requires: ["specs", "design"] },
+          ];
+      const artifactPaths = Object.fromEntries(artifacts.map((artifact) => {
+        const resolvedOutputPath = path.join(changeRoot, artifact.outputPath);
+        return [artifact.id, {
+          outputPath: artifact.outputPath,
+          resolvedOutputPath,
+          existingOutputPaths: fsSync.existsSync(resolvedOutputPath) ? [resolvedOutputPath] : [],
+        }];
+      }));
       return JSON.stringify({
         changeName: changeId,
-        schemaName: "spec-driven",
+        schemaName: schema,
         changeRoot,
         isComplete: false,
-        artifacts: [
-          { id: "proposal", outputPath: "proposal.md", status: proposalExists ? "done" : "ready", requires: [] },
-          { id: "specs", outputPath: "specs/**/*.md", status: proposalExists ? "ready" : "blocked", requires: ["proposal"] },
-          { id: "design", outputPath: "design.md", status: proposalExists ? "ready" : "blocked", requires: ["proposal"] },
-          { id: "tasks", outputPath: "tasks.md", status: "blocked", requires: ["specs", "design"] },
-        ],
+        applyRequires: schema === "research-only" ? ["brief"] : ["tasks"],
+        artifactPaths,
+        artifacts,
         root,
         status: [],
       });
@@ -180,8 +200,9 @@ test("prepareChange creates a planning branch and standard OpenSpec Change", asy
   assert.equal(result.changeStatus, "created");
   assert.equal(result.changeId, "pay-412-payment-status");
   assert.equal(result.branch, "feature/pay-412-payment-status");
-  assert.equal(result.proposalStatus, "missing");
-  assert.equal(result.nextAction, "create_proposal");
+  assert.equal(result.schema, "spec-driven");
+  assert.equal(result.nextArtifact.id, "proposal");
+  assert.equal(result.nextArtifact.resolvedOutputPath, path.join(result.changePath, "proposal.md"));
   assert.equal(
     runCommand("git", ["branch", "--show-current"], { cwd: scenario.storeRoot }),
     result.branch,
@@ -194,8 +215,6 @@ test("prepareChange creates a planning branch and standard OpenSpec Change", asy
     "new",
     "change",
     "pay-412-payment-status",
-    "--schema",
-    "spec-driven",
     "--store",
     "payments-specs",
     "--json",
@@ -225,7 +244,7 @@ test("prepareChange rejects an explicit Store ID from another checkout", async (
   assert.equal(runCommand("git", ["branch", "--show-current"], { cwd: scenario.storeRoot }), "main");
 });
 
-test("prepareChange safely resumes an existing Proposal without recreating Change", async (t) => {
+test("prepareChange safely resumes an existing Change without recreating it", async (t) => {
   const scenario = await createScenario(t);
   const openSpec = fakeOpenSpec(scenario.storeRoot);
   const created = await prepareChange({
@@ -243,8 +262,7 @@ test("prepareChange safely resumes an existing Proposal without recreating Chang
     commandRunner: openSpec.runner,
   });
   assert.equal(resumed.changeStatus, "existing");
-  assert.equal(resumed.proposalStatus, "present");
-  assert.equal(resumed.nextAction, "review_proposal");
+  assert.equal(resumed.nextArtifact.id, "specs");
   assert.equal(openSpec.calls.filter((args) => args[0] === "new").length, 1);
 });
 
@@ -308,7 +326,7 @@ test("prepareChange reports recovery for a planning branch without Change", asyn
   );
 });
 
-test("prepareChange blocks changes outside the current Change and later artifacts", async (t) => {
+test("prepareChange blocks changes outside the current Change but accepts schema artifacts", async (t) => {
   const scenario = await createScenario(t);
   const openSpec = fakeOpenSpec(scenario.storeRoot);
   const created = await prepareChange({
@@ -328,14 +346,29 @@ test("prepareChange blocks changes outside the current Change and later artifact
   );
   await fs.rm(path.join(scenario.storeRoot, "unexpected.txt"));
   await fs.writeFile(path.join(created.changePath, "design.md"), "# Design\n", "utf8");
-  await assert.rejects(
-    prepareChange({
-      start: scenario.storeRoot,
-      ticket: "PAY-417",
-      name: "payment-status",
-      commandRunner: openSpec.runner,
-    }),
-  );
+  const continued = await prepareChange({
+    start: scenario.storeRoot,
+    ticket: "PAY-417",
+    name: "payment-status",
+    commandRunner: openSpec.runner,
+  });
+  assert.equal(continued.changeStatus, "existing");
+});
+
+test("prepareChange follows a custom schema without proposal or tasks", async (t) => {
+  const scenario = await createScenario(t, { schema: "research-only" });
+  const openSpec = fakeOpenSpec(scenario.storeRoot, [], { schema: "research-only" });
+  const result = await prepareChange({
+    start: scenario.storeRoot,
+    ticket: "PAY-419",
+    name: "research",
+    commandRunner: openSpec.runner,
+  });
+
+  assert.equal(result.schema, "research-only");
+  assert.equal(result.nextArtifact.id, "brief");
+  assert.equal(result.nextArtifact.outputPath, "briefs/change.md");
+  assert.equal(openSpec.calls.some((args) => args.includes("--schema")), false);
 });
 
 test("prepareChange blocks an existing remote planning branch", async (t) => {
