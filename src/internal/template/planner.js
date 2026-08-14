@@ -151,29 +151,33 @@ function assertNoPlanCollisions(files) {
 
 /**
  * Проверяет существующие компоненты target, не принимая решение об overwrite файла.
+ * Функция используется повторно после внешнего OpenSpec init, поскольку состояние
+ * target могло измениться между построением и применением plan.
  *
  * @param {string} targetRoot Канонический target root.
- * @param {import("./types.js").TemplatePlanFile} file Элемент plan.
- * @returns {Promise<void>}
+ * @param {string} relativePath Относительный путь назначения.
+ * @returns {Promise<import("node:fs").Stats | null>} Состояние конечного пути.
  */
-async function assertSafeExistingTarget(targetRoot, file) {
+export async function inspectTemplateTarget(targetRoot, relativePath) {
   let current = targetRoot;
-  const segments = file.targetRelative.split("/");
+  const segments = relativePath.split("/");
   for (const [index, segment] of segments.entries()) {
     current = path.join(current, segment);
     const stat = await lstatOrNull(current);
-    if (!stat) return;
+    if (!stat) return null;
     if (stat.isSymbolicLink()) {
-      throw new Error(`Target содержит symlink: ${file.targetRelative}`);
+      throw new Error(`Target содержит symlink: ${relativePath}`);
     }
     const final = index === segments.length - 1;
     if (!final && !stat.isDirectory()) {
-      throw new Error(`Target содержит file-directory collision: ${file.targetRelative}`);
+      throw new Error(`Target содержит file-directory collision: ${relativePath}`);
     }
     if (final && !stat.isFile()) {
-      throw new Error(`Target конфликтует с каталогом или специальным объектом: ${file.targetRelative}`);
+      throw new Error(`Target конфликтует с каталогом или специальным объектом: ${relativePath}`);
     }
+    if (final) return stat;
   }
+  return null;
 }
 
 /**
@@ -291,6 +295,6 @@ export async function buildTemplatePlan({
   }
 
   assertNoPlanCollisions(files);
-  for (const file of files) await assertSafeExistingTarget(targetRoot, file);
+  for (const file of files) await inspectTemplateTarget(targetRoot, file.targetRelative);
   return { templateRoot, targetRoot, supportedAgentIds, agent, files };
 }
