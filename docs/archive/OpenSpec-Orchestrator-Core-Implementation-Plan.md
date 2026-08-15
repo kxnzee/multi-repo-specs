@@ -1,13 +1,30 @@
 # План архитектуры OpenSpec Orchestrator
 
+> [!CAUTION]
+> **Документ неактуален и не должен использоваться как план реализации.**
+>
+> Он описывает предыдущий этап проектирования вокруг `init`, `connect`, `change`,
+> `load`, Template extraction и будущего Plugin API. В нём ещё нет зафиксированной
+> трёхслойной модели Repository Layer → Change Layer → Assignment/Implementation
+> Layer, Change Binding, aggregate `status(change-id)`, Result Receipt, local state и
+> целевого вертикального сценария `connect → status → implement → record → verify`.
+>
+> Актуальный scope lock и продуктовая модель находятся в
+> [OpenSpec-Orchestrator-Product-Concept-Brief.md](../OpenSpec-Orchestrator-Product-Concept-Brief.md),
+> прежде всего в разделах 3.1–3.3, 21–22, 26 и 28. Перед реализацией должен быть
+> подготовлен новый implementation plan на основе этих разделов и аудита текущего кода.
+> Содержание ниже сохранено только как исторический контекст принятых и отвергнутых
+> решений.
+
 ## 0. Общая модель
 
-- Статус: `in_progress`.
-- Стадия продукта: проектирование до первого внешнего использования.
+- Статус: `superseded`.
+- Стадия документа: исторический план предыдущей архитектурной итерации.
 - Рабочая ветка: `refactor-orchestrator-core`.
 - Стабильный публичный CLI-контракт ещё не объявлен.
 
-Оркестратор имеет два обязательных слоя и одну опциональную точку расширения:
+Предыдущая модель представляла Orchestrator как два обязательных компонента и одну
+опциональную точку расширения:
 
 ```text
 OpenSpec Orchestrator
