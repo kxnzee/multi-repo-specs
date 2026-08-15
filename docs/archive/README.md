@@ -9,5 +9,7 @@
 
 ## Содержимое
 
+- `OpenSpec-Orchestrator-Product-Concept-Brief-v1.md` — предыдущая редакция
+  продуктовой концепции, заменённая актуальным implementation-ready scope lock v1.
 - `OpenSpec-Orchestrator-Core-Implementation-Plan.md` — предыдущий архитектурный план,
   заменённый актуальной продуктовой концепцией и будущим новым implementation plan.
