@@ -23,7 +23,7 @@ openspec-orch connect --workspace /absolute/path/to/workspace
 ```
 
 Команда сохранит абсолютный путь в локальном `.openspec-orch/state.json`. Файл
-исключён из Git и не попадёт в commit. Последующие Alpha-команды можно выполнять без
+исключён из Git и не попадёт в commit. Последующие команды можно выполнять без
 `--workspace`.
 
 OpenSpec Orchestrator определяет workspace в следующем порядке:

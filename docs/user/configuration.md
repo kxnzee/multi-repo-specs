@@ -1,12 +1,7 @@
 # Конфигурация `openspec-orch.yaml`
 
-> [!IMPORTANT]
-> Справочник описывает Alpha v1 — формат, который парсит текущий строгий parser
-> (`src/internal/config/`). Нормативный источник — раздел 3.2
-> [Alpha Concept](../technical/alpha-concept.md); публичная грамматика CLI —
-> [Alpha Implementation Plan](../technical/alpha-implementation-plan.md).
-> Секции `agent`/`handoffs` и поля `role`/`url` предыдущего прототипа отклоняются строгой
-> схемой и в Alpha v1 не входят.
+Справочник описывает текущий формат `version: 1`. Секции `agent`/`handoffs` и поля
+`role`/`url` предыдущего прототипа отклоняются строгой схемой.
 
 `openspec-orch.yaml` находится в корне центрального Store Repository и описывает режим Core и репозитории проекта. Файл создаётся командой `openspec-orch init` и используется командами Core как машинная конфигурация. Версия OpenSpec здесь намеренно не закрепляется.
 
@@ -32,7 +27,8 @@ extensions: {}
 
 ## `version`
 
-Обязательное поле. Alpha v1 принимает только `version: 1`; любое другое значение или отсутствие поля — ошибка `CONFIG_INVALID`.
+Обязательное поле. Текущий формат принимает только `version: 1`; любое другое
+значение или отсутствие поля — ошибка `CONFIG_INVALID`.
 
 ## `strict`
 
@@ -66,7 +62,10 @@ extensions: {}
 
 ## `extensions`
 
-Свободная секция для расширений вне Alpha v1 контракта Core. Core не интерпретирует её содержимое. В строгом режиме любое поле верхнего уровня вне `version`, `strict`, `repositories`, `extensions` — ошибка `CONFIG_INVALID`; это относится и к секциям `agent`/`handoffs` предыдущего прототипа.
+Свободная секция для расширений вне контракта v1. Core не интерпретирует её
+содержимое. В строгом режиме любое поле верхнего уровня вне `version`, `strict`,
+`repositories`, `extensions` — ошибка `CONFIG_INVALID`; это относится и к секциям
+`agent`/`handoffs` предыдущего прототипа.
 
 ## Редактирование
 

@@ -1,8 +1,8 @@
 # Зоны хранения контекста и инструкций
 
-> [!IMPORTANT]
+> [!WARNING]
 > Это описание project-level процесса и файлов Template предыдущего полного
-> прототипа, а не runtime-контракт Orchestrator Alpha. Alpha Core не читает agent
+> прототипа, а не текущий runtime-контракт Orchestrator. Core не читает agent
 > mapping и handoff после `init`.
 
 Этот документ помогает выбрать место для нового правила, контекста или механизма. Он описывает установленные файлы в рабочем проекте. Каталоги `templates/base/` содержат их шаблоны и не образуют отдельные runtime-зоны.
@@ -117,7 +117,7 @@ Provider-specific каталог `agents/` содержит определени
 
 ### Машинная конфигурация и управление
 
-`openspec-orch.yaml`, `.openspec-store/` и `CODEOWNERS` содержат версии, ID, репозитории, provider-specific пути, Store metadata и владельцев. В этих файлах не размещаются развёрнутые инструкции агенту. Все поля `openspec-orch.yaml` описаны в [справочнике конфигурации](../../../reference/openspec-orch-yaml.md).
+`openspec-orch.yaml`, `.openspec-store/` и `CODEOWNERS` содержат версии, ID, репозитории, provider-specific пути, Store metadata и владельцев. В этих файлах не размещаются развёрнутые инструкции агенту. Все поля `openspec-orch.yaml` описаны в [справочнике конфигурации](../../../user/configuration.md).
 
 ### OpenSpec-артефакты
 

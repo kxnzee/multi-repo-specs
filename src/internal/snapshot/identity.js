@@ -1,4 +1,4 @@
-/** @fileoverview Чистая Alpha v1-функция идентичности Snapshot без доступа к state. */
+/** @fileoverview Чистая функция идентичности Snapshot v1 без доступа к state. */
 
 import { createHash } from "node:crypto";
 
@@ -21,7 +21,7 @@ export function canonicalImplementations(implementations) {
 }
 
 /**
- * Вычисляет идентичность Snapshot по фиксированной Alpha v1 проекции.
+ * Вычисляет идентичность Snapshot по фиксированной проекции v1.
  *
  * @param {string} cycleId Cycle ID.
  * @param {Array<{repository_id: string, implementation_revision: string}>} implementations Пары commit.

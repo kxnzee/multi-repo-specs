@@ -1,4 +1,4 @@
-/** @fileoverview Zod-схемы YAML-контрактов OpenSpec Orchestrator Alpha. */
+/** @fileoverview Zod-схемы YAML-контрактов OpenSpec Orchestrator. */
 
 import * as z from "zod";
 
@@ -36,7 +36,7 @@ function parseSchema(schema, value, label) {
 }
 
 /**
- * Проверяет строгую структуру `openspec-orch.yaml` Alpha v1 до предметной нормализации.
+ * Проверяет строгую структуру `openspec-orch.yaml` v1 до предметной нормализации.
  *
  * @param {unknown} value Разобранный YAML.
  * @returns {Record<string, unknown>} Проверенный документ.

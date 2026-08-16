@@ -1,8 +1,8 @@
-# OpenSpec Orchestrator: runbook пилота альфа-версии
+# OpenSpec Orchestrator: runbook пилота
 
 ## 0. Цель и границы
 
-Статус: **актуальный сценарий Alpha-пилота**.
+Статус: **актуальный сценарий пилота**.
 
 Runbook проверяет две гипотезы:
 
@@ -10,8 +10,8 @@ Runbook проверяет две гипотезы:
 2. Snapshot не даёт перепутать точные версии frontend и backend при общей проверке.
 
 Пилот рассчитан на одного инженера, одну машину, один Store и два Code Repository.
-Команды соответствуют реализованной Alpha v1 и её
-[Implementation Plan](../technical/alpha-implementation-plan.md).
+Команды соответствуют реализованной v1 и её
+[плану реализации](../technical/implementation-plan.md).
 
 ## 1. Выбор реального Change
 
@@ -39,7 +39,7 @@ ORCH_CYCLE_PATH=".openspec-orch/changes/${ORCH_CHANGE_KEY}.json"
 ```
 
 Пилот запускать из чистой закоммиченной ревизии Orchestrator. Во время пилота
-Alpha Concept, Alpha Implementation Plan и Alpha Pilot Runbook не редактировать;
+продуктовый контракт, план реализации и runbook не редактировать;
 наблюдения записывать только в `docs/user/pilot-feedback.md`.
 
 ## 2. Установка и подключение
@@ -195,7 +195,7 @@ openspec-orch verify "$ORCH_CHANGE_ID"
 3. Где пользователь боялся ошибиться?
 
 Для каждой записи указать дату, `change-id`, шаг runbook и короткое описание. Не
-предлагать решение прямо во время прогона и не расширять альфу до ревизии feedback.
+предлагать решение прямо во время прогона и не расширять scope до ревизии feedback.
 
 Пилот считается завершённым после 3–5 реальных Changes, когда:
 

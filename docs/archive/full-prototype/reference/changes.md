@@ -1,10 +1,10 @@
 # Работа с Changes
 
-> [!IMPORTANT]
+> [!WARNING]
 > Этот документ описывает процесс OpenSpec и примеры предыдущего полного прототипа.
-> Команды Orchestrator `explore`, `change` и `load` из примеров удалены и в Alpha не
+> Команды Orchestrator `explore`, `change` и `load` из примеров удалены и больше не
 > работают. Текущий публичный поток начинается после подготовленного Change и описан
-> в [Alpha Pilot Runbook](../../../OpenSpec-Orchestrator-Alpha-Pilot-Runbook.md).
+> в [текущем runbook пилота](../../../user/pilot-runbook.md).
 
 Выберите свой случай:
 

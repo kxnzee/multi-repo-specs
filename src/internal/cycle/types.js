@@ -1,4 +1,4 @@
-/** @fileoverview JSDoc-типы Cycle Record Alpha v1 и операций `assign`/`status`. */
+/** @fileoverview JSDoc-типы Cycle Record v1 и операций `assign`/`status`. */
 
 /**
  * Cycle Record `.openspec-orch/changes/<change-key>.json`.

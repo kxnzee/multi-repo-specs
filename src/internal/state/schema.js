@@ -1,4 +1,4 @@
-/** @fileoverview Строгие схемы локального состояния OpenSpec Orchestrator Alpha. */
+/** @fileoverview Строгие схемы локального состояния OpenSpec Orchestrator. */
 
 import * as z from "zod";
 
@@ -92,7 +92,7 @@ const STATE_SCHEMA = z.strictObject({
 });
 
 /**
- * Проверяет локальный state Alpha v1 и заполняет отсутствующие пустые секции MVP-0.
+ * Проверяет локальный state v1 и заполняет отсутствующие пустые секции MVP-0.
  *
  * @param {unknown} value Разобранный JSON.
  * @returns {z.infer<typeof STATE_SCHEMA>} Проверенное состояние.

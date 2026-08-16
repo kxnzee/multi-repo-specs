@@ -14,11 +14,11 @@
 - `OpenSpec-Orchestrator-Product-Concept-Brief-v1.md` — предыдущая редакция
   полной продуктовой концепции v1.
 - `OpenSpec-Orchestrator-Product-Concept-Brief.md` — редакция 3 полной продуктовой
-  концепции v1, заменённая сокращённым Alpha Concept.
+  концепции v1, заменённая текущим продуктовым контрактом.
 - `OpenSpec-Orchestrator-Core-Implementation-Plan.md` — предыдущий архитектурный план,
   предшествующий полной продуктовой модели.
 - `OpenSpec-Orchestrator-Implementation-Plan.md` — implementation plan полной v1,
-  заменённый коротким Alpha Implementation Plan.
+  заменённый текущим планом реализации.
 - [`reference/OpenSpec для команды.md`](<reference/OpenSpec для команды.md>) —
   исходный workplace-гайд по раннему multi-repository flow; сохранён без
   актуализации как исторический источник, заменён текущим

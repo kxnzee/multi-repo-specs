@@ -14,7 +14,7 @@
   skill `openspec-analyze-impact`.
 - Для независимой проверки Proposal, Delta Specs, Design и Tasks перед Gate или PR
   Review используй project skill `openspec-review-change`.
-- `openspec-orch.yaml` описывает Alpha-конфигурацию и реестр репозиториев,
+- `openspec-orch.yaml` описывает конфигурацию Core и реестр репозиториев,
   `.openspec-store/` — metadata Store.
 - Перед созданием или проверкой Change прочитай из `openspec-orch.yaml` точные
   `repository-id` с role `code`, затем сопоставь их с

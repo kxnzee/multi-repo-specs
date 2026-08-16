@@ -1,4 +1,4 @@
-/** @fileoverview Декларативный контракт OpenSpec Orchestrator Alpha CLI. */
+/** @fileoverview Декларативный контракт OpenSpec Orchestrator CLI. */
 
 import { Command, InvalidArgumentError, Option } from "commander";
 
@@ -69,7 +69,7 @@ function withExecutionMode(command) {
 export function createProgram(handlers = DEFAULT_HANDLERS) {
   const program = new Command()
     .name("openspec-orch")
-    .description("OpenSpec Orchestrator Alpha: Cycle и Snapshot для multi-repo Change")
+    .description("OpenSpec Orchestrator: Cycle и Snapshot для multi-repo Change")
     .showHelpAfterError()
     .exitOverride();
 
@@ -116,7 +116,7 @@ export function createProgram(handlers = DEFAULT_HANDLERS) {
     .action((changeId) => handlers.status({ changeId }));
 
   const record = program.command("record")
-    .description("записать внешний результат в локальное Alpha-состояние");
+    .description("записать внешний результат в локальное состояние");
   record.command("assignment <change-id>")
     .description("записать Result Receipt одного Code Repository")
     .addOption(new Option("--repo <repository-id>", "repository-id из текущего Cycle")

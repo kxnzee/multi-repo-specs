@@ -1,4 +1,4 @@
-/** @fileoverview Чтение и атомарная запись локального state OpenSpec Orchestrator Alpha. */
+/** @fileoverview Чтение и атомарная запись локального state OpenSpec Orchestrator. */
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -31,7 +31,7 @@ async function ensureStateDirectory(target, label) {
   }
 }
 
-/** @returns {ReturnType<typeof parseStateSchema>} Пустое Alpha-состояние. */
+/** @returns {ReturnType<typeof parseStateSchema>} Пустое локальное состояние. */
 export function createEmptyState() {
   return parseStateSchema({ contract_version: 1, workspace: null });
 }

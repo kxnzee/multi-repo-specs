@@ -1,4 +1,4 @@
-/** @fileoverview Проверка строгой Alpha v1 схемы и безопасности openspec-orch.yaml. */
+/** @fileoverview Проверка строгой схемы v1 и безопасности openspec-orch.yaml. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -10,7 +10,7 @@ import {
 } from "../src/internal/config/index.js";
 
 /**
- * Создаёт минимальный валидный openspec-orch.yaml Alpha v1 для негативных тестов.
+ * Создаёт минимальный валидный openspec-orch.yaml v1 для негативных тестов.
  *
  * @param {string} repositories YAML-список repositories.
  * @returns {string} Полный YAML.
@@ -95,7 +95,7 @@ test("strict defaults to true and may be disabled without an OpenSpec version pi
   assert.throws(() => parseOrchestratorConfig(`strict: disabled\n${config(STORE_ONLY)}`));
 });
 
-test("serializeOrchestratorConfig produces a strict Alpha v1 document from the Core template", () => {
+test("serializeOrchestratorConfig produces a strict v1 document from the Core template", () => {
   const template = "version: 1\nstrict: true\n\nrepositories: []\n\nextensions: {}\n";
   const serialized = serializeOrchestratorConfig(template, [
     { id: "specs", role: "store", remote: "https://example.test/specs.git", defaultBranch: "main" },

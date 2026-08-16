@@ -1,7 +1,7 @@
 # Работа с subagents при планировании Change
 
-> [!IMPORTANT]
-> Архивный документ предыдущего полного прототипа. Базовый Template Alpha больше
+> [!WARNING]
+> Архивный документ предыдущего полного прототипа. Текущий базовый Template больше
 > не устанавливает описанные ниже SDD-профили `repository-context-pass`,
 > `frontend-context-pass` и `backend-context-pass`. Текущие универсальные project
 > subagents имеют другой контракт и не привязаны к шагу 03.

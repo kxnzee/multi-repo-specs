@@ -33,7 +33,7 @@ export async function connectProject({
   const storeRoot = await fs.realpath(path.resolve(start));
   const { metadata, config } = await readStoreConfiguration(storeRoot);
   if (config.codeRepositories.length === 0) {
-    throw new Error("CONFIG_INVALID: для Alpha pilot нужен минимум один repository с roles: [code]");
+    throw new Error("CONFIG_INVALID: для пилота нужен минимум один repository с roles: [code]");
   }
   const executionMode = resolveExecutionMode(config.strict, noStrict);
   await inspectOpenSpecCli(commandRunner, storeRoot);

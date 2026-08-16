@@ -1,7 +1,7 @@
 # Архив предыдущего полного прототипа
 
 Этот комплект описывает модель `init → connect → explore → change → load`, которая
-заменена Orchestrator Alpha. Команды `explore`, `change` и `load` удалены из
+заменена текущей моделью Orchestrator. Команды `explore`, `change` и `load` удалены из
 публичного CLI, поэтому документы сохранены только как исторический контекст.
 
 ## Содержимое
@@ -18,6 +18,6 @@
 - [`reference/pilot-2026-08-14.md`](reference/pilot-2026-08-14.md) — исторический
   отчёт изолированного пилота удалённых команд.
 
-Актуальные документы: [Alpha Concept](../../OpenSpec-Orchestrator-Alpha-Concept.md),
-[Alpha Implementation Plan](../../OpenSpec-Orchestrator-Alpha-Implementation-Plan.md)
-и [Alpha Pilot Runbook](../../OpenSpec-Orchestrator-Alpha-Pilot-Runbook.md).
+Актуальные документы: [продуктовый контракт](../../technical/product-contract.md),
+[план реализации](../../technical/implementation-plan.md)
+и [runbook пилота](../../user/pilot-runbook.md).

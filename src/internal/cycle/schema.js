@@ -1,4 +1,4 @@
-/** @fileoverview Zod-схема Cycle Record Alpha v1. */
+/** @fileoverview Zod-схема Cycle Record v1. */
 
 import * as z from "zod";
 
@@ -19,7 +19,7 @@ const CYCLE_RECORD_SCHEMA = z.strictObject({
 });
 
 /**
- * Проверяет строгую схему Cycle Record Alpha v1.
+ * Проверяет строгую схему Cycle Record v1.
  *
  * @param {unknown} value Разобранный JSON.
  * @returns {Record<string, unknown>} Проверенный документ.

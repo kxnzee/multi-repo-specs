@@ -24,5 +24,5 @@ git diff --check
 node src/bin/openspec-orch.js --help
 ```
 
-До завершения Alpha-пилота правила заморозки Core определены в `AGENTS.md`, а
+До завершения пилота правила заморозки Core определены в `AGENTS.md`, а
 кандидаты развития записываются в `BACKLOG.md`.

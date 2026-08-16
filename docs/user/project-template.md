@@ -1,10 +1,5 @@
 # Пользовательский Project Template
 
-> [!IMPORTANT]
-> В Alpha Project Template используется только командой `init` для bootstrap
-> проектных файлов. Agent mapping и handoff не сохраняются в `openspec-orch.yaml` и
-> не используются командами Alpha после `init`.
-
 Project Template — обычный локальный каталог, который `openspec-orch init` накладывает поверх результата штатного `openspec init`. Он определяет project-local обвязку команды, но не добавляет команды в Orchestrator Core и не изменяет внутреннюю логику OpenSpec.
 
 ## Граница ответственности
@@ -27,7 +22,7 @@ cp -R templates/base ../team-template
 ```
 
 Базовый Template устанавливает только общий bootstrap-набор: постоянные инструкции
-выбранного агента, `.gitignore` для локального Alpha-state, универсальный context pack,
+выбранного агента, `.gitignore` для локального state, универсальный context pack,
 project-local `openspec/config.yaml` со штатной schema `spec-driven` и дополнительными
 правилами Planning, четыре русскоязычных project skills и четыре нативных read-only
 subagents. Они не зависят от Orchestrator-команд, Store registry, конкретной структуры
@@ -146,7 +141,7 @@ server с alias `codegraph`. Базовые subagents уже содержат re
 | `target_directory` | Итоговый provider-specific каталог проекта |
 | `commands_directory` | Каталог agent commands после применения Template |
 | `instructions_file` | Основной файл постоянных инструкций агента |
-| `handoffs` | Необязательные именованные пути пользовательского Template; команды Alpha их не вызывают |
+| `handoffs` | Необязательные именованные пути пользовательского Template; текущие команды их не вызывают |
 | `copy` | Упорядоченный список копирований `from -> to` относительно Template и Store |
 
 Поддерживаемая Core архитектура сейчас — Markdown commands. Имена source-директорий

@@ -1,4 +1,4 @@
-/** @fileoverview Детерминированное вычисление и сохранение Snapshot Alpha v1. */
+/** @fileoverview Детерминированное вычисление и сохранение Snapshot v1. */
 
 import { assertCycleCommitted, readCurrentCycle } from "../cycle/current.js";
 import { runCommand } from "../shared/command.js";

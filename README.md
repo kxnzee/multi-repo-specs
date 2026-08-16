@@ -1,24 +1,24 @@
-# OpenSpec Orchestrator Alpha
+# OpenSpec Orchestrator
 
-OpenSpec Orchestrator Alpha сохраняет два факта multi-repo Change:
+OpenSpec Orchestrator сохраняет два факта multi-repo Change:
 
 - Cycle — какая версия планирования и какие Code Repositories приняты в работу;
 - Snapshot — какой точный набор коммитов был проверен вместе.
 
-Alpha рассчитана на одного инженера, одну машину, один Store и локальные checkout
+Текущая версия рассчитана на одного инженера, одну машину, один Store и локальные checkout
 Code Repositories. Она не планирует Change, не запускает агента или тесты, не делает
 checkout и не выполняет `git add`, `commit`, `push`, `merge` или `rebase`.
 
 Документация:
 
 - [пользователям](docs/user/README.md) — что читать и как пройти командный процесс;
-- [разработчикам Orchestrator](docs/technical/README.md) — контракт и устройство Alpha;
+- [разработчикам Orchestrator](docs/technical/README.md) — контракт и устройство текущей версии;
 - [оригинальная документация OpenSpec](docs/openspec-origin-docs/README.md) — справочник
   upstream-продукта, не инструкция этого проекта;
 - [архив](docs/archive/README.md) — предыдущие модели и неактуальные материалы.
 
-Нормативный контракт Alpha находится в
-[Alpha Concept](docs/technical/alpha-concept.md). Кандидаты развития после пилота
+Нормативный [продуктовый контракт](docs/technical/product-contract.md) находится в
+технической документации. Кандидаты развития после пилота
 собраны в [BACKLOG.md](BACKLOG.md).
 
 ## Требования и локальная установка
@@ -40,7 +40,7 @@ openspec-orch --help
 регистрации в `PATH` CLI можно запустить как
 `node /absolute/path/to/multi-repo-specs/src/bin/openspec-orch.js`.
 
-## Публичный CLI Alpha
+## Публичный CLI
 
 ```text
 openspec-orch init [path] --store <id> --agent <id> [--template <path>] [--repo <id=remote#branch>]...
@@ -54,12 +54,12 @@ openspec-orch record verification <change-id> --result <pass|fail> --source <hum
 ```
 
 `init` использует `--agent` и необязательный `--template` только для начальной
-установки проектных файлов. Alpha Core не хранит agent mapping или handoff в
+установки проектных файлов. Core не хранит agent mapping или handoff в
 `openspec-orch.yaml` и не использует их после `init`.
 
 Команды `assign`, `record assignment` и `record verification` сначала показывают
 preview и требуют интерактивного подтверждения. Отказ пользователя ничего не
-записывает. JSON-вывод и неинтерактивные confirmation token в Alpha не входят.
+записывает. JSON-вывод и неинтерактивные confirmation token в текущую версию не входят.
 
 Коды завершения: `0` — успех или отказ от preview, `1` — ошибка проверки или
 выполнения, `2` — неверный вызов CLI.
@@ -178,7 +178,7 @@ openspec-orch status checkout-flow
 Итоговый `status` показывает Cycle, результаты каждого репозитория, текущий
 Snapshot, Verification Receipt и следующее действие `готово`. Полный порядок,
 отрицательные проверки и восстановление после потери локального state приведены в
-[Alpha Pilot Runbook](docs/user/pilot-runbook.md).
+[Pilot Runbook](docs/user/pilot-runbook.md).
 
 ## Хранение данных
 

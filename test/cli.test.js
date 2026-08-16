@@ -1,4 +1,4 @@
-/** @fileoverview Проверка декларативного контракта OpenSpec Orchestrator Alpha CLI. */
+/** @fileoverview Проверка декларативного контракта OpenSpec Orchestrator CLI. */
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -186,7 +186,7 @@ test("status command requires the change-id positional argument", async () => {
   await assert.rejects(parseCommand(["status"]));
 });
 
-test("record assignment accepts only the Alpha Result Receipt flags", async () => {
+test("record assignment accepts only the v1 Result Receipt flags", async () => {
   assert.deepEqual(
     await parseCommand([
       "record",

@@ -1,4 +1,4 @@
-/** @fileoverview Сквозные интеграционные тесты Alpha Cycle, Receipts и Snapshot. */
+/** @fileoverview Сквозные интеграционные тесты Cycle, Receipts и Snapshot. */
 
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
@@ -21,7 +21,7 @@ import {
 
 const ALWAYS_CONFIRM = async () => true;
 
-test("computeSnapshotId follows the frozen canonical Alpha v1 projection", () => {
+test("computeSnapshotId follows the frozen canonical v1 projection", () => {
   assert.equal(
     computeSnapshotId("cycle-550e8400-e29b-41d4-a716-446655440000", [
       { repository_id: "frontend", implementation_revision: "a".repeat(40) },
@@ -32,14 +32,14 @@ test("computeSnapshotId follows the frozen canonical Alpha v1 projection", () =>
 });
 
 /**
- * Создаёт стандартный Alpha workspace и закоммиченный Cycle для frontend/backend.
+ * Создаёт стандартный pilot workspace и закоммиченный Cycle для frontend/backend.
  *
  * @param {import("node:test").TestContext} t Контекст теста.
  * @param {{commitCycle?: boolean}} [options] Коммитить ли Cycle Record.
  * @returns {Promise<{storeRoot: string, frontendRoot: string, backendRoot: string}>}
  */
 async function createPilotCycle(t, { commitCycle = true } = {}) {
-  const root = await temporaryDirectory(t, "openspec-orchestrator-alpha-flow-");
+  const root = await temporaryDirectory(t, "openspec-orchestrator-pilot-flow-");
   const { checkout: storeRoot, remote: storeRemote } = await createCheckoutWithRemote(
     root,
     "workspace/specs",
@@ -72,7 +72,7 @@ async function createPilotCycle(t, { commitCycle = true } = {}) {
       "",
     ].join("\n"),
   });
-  await commitFiles(storeRoot, {}, { message: "configure alpha store" });
+  await commitFiles(storeRoot, {}, { message: "configure pilot store" });
   const assigned = await assignCycle({
     storeRoot,
     changeId: "checkout-flow",

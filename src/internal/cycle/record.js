@@ -136,7 +136,7 @@ export async function writeCycleRecord(storeRoot, record) {
 }
 
 /**
- * Создаёт новый Cycle Record Alpha v1 с уникальным `cycle_id`.
+ * Создаёт новый Cycle Record v1 с уникальным `cycle_id`.
  *
  * @param {{changeId: string, planningRevision: string, repositories: string[]}} input Проверенные входные данные.
  * @returns {import("./types.js").CycleRecord} Новая запись.

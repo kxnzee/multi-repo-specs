@@ -1,4 +1,4 @@
-/** @fileoverview Разбор и строгая проверка конфигурации OpenSpec Orchestrator Alpha. */
+/** @fileoverview Разбор и строгая проверка конфигурации OpenSpec Orchestrator. */
 
 import path from "node:path";
 import { parse, stringify } from "yaml";
@@ -6,7 +6,7 @@ import { parse, stringify } from "yaml";
 import { assertRepositoryId } from "../shared/schema.js";
 import { parseOrchestratorConfigSchema, parseStoreMetadataSchema } from "./schema.js";
 
-const ALPHA_CONTRACT_VERSION = 1;
+const CONTRACT_VERSION = 1;
 
 /**
  * Репозиторий в нормализованном внутреннем формате CLI.
@@ -66,7 +66,7 @@ function hasHttpCredentials(value) {
 }
 
 /**
- * Проверяет безопасную форму Git remote Alpha v1.
+ * Проверяет безопасную форму Git remote контракта v1.
  *
  * @param {string} remote Git remote.
  * @param {string} repositoryId Repository ID для диагностики.
@@ -88,7 +88,7 @@ export function assertRepositoryRemote(remote, repositoryId) {
 }
 
 /**
- * Нормализует одну запись `repositories` из внешнего YAML-формата Alpha v1.
+ * Нормализует одну запись `repositories` из внешнего YAML-формата v1.
  *
  * @param {{id: string, roles: Array<"store" | "code">, remote: string, default_branch: string}} value Проверенная схемой запись.
  * @returns {Repository} Проверенная запись во внутреннем формате CLI.
@@ -110,7 +110,7 @@ function normalizeRepository(value) {
 }
 
 /**
- * Читает и проверяет `openspec-orch.yaml` по строгому контракту Alpha v1.
+ * Читает и проверяет `openspec-orch.yaml` по строгому контракту v1.
  * OpenSpec-конфигурацию эта функция намеренно не интерпретирует.
  *
  * @param {string} source Содержимое `openspec-orch.yaml`.
@@ -155,8 +155,8 @@ export function resolveExecutionMode(projectStrict, noStrict = false) {
 }
 
 /**
- * Заполняет встроенный шаблон `openspec-orch.yaml` составом репозиториев Alpha v1.
- * Alpha Core не хранит agent mapping в конфигурации.
+ * Заполняет встроенный шаблон `openspec-orch.yaml` составом репозиториев v1.
+ * Core не хранит agent mapping в конфигурации.
  *
  * @param {string} template Встроенный YAML-шаблон конфигурации.
  * @param {Repository[]} repositories
@@ -167,12 +167,12 @@ export function resolveExecutionMode(projectStrict, noStrict = false) {
  */
 export function serializeOrchestratorConfig(template, repositories, { strict = true, extensions = {} } = {}) {
   const value = parseYaml(template, "Некорректный шаблон openspec-orch.yaml");
-  if (value.version !== ALPHA_CONTRACT_VERSION) {
+  if (value.version !== CONTRACT_VERSION) {
     throw new Error(`Шаблон openspec-orch.yaml имеет неподдерживаемую version: ${value.version}`);
   }
   if (typeof strict !== "boolean") throw new Error("strict должен быть boolean");
   const serialized = {
-    version: ALPHA_CONTRACT_VERSION,
+    version: CONTRACT_VERSION,
     strict,
     repositories: repositories.map(({ id, role, remote, defaultBranch }) => ({
       id,
@@ -196,7 +196,7 @@ export function parseStoreMetadata(source) {
   const value = parseStoreMetadataSchema(
     parseYaml(source, "Некорректная .openspec-store/store.yaml"),
   );
-  if (value.version !== ALPHA_CONTRACT_VERSION) throw new Error("CONFIG_INVALID: Store metadata должна иметь version: 1");
+  if (value.version !== CONTRACT_VERSION) throw new Error("CONFIG_INVALID: Store metadata должна иметь version: 1");
   assertRepositoryId(value.id, "Store ID");
   return { id: value.id, remote: value.remote };
 }

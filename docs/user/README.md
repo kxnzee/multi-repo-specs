@@ -6,7 +6,7 @@
 
 1. [Командный процесс](team-flow.md) — обязательная точка входа для всех ролей:
    Jira, Planning, Gate 1–3, Development, QA, Release и Archive.
-2. [README проекта](../../README.md) — установка CLI, команды Alpha и минимальный
+2. [README проекта](../../README.md) — установка CLI, команды и минимальный
    поток одного Change.
 3. Остальные документы — только когда они нужны вашей роли или ситуации.
 
@@ -14,7 +14,7 @@
 
 | Если вам нужно | Документ |
 |---|---|
-| Провести реальный Alpha-пилот | [Pilot Runbook](pilot-runbook.md) |
+| Провести пилот | [Pilot Runbook](pilot-runbook.md) |
 | Записать наблюдение пилота | [Pilot Feedback](pilot-feedback.md) |
 | Понять или проверить `openspec-orch.yaml` | [Конфигурация](configuration.md) |
 | Подключить Store в нестандартном workspace | [Подключение Store](store-connection.md) |

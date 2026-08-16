@@ -12,7 +12,7 @@
 > Следующая полная продуктовая модель и её implementation plan также находятся в
 > архиве: [концепция](OpenSpec-Orchestrator-Product-Concept-Brief.md) и
 > [план](OpenSpec-Orchestrator-Implementation-Plan.md). Актуальный сокращённый scope
-> задан [Alpha Concept](../OpenSpec-Orchestrator-Alpha-Concept.md).
+> задан [текущим продуктовым контрактом](../technical/product-contract.md).
 > Содержание ниже сохранено только как исторический контекст.
 
 ## 0. Общая модель
