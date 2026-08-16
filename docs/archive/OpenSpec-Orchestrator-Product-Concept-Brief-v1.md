@@ -1,6 +1,7 @@
 > **Архивный документ.** Эта редакция больше не является актуальным источником
-> требований. Используйте
-> [актуальную продуктовую концепцию](../OpenSpec-Orchestrator-Product-Concept-Brief.md).
+> требований. Актуальные границы задаёт
+> [Alpha Concept](../OpenSpec-Orchestrator-Alpha-Concept.md). Более поздняя полная
+> редакция v1 также [сохранена в архиве](OpenSpec-Orchestrator-Product-Concept-Brief.md).
 
 # OpenSpec Orchestrator: продуктовая концепция и scope lock v1
 

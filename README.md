@@ -1,5 +1,14 @@
 # OpenSpec Orchestrator
 
+> [!IMPORTANT]
+> Этот README описывает текущий прототип CLI (`init`, `connect`, `explore`, `change`, `load`).
+> Актуальная продуктовая цель —
+> [Alpha Concept](docs/OpenSpec-Orchestrator-Alpha-Concept.md); ограниченный порядок
+> работ и проверка в пилоте описаны в
+> [Alpha Implementation Plan](docs/OpenSpec-Orchestrator-Alpha-Implementation-Plan.md)
+> и [Alpha Pilot Runbook](docs/OpenSpec-Orchestrator-Alpha-Pilot-Runbook.md).
+> До реализации этих этапов README нельзя выдавать за публичный API альфы.
+
 `src/` содержит исполняемый Orchestrator Core, а `templates/base/` — отдельно поставляемый встроенный Project Template. Код Core не является нормативным описанием процесса: базовый процесс задают файлы Template и `docs/`, а рабочее состояние проекта — OpenSpec Store и project-local agent assets.
 
 ## Архитектурная граница
@@ -7,7 +16,8 @@
 - **OpenSpec** управляет Specs, Changes, schemas, artifact graph и штатными `opsx-*` commands/skills.
 - **Orchestrator Core** предоставляет исполняемый CLI `openspec-orch`, безопасно устанавливает Template, маршрутизирует Store и Code Repositories и проверяет технические контракты.
 - **Project Template** определяет agent mapping, skeleton, schemas, commands, skills, subagents, инструкции и процесс конкретной команды.
-- **Orchestrator Plugins** пока не реализованы. После пилота они смогут добавлять Core capabilities для внешних интеграций; обязательность и место их использования останутся правилом Template.
+- **Orchestrator Plugins** не реализованы и не входят в альфу. Возврат к этой идее
+  возможен только после пилота по наблюдаемой пользовательской боли.
 
 Core вызывает только публичный CLI OpenSpec и проверяет его структурированные ответы. Он не подменяет пути OpenSpec, не изменяет встроенные `openspec-*` skills/`opsx-*` commands и не интерпретирует процессный смысл файлов Template.
 

@@ -5,16 +5,15 @@
 >
 > Он описывает предыдущий этап проектирования вокруг `init`, `connect`, `change`,
 > `load`, Template extraction и будущего Plugin API. В нём ещё нет зафиксированной
-> трёхслойной модели Repository Layer → Change Layer → Assignment/Implementation
-> Layer, Change Binding, aggregate `status(change-id)`, Result Receipt, local state и
-> целевого вертикального сценария `connect → status → implement → record → verify`.
+> трёхслойной модели «репозитории → общее изменение → изменение
+> конкретного репозитория», Cycle, Cycle Record, `status(change-id)`, Receipts,
+> Snapshot и целевого сценария `connect → assign → implement → verify`.
 >
-> Актуальный scope lock и продуктовая модель находятся в
-> [OpenSpec-Orchestrator-Product-Concept-Brief.md](../OpenSpec-Orchestrator-Product-Concept-Brief.md),
-> прежде всего в разделах 3.1–3.3, 21–22, 26 и 28. Перед реализацией должен быть
-> подготовлен новый implementation plan на основе этих разделов и аудита текущего кода.
-> Содержание ниже сохранено только как исторический контекст принятых и отвергнутых
-> решений.
+> Следующая полная продуктовая модель и её implementation plan также находятся в
+> архиве: [концепция](OpenSpec-Orchestrator-Product-Concept-Brief.md) и
+> [план](OpenSpec-Orchestrator-Implementation-Plan.md). Актуальный сокращённый scope
+> задан [Alpha Concept](../OpenSpec-Orchestrator-Alpha-Concept.md).
+> Содержание ниже сохранено только как исторический контекст.
 
 ## 0. Общая модель
 

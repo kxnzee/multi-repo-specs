@@ -1,5 +1,13 @@
 # Конфигурация `openspec-orch.yaml`
 
+> [!IMPORTANT]
+> Справочник описывает формат текущего прототипа, а не формат Alpha v1.
+> Целевой минимальный Alpha-контракт задан в
+> [Alpha Concept](../OpenSpec-Orchestrator-Alpha-Concept.md), а переход ограничен
+> [Alpha Implementation Plan](../OpenSpec-Orchestrator-Alpha-Implementation-Plan.md).
+> До реализации этапа 1 примеры ниже нужно использовать только с текущими
+> командами `init`, `connect`, `explore`, `change` и `load`.
+
 `openspec-orch.yaml` находится в корне центрального Store Repository и описывает режим Core, выбранный агент и репозитории проекта. Файл создаётся командой `openspec-orch init` и используется командами Core как машинная конфигурация. Версия OpenSpec здесь намеренно не закрепляется.
 
 ## Полный пример

@@ -1,8 +1,18 @@
 # Backlog OpenSpec Orchestrator
 
+> [!CAUTION]
+> **Документ заменён и не является планом Alpha v1 или будущей Beta.**
+>
+> Он описывает предыдущую модель `init → connect → explore → change → load`.
+> Актуальные границы задаёт
+> [Alpha Concept](docs/OpenSpec-Orchestrator-Alpha-Concept.md), а порядок работ —
+> [Alpha Implementation Plan](docs/OpenSpec-Orchestrator-Alpha-Implementation-Plan.md).
+> Задачи ниже не следует выполнять без новой записи в `docs/alpha-feedback.md` и
+> отдельного решения после пилота.
+
 ## 0. Цель первой версии
 
-Статус: `active`.
+Статус: `superseded`.
 
 Первая версия готова, когда новая команда может без изменения исходного кода Core:
 
