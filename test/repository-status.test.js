@@ -108,3 +108,18 @@ test("readRepositoryStatus rejects an unknown --repo filter", async (t) => {
     /REPO_UNKNOWN/,
   );
 });
+
+test("readRepositoryStatus surfaces a corrupted state.json instead of hiding it as unresolved", async (t) => {
+  const scenario = await createConnectedScenario(t);
+  await fs.mkdir(path.join(scenario.storeRoot, ".openspec-orch"), { recursive: true });
+  await fs.writeFile(
+    path.join(scenario.storeRoot, ".openspec-orch", "state.json"),
+    "not json",
+    "utf8",
+  );
+
+  await assert.rejects(
+    readRepositoryStatus({ storeRoot: scenario.storeRoot, repositoryIds: ["frontend"] }),
+    /STATE_CORRUPTED/,
+  );
+});

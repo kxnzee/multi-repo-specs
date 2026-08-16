@@ -1,13 +1,16 @@
 # OpenSpec Orchestrator
 
 > [!IMPORTANT]
-> Этот README описывает текущий прототип CLI (`init`, `connect`, `explore`, `change`, `load`).
-> Актуальная продуктовая цель —
+> После MVP-0 фактический публичный CLI — `init`, `connect`, `repository status`,
+> `assign`, `status`. Команды `explore`, `change` и `load` из этого README удалены из
+> кода и не работают: разделы ниже, которые их описывают, документируют архивную
+> полную модель, а не текущую альфу. Актуальная продуктовая цель —
 > [Alpha Concept](docs/OpenSpec-Orchestrator-Alpha-Concept.md); ограниченный порядок
 > работ и проверка в пилоте описаны в
 > [Alpha Implementation Plan](docs/OpenSpec-Orchestrator-Alpha-Implementation-Plan.md)
 > и [Alpha Pilot Runbook](docs/OpenSpec-Orchestrator-Alpha-Pilot-Runbook.md).
-> До реализации этих этапов README нельзя выдавать за публичный API альфы.
+> Полная переработка README под альфу — задача этапа 4 плана реализации и ещё не
+> выполнена; до неё не считайте этот файл публичным API альфы.
 
 `src/` содержит исполняемый Orchestrator Core, а `templates/base/` — отдельно поставляемый встроенный Project Template. Код Core не является нормативным описанием процесса: базовый процесс задают файлы Template и `docs/`, а рабочее состояние проекта — OpenSpec Store и project-local agent assets.
 

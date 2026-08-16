@@ -78,9 +78,16 @@ export async function readCycleRecord(storeRoot, changeId) {
   try {
     payload = JSON.parse(source);
   } catch (error) {
-    throw new Error(`Cycle Record повреждён (${cycleRecordRelativePath(changeId)}): ${error.message}`);
+    throw new Error(`STATE_CORRUPTED: Cycle Record повреждён (${cycleRecordRelativePath(changeId)}): ${error.message}`);
   }
-  return normalizeCycleRecord(parseCycleRecordSchema(payload));
+  const record = normalizeCycleRecord(parseCycleRecordSchema(payload));
+  if (record.changeId !== changeId) {
+    throw new Error(
+      `STATE_CORRUPTED: Cycle Record ${cycleRecordRelativePath(changeId)} содержит change_id ` +
+      `'${record.changeId}', ожидался '${changeId}'`,
+    );
+  }
+  return record;
 }
 
 /**

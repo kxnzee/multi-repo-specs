@@ -152,6 +152,63 @@ test("assignCycle rejects an unknown repository-id without writing a Cycle Recor
   assert.equal(await readCycleRecord(storeRoot, "checkout-flow"), null);
 });
 
+test("assignCycle rejects the Store repository-id as a Cycle member", async (t) => {
+  const storeRoot = await createStore(t);
+  await assert.rejects(
+    assignCycle({
+      storeRoot,
+      changeId: "checkout-flow",
+      repositoryIds: ["frontend", "specs"],
+      confirm: ALWAYS_CONFIRM,
+    }),
+    /REPO_UNKNOWN/,
+  );
+  assert.equal(await readCycleRecord(storeRoot, "checkout-flow"), null);
+});
+
+test("readCycleRecord rejects a Cycle Record whose change_id does not match its file path", async (t) => {
+  const storeRoot = await createStore(t);
+  await assignCycle({
+    storeRoot,
+    changeId: "checkout-flow",
+    repositoryIds: ["frontend"],
+    confirm: ALWAYS_CONFIRM,
+  });
+  const recordPath = path.join(
+    storeRoot,
+    ".openspec-orch",
+    "changes",
+    `${encodeChangeKey("checkout-flow")}.json`,
+  );
+  const tampered = JSON.parse(await fs.readFile(recordPath, "utf8"));
+  tampered.change_id = "different-change";
+  await fs.writeFile(recordPath, JSON.stringify(tampered), "utf8");
+
+  await assert.rejects(readCycleRecord(storeRoot, "checkout-flow"), /STATE_CORRUPTED/);
+});
+
+test("readCycleRecord rejects a Cycle Record with an unknown repository-id shape", async (t) => {
+  const storeRoot = await createStore(t);
+  await assignCycle({
+    storeRoot,
+    changeId: "checkout-flow",
+    repositoryIds: ["frontend"],
+    confirm: ALWAYS_CONFIRM,
+  });
+  const recordPath = path.join(
+    storeRoot,
+    ".openspec-orch",
+    "changes",
+    `${encodeChangeKey("checkout-flow")}.json`,
+  );
+  const tampered = JSON.parse(await fs.readFile(recordPath, "utf8"));
+  tampered.repositories = ["???"];
+  tampered.created_at = "not-a-date";
+  await fs.writeFile(recordPath, JSON.stringify(tampered), "utf8");
+
+  await assert.rejects(readCycleRecord(storeRoot, "checkout-flow"), /STATE_CORRUPTED/);
+});
+
 test("assignCycle refuses a dirty Store working tree without writing a Cycle Record", async (t) => {
   const storeRoot = await createStore(t);
   await fs.writeFile(path.join(storeRoot, "dirty.txt"), "uncommitted\n", "utf8");

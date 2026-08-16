@@ -31,7 +31,7 @@ const STORE_METADATA_SCHEMA = z.strictObject({
  */
 function parseSchema(schema, value, label) {
   const result = schema.safeParse(value);
-  if (!result.success) throw new Error(`${label}: ${z.prettifyError(result.error)}`);
+  if (!result.success) throw new Error(`CONFIG_INVALID: ${label}: ${z.prettifyError(result.error)}`);
   return result.data;
 }
 

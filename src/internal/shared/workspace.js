@@ -29,14 +29,14 @@ async function readLocalState(storeRoot) {
   try {
     payload = JSON.parse(source);
   } catch (error) {
-    throw new Error(`.openspec-orch/state.json повреждён: ${error.message}`);
+    throw new Error(`STATE_CORRUPTED: .openspec-orch/state.json повреждён: ${error.message}`);
   }
-  if (!isRecord(payload)) throw new Error(".openspec-orch/state.json должен быть объектом");
+  if (!isRecord(payload)) throw new Error("STATE_CORRUPTED: .openspec-orch/state.json должен быть объектом");
   if (payload.contract_version !== STATE_CONTRACT_VERSION) {
-    throw new Error(".openspec-orch/state.json: неподдерживаемая contract_version");
+    throw new Error("STATE_CORRUPTED: .openspec-orch/state.json: неподдерживаемая contract_version");
   }
   if (payload.workspace !== null && typeof payload.workspace !== "string") {
-    throw new Error(".openspec-orch/state.json: workspace должен быть строкой или null");
+    throw new Error("STATE_CORRUPTED: .openspec-orch/state.json: workspace должен быть строкой или null");
   }
   return { workspace: payload.workspace ?? null };
 }
@@ -93,9 +93,12 @@ export async function resolveWorkspace(
     ? path.resolve(requestedWorkspace)
     : storedWorkspace || inferStandardWorkspace(storeRoot, storeId);
   if (!workspace) {
-    throw new Error(
-      `Не удалось определить workspace; разместите Store как <workspace>/${storeId} ` +
-      "или один раз выполните openspec-orch connect --workspace <path>",
+    throw Object.assign(
+      new Error(
+        `Не удалось определить workspace; разместите Store как <workspace>/${storeId} ` +
+        "или один раз выполните openspec-orch connect --workspace <path>",
+      ),
+      { code: "WORKSPACE_UNRESOLVED" },
     );
   }
   const stat = await lstatOrNull(workspace);

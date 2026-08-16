@@ -53,10 +53,14 @@ export async function assignCycle({
   }
 
   const { config } = await readStoreConfiguration(storeRoot);
-  const knownIds = new Set(config.repositories.map(({ id }) => id));
+  const knownCodeIds = new Set(config.codeRepositories.map(({ id }) => id));
   for (const id of uniqueRepositoryIds) {
-    if (!knownIds.has(id)) {
-      throw new Error(`REPO_UNKNOWN: repository-id '${id}' отсутствует в openspec-orch.yaml`);
+    if (!knownCodeIds.has(id)) {
+      throw new Error(
+        id === config.storeRepository.id
+          ? `REPO_UNKNOWN: repository-id '${id}' — это Store, Cycle принимает только roles: [code]`
+          : `REPO_UNKNOWN: repository-id '${id}' отсутствует в openspec-orch.yaml`,
+      );
     }
   }
 

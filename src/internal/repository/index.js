@@ -74,7 +74,10 @@ export async function readRepositoryStatus({ storeRoot, repositoryIds, commandRu
     selected = config.repositories.filter(({ id }) => wanted.has(id));
   }
 
-  const workspace = await resolveWorkspace(storeRoot, metadata.id, undefined, true).catch(() => null);
+  const workspace = await resolveWorkspace(storeRoot, metadata.id, undefined, true).catch((error) => {
+    if (error.code === "WORKSPACE_UNRESOLVED") return null;
+    throw error;
+  });
   const statuses = [];
   for (const repository of selected) {
     const expectedPath = repository.role === "store"

@@ -41,10 +41,10 @@ function parseYaml(source, label) {
   try {
     value = parse(source);
   } catch (error) {
-    throw new Error(`${label}: ${error.message}`);
+    throw new Error(`CONFIG_INVALID: ${label}: ${error.message}`);
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`${label} должен содержать YAML-объект`);
+    throw new Error(`CONFIG_INVALID: ${label} должен содержать YAML-объект`);
   }
   return value;
 }
@@ -80,10 +80,10 @@ function normalizeRepository(value) {
   };
   assertRepositoryId(repository.id, `repository-id ${repository.id}`);
   if (repository.remote.startsWith("-") || repository.defaultBranch.startsWith("-")) {
-    throw new Error(`Некорректные Git-параметры для repository-id ${repository.id}`);
+    throw new Error(`CONFIG_INVALID: некорректные Git-параметры для repository-id ${repository.id}`);
   }
   if (hasHttpCredentials(repository.remote)) {
-    throw new Error(`URL repository-id ${repository.id} содержит credential`);
+    throw new Error(`CONFIG_INVALID: URL repository-id ${repository.id} содержит credential`);
   }
   return repository;
 }
@@ -103,11 +103,11 @@ export function parseOrchestratorConfig(source) {
   const repositories = value.repositories.map(normalizeRepository);
   const ids = new Set(repositories.map(({ id }) => id));
   if (ids.size !== repositories.length) {
-    throw new Error("openspec-orch.yaml содержит повторяющийся repository-id");
+    throw new Error("CONFIG_INVALID: openspec-orch.yaml содержит повторяющийся repository-id");
   }
   const stores = repositories.filter(({ role }) => role === "store");
   if (stores.length !== 1) {
-    throw new Error("openspec-orch.yaml должен содержать ровно одну запись roles: [store]");
+    throw new Error("CONFIG_INVALID: openspec-orch.yaml должен содержать ровно одну запись roles: [store]");
   }
   return {
     version: value.version,
@@ -175,7 +175,7 @@ export function parseStoreMetadata(source) {
   const value = parseStoreMetadataSchema(
     parseYaml(source, "Некорректная .openspec-store/store.yaml"),
   );
-  if (value.version !== ALPHA_CONTRACT_VERSION) throw new Error("Store metadata должна иметь version: 1");
+  if (value.version !== ALPHA_CONTRACT_VERSION) throw new Error("CONFIG_INVALID: Store metadata должна иметь version: 1");
   assertRepositoryId(value.id, "Store ID");
   return { id: value.id, remote: value.remote };
 }
