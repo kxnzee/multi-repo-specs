@@ -1,4 +1,4 @@
-/** @fileoverview Проверка декларативного контракта OpenSpec Orchestrator CLI. */
+/** @fileoverview Проверка декларативного контракта OpenSpec Orchestrator Alpha CLI. */
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -25,12 +25,13 @@ async function parseCommand(args) {
   const program = createProgram({
     init: handler("init"),
     connect: handler("connect"),
-    explore: handler("explore"),
-    change: handler("change"),
-    load: handler("load"),
+    repositoryStatus: handler("repositoryStatus"),
+    assign: handler("assign"),
+    status: handler("status"),
   });
   for (const command of [program, ...program.commands]) {
     command.configureOutput({ writeOut() {}, writeErr() {} });
+    for (const subcommand of command.commands) subcommand.configureOutput({ writeOut() {}, writeErr() {} });
   }
   await program.parseAsync(args, { from: "user" });
   return invocation;
@@ -59,7 +60,7 @@ test("public binary exposes generated help", () => {
   assert.equal(result.status, 0);
   assert.equal(result.stderr, "");
   assert.match(result.stdout, /^Usage: openspec-orch/m);
-  for (const command of ["init", "connect", "explore", "change", "load"]) {
+  for (const command of ["init", "connect", "repository", "assign", "status"]) {
     assert.match(result.stdout, new RegExp(`^  ${command}`, "m"));
   }
 });
@@ -76,7 +77,7 @@ test("init hint follows the workspace layout accepted by connect", () => {
 });
 
 test("every subcommand exposes generated help without running its action", () => {
-  for (const command of ["init", "connect", "explore", "change", "load"]) {
+  for (const command of ["init", "connect", "repository", "assign", "status"]) {
     const result = spawnSync(
       process.execPath,
       ["src/bin/openspec-orch.js", command, "--help"],
@@ -85,6 +86,16 @@ test("every subcommand exposes generated help without running its action", () =>
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, new RegExp(`^Usage: openspec-orch ${command}`, "m"));
   }
+});
+
+test("repository status --help is exposed without running its action", () => {
+  const result = spawnSync(
+    process.execPath,
+    ["src/bin/openspec-orch.js", "repository", "status", "--help"],
+    { cwd: path.resolve("."), encoding: "utf8" },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^Usage: openspec-orch repository status/m);
 });
 
 test("init command normalizes positional and repeated repository options", async () => {
@@ -109,7 +120,7 @@ test("init command normalizes positional and repeated repository options", async
         repositories: [{
           id: "api",
           role: "code",
-          url: "https://example.test/api.git",
+          remote: "https://example.test/api.git",
           defaultBranch: "main",
         }],
       },
@@ -134,76 +145,42 @@ test("init command accepts split options and applies stable defaults", async () 
   );
 });
 
-test("connect and explore commands normalize shared options", async () => {
+test("connect command normalizes shared options", async () => {
   assert.deepEqual(
     await parseCommand(["connect", "--workspace=/tmp/work", "--no-strict"]),
     { name: "connect", options: { workspace: "/tmp/work", noStrict: true } },
   );
+});
+
+test("repository status collects repeated --repo filters", async () => {
   assert.deepEqual(
-    await parseCommand(["explore", "--ticket=TEST1-TEST0", "--workspace=/tmp/work"]),
-    {
-      name: "explore",
-      options: { ticket: "TEST1-TEST0", workspace: "/tmp/work", noStrict: false },
-    },
+    await parseCommand(["repository", "status"]),
+    { name: "repositoryStatus", options: { repositoryIds: [] } },
+  );
+  assert.deepEqual(
+    await parseCommand(["repository", "status", "--repo=frontend", "--repo=backend"]),
+    { name: "repositoryStatus", options: { repositoryIds: ["frontend", "backend"] } },
   );
 });
 
-test("change command validates identifiers", async () => {
+test("assign command requires at least one --repo and collects the change-id", async () => {
   assert.deepEqual(
-    await parseCommand([
-      "change",
-      "--ticket=PAY-412",
-      "--name=payment-status",
-      "--store=payments-specs",
-    ]),
+    await parseCommand(["assign", "checkout-flow", "--repo=frontend", "--repo=backend"]),
     {
-      name: "change",
-      options: {
-        ticket: "PAY-412",
-        name: "payment-status",
-        storeId: "payments-specs",
-        noStrict: false,
-      },
+      name: "assign",
+      options: { changeId: "checkout-flow", repositoryIds: ["frontend", "backend"] },
     },
   );
-  await assert.rejects(parseCommand(["change", "--ticket=pay-412", "--name=payment-status"]));
-  await assert.rejects(parseCommand(["change", "--ticket=PAY-412", "--name=PaymentStatus"]));
+  await assert.rejects(parseCommand(["assign", "checkout-flow"]));
+  await assert.rejects(parseCommand(["assign"]));
 });
 
-test("load command collects unique Work Packages", async () => {
-  const baseline = "0123456789abcdef0123456789abcdef01234567";
+test("status command requires the change-id positional argument", async () => {
   assert.deepEqual(
-    await parseCommand([
-      "load",
-      "--store=payments-specs",
-      "--repo=payments-api",
-      "--change=pay-412-payment-status",
-      `--baseline=${baseline}`,
-      "--work-package=1",
-      "--work-package=task-a",
-      "--json",
-    ]),
-    {
-      name: "load",
-      options: {
-        storeId: "payments-specs",
-        repositoryId: "payments-api",
-        change: "pay-412-payment-status",
-        baseline,
-        workPackages: ["1", "task-a"],
-        noStrict: false,
-        json: true,
-      },
-    },
+    await parseCommand(["status", "checkout-flow"]),
+    { name: "status", options: { changeId: "checkout-flow" } },
   );
-  await assert.rejects(parseCommand([
-    "load",
-    "--store=payments-specs",
-    "--repo=payments-api",
-    "--change=pay-412-payment-status",
-    "--work-package=1",
-    "--work-package=1",
-  ]));
+  await assert.rejects(parseCommand(["status"]));
 });
 
 test("Commander rejects missing, duplicate and unknown options", async () => {
@@ -222,17 +199,6 @@ test("Commander rejects missing, duplicate and unknown options", async () => {
     "--unknown",
   ]));
   await assert.rejects(parseCommand(["connect", "--workspace", "--help"]));
-});
-
-test("Commander rejects invalid baseline and missing split values", async () => {
-  await assert.rejects(parseCommand([
-    "load",
-    "--store=payments-specs",
-    "--repo=payments-api",
-    "--change=pay-412-payment-status",
-    "--baseline=HEAD",
-  ]));
-  await assert.rejects(parseCommand(["explore", "--ticket", "--workspace", "/tmp/work"]));
 });
 
 test("reportProgress writes one event to the selected output", () => {

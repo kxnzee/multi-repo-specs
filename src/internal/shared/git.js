@@ -1,5 +1,8 @@
 /** @fileoverview Общие проверки identity и точной ревизии Git checkout. */
 
+import path from "node:path";
+
+import { lstatOrNull } from "./files.js";
 import { createGitClient } from "./git-client.js";
 import { isGitRevision } from "./schema.js";
 
@@ -39,7 +42,7 @@ export async function inspectRepositoryIdentity(repositoryRoot, repository, comm
     throw new Error(`${repository.id}: каталог не является корнем Git-репозитория`);
   }
   const origin = await git.originUrl();
-  if (!sameGitRemote(origin, repository.url)) {
+  if (!sameGitRemote(origin, repository.remote)) {
     throw new Error(`${repository.id}: origin не совпадает с openspec-orch.yaml`);
   }
 }
@@ -76,4 +79,23 @@ export async function inspectFreshCheckout(repositoryRoot, repository, commandRu
     throw new Error(`${repository.id}: checkout не совпадает с origin/${repository.defaultBranch}`);
   }
   return { branch, revision };
+}
+
+/**
+ * Проверяет отсутствие merge/rebase/cherry-pick/revert/bisect.
+ *
+ * @param {string} root Абсолютный путь checkout.
+ * @param {typeof import("./command.js").runCommand} runner Исполнитель Git.
+ * @returns {Promise<void>}
+ */
+export async function assertNoGitOperation(root, runner) {
+  const git = createGitClient(root, runner);
+  const markers = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "BISECT_LOG", "rebase-merge", "rebase-apply"];
+  for (const marker of markers) {
+    const gitPath = await git.gitPath(marker);
+    const target = path.resolve(root, gitPath);
+    if (await lstatOrNull(target)) {
+      throw new Error(`${root}: обнаружена незавершённая Git-операция (${marker})`);
+    }
+  }
 }

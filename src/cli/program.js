@@ -1,23 +1,20 @@
-/** @fileoverview Декларативный контракт OpenSpec Orchestrator CLI. */
+/** @fileoverview Декларативный контракт OpenSpec Orchestrator Alpha CLI. */
 
 import { Command, InvalidArgumentError, Option } from "commander";
 
-import { validateChangeName } from "../internal/change/index.js";
-import { validateTicket } from "../internal/explore/index.js";
 import { parseRepository } from "../internal/init/index.js";
-import { assertRepositoryId, isGitRevision } from "../internal/shared/schema.js";
-import { runChange } from "./commands/change.js";
+import { runAssign } from "./commands/assign.js";
 import { runConnect } from "./commands/connect.js";
-import { runExplore } from "./commands/explore.js";
 import { runInit } from "./commands/init.js";
-import { runLoad } from "./commands/load.js";
+import { runRepositoryStatus } from "./commands/repository.js";
+import { runStatus } from "./commands/status.js";
 
 const DEFAULT_HANDLERS = Object.freeze({
   init: runInit,
   connect: runConnect,
-  explore: runExplore,
-  change: runChange,
-  load: runLoad,
+  repositoryStatus: runRepositoryStatus,
+  assign: runAssign,
+  status: runStatus,
 });
 
 /**
@@ -45,31 +42,6 @@ function collectValues(parser = (value) => value) {
 }
 
 /**
- * Собирает уникальные строковые значения повторяемой опции.
- *
- * @param {string} value Очередное значение.
- * @param {string[]} [previous] Уже разобранные значения.
- * @returns {string[]} Обновлённый список.
- */
-function collectUniqueValues(value, previous = []) {
-  if (previous.includes(value)) throw new InvalidArgumentError(`${value} передан дважды`);
-  return [...previous, value];
-}
-
-/**
- * Проверяет полную lowercase SHA-1 ревизию.
- *
- * @param {string} value Значение `--baseline`.
- * @returns {string} Проверенная ревизия.
- */
-function parseBaseline(value) {
-  if (!isGitRevision(value)) {
-    throw new InvalidArgumentError("ожидается полная lowercase 40-символьная SHA");
-  }
-  return value;
-}
-
-/**
  * Добавляет общий relaxed-переключатель к команде.
  *
  * @param {Command} command Настраиваемая команда.
@@ -91,7 +63,7 @@ function withExecutionMode(command) {
 export function createProgram(handlers = DEFAULT_HANDLERS) {
   const program = new Command()
     .name("openspec-orch")
-    .description("Мультирепозиторный OpenSpec Orchestrator")
+    .description("OpenSpec Orchestrator Alpha: Cycle и Snapshot для multi-repo Change")
     .showHelpAfterError()
     .exitOverride();
 
@@ -100,7 +72,7 @@ export function createProgram(handlers = DEFAULT_HANDLERS) {
     .requiredOption("--store <store-id>", "Store ID", singleValue())
     .requiredOption("--agent <agent-id>", "agent mapping из Project Template", singleValue())
     .addOption(new Option("--template <path>", "локальный Project Template").argParser(singleValue()))
-    .addOption(new Option("--repo <id=url#branch>", "добавить Code Repository").argParser(collectValues(parseRepository))))
+    .addOption(new Option("--repo <id=remote#branch>", "добавить Code Repository").argParser(collectValues(parseRepository))))
     .action((target = ".", options) => handlers.init({
       target,
       storeId: options.store,
@@ -118,45 +90,24 @@ export function createProgram(handlers = DEFAULT_HANDLERS) {
       noStrict: options.strict === false,
     }));
 
-  withExecutionMode(program.command("explore")
-    .description("подготовить проверенный вызов /opsx-explore")
-    .requiredOption("--ticket <ticket-id>", "ticket key", singleValue(validateTicket))
-    .addOption(new Option("--workspace <path>", "явный workspace").argParser(singleValue())))
-    .action((options) => handlers.explore({
-      ticket: options.ticket,
-      workspace: options.workspace,
-      noStrict: options.strict === false,
+  const repository = program.command("repository")
+    .description("операции только чтения над репозиториями реестра");
+  repository.command("status")
+    .description("показать подключение, чистоту, remote и ветку каждого репозитория")
+    .addOption(new Option("--repo <repository-id>", "ограничить вывод одним repository-id").argParser(collectValues()))
+    .action((options) => handlers.repositoryStatus({ repositoryIds: options.repo ?? [] }));
+
+  program.command("assign <change-id>")
+    .description("создать или подтвердить текущий Cycle для change-id")
+    .requiredOption("--repo <repository-id>", "repository-id из состава Cycle", collectValues())
+    .action((changeId, options) => handlers.assign({
+      changeId,
+      repositoryIds: options.repo,
     }));
 
-  withExecutionMode(program.command("change")
-    .description("создать или безопасно продолжить OpenSpec Change")
-    .requiredOption("--ticket <ticket-id>", "ticket key", singleValue(validateTicket))
-    .requiredOption("--name <short-name>", "Change ID suffix", singleValue(validateChangeName))
-    .addOption(new Option("--store <store-id>", "ожидаемый Store ID").argParser(singleValue((value) => assertRepositoryId(value, "Store ID")))))
-    .action((options) => handlers.change({
-      ticket: options.ticket,
-      name: options.name,
-      storeId: options.store,
-      noStrict: options.strict === false,
-    }));
-
-  withExecutionMode(program.command("load")
-    .description("подготовить Code Repository и runtime реализации")
-    .requiredOption("--store <store-id>", "Store ID", singleValue((value) => assertRepositoryId(value, "Store ID")))
-    .requiredOption("--repo <repository-id>", "Code Repository ID", singleValue(assertRepositoryId))
-    .requiredOption("--change <change-id>", "OpenSpec Change ID", singleValue(validateChangeName))
-    .addOption(new Option("--baseline <sha>", "полная Git SHA принятого Store").argParser(singleValue(parseBaseline)))
-    .addOption(new Option("--work-package <id>", "назначенный task.id").argParser(collectUniqueValues))
-    .option("--json", "вернуть результат в JSON"))
-    .action((options) => handlers.load({
-      storeId: options.store,
-      repositoryId: options.repo,
-      change: options.change,
-      baseline: options.baseline,
-      workPackages: options.workPackage ?? [],
-      noStrict: options.strict === false,
-      json: options.json === true,
-    }));
+  program.command("status <change-id>")
+    .description("показать текущий Cycle Record и следующее действие")
+    .action((changeId) => handlers.status({ changeId }));
 
   return program;
 }

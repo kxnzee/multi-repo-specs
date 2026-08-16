@@ -1,31 +1,23 @@
-/** @fileoverview Zod-схемы YAML-контрактов OpenSpec Orchestrator. */
+/** @fileoverview Zod-схемы YAML-контрактов OpenSpec Orchestrator Alpha. */
 
 import * as z from "zod";
 
-const REQUIRED_STRING = z.string().min(1);
-const AGENT_SCHEMA = z.looseObject({
-  id: REQUIRED_STRING,
-  openspec_adapter: REQUIRED_STRING,
-  architecture: REQUIRED_STRING,
-  commands_directory: REQUIRED_STRING,
-  instructions_file: REQUIRED_STRING,
-  handoffs: z.record(z.string(), REQUIRED_STRING).optional(),
+const REPOSITORY_ROLE_SCHEMA = z.enum(["store", "code"]);
+const REPOSITORY_SCHEMA = z.strictObject({
+  id: z.string().min(1),
+  roles: z.array(REPOSITORY_ROLE_SCHEMA).length(1),
+  remote: z.string().min(1),
+  default_branch: z.string().min(1),
 });
-const REPOSITORY_SCHEMA = z.looseObject({
-  id: REQUIRED_STRING,
-  role: REQUIRED_STRING,
-  url: REQUIRED_STRING,
-  default_branch: REQUIRED_STRING,
+const ORCHESTRATOR_CONFIG_SCHEMA = z.strictObject({
+  version: z.literal(1),
+  strict: z.boolean().default(true),
+  repositories: z.array(REPOSITORY_SCHEMA).default([]),
+  extensions: z.record(z.string(), z.unknown()).default({}),
 });
-const ORCHESTRATOR_CONFIG_SCHEMA = z.looseObject({
-  strict: z.boolean().optional(),
-  versions: z.looseObject({ openspec: z.string().optional() }).optional(),
-  agent: AGENT_SCHEMA,
-  repositories: z.array(REPOSITORY_SCHEMA),
-});
-const STORE_METADATA_SCHEMA = z.looseObject({
-  version: z.number(),
-  id: z.string(),
+const STORE_METADATA_SCHEMA = z.strictObject({
+  version: z.number().int(),
+  id: z.string().min(1),
   remote: z.string().optional(),
 });
 
@@ -34,7 +26,7 @@ const STORE_METADATA_SCHEMA = z.looseObject({
  *
  * @param {z.ZodType} schema Runtime-схема.
  * @param {unknown} value Необработанное значение.
- * @param {string} label Название контракта.
+ * @param {string} label Заголовок ошибки.
  * @returns {Record<string, unknown>} Проверенное значение.
  */
 function parseSchema(schema, value, label) {
@@ -44,7 +36,7 @@ function parseSchema(schema, value, label) {
 }
 
 /**
- * Проверяет структуру `openspec-orch.yaml` до предметной нормализации.
+ * Проверяет строгую структуру `openspec-orch.yaml` Alpha v1 до предметной нормализации.
  *
  * @param {unknown} value Разобранный YAML.
  * @returns {Record<string, unknown>} Проверенный документ.

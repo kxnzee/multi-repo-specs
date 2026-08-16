@@ -1,7 +1,8 @@
-/** @fileoverview Безопасное чтение обязательных project files внутри доверенного root. */
+/** @fileoverview Безопасное чтение и атомарная запись project files внутри доверенного root. */
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import process from "node:process";
 import { isContainedPath, isPortableRelativePath } from "./paths.js";
 
 /**
@@ -103,4 +104,20 @@ export async function readRelativeRegularFile(root, relativePath) {
     }
   }
   return fs.readFile(current, "utf8");
+}
+
+/**
+ * Атомарно записывает файл: временный файл в том же каталоге, затем rename.
+ * Ошибка записи не может повредить уже существующий корректный файл.
+ *
+ * @param {string} targetPath Абсолютный путь назначения.
+ * @param {string} contents Содержимое файла.
+ * @param {{mode?: number}} [options] POSIX permission bits временного файла.
+ * @returns {Promise<void>}
+ */
+export async function writeFileAtomic(targetPath, contents, { mode } = {}) {
+  const directory = path.dirname(targetPath);
+  const temporaryPath = path.join(directory, `.${path.basename(targetPath)}-${process.pid}.tmp`);
+  await fs.writeFile(temporaryPath, contents, mode === undefined ? { encoding: "utf8" } : { encoding: "utf8", mode });
+  await fs.rename(temporaryPath, targetPath);
 }

@@ -28,7 +28,7 @@ export async function runConnect(options) {
   if (options.workspace && result.executionMode === "strict") {
     console.log("Workspace сохранён локально для следующих команд OpenSpec Orchestrator.");
   } else if (options.workspace) {
-    console.log("Workspace использован только для текущего relaxed-вызова и не сохранён в Git config.");
+    console.log("Workspace использован только для текущего relaxed-вызова и не сохранён локально.");
   }
   console.log("Локальная регистрация Store проверена OpenSpec.");
   for (const repository of result.repositories) {

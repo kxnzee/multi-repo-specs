@@ -36,16 +36,17 @@ async function inspectRequiredFile(projectRoot, relativePath, issues) {
 
 /**
  * Проверяет завершённый init только по автономному runtime-контракту Core.
- * Исходный Template для повторного запуска не требуется.
+ * Исходный Template для повторного запуска не требуется; ожидаемые пути agent pack
+ * определяет уже пересчитанный `templatePlan.agent` для запрошенного `--agent`.
  *
  * @param {object} options Параметры проверки.
  * @param {string} options.projectRoot Корень Store.
  * @param {string} options.storeId Ожидаемый Store ID.
- * @param {string} options.agentId Ожидаемый agent ID.
+ * @param {import("../template/types.js").TemplateAgent} options.agent Ожидаемый Template agent mapping.
  * @param {{remote: string | undefined}} options.metadata Store metadata.
  * @returns {Promise<ReturnType<typeof parseOrchestratorConfig>>} Проверенная конфигурация.
  */
-export async function assertInitializationComplete({ projectRoot, storeId, agentId, metadata }) {
+export async function assertInitializationComplete({ projectRoot, storeId, agent, metadata }) {
   const issues = [];
   let config;
   const configStat = await lstatOrNull(path.join(projectRoot, INIT_PATHS.orchestratorConfig));
@@ -59,10 +60,7 @@ export async function assertInitializationComplete({ projectRoot, storeId, agent
       if (config.storeRepository.id !== storeId) {
         issues.push(`Store ID в ${INIT_PATHS.orchestratorConfig} не совпадает с Store metadata`);
       }
-      if (config.agent.id !== agentId) {
-        issues.push(`agent в ${INIT_PATHS.orchestratorConfig} не совпадает с аргументом openspec-orch init`);
-      }
-      if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
+      if (!metadata.remote || !sameGitRemote(config.storeRepository.remote, metadata.remote)) {
         issues.push(`URL role: store в ${INIT_PATHS.orchestratorConfig} не совпадает с Store metadata`);
       }
     } catch (error) {
@@ -70,12 +68,10 @@ export async function assertInitializationComplete({ projectRoot, storeId, agent
     }
   }
 
-  if (config) {
-    await inspectRequiredFile(projectRoot, config.agent.instructionsFile, issues);
-    const commandsStat = await lstatOrNull(path.join(projectRoot, config.agent.commandsDirectory));
-    if (!commandsStat?.isDirectory() || commandsStat.isSymbolicLink()) {
-      issues.push(`${config.agent.commandsDirectory}/ не является обычным каталогом`);
-    }
+  await inspectRequiredFile(projectRoot, agent.instructionsFile, issues);
+  const commandsStat = await lstatOrNull(path.join(projectRoot, agent.commandsDirectory));
+  if (!commandsStat?.isDirectory() || commandsStat.isSymbolicLink()) {
+    issues.push(`${agent.commandsDirectory}/ не является обычным каталогом`);
   }
   await inspectRequiredFile(projectRoot, INIT_PATHS.openSpecConfig, issues);
   for (const relativePath of ["openspec/specs", "openspec/changes/archive"]) {

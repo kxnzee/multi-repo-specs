@@ -1,12 +1,11 @@
-/** @fileoverview Разбор и строгая проверка принадлежащей OpenSpec Orchestrator конфигурации. */
+/** @fileoverview Разбор и строгая проверка конфигурации OpenSpec Orchestrator Alpha. */
 
 import { parse, stringify } from "yaml";
-import { assertPortableRelativePath } from "../shared/paths.js";
+
 import { assertRepositoryId } from "../shared/schema.js";
 import { parseOrchestratorConfigSchema, parseStoreMetadataSchema } from "./schema.js";
 
-const ROLES = new Set(["store", "code"]);
-const AGENT_ARCHITECTURE = "markdown-commands";
+const ALPHA_CONTRACT_VERSION = 1;
 
 /**
  * Репозиторий в нормализованном внутреннем формате CLI.
@@ -14,8 +13,20 @@ const AGENT_ARCHITECTURE = "markdown-commands";
  * @typedef {object} Repository
  * @property {string} id
  * @property {"store" | "code"} role
- * @property {string} url
+ * @property {string} remote
  * @property {string} defaultBranch
+ */
+
+/**
+ * Модель `openspec-orch.yaml` после нормализации.
+ *
+ * @typedef {object} NormalizedConfig
+ * @property {number} version
+ * @property {boolean} strict
+ * @property {Record<string, unknown>} extensions
+ * @property {Repository[]} repositories
+ * @property {Repository} storeRepository
+ * @property {Repository[]} codeRepositories
  */
 
 /**
@@ -54,89 +65,40 @@ function hasHttpCredentials(value) {
 }
 
 /**
- * Нормализует одну запись repositories из внешнего YAML-формата.
+ * Нормализует одну запись `repositories` из внешнего YAML-формата Alpha v1.
  *
- * @param {unknown} value Необработанная запись из openspec-orch.yaml.
+ * @param {{id: string, roles: Array<"store" | "code">, remote: string, default_branch: string}} value Проверенная схемой запись.
  * @returns {Repository} Проверенная запись во внутреннем формате CLI.
  */
 function normalizeRepository(value) {
+  const [role] = value.roles;
   const repository = {
-    id: value?.id,
-    role: value?.role,
-    url: value?.url,
-    defaultBranch: value?.default_branch,
+    id: value.id,
+    role,
+    remote: value.remote,
+    defaultBranch: value.default_branch,
   };
-  assertRepositoryId(repository.id);
-  if (!ROLES.has(repository.role)) {
-    throw new Error(`Для repository-id ${repository.id} требуется role: store или role: code`);
-  }
-  if (repository.url.startsWith("-") || repository.defaultBranch.startsWith("-")) {
+  assertRepositoryId(repository.id, `repository-id ${repository.id}`);
+  if (repository.remote.startsWith("-") || repository.defaultBranch.startsWith("-")) {
     throw new Error(`Некорректные Git-параметры для repository-id ${repository.id}`);
   }
-  if (hasHttpCredentials(repository.url)) {
+  if (hasHttpCredentials(repository.remote)) {
     throw new Error(`URL repository-id ${repository.id} содержит credential`);
   }
   return repository;
 }
 
 /**
- * Нормализует runtime mapping агента без обращения к исходному Template.
- *
- * @param {Record<string, unknown>} value Agent mapping из YAML.
- * @returns {{id: string, openSpecId: string, architecture: "markdown-commands", commandsDirectory: string, instructionsFile: string, handoffs: Record<string, string>}}
- */
-function normalizeAgent(value) {
-  const id = assertRepositoryId(value.id, "agent.id");
-  const openSpecId = assertRepositoryId(value.openspec_adapter, "agent.openspec_adapter");
-  if (value.architecture !== AGENT_ARCHITECTURE) {
-    throw new Error(`Неподдерживаемая agent.architecture: ${value.architecture}`);
-  }
-  const handoffs = {};
-  for (const [name, handoffPath] of Object.entries(value.handoffs ?? {})) {
-    assertRepositoryId(name, `agent.handoffs.${name}`);
-    handoffs[name] = assertPortableRelativePath(
-      handoffPath,
-      `agent.handoffs.${name}`,
-      { allowDot: false },
-    );
-  }
-  return {
-    id,
-    openSpecId,
-    architecture: AGENT_ARCHITECTURE,
-    commandsDirectory: assertPortableRelativePath(
-      value.commands_directory,
-      "agent.commands_directory",
-      { allowDot: false },
-    ),
-    instructionsFile: assertPortableRelativePath(
-      value.instructions_file,
-      "agent.instructions_file",
-      { allowDot: false },
-    ),
-    handoffs,
-  };
-}
-
-/**
- * Читает и проверяет принадлежащую OpenSpec Orchestrator часть конфигурации.
+ * Читает и проверяет `openspec-orch.yaml` по строгому контракту Alpha v1.
  * OpenSpec-конфигурацию эта функция намеренно не интерпретирует.
  *
- * @param {string} source Содержимое openspec-orch.yaml.
- * @returns {{
- *   strict: boolean,
- *   agent: ReturnType<typeof normalizeAgent>,
- *   repositories: Repository[],
- *   storeRepository: Repository,
- *   codeRepositories: Repository[]
- * }}
+ * @param {string} source Содержимое `openspec-orch.yaml`.
+ * @returns {NormalizedConfig} Проверенное runtime-представление.
  */
 export function parseOrchestratorConfig(source) {
   const value = parseOrchestratorConfigSchema(
     parseYaml(source, "Некорректный openspec-orch.yaml"),
   );
-
-  const agent = normalizeAgent(value.agent);
 
   const repositories = value.repositories.map(normalizeRepository);
   const ids = new Set(repositories.map(({ id }) => id));
@@ -145,11 +107,12 @@ export function parseOrchestratorConfig(source) {
   }
   const stores = repositories.filter(({ role }) => role === "store");
   if (stores.length !== 1) {
-    throw new Error("openspec-orch.yaml должен содержать ровно одну запись role: store");
+    throw new Error("openspec-orch.yaml должен содержать ровно одну запись roles: [store]");
   }
   return {
-    strict: value.strict ?? true,
-    agent,
+    version: value.version,
+    strict: value.strict,
+    extensions: value.extensions,
     repositories,
     storeRepository: stores[0],
     codeRepositories: repositories.filter(({ role }) => role === "code"),
@@ -157,25 +120,7 @@ export function parseOrchestratorConfig(source) {
 }
 
 /**
- * Возвращает объявленный Template handoff только в момент вызова зависящей команды.
- *
- * @param {{handoffs: Record<string, string>}} agent Runtime mapping агента.
- * @param {string} name Имя handoff.
- * @param {string} command Пользовательская Core-команда для диагностики.
- * @returns {string} Безопасный относительный путь handoff.
- */
-export function requireAgentHandoff(agent, name, command) {
-  const handoff = agent.handoffs[name];
-  if (!handoff) {
-    throw new Error(
-      `Project Template не объявил agent.handoffs.${name} для ${command}`,
-    );
-  }
-  return handoff;
-}
-
-/**
- * Разрешает режим выполнения без скрытого fallback из strict в relaxed.
+ * Проверяет режим выполнения без скрытого fallback из strict в relaxed.
  *
  * @param {boolean} projectStrict
  * @param {boolean} noStrict
@@ -189,50 +134,48 @@ export function resolveExecutionMode(projectStrict, noStrict = false) {
 }
 
 /**
- * Заполняет встроенный шаблон openspec-orch.yaml выбранным агентом и репозиториями.
+ * Заполняет встроенный шаблон `openspec-orch.yaml` составом репозиториев Alpha v1.
+ * Alpha Core не хранит agent mapping в конфигурации.
  *
  * @param {string} template YAML-шаблон из skeleton.
  * @param {Repository[]} repositories
- * @param {{id: string, openSpecId: string, architecture: string, commandsDirectory: string, instructionsFile: string, handoffs?: Record<string, string>}} agent
- * @param {boolean} [strict] Project default для Git-гарантий Core.
+ * @param {object} [options] Опции сериализации.
+ * @param {boolean} [options.strict] Project default для Git-гарантий Core.
+ * @param {Record<string, unknown>} [options.extensions] Внешние расширения конфигурации.
  * @returns {string}
  */
-export function serializeOrchestratorConfig(template, repositories, agent, strict = true) {
+export function serializeOrchestratorConfig(template, repositories, { strict = true, extensions = {} } = {}) {
   const value = parseYaml(template, "Некорректный шаблон openspec-orch.yaml");
-  if (typeof strict !== "boolean") throw new Error("strict должен быть boolean");
-  delete value.versions;
-  value.strict = strict;
-  value.agent = {
-    id: agent.id,
-    openspec_adapter: agent.openSpecId,
-    architecture: agent.architecture,
-    commands_directory: agent.commandsDirectory,
-    instructions_file: agent.instructionsFile,
-  };
-  if (agent.handoffs && Object.keys(agent.handoffs).length > 0) {
-    value.agent.handoffs = agent.handoffs;
+  if (value.version !== ALPHA_CONTRACT_VERSION) {
+    throw new Error(`Шаблон openspec-orch.yaml имеет неподдерживаемую version: ${value.version}`);
   }
-  value.repositories = repositories.map(({ id, role, url, defaultBranch }) => ({
-    id,
-    role,
-    url,
-    default_branch: defaultBranch,
-  }));
-  return stringify(value, { lineWidth: 0 });
+  if (typeof strict !== "boolean") throw new Error("strict должен быть boolean");
+  const serialized = {
+    version: ALPHA_CONTRACT_VERSION,
+    strict,
+    repositories: repositories.map(({ id, role, remote, defaultBranch }) => ({
+      id,
+      roles: [role],
+      remote,
+      default_branch: defaultBranch,
+    })),
+    extensions: extensions ?? {},
+  };
+  return stringify(serialized, { lineWidth: 0 });
 }
 
 /**
  * Читает минимальную Store identity, нужную адаптеру до вызова OpenSpec.
  * Полную корректность Store проверяют официальные команды register/doctor.
  *
- * @param {string} source Содержимое .openspec-store/store.yaml.
+ * @param {string} source Содержимое `.openspec-store/store.yaml`.
  * @returns {{id: string, remote: string | undefined}}
  */
 export function parseStoreMetadata(source) {
   const value = parseStoreMetadataSchema(
     parseYaml(source, "Некорректная .openspec-store/store.yaml"),
   );
-  if (value.version !== 1) throw new Error("Store metadata должна иметь version: 1");
+  if (value.version !== ALPHA_CONTRACT_VERSION) throw new Error("Store metadata должна иметь version: 1");
   assertRepositoryId(value.id, "Store ID");
   return { id: value.id, remote: value.remote };
 }

@@ -12,7 +12,7 @@ import { isGitRevision } from "../shared/schema.js";
  * Проверяет существующий checkout без fetch/pull.
  *
  * @param {string} repositoryRoot Абсолютный путь checkout.
- * @param {{id: string, url: string, defaultBranch: string}} repository Конфигурация репозитория.
+ * @param {{id: string, remote: string, defaultBranch: string}} repository Конфигурация репозитория.
  * @param {typeof import("../shared/command.js").runCommand} commandRunner Исполнитель Git.
  * @returns {Promise<{branch: string, revision: string}>} Проверенное Git-состояние.
  */
@@ -36,7 +36,7 @@ async function inspectCheckout(repositoryRoot, repository, commandRunner) {
  * Клонирует отсутствующий Code Repository или валидирует существующий.
  *
  * @param {object} options Параметры подключения.
- * @param {{id: string, url: string, defaultBranch: string}} options.repository Репозиторий.
+ * @param {{id: string, remote: string, defaultBranch: string}} options.repository Репозиторий.
  * @param {string} options.sourceRoot Каталог `<workspace>/src`.
  * @param {string} options.storeId ID центрального Store.
  * @param {string} options.storeRoot Абсолютный путь Store.
@@ -65,7 +65,7 @@ export async function connectRepository({
     }
     onProgress("клонирование...");
     await createGitClient(sourceRoot, commandRunner).cloneBranch({
-      url: repository.url,
+      url: repository.remote,
       target: repositoryRoot,
       branch: repository.defaultBranch,
     });

@@ -107,7 +107,7 @@ export async function readStoreConfiguration(projectRoot) {
   if (config.storeRepository.id !== metadata.id) {
     throw new Error("Store ID в openspec-orch.yaml не совпадает с Store metadata");
   }
-  if (!metadata.remote || !sameGitRemote(config.storeRepository.url, metadata.remote)) {
+  if (!metadata.remote || !sameGitRemote(config.storeRepository.remote, metadata.remote)) {
     throw new Error("URL role: store не совпадает с Store metadata");
   }
   return { metadata, config };

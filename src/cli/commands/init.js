@@ -36,7 +36,7 @@ export function buildConnectHint(storeRoot, storeId) {
 /**
  * Выполняет пользовательский сценарий `openspec-orch init`.
  *
- * @param {{target: string, storeId: string, agentId: string, templateRoot?: string, repositories: Array<{id: string, role: "code", url: string, defaultBranch: string}>, noStrict: boolean}} options Нормализованные параметры команды.
+ * @param {{target: string, storeId: string, agentId: string, templateRoot?: string, repositories: Array<{id: string, role: "code", remote: string, defaultBranch: string}>, noStrict: boolean}} options Нормализованные параметры команды.
  * @returns {Promise<void>}
  */
 export async function runInit(options) {

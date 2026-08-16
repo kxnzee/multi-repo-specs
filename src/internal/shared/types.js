@@ -82,6 +82,7 @@
  * @property {"strict" | "relaxed"} executionMode
  * @property {string[]} created
  * @property {string[]} updated
+ * @property {import("../template/types.js").TemplateAgent} agent
  */
 
 /**
@@ -89,7 +90,7 @@
  *
  * @typedef {object} RegisteredRepository
  * @property {string} id
- * @property {string} url
+ * @property {string} remote
  * @property {string} defaultBranch
  */
 

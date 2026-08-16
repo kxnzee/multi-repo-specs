@@ -237,11 +237,11 @@ function fakeOpenSpec(projectRoot, { registeredStoreId } = {}) {
   return { calls, runner };
 }
 
-test("parseRepository accepts the documented id=url#branch format", () => {
+test("parseRepository accepts the documented id=remote#branch format", () => {
   assert.deepEqual(parseRepository("ui=https://example.test/ui.git#main"), {
     id: "ui",
     role: "code",
-    url: "https://example.test/ui.git",
+    remote: "https://example.test/ui.git",
     defaultBranch: "main",
   });
 });
@@ -328,13 +328,13 @@ test("initProject creates Store, official expanded pack and the complete skeleto
   assert.deepEqual(config.storeRepository, {
     id: "payments-specs",
     role: "store",
-    url: "https://example.test/specs.git",
+    remote: "https://example.test/specs.git",
     defaultBranch: "main",
   });
   assert.deepEqual(config.codeRepositories.map(({ id }) => id), ["ui"]);
-  assert.equal((await fs.stat(path.join(target, config.agent.commandsDirectory))).isDirectory(), true);
+  assert.equal((await fs.stat(path.join(target, result.agent.commandsDirectory))).isDirectory(), true);
   assert.equal((await fs.stat(path.join(target, ".qwen", "agents"))).isDirectory(), true);
-  assert.equal((await fs.stat(path.join(target, config.agent.instructionsFile))).isFile(), true);
+  assert.equal((await fs.stat(path.join(target, result.agent.instructionsFile))).isFile(), true);
 });
 
 test("initProject persists relaxed mode only when it is explicitly requested", async (t) => {
@@ -358,26 +358,28 @@ test("initProject persists the selected adapter after OpenSpec initialization", 
   const target = await temporaryProject(t);
   const openSpec = fakeOpenSpec(target);
 
-  await initProject({
+  const result = await initProject({
     target,
     storeId: "payments-specs",
     agentId: "gigacode",
     commandRunner: openSpec.runner,
   });
 
-  const config = parseOrchestratorConfig(await fs.readFile(path.join(target, "openspec-orch.yaml"), "utf8"));
   const selected = agentFixture("gigacode");
-  assert.deepEqual(config.agent, {
+  assert.deepEqual(result.agent, {
     id: selected.id,
     openSpecId: selected.openSpecId,
     architecture: selected.architecture,
+    generatedDirectory: selected.generatedDirectory,
+    targetDirectory: selected.targetDirectory,
     commandsDirectory: selected.commandsDirectory,
     instructionsFile: selected.instructionsFile,
     handoffs: selected.handoffs,
+    copy: result.agent.copy,
   });
-  assert.equal((await fs.stat(path.join(target, config.agent.commandsDirectory))).isDirectory(), true);
+  assert.equal((await fs.stat(path.join(target, result.agent.commandsDirectory))).isDirectory(), true);
   assert.equal((await fs.stat(path.join(target, ".gigacode", "agents"))).isDirectory(), true);
-  assert.equal((await fs.stat(path.join(target, config.agent.instructionsFile))).isFile(), true);
+  assert.equal((await fs.stat(path.join(target, result.agent.instructionsFile))).isFile(), true);
   assert.equal(fsSync.existsSync(path.join(target, ".qwen")), false);
   assert.ok(
     openSpec.calls.some(
@@ -602,22 +604,18 @@ test("initProject applies a custom Template and persists its runtime agent mappi
   assert.equal(fsSync.existsSync(path.join(target, ".qwen")), false);
   assert.equal((await fs.stat(path.join(target, ".team-agent", "actions"))).isDirectory(), true);
 
-  const config = parseOrchestratorConfig(
-    await fs.readFile(path.join(target, "openspec-orch.yaml"), "utf8"),
-  );
-  assert.deepEqual(config.agent, {
-    id: "team-agent",
-    openSpecId: "qwen",
-    architecture: "markdown-commands",
-    commandsDirectory: ".team-agent/actions",
-    instructionsFile: "TEAM.md",
-    handoffs: { apply: ".team-agent/actions/team-apply.md" },
-  });
+  assert.deepEqual(result.agent.id, "team-agent");
+  assert.deepEqual(result.agent.openSpecId, "qwen");
+  assert.deepEqual(result.agent.architecture, "markdown-commands");
+  assert.deepEqual(result.agent.commandsDirectory, ".team-agent/actions");
+  assert.deepEqual(result.agent.instructionsFile, "TEAM.md");
+  assert.deepEqual(result.agent.handoffs, { apply: ".team-agent/actions/team-apply.md" });
 
   const repeat = await initProject({
     target,
     storeId: "payments-specs",
     agentId: "team-agent",
+    templateRoot,
     commandRunner: openSpec.runner,
   });
   assert.equal(repeat.alreadyInitialized, true);

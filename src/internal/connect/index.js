@@ -50,7 +50,6 @@ export async function connectProject({
     storeRoot,
     metadata.id,
     requestedWorkspace,
-    commandRunner,
     executionMode === "strict",
   );
   const sourceRoot = path.join(workspace, "src");
@@ -71,7 +70,7 @@ export async function connectProject({
     onProgress(`${prefix}: готово`, "success");
   }
   if (requestedWorkspace && executionMode === "strict") {
-    await rememberWorkspace(storeRoot, workspace, commandRunner);
+    await rememberWorkspace(storeRoot, workspace);
   }
   return {
     storeId: metadata.id,

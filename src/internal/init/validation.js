@@ -25,17 +25,17 @@ export async function inspectGit(projectRoot, commandRunner) {
 }
 
 /**
- * Разбирает CLI-флаг `--repo <id=url#branch>`.
+ * Разбирает CLI-флаг `--repo <id=remote#branch>`.
  *
  * @param {string} value Значение флага.
- * @returns {{id: string, role: "code", url: string, defaultBranch: string}} Репозиторий.
+ * @returns {{id: string, role: "code", remote: string, defaultBranch: string}} Репозиторий.
  */
 export function parseRepository(value) {
   const match = value.match(REPOSITORY_PATTERN);
-  if (!match) throw new Error(`Некорректный репозиторий '${value}'. Ожидается <id=url#branch>`);
-  const [, id, url, defaultBranch] = match;
-  if (url.startsWith("-") || defaultBranch.startsWith("-")) {
-    throw new Error(`Некорректный репозиторий '${value}'. Ожидается <id=url#branch>`);
+  if (!match) throw new Error(`Некорректный репозиторий '${value}'. Ожидается <id=remote#branch>`);
+  const [, id, remote, defaultBranch] = match;
+  if (remote.startsWith("-") || defaultBranch.startsWith("-")) {
+    throw new Error(`Некорректный репозиторий '${value}'. Ожидается <id=remote#branch>`);
   }
-  return { id, role: "code", url, defaultBranch };
+  return { id, role: "code", remote, defaultBranch };
 }

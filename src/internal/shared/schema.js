@@ -43,6 +43,27 @@ export function assertRepositoryId(id, label = "repository-id") {
 }
 
 /**
+ * Проверяет формат `change-id`: тот же безопасный lowercase kebab-case, что и repository-id.
+ *
+ * @param {unknown} value Проверяемое значение.
+ * @returns {value is string} Результат проверки.
+ */
+export function isChangeId(value) {
+  return isRepositoryId(value);
+}
+
+/**
+ * Проверяет `change-id`, безопасно кодируемый в `change-key` файла Cycle Record.
+ *
+ * @param {unknown} value Проверяемое значение.
+ * @returns {string} Проверенный `change-id`.
+ */
+export function assertChangeId(value) {
+  if (!isChangeId(value)) throw new Error("change-id должен быть в lowercase kebab-case");
+  return value;
+}
+
+/**
  * Проверяет, что значение является обычным JSON-объектом.
  *
  * @param {unknown} value Проверяемое значение.

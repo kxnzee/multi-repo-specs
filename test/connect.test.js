@@ -42,7 +42,7 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
   await initializeGitRepository(centralSource);
 
   const centralRemote = path.join(root, "payments-specs.git");
-  const orchestratorTemplate = 'version: 1\n\nversions:\n  process: draft\n  openspec: "1.7.0"\n\nagent: null\n\nrepositories: []\n';
+  const orchestratorTemplate = "version: 1\nstrict: true\n\nrepositories: []\n\nextensions: {}\n";
   const centralFiles = {
     ".openspec-store/store.yaml": `version: 1\nid: payments-specs\nremote: ${JSON.stringify(centralRemote)}\n`,
     "openspec/config.yaml": "schema: spec-driven\n",
@@ -60,11 +60,11 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
       {
         id: "payments-specs",
         role: "store",
-        url: centralRemote,
+        remote: centralRemote,
         defaultBranch: "main",
       },
-      { id: "api", role: "code", url: codeRemote, defaultBranch: "main" },
-    ], agent),
+      { id: "api", role: "code", remote: codeRemote, defaultBranch: "main" },
+    ]),
   };
   await commitFiles(centralSource, centralFiles, { message: "initialize store" });
   await runCommand("git", ["clone", "--bare", centralSource, centralRemote]);
@@ -228,10 +228,10 @@ test("connectProject remembers an explicit workspace for a nonstandard Store pat
 
   assert.equal(first.workspace, scenario.workspace);
   assert.equal(second.workspace, scenario.workspace);
-  assert.equal(
-    await runCommand("git", ["-C", customStoreRoot, "config", "--local", "--get", "openspec-orch.workspace"]),
-    scenario.workspace,
+  const state = JSON.parse(
+    await fs.readFile(path.join(customStoreRoot, ".openspec-orch", "state.json"), "utf8"),
   );
+  assert.deepEqual(state, { contract_version: 1, workspace: scenario.workspace });
 });
 
 test("connectProject does not infer workspace from the legacy openspec container", async (t) => {

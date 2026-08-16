@@ -38,7 +38,7 @@ import { inspectGit } from "./validation.js";
  * @param {string} options.storeId Store ID.
  * @param {string} options.agentId Agent mapping из выбранного Template.
  * @param {string} [options.templateRoot] Локальный Template root; по умолчанию встроенный.
- * @param {Array<{id: string, role: "code", url: string, defaultBranch: string}>} [options.repositories]
+ * @param {Array<{id: string, role: "code", remote: string, defaultBranch: string}>} [options.repositories]
  * @param {boolean} [options.noStrict] Сохранить relaxed mode как project default.
  * @param {typeof runCommand} [options.commandRunner] Исполнитель внешних команд.
  * @returns {Promise<import("../shared/types.js").InitResult>}
@@ -85,7 +85,13 @@ export async function initProject({
     if (metadata.id !== storeId) {
       throw new Error(`Store уже инициализирован с ID ${metadata.id}, а не ${storeId}`);
     }
-    const config = await assertInitializationComplete({ projectRoot, storeId, agentId, metadata });
+    const existingTemplatePlan = await buildTemplatePlan({ templateRoot, targetRoot: projectRoot, agentId });
+    const config = await assertInitializationComplete({
+      projectRoot,
+      storeId,
+      agent: existingTemplatePlan.agent,
+      metadata,
+    });
     return {
       target: projectRoot,
       storeId,
@@ -93,6 +99,7 @@ export async function initProject({
       executionMode: config.strict ? "strict" : "relaxed",
       created: [],
       updated: [],
+      agent: existingTemplatePlan.agent,
     };
   }
 
@@ -108,7 +115,7 @@ export async function initProject({
     {
       id: storeId,
       role: "store",
-      url: git.remote,
+      remote: git.remote,
       defaultBranch: git.defaultBranch,
     },
     ...repositories,
@@ -118,8 +125,7 @@ export async function initProject({
   const orchestratorContents = serializeOrchestratorConfig(
     await fs.readFile(INIT_PATHS.orchestratorTemplate, "utf8"),
     configuredRepositories,
-    templatePlan.agent,
-    !noStrict,
+    { strict: !noStrict },
   );
   parseOrchestratorConfig(orchestratorContents);
 
@@ -142,7 +148,7 @@ export async function initProject({
   const metadata = parseStoreMetadata(
     await fs.readFile(path.join(projectRoot, INIT_PATHS.metadata), "utf8"),
   );
-  await assertInitializationComplete({ projectRoot, storeId, agentId, metadata });
+  await assertInitializationComplete({ projectRoot, storeId, agent: templatePlan.agent, metadata });
   return {
     target: projectRoot,
     storeId,
@@ -150,6 +156,7 @@ export async function initProject({
     executionMode: noStrict ? "relaxed" : "strict",
     created: [INIT_PATHS.metadata, ...installed.created.sort()],
     updated: installed.updated,
+    agent: templatePlan.agent,
   };
 }
 
