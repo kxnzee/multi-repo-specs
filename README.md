@@ -56,6 +56,8 @@ openspec-orch record verification <change-id> --result <pass|fail> --source <hum
 `init` использует `--agent` и необязательный `--template` только для начальной
 установки проектных файлов. Core не хранит agent mapping или handoff в
 `openspec-orch.yaml` и не использует их после `init`.
+Поддерживаемые значения `--agent` и их нативные пути перечислены в едином
+[справочнике агентов](docs/user/supported-agents.md).
 
 Команды `assign`, `record assignment` и `record verification` сначала показывают
 preview и требуют интерактивного подтверждения. Отказ пользователя ничего не

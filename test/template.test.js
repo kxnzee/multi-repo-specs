@@ -14,6 +14,11 @@ import {
 } from "../src/internal/template/index.js";
 import { temporaryDirectory } from "../test-fixtures/workspace.js";
 
+const BASE_TEMPLATE_DESCRIPTOR = parseTemplateDescriptor(
+  await fs.readFile(path.join(BASE_TEMPLATE_ROOT, "template.yaml"), "utf8"),
+);
+const BASE_AGENT_IDS = Object.freeze(Object.keys(BASE_TEMPLATE_DESCRIPTOR.agents).sort());
+
 /**
  * Создаёт изолированные Template и target roots.
  *
@@ -39,8 +44,8 @@ function descriptorValue(copy) {
   return {
     agents: {
       test: {
-        openspec_adapter: "qwen",
-        generated_directory: ".qwen",
+        openspec_adapter: "test-adapter",
+        generated_directory: ".generated",
         target_directory: ".agent",
         commands_directory: ".agent/commands",
         instructions_file: ".agent/INSTRUCTIONS.md",
@@ -73,40 +78,89 @@ test("built-in and local Templates use one planner without writing target files"
     ".agent/INSTRUCTIONS.md",
   ]);
 
-  const builtIn = await buildTemplatePlan({
-    templateRoot: BASE_TEMPLATE_ROOT,
-    targetRoot,
-    agentId: "qwen",
-  });
-  assert.deepEqual(builtIn.supportedAgentIds, ["gigacode", "qwen"]);
-  assert.deepEqual(builtIn.files.map(({ targetRelative }) => targetRelative), [
-    ".gitignore",
-    "openspec/config.yaml",
-    "openspec/context/_raw/README.md",
-    "openspec/context/00-start-here.md",
-    "openspec/context/01-product-context.md",
-    "openspec/context/02-domain-glossary.md",
-    "openspec/context/03-architecture.md",
-    "openspec/context/04-domain-model.md",
-    "openspec/context/05-security-and-compliance.md",
-    "openspec/context/06-cross-system-invariants.md",
-    "openspec/context/07-quality-gates.md",
-    "openspec/context/08-release-process.md",
-    "openspec/context/ADR/README.md",
-    "openspec/context/repositories/README.md",
-    "openspec/context/system-map.yaml",
-    ".qwen/skills/openspec-analyze-impact/SKILL.md",
-    ".qwen/skills/openspec-context/SKILL.md",
-    ".qwen/skills/openspec-review-change/SKILL.md",
-    ".qwen/skills/openspec-test-cases/SKILL.md",
-    ".qwen/agents/openspec-architecture-impact-reviewer.md",
-    ".qwen/agents/openspec-implementation-scout.md",
-    ".qwen/agents/openspec-project-context-researcher.md",
-    ".qwen/agents/openspec-specification-reviewer.md",
-    ".qwen/agents/openspec-verification-reviewer.md",
-    "QWEN.md",
-  ]);
+  for (const agentId of BASE_AGENT_IDS) {
+    const builtIn = await buildTemplatePlan({
+      templateRoot: BASE_TEMPLATE_ROOT,
+      targetRoot,
+      agentId,
+    });
+    assert.deepEqual(builtIn.supportedAgentIds, BASE_AGENT_IDS);
+    assert.equal(
+      builtIn.files.some(({ targetRelative }) => targetRelative === builtIn.agent.instructionsFile),
+      true,
+      agentId,
+    );
+  }
   assert.deepEqual(await fs.readdir(targetRoot), []);
+});
+
+test("every base mapping installs the complete canonical agent contract", async (t) => {
+  const { targetRoot } = await temporaryRoots(t);
+  const skillFiles = (await fs.readdir(path.join(BASE_TEMPLATE_ROOT, "skills")))
+    .map((name) => `${name}/SKILL.md`)
+    .sort();
+  const subagentFiles = (await fs.readdir(path.join(BASE_TEMPLATE_ROOT, "subagents"))).sort();
+
+  for (const agentId of BASE_AGENT_IDS) {
+    const builtIn = await buildTemplatePlan({
+      templateRoot: BASE_TEMPLATE_ROOT,
+      targetRoot,
+      agentId,
+    });
+    const targets = new Set(builtIn.files.map(({ targetRelative }) => targetRelative));
+    for (const relativePath of skillFiles) {
+      assert.equal(
+        targets.has(path.posix.join(builtIn.agent.targetDirectory, "skills", relativePath)),
+        true,
+        `${agentId}: ${relativePath}`,
+      );
+    }
+    for (const filename of subagentFiles) {
+      assert.equal(
+        targets.has(path.posix.join(builtIn.agent.targetDirectory, "agents", filename)),
+        true,
+        `${agentId}: ${filename}`,
+      );
+    }
+    assert.equal(targets.has(builtIn.agent.instructionsFile), true, agentId);
+  }
+});
+
+test("base mappings reuse canonical sources and isolate only necessary adaptations", () => {
+  for (const agentId of BASE_AGENT_IDS) {
+    const agent = BASE_TEMPLATE_DESCRIPTOR.agents[agentId];
+    assert.deepEqual(
+      agent.copy.find(({ to }) => to === agent.instructionsFile),
+      { from: "agent-instructions.md", to: agent.instructionsFile },
+      agentId,
+    );
+    assert.deepEqual(
+      agent.copy.find(({ to }) => to === path.posix.join(agent.targetDirectory, "skills")),
+      { from: "skills", to: path.posix.join(agent.targetDirectory, "skills") },
+      agentId,
+    );
+    const subagents = agent.copy.find(
+      ({ to }) => to === path.posix.join(agent.targetDirectory, "agents"),
+    );
+    assert.ok(subagents, agentId);
+    assert.equal(
+      subagents.from === "subagents" ||
+        subagents.from === path.posix.join("adapters", agentId, "subagents"),
+      true,
+      agentId,
+    );
+  }
+});
+
+test("supported-agent documentation matches the Template registry", async () => {
+  const documentation = await fs.readFile(
+    new URL("../docs/user/supported-agents.md", import.meta.url),
+    "utf8",
+  );
+  const documentedIds = [...documentation.matchAll(/^\| `([a-z][a-z0-9-]*)` \|/gm)]
+    .map(([, id]) => id)
+    .sort();
+  assert.deepEqual(documentedIds, BASE_AGENT_IDS);
 });
 
 test("base context skill stays portable across ordinary OpenSpec projects", async () => {
@@ -267,6 +321,37 @@ test("base subagents are Russian read-only native profiles", async () => {
   }
 });
 
+test("adapted subagents preserve canonical names, descriptions and bodies", async () => {
+  const adaptersRoot = path.join(BASE_TEMPLATE_ROOT, "adapters");
+  const adapterIds = await fs.readdir(adaptersRoot);
+
+  for (const adapterId of adapterIds) {
+    assert.ok(BASE_TEMPLATE_DESCRIPTOR.agents[adapterId], adapterId);
+    const subagentsRoot = path.join(adaptersRoot, adapterId, "subagents");
+    const filenames = await fs.readdir(subagentsRoot);
+    for (const filename of filenames) {
+      const canonical = await fs.readFile(
+        path.join(BASE_TEMPLATE_ROOT, "subagents", filename),
+        "utf8",
+      );
+      const adapted = await fs.readFile(path.join(subagentsRoot, filename), "utf8");
+      const canonicalMatch = canonical.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+      const adaptedMatch = adapted.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+      assert.ok(canonicalMatch, `canonical: ${filename}`);
+      assert.ok(adaptedMatch, `${adapterId}: ${filename}`);
+      const canonicalFrontmatter = parse(canonicalMatch[1]);
+      const adaptedFrontmatter = parse(adaptedMatch[1]);
+      assert.equal(adaptedFrontmatter.name, canonicalFrontmatter.name, `${adapterId}: ${filename}`);
+      assert.equal(
+        adaptedFrontmatter.description,
+        canonicalFrontmatter.description,
+        `${adapterId}: ${filename}`,
+      );
+      assert.equal(adaptedMatch[2], canonicalMatch[2], `${adapterId}: ${filename}`);
+    }
+  }
+});
+
 test("copy plan preserves operation order, overrides and executable mode", async (t) => {
   const { templateRoot, targetRoot } = await temporaryRoots(t);
   await writeDescriptor(
@@ -308,7 +393,7 @@ test("descriptor rejects missing fields and unsafe portable paths", () => {
   }
 
   const nestedRoots = descriptorValue([]);
-  nestedRoots.agents.test.target_directory = ".qwen/nested";
+  nestedRoots.agents.test.target_directory = ".generated/nested";
   assert.throws(
     () => parseTemplateDescriptor(stringify(nestedRoots)),
     /generated_directory и target_directory/,

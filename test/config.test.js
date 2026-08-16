@@ -62,7 +62,7 @@ test("parseOrchestratorConfig rejects missing schema sections and repository fie
 });
 
 test("parseOrchestratorConfig rejects legacy fields outside extensions", () => {
-  assert.throws(() => parseOrchestratorConfig(`${config(STORE_ONLY)}agent:\n  id: qwen\n`));
+  assert.throws(() => parseOrchestratorConfig(`${config(STORE_ONLY)}agent:\n  id: test-agent\n`));
   assert.throws(() => parseOrchestratorConfig(
     config("  - id: specs\n    role: store\n    url: https://example.test/specs.git\n    default_branch: main"),
   ));

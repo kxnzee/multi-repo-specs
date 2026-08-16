@@ -28,7 +28,7 @@
 
 ### 2026-08-16 — повторный `init` после ошибки Store registry
 
-- Проверка: smoke-test базового Template с `--agent gigacode`.
+- Проверка: smoke-test базового Template с выбранным `--agent`.
 - Наблюдаемый факт: `openspec store setup` завершился ошибкой
   `store_registry_busy`, но официальный agent pack и `openspec/config.yaml`
   остались в целевом репозитории.

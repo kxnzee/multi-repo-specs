@@ -13,7 +13,9 @@
 3. [External Integrations](external-integrations.md) — границы Jira, Zephyr и
    Confluence до появления Plugin API.
 4. [Разработка Core](development.md) — структура исходного кода и проверки.
-5. [Backlog после пилота](../../BACKLOG.md) — кандидаты развития, которые не входят в
+5. [`openspec-adapt-agent`](../../maintainer-skills/openspec-adapt-agent/SKILL.md) —
+   maintainer-скилл добавления нового агента без изменений Core.
+6. [Backlog после пилота](../../BACKLOG.md) — кандидаты развития, которые не входят в
    текущую версию.
 
 Исторические проекты и планы не дополняют текущий контракт и находятся только в

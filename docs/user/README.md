@@ -19,6 +19,7 @@
 | Понять или проверить `openspec-orch.yaml` | [Конфигурация](configuration.md) |
 | Подключить Store в нестандартном workspace | [Подключение Store](store-connection.md) |
 | Создать или изменить Project Template | [Project Template](project-template.md) |
+| Выбрать поддерживаемого агента | [Поддерживаемые агенты](supported-agents.md) |
 | Настроить навигацию агентов по коду | [CodeGraph](codegraph.md) |
 
 Технический контракт реализации Orchestrator пользователю для ежедневной работы не

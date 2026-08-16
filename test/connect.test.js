@@ -9,7 +9,7 @@ import test from "node:test";
 import { connectProject } from "../src/internal/connect/index.js";
 import { serializeOrchestratorConfig } from "../src/internal/config/index.js";
 import { runCommand } from "../src/internal/shared/command.js";
-import { agentFixture } from "../test-fixtures/agents.js";
+import { parseTemplateDescriptor } from "../src/internal/template/index.js";
 import {
   commitFiles,
   createBareRemote,
@@ -17,15 +17,22 @@ import {
   temporaryDirectory,
 } from "../test-fixtures/workspace.js";
 
-const QWEN_AGENT = agentFixture("qwen");
-const GIGACODE_AGENT = agentFixture("gigacode");
+const BASE_TEMPLATE_ROOT = new URL("../templates/base/", import.meta.url);
+const BASE_TEMPLATE_DESCRIPTOR = parseTemplateDescriptor(
+  await fs.readFile(new URL("template.yaml", BASE_TEMPLATE_ROOT), "utf8"),
+);
+const BASE_AGENTS = Object.freeze(
+  Object.values(BASE_TEMPLATE_DESCRIPTOR.agents).sort(({ id: left }, { id: right }) =>
+    left.localeCompare(right)),
+);
+const DEFAULT_AGENT = BASE_AGENTS[0];
 const REMOTE_FIXTURES = new Map();
 
 /**
  * Собирает центральный Store, Code remote и локальный workspace для connect-тестов.
  *
  * @param {import("node:test").TestContext} t Контекст текущего теста.
- * @param {{pointer?: boolean, agent?: typeof QWEN_AGENT}} [options]
+ * @param {{pointer?: boolean, agent?: (typeof BASE_AGENTS)[number]}} [options]
  * Нужно ли заранее принять project pointer и какой adapter записать в Store.
  * @returns {Promise<{
  *   root: string,
@@ -35,7 +42,7 @@ const REMOTE_FIXTURES = new Map();
  *   codeRemote: string
  * }>} Пути подготовленного сценария.
  */
-async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
+async function createScenario(t, { pointer = false, agent = DEFAULT_AGENT } = {}) {
   const root = await temporaryDirectory(t, "openspec-orchestrator-connect-");
   const codeFiles = pointer ? { "openspec/config.yaml": "store: payments-specs\n" } : {};
   const codeRemotePath = await createBareRemote(root, "api", codeFiles);
@@ -270,7 +277,7 @@ test("connectProject does not infer workspace from the legacy openspec container
   );
 });
 
-for (const agent of [QWEN_AGENT, GIGACODE_AGENT]) {
+for (const agent of BASE_AGENTS) {
   test(`connectProject does not require Template bootstrap assets for ${agent.id}`, async (t) => {
     const scenario = await createScenario(t, { pointer: true, agent });
     await fs.rm(path.join(scenario.storeRoot, agent.instructionsFile));

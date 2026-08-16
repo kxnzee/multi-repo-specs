@@ -28,7 +28,7 @@ codegraph status
 скриптовым исследованием выполните `codegraph sync`; MCP server также выполняет
 сверку индекса при подключении.
 
-## MCP для Qwen/GigaCode
+## MCP для агента
 
 Настройте stdio MCP server с alias `codegraph`:
 

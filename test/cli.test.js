@@ -107,7 +107,7 @@ test("init command normalizes positional and repeated repository options", async
       "init",
       "project",
       "--store=specs",
-      "--agent=qwen",
+      "--agent=test-agent",
       "--repo=api=https://example.test/api.git#main",
       "--template=./team-template",
       "--no-strict",
@@ -117,7 +117,7 @@ test("init command normalizes positional and repeated repository options", async
       options: {
         target: "project",
         storeId: "specs",
-        agentId: "qwen",
+        agentId: "test-agent",
         templateRoot: "./team-template",
         noStrict: true,
         repositories: [{
@@ -133,13 +133,13 @@ test("init command normalizes positional and repeated repository options", async
 
 test("init command accepts split options and applies stable defaults", async () => {
   assert.deepEqual(
-    await parseCommand(["init", "--store", "specs", "--agent", "qwen"]),
+    await parseCommand(["init", "--store", "specs", "--agent", "test-agent"]),
     {
       name: "init",
       options: {
         target: ".",
         storeId: "specs",
-        agentId: "qwen",
+        agentId: "test-agent",
         templateRoot: undefined,
         repositories: [],
         noStrict: false,
@@ -247,18 +247,18 @@ test("invalid CLI invocation exits with code 2", () => {
 });
 
 test("Commander rejects missing, duplicate and unknown options", async () => {
-  await assert.rejects(parseCommand(["init", "--agent=qwen"]));
+  await assert.rejects(parseCommand(["init", "--agent=test-agent"]));
   await assert.rejects(parseCommand(["init", "--store=specs"]));
   await assert.rejects(parseCommand([
     "init",
     "--store=specs",
     "--store=other",
-    "--agent=qwen",
+    "--agent=test-agent",
   ]));
   await assert.rejects(parseCommand([
     "init",
     "--store=specs",
-    "--agent=qwen",
+    "--agent=test-agent",
     "--unknown",
   ]));
   await assert.rejects(parseCommand(["connect", "--workspace", "--help"]));

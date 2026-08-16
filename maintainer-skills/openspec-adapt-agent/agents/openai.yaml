@@ -1,0 +1,4 @@
+interface:
+  display_name: "Адаптация агента OpenSpec"
+  short_description: "Добавляет нативный адаптер агента к базовому Template"
+  default_prompt: "Адаптируй базовый OpenSpec Template для текущего агента по эталону Qwen/GigaCode и проверь нативную загрузку."

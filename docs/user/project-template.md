@@ -24,7 +24,7 @@ cp -R templates/base ../team-template
 Базовый Template устанавливает только общий bootstrap-набор: постоянные инструкции
 выбранного агента, `.gitignore` для локального state, универсальный context pack,
 project-local `openspec/config.yaml` со штатной schema `spec-driven` и дополнительными
-правилами Planning, четыре русскоязычных project skills и четыре нативных read-only
+правилами Planning, четыре русскоязычных project skills и пять нативных read-only
 subagents. Они не зависят от Orchestrator-команд, Store registry, конкретной структуры
 репозиториев или ролей прежнего SDD-процесса.
 
@@ -33,38 +33,46 @@ subagents. Они не зависят от Orchestrator-команд, Store regi
 ```bash
 openspec-orch init /absolute/path/to/store \
   --store payments-specs \
-  --agent qwen \
+  --agent <agent-id> \
   --template /absolute/path/to/team-template
 ```
 
 Пользовательский Template полностью заменяет базовый; автоматического смешивания нет. После успешного `init` скопированные файлы принадлежат проекту, исходный Template больше не нужен для команд Core.
 
+Выберите `<agent-id>` в [едином списке поддерживаемых агентов](supported-agents.md).
+Остальная пользовательская документация не зависит от конкретного провайдера.
+
+Базовый Template хранит один набор постоянных инструкций, skills и смысловых
+профилей subagents. Agent mapping копирует совместимые источники напрямую, а
+необходимые нативные преобразования берёт из `templates/base/adapters/<agent-id>/`.
+Core не интерпретирует и не преобразует содержимое этих файлов.
+
 ## Минимальный Template
 
-Минимальная структура для OpenSpec adapter `qwen`:
+Минимальная структура для произвольного OpenSpec adapter:
 
 ```text
 team-template/
 ├── template.yaml
-└── QWEN.md
+└── AGENT.md
 ```
 
 `template.yaml`:
 
 ```yaml
 agents:
-  qwen:
-    openspec_adapter: qwen
-    generated_directory: .qwen
-    target_directory: .qwen
-    commands_directory: .qwen/commands
-    instructions_file: QWEN.md
+  team-agent:
+    openspec_adapter: provider-adapter
+    generated_directory: .provider
+    target_directory: .team-agent
+    commands_directory: .team-agent/commands
+    instructions_file: AGENT.md
     copy:
-      - from: QWEN.md
-        to: QWEN.md
+      - from: AGENT.md
+        to: AGENT.md
 ```
 
-`QWEN.md` может содержать минимальные постоянные инструкции команды:
+`AGENT.md` может содержать минимальные постоянные инструкции команды:
 
 ```markdown
 # Project instructions
@@ -72,7 +80,10 @@ agents:
 Follow the project OpenSpec configuration and the user's explicit request.
 ```
 
-Ключ `qwen` внутри `agents` является значением `--agent`. Штатный `openspec init` создаёт `generated_directory`, Core при необходимости переносит его в `target_directory`, после чего выполняет `copy` сверху вниз. В примере официальный pack уже создаёт `.qwen/commands`, а Template добавляет обязательный `instructions_file`.
+Ключ `team-agent` внутри `agents` является значением `--agent`. Штатный
+`openspec init` создаёт `generated_directory`, Core при необходимости переносит его
+в `target_directory`, после чего выполняет `copy` сверху вниз. Официальный pack
+создаёт каталог commands, а Template добавляет обязательный `instructions_file`.
 
 Базовый Template не устанавливает `CODEOWNERS` и не добавляет команды. Он сохраняет
 штатную schema `spec-driven`, но добавляет в `openspec/config.yaml` project context и
@@ -98,8 +109,8 @@ capability, а не структуру Git-репозиториев.
 - `openspec-test-cases` — список трассируемых тест-кейсов без автоматической записи
   нештатного файла внутри Change.
 
-Subagents устанавливаются из одного каталога Template в `.qwen/agents/` или
-`.gigacode/agents/`. Вложенные каталоги не используются: назначение выражается через
+Subagents устанавливаются в нативный каталог, заданный agent mapping. Вложенные
+каталоги внутри итоговой `agents/` не используются: назначение выражается через
 namespace в имени, чтобы не зависеть от поддержки nested discovery конкретным
 provider.
 
