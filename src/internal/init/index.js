@@ -129,9 +129,30 @@ export async function initProject({
   );
   parseOrchestratorConfig(orchestratorContents);
 
-  await installOpenSpec(projectRoot, templatePlan.agent.openSpecId, commandRunner);
-  await adaptGeneratedAgentPack(projectRoot, templatePlan.agent);
-  await setupStore(projectRoot, storeId, git.remote, commandRunner);
+  const openSpecConfigExisted = Boolean(
+    await lstatOrNull(path.join(projectRoot, INIT_PATHS.openSpecConfig)),
+  );
+  try {
+    await installOpenSpec(projectRoot, templatePlan.agent.openSpecId, commandRunner);
+    await adaptGeneratedAgentPack(projectRoot, templatePlan.agent);
+    await setupStore(projectRoot, storeId, git.remote, commandRunner);
+  } catch (error) {
+    const metadataCreated = Boolean(
+      await lstatOrNull(path.join(projectRoot, INIT_PATHS.metadata)),
+    );
+    if (!metadataCreated) {
+      for (const relativePath of new Set([
+        templatePlan.agent.generatedDirectory,
+        templatePlan.agent.targetDirectory,
+      ])) {
+        await fs.rm(path.join(projectRoot, relativePath), { recursive: true, force: true });
+      }
+      if (!openSpecConfigExisted) {
+        await fs.rm(path.join(projectRoot, INIT_PATHS.openSpecConfig), { force: true });
+      }
+    }
+    throw error;
+  }
 
   const installed = await applyTemplatePlan({
     projectRoot,

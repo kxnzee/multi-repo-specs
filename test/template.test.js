@@ -5,7 +5,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-import { stringify } from "yaml";
+import { parse, stringify } from "yaml";
 
 import {
   BASE_TEMPLATE_ROOT,
@@ -79,19 +79,192 @@ test("built-in and local Templates use one planner without writing target files"
     agentId: "qwen",
   });
   assert.deepEqual(builtIn.supportedAgentIds, ["gigacode", "qwen"]);
-  assert.equal(
-    builtIn.files.some(({ targetRelative }) => targetRelative === ".qwen/commands/sdd-context.md"),
-    true,
-  );
-  assert.equal(
-    builtIn.files.some(({ targetRelative }) => targetRelative === ".sdd/instructions/explore.md"),
-    true,
-  );
-  assert.equal(
-    builtIn.files.some(({ targetRelative }) => targetRelative === "openspec-orch.yaml"),
-    false,
-  );
+  assert.deepEqual(builtIn.files.map(({ targetRelative }) => targetRelative), [
+    ".gitignore",
+    "openspec/config.yaml",
+    "openspec/context/_raw/README.md",
+    "openspec/context/00-start-here.md",
+    "openspec/context/01-product-context.md",
+    "openspec/context/02-domain-glossary.md",
+    "openspec/context/03-architecture.md",
+    "openspec/context/04-domain-model.md",
+    "openspec/context/05-security-and-compliance.md",
+    "openspec/context/06-cross-system-invariants.md",
+    "openspec/context/07-quality-gates.md",
+    "openspec/context/08-release-process.md",
+    "openspec/context/ADR/README.md",
+    "openspec/context/repositories/README.md",
+    "openspec/context/system-map.yaml",
+    ".qwen/skills/openspec-analyze-impact/SKILL.md",
+    ".qwen/skills/openspec-context/SKILL.md",
+    ".qwen/skills/openspec-review-change/SKILL.md",
+    ".qwen/skills/openspec-test-cases/SKILL.md",
+    ".qwen/agents/openspec-architecture-impact-reviewer.md",
+    ".qwen/agents/openspec-implementation-scout.md",
+    ".qwen/agents/openspec-project-context-researcher.md",
+    ".qwen/agents/openspec-specification-reviewer.md",
+    ".qwen/agents/openspec-verification-reviewer.md",
+    "QWEN.md",
+  ]);
   assert.deepEqual(await fs.readdir(targetRoot), []);
+});
+
+test("base context skill stays portable across ordinary OpenSpec projects", async () => {
+  const skill = await fs.readFile(
+    path.join(BASE_TEMPLATE_ROOT, "skills", "openspec-context", "SKILL.md"),
+    "utf8",
+  );
+
+  assert.match(skill, /^name: openspec-context$/m);
+  assert.match(skill, /`openspec\/config\.yaml`/);
+  assert.match(skill, /Не требовать Orchestrator metadata, Store registry/);
+  assert.match(skill, /использовать его только как authoritative registry/);
+
+  for (const legacyDependency of [
+    "sdd.yaml",
+    ".sdd/",
+    "sdd-context",
+    "CODEOWNERS",
+    "Work Package",
+  ]) {
+    assert.equal(skill.includes(legacyDependency), false, legacyDependency);
+  }
+});
+
+test("base OpenSpec config adds native planning rules without changing schema", async () => {
+  const config = parse(
+    await fs.readFile(path.join(BASE_TEMPLATE_ROOT, "openspec", "config.yaml"), "utf8"),
+  );
+
+  assert.equal(config.schema, "spec-driven");
+  assert.match(config.context, /openspec\/context\/00-start-here\.md/);
+  assert.match(config.context, /openspec-orch\.yaml/);
+  assert.deepEqual(Object.keys(config.rules).sort(), ["design", "proposal", "specs", "tasks"]);
+  assert.match(config.rules.proposal.join("\n"), /не создавать отдельный questionnaire-файл/i);
+  assert.match(config.rules.proposal.join("\n"), /Repository impact/);
+  assert.match(config.rules.specs.join("\n"), /SC-<CAPABILITY>-NNN/);
+  assert.match(config.rules.specs.join("\n"), /Не делить Requirements и Scenarios по репозиториям/);
+  assert.match(config.rules.design.join("\n"), /Repository implementation map/);
+  assert.match(config.rules.tasks.join("\n"), /repository-id/);
+  assert.equal(JSON.stringify(config).includes("sdd"), false);
+});
+
+test("base repository context separates registry identity from semantic ownership", async () => {
+  const systemMap = parse(
+    await fs.readFile(path.join(BASE_TEMPLATE_ROOT, "context", "system-map.yaml"), "utf8"),
+  );
+  const repositoryContext = await fs.readFile(
+    path.join(BASE_TEMPLATE_ROOT, "context", "repositories", "README.md"),
+    "utf8",
+  );
+
+  assert.deepEqual(systemMap.repositories, []);
+  assert.deepEqual(systemMap.systems, []);
+  assert.deepEqual(systemMap.relationships, []);
+  assert.match(repositoryContext, /`openspec-orch\.yaml`.*единственным\s+реестром/s);
+  assert.match(repositoryContext, /repositories\/<repository-id>\.md/);
+  assert.match(repositoryContext, /Requirements и Scenarios разделяются по capability/);
+});
+
+test("base impact and review skills remain read-only OpenSpec extensions", async () => {
+  for (const name of ["openspec-analyze-impact", "openspec-review-change"]) {
+    const skill = await fs.readFile(
+      path.join(BASE_TEMPLATE_ROOT, "skills", name, "SKILL.md"),
+      "utf8",
+    );
+    const frontmatterMatch = skill.match(/^---\n([\s\S]*?)\n---/);
+    assert.ok(frontmatterMatch, name);
+    const frontmatter = parse(frontmatterMatch[1]);
+    assert.deepEqual(Object.keys(frontmatter).sort(), ["description", "name"]);
+    assert.equal(frontmatter.name, name);
+    assert.match(frontmatter.description, /[А-Яа-яЁё]/);
+    assert.match(skill, /не измен/i);
+    assert.equal(skill.includes("sdd.yaml"), false);
+    assert.equal(skill.includes("Work Package"), false);
+  }
+});
+
+test("base review skill checks repository coverage without creating another workflow", async () => {
+  const skill = await fs.readFile(
+    path.join(BASE_TEMPLATE_ROOT, "skills", "openspec-review-change", "SKILL.md"),
+    "utf8",
+  );
+
+  assert.match(skill, /declared.*inferred.*checked-no-change/s);
+  assert.match(skill, /Proposal impact → Design map → Tasks → verification plan\/evidence/);
+  assert.match(skill, /симметричность межрепозиторных контрактов/);
+  assert.match(skill, /`openspec-specification-reviewer`/);
+  assert.match(skill, /Отсутствие subagents не\s+блокирует ревью/);
+});
+
+test("base test-case skill is Russian and does not introduce another OpenSpec workflow", async () => {
+  const skill = await fs.readFile(
+    path.join(BASE_TEMPLATE_ROOT, "skills", "openspec-test-cases", "SKILL.md"),
+    "utf8",
+  );
+
+  assert.match(skill, /^name: openspec-test-cases$/m);
+  assert.match(skill, /^description: [А-ЯЁ]/m);
+  assert.match(skill, /openspec status --change/);
+  assert.match(skill, /По умолчанию выводить список в ответе/);
+  assert.match(skill, /не добавлять нештатный файл в Change/);
+  assert.match(skill, /нейтральные записи/);
+  assert.match(skill, /repository_ids/);
+  assert.match(skill, /не угадывать CSV\/API-схему/i);
+
+  for (const forbiddenDependency of ["sdd.yaml", ".sdd/", "CODEOWNERS", "Work Package"] ) {
+    assert.equal(skill.includes(forbiddenDependency), false, forbiddenDependency);
+  }
+});
+
+test("base subagents are Russian read-only native profiles", async () => {
+  const expectedNames = [
+    "openspec-architecture-impact-reviewer",
+    "openspec-implementation-scout",
+    "openspec-project-context-researcher",
+    "openspec-specification-reviewer",
+    "openspec-verification-reviewer",
+  ];
+  const readOnlyTools = [
+    "read_file",
+    "read_many_files",
+    "grep_search",
+    "glob",
+    "list_directory",
+    "mcp__codegraph__codegraph_search",
+    "mcp__codegraph__codegraph_context",
+    "mcp__codegraph__codegraph_trace",
+    "mcp__codegraph__codegraph_callers",
+    "mcp__codegraph__codegraph_callees",
+    "mcp__codegraph__codegraph_impact",
+    "mcp__codegraph__codegraph_node",
+    "mcp__codegraph__codegraph_explore",
+    "mcp__codegraph__codegraph_files",
+    "mcp__codegraph__codegraph_status",
+  ];
+
+  for (const name of expectedNames) {
+    const contents = await fs.readFile(
+      path.join(BASE_TEMPLATE_ROOT, "subagents", `${name}.md`),
+      "utf8",
+    );
+    const frontmatterMatch = contents.match(/^---\n([\s\S]*?)\n---/);
+    assert.ok(frontmatterMatch, name);
+    const frontmatter = parse(frontmatterMatch[1]);
+    assert.equal(frontmatter.name, name);
+    assert.match(frontmatter.name, /^openspec-/);
+    assert.match(frontmatter.description, /[А-Яа-яЁё]/);
+    assert.equal(frontmatter.model, "inherit");
+    assert.equal(frontmatter.approvalMode, "plan");
+    assert.deepEqual(frontmatter.tools, readOnlyTools);
+    assert.match(contents, /Верни по-русски/);
+    assert.match(contents, /Ты OpenSpec-сабагент/);
+    assert.match(contents, /[Cc]ode[Gg]raph|\.codegraph/);
+
+    for (const forbiddenTool of ["write_file", "edit", "run_shell_command", "\n  - agent\n"]) {
+      assert.equal(contents.includes(forbiddenTool), false, `${name}: ${forbiddenTool}`);
+    }
+  }
 });
 
 test("copy plan preserves operation order, overrides and executable mode", async (t) => {

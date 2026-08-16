@@ -95,7 +95,7 @@ test("strict defaults to true and may be disabled without an OpenSpec version pi
   assert.throws(() => parseOrchestratorConfig(`strict: disabled\n${config(STORE_ONLY)}`));
 });
 
-test("serializeOrchestratorConfig produces a strict Alpha v1 document from the skeleton template", () => {
+test("serializeOrchestratorConfig produces a strict Alpha v1 document from the Core template", () => {
   const template = "version: 1\nstrict: true\n\nrepositories: []\n\nextensions: {}\n";
   const serialized = serializeOrchestratorConfig(template, [
     { id: "specs", role: "store", remote: "https://example.test/specs.git", defaultBranch: "main" },

@@ -1,5 +1,15 @@
 # OpenSpec project rules
 
+## Orchestrator Core freeze
+
+Until the Alpha pilot is completed and reviewed, do not add product capabilities to
+`src/`. Record every proposed Orchestrator enhancement in `BACKLOG.md` instead.
+
+A Core change before the pilot is allowed only for a confirmed defect against the
+Alpha contract or a case that blocks the pilot. Record the observed case in
+`docs/user/pilot-feedback.md`, choose the smallest fix, add a regression test, and avoid
+expanding the eight Alpha operations.
+
 ## Change ownership
 
 All OpenSpec changes belong to the central sdd-specs repository.
@@ -46,8 +56,13 @@ Archive dependent Changes in dependency order: Change A first, then Change B.
 
 Do not modify built-in OpenSpec `openspec-*` skills or `opsx-*` commands in the provider-specific agent directory selected in `openspec-orch.yaml`. Keep project-specific process rules in `AGENTS.md` and project documentation.
 
-## Reference flow document
+## Reference flow documents
 
-`docs/OpenSpec для команды.md` is a read-only reference from the workplace. It exists to keep the project's overall lifecycle recognizably aligned with the common flow, while this repository may implement that flow with custom commands, steps, and gates.
+`docs/user/team-flow.md` is the current team process for this repository. Record
+changes to Planning, repository impact, Gates, verification, Release and Archive in
+that document and the related current project documentation.
 
-Do not synchronize, normalize, or edit this file to match the local SDD implementation unless the user explicitly requests changes to this exact file. Record project-specific behavior in `docs/steps/`, `AGENTS.md`, or other local documentation instead.
+`docs/archive/reference/OpenSpec для команды.md` is an immutable historical workplace
+reference. It is retained for provenance only and is not a current instruction,
+requirements source or runbook. Do not synchronize or normalize it to match the
+current process.

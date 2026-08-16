@@ -40,7 +40,7 @@ const REQUIRED_ROOT_PATHS = Object.freeze([
  * Проверяет обязательные файлы Store и блокирует symlink до чтения.
  *
  * @param {string} candidate Предполагаемый Store.
- * @returns {Promise<boolean>} Содержит ли каталог обязательный Core skeleton.
+ * @returns {Promise<boolean>} Содержит ли каталог обязательные файлы Core.
  */
 async function hasRequiredRoot(candidate) {
   const stats = await Promise.all(
@@ -55,14 +55,14 @@ async function hasRequiredRoot(candidate) {
 }
 
 /**
- * Подтверждает обязательный Core skeleton в известном Store.
+ * Подтверждает обязательную структуру Core в известном Store.
  *
  * @param {string} candidate Предполагаемый Store.
  * @returns {Promise<string>} Канонический путь Store.
  */
 export async function requireStoreRoot(candidate) {
   if (!(await hasRequiredRoot(candidate))) {
-    throw new Error(`Разрешённый Store не содержит обязательный OpenSpec Orchestrator skeleton: ${candidate}`);
+    throw new Error(`Разрешённый Store не содержит обязательные файлы OpenSpec Orchestrator: ${candidate}`);
   }
   return fs.realpath(candidate);
 }

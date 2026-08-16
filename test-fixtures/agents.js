@@ -9,10 +9,7 @@ const AGENTS = Object.freeze({
     targetDirectory: ".qwen",
     commandsDirectory: ".qwen/commands",
     instructionsFile: "QWEN.md",
-    handoffs: Object.freeze({
-      explore: ".sdd/instructions/explore.md",
-      apply: ".qwen/commands/sdd-apply.md",
-    }),
+    handoffs: Object.freeze({}),
   }),
   gigacode: Object.freeze({
     id: "gigacode",
@@ -22,10 +19,7 @@ const AGENTS = Object.freeze({
     targetDirectory: ".gigacode",
     commandsDirectory: ".gigacode/commands",
     instructionsFile: ".gigacode/GIGACODE.md",
-    handoffs: Object.freeze({
-      explore: ".sdd/instructions/explore.md",
-      apply: ".gigacode/commands/sdd-apply.md",
-    }),
+    handoffs: Object.freeze({}),
   }),
 });
 

@@ -5,10 +5,9 @@
 источником требований или планом реализации.
 
 Перед использованием архивного документа необходимо прочитать предупреждение в его
-начале. Актуальные документы находятся вне архива:
-[Alpha Concept](../OpenSpec-Orchestrator-Alpha-Concept.md),
-[Alpha Implementation Plan](../OpenSpec-Orchestrator-Alpha-Implementation-Plan.md) и
-[Alpha Pilot Runbook](../OpenSpec-Orchestrator-Alpha-Pilot-Runbook.md).
+начале. Актуальные пользовательские документы находятся в
+[`docs/user/`](../user/README.md), технические — в
+[`docs/technical/`](../technical/README.md).
 
 ## Содержимое
 
@@ -20,3 +19,10 @@
   предшествующий полной продуктовой модели.
 - `OpenSpec-Orchestrator-Implementation-Plan.md` — implementation plan полной v1,
   заменённый коротким Alpha Implementation Plan.
+- [`reference/OpenSpec для команды.md`](<reference/OpenSpec для команды.md>) —
+  исходный workplace-гайд по раннему multi-repository flow; сохранён без
+  актуализации как исторический источник, заменён текущим
+  [`docs/user/team-flow.md`](../user/team-flow.md).
+- [`full-prototype/`](full-prototype/README.md) — завершённый маршрут предыдущего
+  прототипа: superseded backlogs, шаги 00–06, старые процессные справочники,
+  planning-subagents и отчёт изолированного пилота от 2026-08-14.

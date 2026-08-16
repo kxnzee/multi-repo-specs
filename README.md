@@ -9,12 +9,17 @@ Alpha рассчитана на одного инженера, одну маши
 Code Repositories. Она не планирует Change, не запускает агента или тесты, не делает
 checkout и не выполняет `git add`, `commit`, `push`, `merge` или `rebase`.
 
-Нормативные документы:
+Документация:
 
-- [Alpha Concept](docs/OpenSpec-Orchestrator-Alpha-Concept.md) — цель и границы;
-- [Alpha Implementation Plan](docs/OpenSpec-Orchestrator-Alpha-Implementation-Plan.md) — технический контракт;
-- [Alpha Pilot Runbook](docs/OpenSpec-Orchestrator-Alpha-Pilot-Runbook.md) — запуск пилота;
-- [архив](docs/archive/README.md) — предыдущая полная модель, неактуальная для Alpha.
+- [пользователям](docs/user/README.md) — что читать и как пройти командный процесс;
+- [разработчикам Orchestrator](docs/technical/README.md) — контракт и устройство Alpha;
+- [оригинальная документация OpenSpec](docs/openspec-origin-docs/README.md) — справочник
+  upstream-продукта, не инструкция этого проекта;
+- [архив](docs/archive/README.md) — предыдущие модели и неактуальные материалы.
+
+Нормативный контракт Alpha находится в
+[Alpha Concept](docs/technical/alpha-concept.md). Кандидаты развития после пилота
+собраны в [BACKLOG.md](BACKLOG.md).
 
 ## Требования и локальная установка
 
@@ -97,7 +102,7 @@ repositories:
 extensions: {}
 ```
 
-Точный формат описан в [справочнике `openspec-orch.yaml`](docs/reference/openspec-orch-yaml.md).
+Точный формат описан в [справочнике `openspec-orch.yaml`](docs/user/configuration.md).
 Секреты в URL и поля предыдущего прототипа `role`, `url`, `agent`, `handoffs`
 отклоняются строгой схемой.
 
@@ -173,7 +178,7 @@ openspec-orch status checkout-flow
 Итоговый `status` показывает Cycle, результаты каждого репозитория, текущий
 Snapshot, Verification Receipt и следующее действие `готово`. Полный порядок,
 отрицательные проверки и восстановление после потери локального state приведены в
-[Alpha Pilot Runbook](docs/OpenSpec-Orchestrator-Alpha-Pilot-Runbook.md).
+[Alpha Pilot Runbook](docs/user/pilot-runbook.md).
 
 ## Хранение данных
 
@@ -190,21 +195,5 @@ Snapshot, Verification Receipt и следующее действие `гото�
 автоматически. Потеря state не уничтожает Cycle: `status` восстановит его из Git и
 честно покажет результаты как `missing`.
 
-## Границы кода и разработка
-
-- `src/cli/program.js` — публичная грамматика CLI;
-- `src/cli/commands/` — интерактивные пользовательские сценарии и вывод;
-- `src/internal/cycle/` — Cycle Record и `status`;
-- `src/internal/receipt/`, `snapshot/`, `state/` — локальные результаты и Snapshot;
-- `src/internal/init/`, `connect/`, `config/` — bootstrap и реестр репозиториев;
-- `src/internal/shared/` — Git, OpenSpec, filesystem и process-примитивы;
-- `templates/base/` — Project Template, используемый только при `init`;
-- `test/` — unit- и интеграционные проверки на временных Git-репозиториях.
-
-Публичного JavaScript API нет: поддерживаемая поверхность — CLI `openspec-orch`.
-
-```bash
-npm run check
-git diff --check
-node src/bin/openspec-orch.js --help
-```
+Разработка и устройство Core описаны отдельно в
+[технической документации](docs/technical/development.md).

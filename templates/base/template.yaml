@@ -5,16 +5,15 @@ agents:
     target_directory: .qwen
     commands_directory: .qwen/commands
     instructions_file: QWEN.md
-    handoffs:
-      explore: .sdd/instructions/explore.md
-      apply: .qwen/commands/sdd-apply.md
     copy:
-      - from: skeleton
-        to: .
       - from: assets/gitignore.template
         to: .gitignore
-      - from: commands
-        to: .qwen/commands
+      - from: openspec/config.yaml
+        to: openspec/config.yaml
+      - from: context
+        to: openspec/context
+      - from: skills
+        to: .qwen/skills
       - from: subagents
         to: .qwen/agents
       - from: agents/qwen
@@ -26,16 +25,15 @@ agents:
     target_directory: .gigacode
     commands_directory: .gigacode/commands
     instructions_file: .gigacode/GIGACODE.md
-    handoffs:
-      explore: .sdd/instructions/explore.md
-      apply: .gigacode/commands/sdd-apply.md
     copy:
-      - from: skeleton
-        to: .
       - from: assets/gitignore.template
         to: .gitignore
-      - from: commands
-        to: .gigacode/commands
+      - from: openspec/config.yaml
+        to: openspec/config.yaml
+      - from: context
+        to: openspec/context
+      - from: skills
+        to: .gigacode/skills
       - from: subagents
         to: .gigacode/agents
       - from: agents/gigacode

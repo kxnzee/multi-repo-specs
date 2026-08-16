@@ -1,0 +1,30 @@
+schema: spec-driven
+
+context: |
+  Перед планированием прочитай openspec/context/00-start-here.md и только относящиеся
+  к Change файлы долговечного контекста. Не переноси в Change неподтверждённые
+  сведения из openspec/context/_raw/. Jira является источником запроса, а
+  Requirements и Scenarios после принятия принадлежат OpenSpec. Если существует
+  openspec-orch.yaml, прочитай repositories с role: code и используй их точные id.
+  Смысловые границы репозиториев проверяй по openspec/context/system-map.yaml и
+  openspec/context/repositories/<repository-id>.md, когда такой файл существует.
+
+rules:
+  proposal:
+    - "Указать Jira Story или явно сообщить, что идентификатор исходной задачи не предоставлен."
+    - "Перед завершением Proposal задать только отсутствующие вопросы о проблеме, пользователях, наблюдаемом поведении, затронутых capability и системах, API или событиях, данных, security, совместимости, миграции, rollout, rollback и проверке. Не создавать отдельный questionnaire-файл."
+    - "Перечислить каждую новую и изменяемую capability на её существующем вложенном пути domain/capability; не создавать versioned duplicate."
+    - "Если наблюдаемое поведение не меняется, явно обосновать skip_specs; иначе для каждой capability требуется Delta Spec."
+    - "Добавить Repository impact: для каждого затронутого Code Repository указать точный repository-id из openspec-orch.yaml, тип влияния implementation/tests-only/configuration/documentation, ожидаемое изменение и причину; релевантный проверенный репозиторий без изменений пометить no-change."
+  specs:
+    - "Создавать один Delta Spec на каждую capability из Proposal и сохранять существующий вложенный capability path."
+    - "Каждому новому Scenario присваивать стабильный ID в заголовке формата [SC-<CAPABILITY>-NNN]; существующий ID не переименовывать и не переиспользовать."
+    - "В MODIFIED переносить полный Requirement и все сохраняемые Scenarios вместе с их существующими ID."
+    - "Не делить Requirements и Scenarios по репозиториям: Specs описывают наблюдаемое поведение, а размещение реализации относится к Proposal, Design и Tasks."
+  design:
+    - "Для применимых изменений описать границы систем, контракты, данные, security, совместимость, миграцию, rollout, наблюдение и rollback; неприменимые разделы не заполнять формально."
+    - "Добавить Repository implementation map: по каждому затронутому repository-id описать его часть решения, изменяемые границы, входящие и исходящие контракты, зависимости и порядок реализации; не смешивать evidence разных репозиториев."
+  tasks:
+    - "Связать задачи реализации и проверки с Requirement или Scenario ID, когда такой ID существует."
+    - "Включить подготовку evidence для PR Review, IFT и QA, но не отмечать внешнюю проверку выполненной заранее."
+    - "Группировать задачи по точным repository-id из Repository impact; межрепозиторные и общие проверки выделять отдельно. Не использовать условные backend/frontend вместо зарегистрированного id."

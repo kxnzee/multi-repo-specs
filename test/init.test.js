@@ -49,8 +49,6 @@ async function listProjectFiles(root, relativeDirectory = "") {
 const COMMON_INIT_FILES = Object.freeze([
   ".gitignore",
   ".openspec-store/store.yaml",
-  ".sdd/instructions/explore.md",
-  "CODEOWNERS",
   "openspec/config.yaml",
   "openspec/context/00-start-here.md",
   "openspec/context/01-product-context.md",
@@ -63,23 +61,30 @@ const COMMON_INIT_FILES = Object.freeze([
   "openspec/context/08-release-process.md",
   "openspec/context/ADR/README.md",
   "openspec/context/_raw/README.md",
+  "openspec/context/repositories/README.md",
   "openspec/context/system-map.yaml",
   "openspec-orch.yaml",
 ]);
 
-const PROJECT_COMMANDS = Object.freeze([
+const OPEN_SPEC_COMMANDS = Object.freeze([
   "opsx-continue.md",
   "opsx-explore.md",
   "opsx-update.md",
-  "sdd-apply.md",
-  "sdd-change.md",
-  "sdd-context.md",
+]);
+
+const PROJECT_SKILLS = Object.freeze([
+  "openspec-analyze-impact/SKILL.md",
+  "openspec-context/SKILL.md",
+  "openspec-review-change/SKILL.md",
+  "openspec-test-cases/SKILL.md",
 ]);
 
 const PROJECT_SUBAGENTS = Object.freeze([
-  "backend-context-pass.md",
-  "frontend-context-pass.md",
-  "repository-context-pass.md",
+  "openspec-architecture-impact-reviewer.md",
+  "openspec-implementation-scout.md",
+  "openspec-project-context-researcher.md",
+  "openspec-specification-reviewer.md",
+  "openspec-verification-reviewer.md",
 ]);
 
 const BASE_TEMPLATE_ROOT = new URL("../templates/base/", import.meta.url);
@@ -103,15 +108,15 @@ async function customTemplate(t) {
     handoffs:
       apply: .team-agent/actions/team-apply.md
     copy:
-      - from: skeleton
+      - from: project-files
         to: .
       - from: commands
         to: .team-agent/actions
       - from: TEAM.md
         to: TEAM.md
 `,
-    "skeleton/openspec/config.yaml": "schema: team-custom\n",
-    "skeleton/team-required.txt": "custom project asset\n",
+    "project-files/openspec/config.yaml": "schema: team-custom\n",
+    "project-files/team-required.txt": "custom project asset\n",
     "commands/team-apply.md": "# Team apply\n",
     "TEAM.md": "# Team agent instructions\n",
   };
@@ -252,33 +257,32 @@ test("parseRepository rejects ambiguous repository input", () => {
   assert.throws(() => parseRepository("ui=/private/tmp/ui.git#main"), /CONFIG_INVALID/);
 });
 
-test("base Project Template owns workflow assets but not Core configuration", async () => {
+test("base Project Template owns only focused bootstrap assets", async () => {
   const descriptor = parse(
     await fs.readFile(new URL("template.yaml", BASE_TEMPLATE_ROOT), "utf8"),
   );
   assert.deepEqual(Object.keys(descriptor.agents).sort(), ["gigacode", "qwen"]);
-  assert.deepEqual(descriptor.agents.qwen.handoffs, {
-    explore: ".sdd/instructions/explore.md",
-    apply: ".qwen/commands/sdd-apply.md",
-  });
-  assert.deepEqual(descriptor.agents.gigacode.handoffs, {
-    explore: ".sdd/instructions/explore.md",
-    apply: ".gigacode/commands/sdd-apply.md",
-  });
+  assert.deepEqual(descriptor.agents.qwen.handoffs, undefined);
+  assert.deepEqual(descriptor.agents.gigacode.handoffs, undefined);
 
   for (const relativePath of [
-    "skeleton/openspec/config.yaml",
-    "commands/sdd-context.md",
-    "commands/sdd-change.md",
-    "commands/sdd-apply.md",
-    "subagents/repository-context-pass.md",
+    "assets/gitignore.template",
+    "context/00-start-here.md",
+    "openspec/config.yaml",
+    "context/repositories/README.md",
+    "context/system-map.yaml",
+    "skills/openspec-analyze-impact/SKILL.md",
+    "skills/openspec-context/SKILL.md",
+    "skills/openspec-review-change/SKILL.md",
+    "skills/openspec-test-cases/SKILL.md",
+    "subagents/openspec-project-context-researcher.md",
     "agents/qwen/QWEN.md",
     "agents/gigacode/.gigacode/GIGACODE.md",
   ]) {
     assert.equal((await fs.stat(new URL(relativePath, BASE_TEMPLATE_ROOT))).isFile(), true);
   }
   await assert.rejects(
-    fs.stat(new URL("skeleton/openspec-orch.yaml", BASE_TEMPLATE_ROOT)),
+    fs.stat(new URL("openspec-orch.yaml", BASE_TEMPLATE_ROOT)),
     { code: "ENOENT" },
   );
   assert.equal(
@@ -287,7 +291,7 @@ test("base Project Template owns workflow assets but not Core configuration", as
   );
 });
 
-test("initProject creates Store, official expanded pack and the complete skeleton", async (t) => {
+test("initProject creates Store, official expanded pack and minimal base assets", async (t) => {
   const target = await temporaryProject(t);
   const openSpec = fakeOpenSpec(target);
   const result = await initProject({
@@ -319,12 +323,18 @@ test("initProject creates Store, official expanded pack and the complete skeleto
     "openspec/config.yaml",
     "openspec/context/system-map.yaml",
     "openspec-orch.yaml",
-    "CODEOWNERS",
     ".gitignore",
   ];
   for (const relativePath of expectedMachineFiles) {
     assert.equal((await fs.stat(path.join(target, relativePath))).isFile(), true, relativePath);
   }
+  const openSpecConfig = parse(
+    await fs.readFile(path.join(target, "openspec", "config.yaml"), "utf8"),
+  );
+  assert.equal(openSpecConfig.schema, "spec-driven");
+  assert.match(openSpecConfig.rules.proposal.join("\n"), /Jira Story/);
+  assert.match(openSpecConfig.rules.proposal.join("\n"), /Repository impact/);
+  assert.match(openSpecConfig.rules.specs.join("\n"), /SC-<CAPABILITY>-NNN/);
   const config = parseOrchestratorConfig(await fs.readFile(path.join(target, "openspec-orch.yaml"), "utf8"));
   assert.deepEqual(config.storeRepository, {
     id: "payments-specs",
@@ -389,6 +399,46 @@ test("initProject persists the selected adapter after OpenSpec initialization", 
   );
 });
 
+test("initProject removes generated agent artifacts when Store setup fails before metadata", async (t) => {
+  const target = await temporaryProject(t);
+  const openSpec = fakeOpenSpec(target);
+  let failSetup = true;
+  const runner = async (command, args, options = {}) => {
+    if (command === "openspec" && args[0] === "store" && args[1] === "setup" && failSetup) {
+      failSetup = false;
+      throw new Error("store_registry_busy");
+    }
+    const output = await openSpec.runner(command, args, options);
+    if (command === "openspec" && args[0] === "init" && failSetup) {
+      await fs.mkdir(path.join(target, "openspec"), { recursive: true });
+      await fs.writeFile(path.join(target, "openspec", "config.yaml"), "schema: spec-driven\n");
+    }
+    return output;
+  };
+
+  await assert.rejects(
+    initProject({
+      target,
+      storeId: "payments-specs",
+      agentId: "gigacode",
+      commandRunner: runner,
+    }),
+    /store_registry_busy/,
+  );
+  assert.equal(fsSync.existsSync(path.join(target, ".qwen")), false);
+  assert.equal(fsSync.existsSync(path.join(target, ".gigacode")), false);
+  assert.equal(fsSync.existsSync(path.join(target, "openspec", "config.yaml")), false);
+
+  const retry = await initProject({
+    target,
+    storeId: "payments-specs",
+    agentId: "gigacode",
+    commandRunner: runner,
+  });
+  assert.equal(retry.alreadyInitialized, false);
+  assert.equal((await fs.stat(path.join(target, ".gigacode", "agents"))).isDirectory(), true);
+});
+
 test("initProject preserves the complete public file tree for every supported agent", async (t) => {
   for (const agentId of ["qwen", "gigacode"]) {
     const target = await temporaryProject(t);
@@ -404,7 +454,8 @@ test("initProject preserves the complete public file tree for every supported ag
     const instructionFile = agentId === "qwen" ? "QWEN.md" : ".gigacode/GIGACODE.md";
     const expected = [
       ...COMMON_INIT_FILES,
-      ...PROJECT_COMMANDS.map((name) => `${agentRoot}/commands/${name}`),
+      ...OPEN_SPEC_COMMANDS.map((name) => `${agentRoot}/commands/${name}`),
+      ...PROJECT_SKILLS.map((name) => `${agentRoot}/skills/${name}`),
       ...PROJECT_SUBAGENTS.map((name) => `${agentRoot}/agents/${name}`),
       instructionFile,
     ].sort();
@@ -519,21 +570,24 @@ test("initProject does not modify a complete initialized Store", async (t) => {
 
 test("initProject does not require an optional handoff file on successful repeat", async (t) => {
   const target = await temporaryProject(t);
+  const templateRoot = await customTemplate(t);
   const openSpec = fakeOpenSpec(target);
   await initProject({
     target,
     storeId: "payments-specs",
-    agentId: "qwen",
+    agentId: "team-agent",
+    templateRoot,
     commandRunner: openSpec.runner,
   });
   const callsBeforeRepeat = openSpec.calls.length;
-  const missingInstructions = path.join(target, ".sdd", "instructions", "explore.md");
+  const missingInstructions = path.join(target, ".team-agent", "actions", "team-apply.md");
   await fs.unlink(missingInstructions);
 
   const result = await initProject({
     target,
     storeId: "payments-specs",
-    agentId: "qwen",
+    agentId: "team-agent",
+    templateRoot,
     commandRunner: openSpec.runner,
   });
   assert.equal(result.alreadyInitialized, true);
@@ -541,7 +595,7 @@ test("initProject does not require an optional handoff file on successful repeat
   await assert.rejects(fs.stat(missingInstructions));
 });
 
-test("initProject blocks conflicting skeleton paths instead of overwriting them", async (t) => {
+test("initProject blocks a conflicting Core config instead of overwriting it", async (t) => {
   const target = await temporaryProject(t);
   await fs.writeFile(path.join(target, "openspec-orch.yaml"), "user owned\n", "utf8");
   await runCommand("git", ["-C", target, "config", "user.email", "tests@example.test"]);
@@ -565,9 +619,9 @@ test("initProject blocks conflicting skeleton paths instead of overwriting them"
 test("initProject rejects differing pre-existing Template files without merging them", async (t) => {
   const target = await temporaryProject(t);
   await fs.writeFile(path.join(target, ".gitignore"), "node_modules/\n.openspec-orch/cache/\n", "utf8");
-  await fs.writeFile(path.join(target, "CODEOWNERS"), "* @existing-team\n", "utf8");
+  await fs.writeFile(path.join(target, "QWEN.md"), "# Existing instructions\n", "utf8");
   await configureRepository(target);
-  await runCommand("git", ["-C", target, "add", ".gitignore", "CODEOWNERS"]);
+  await runCommand("git", ["-C", target, "add", ".gitignore", "QWEN.md"]);
   await runCommand("git", ["-C", target, "commit", "-m", "existing project files"]);
   const openSpec = fakeOpenSpec(target);
 
@@ -581,7 +635,7 @@ test("initProject rejects differing pre-existing Template files without merging 
     /существующий файл с другим содержимым/,
   );
   assert.deepEqual(openSpec.calls, []);
-  assert.equal(await fs.readFile(path.join(target, "CODEOWNERS"), "utf8"), "* @existing-team\n");
+  assert.equal(await fs.readFile(path.join(target, "QWEN.md"), "utf8"), "# Existing instructions\n");
 });
 
 test("initProject applies a custom Template and persists its runtime agent mapping", async (t) => {

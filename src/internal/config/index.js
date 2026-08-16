@@ -158,7 +158,7 @@ export function resolveExecutionMode(projectStrict, noStrict = false) {
  * Заполняет встроенный шаблон `openspec-orch.yaml` составом репозиториев Alpha v1.
  * Alpha Core не хранит agent mapping в конфигурации.
  *
- * @param {string} template YAML-шаблон из skeleton.
+ * @param {string} template Встроенный YAML-шаблон конфигурации.
  * @param {Repository[]} repositories
  * @param {object} [options] Опции сериализации.
  * @param {boolean} [options.strict] Project default для Git-гарантий Core.

@@ -55,11 +55,7 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
     [path.join(agent.commandsDirectory, "opsx-continue.md")]: "---\ndescription: continue\n---\n",
     [path.join(agent.commandsDirectory, "opsx-explore.md")]: "---\ndescription: explore\n---\n",
     [path.join(agent.commandsDirectory, "opsx-update.md")]: "---\ndescription: update\n---\n",
-    [path.join(agent.commandsDirectory, "sdd-change.md")]: "---\ndescription: change\n---\n",
-    [path.join(agent.commandsDirectory, "sdd-context.md")]: "---\ndescription: context\n---\n",
-    [path.join(agent.commandsDirectory, "sdd-apply.md")]: "---\ndescription: apply\n---\n",
     [agent.instructionsFile]: `# Instructions for ${agent.id}\n`,
-    [path.join(".sdd", "instructions", "explore.md")]: "# Explore contract\n",
     "openspec-orch.yaml": serializeOrchestratorConfig(orchestratorTemplate, [
       {
         id: "payments-specs",
@@ -275,11 +271,11 @@ test("connectProject does not infer workspace from the legacy openspec container
 });
 
 for (const agent of [QWEN_AGENT, GIGACODE_AGENT]) {
-  test(`connectProject does not require Template process assets for ${agent.id}`, async (t) => {
+  test(`connectProject does not require Template bootstrap assets for ${agent.id}`, async (t) => {
     const scenario = await createScenario(t, { pointer: true, agent });
     await fs.rm(path.join(scenario.storeRoot, agent.instructionsFile));
-    await fs.rm(path.join(scenario.storeRoot, ".sdd", "instructions", "explore.md"));
     await fs.rm(path.join(scenario.storeRoot, agent.commandsDirectory), { recursive: true });
+    assert.equal(fsSync.existsSync(path.join(scenario.storeRoot, ".sdd")), false);
     const openSpec = fakeOpenSpec(scenario.storeRoot);
 
     const result = await connectProject({
@@ -290,23 +286,6 @@ for (const agent of [QWEN_AGENT, GIGACODE_AGENT]) {
     assert.notEqual(openSpec.calls.length, 0);
   });
 }
-
-test("connectProject accepts a minimal config without any Template handoffs", async (t) => {
-  const agent = { ...QWEN_AGENT, handoffs: {} };
-  const scenario = await createScenario(t, { pointer: true, agent });
-  await fs.rm(path.join(scenario.storeRoot, agent.instructionsFile));
-  await fs.rm(path.join(scenario.storeRoot, ".sdd", "instructions", "explore.md"));
-  await fs.rm(path.join(scenario.storeRoot, agent.commandsDirectory), { recursive: true });
-  const openSpec = fakeOpenSpec(scenario.storeRoot);
-
-  const result = await connectProject({
-    start: scenario.storeRoot,
-    commandRunner: openSpec.runner,
-  });
-
-  assert.equal(result.status, "ready");
-  assert.notEqual(openSpec.calls.length, 0);
-});
 
 test("connectProject keeps an uncommitted generated pointer as needs_setup_pr", async (t) => {
   const scenario = await createScenario(t);
