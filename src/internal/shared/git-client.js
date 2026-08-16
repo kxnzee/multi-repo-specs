@@ -130,6 +130,21 @@ class GitClient {
   }
 
   /**
+   * Проверяет существование commit object в локальном репозитории без сети.
+   *
+   * @param {string} revision Полная проверенная SHA-1 ревизия.
+   * @returns {Promise<boolean>} Существует ли commit.
+   */
+  async hasCommit(revision) {
+    try {
+      await this.#run(["cat-file", "-e", `${revision}^{commit}`]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Возвращает служебный путь текущего Git checkout.
    *
    * @param {string} marker Имя служебного файла или каталога.

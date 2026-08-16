@@ -7,7 +7,10 @@ import { runAssign } from "./commands/assign.js";
 import { runConnect } from "./commands/connect.js";
 import { runInit } from "./commands/init.js";
 import { runRepositoryStatus } from "./commands/repository.js";
+import { runRecordAssignment } from "./commands/record-assignment.js";
+import { runRecordVerification } from "./commands/record-verification.js";
 import { runStatus } from "./commands/status.js";
+import { runVerify } from "./commands/verify.js";
 
 const DEFAULT_HANDLERS = Object.freeze({
   init: runInit,
@@ -15,6 +18,9 @@ const DEFAULT_HANDLERS = Object.freeze({
   repositoryStatus: runRepositoryStatus,
   assign: runAssign,
   status: runStatus,
+  recordAssignment: runRecordAssignment,
+  verify: runVerify,
+  recordVerification: runRecordVerification,
 });
 
 /**
@@ -108,6 +114,46 @@ export function createProgram(handlers = DEFAULT_HANDLERS) {
   program.command("status <change-id>")
     .description("показать текущий Cycle Record и следующее действие")
     .action((changeId) => handlers.status({ changeId }));
+
+  const record = program.command("record")
+    .description("записать внешний результат в локальное Alpha-состояние");
+  record.command("assignment <change-id>")
+    .description("записать Result Receipt одного Code Repository")
+    .addOption(new Option("--repo <repository-id>", "repository-id из текущего Cycle")
+      .argParser(singleValue()).makeOptionMandatory())
+    .addOption(new Option("--commit <sha>", "точный commit результата")
+      .argParser(singleValue()).makeOptionMandatory())
+    .addOption(new Option("--status <status>", "статус результата")
+      .choices(["completed", "failed", "blocked"]).makeOptionMandatory())
+    .addOption(new Option("--source <source>", "источник результата")
+      .choices(["human", "agent", "ci"]).makeOptionMandatory())
+    .addOption(new Option("--note <text>", "необязательная заметка").argParser(singleValue()))
+    .action((changeId, options) => handlers.recordAssignment({
+      changeId,
+      repositoryId: options.repo,
+      implementationRevision: options.commit,
+      status: options.status,
+      source: options.source,
+      note: options.note,
+    }));
+
+  program.command("verify <change-id>")
+    .description("вычислить Snapshot текущих completed Result Receipts")
+    .action((changeId) => handlers.verify({ changeId }));
+
+  record.command("verification <change-id>")
+    .description("записать Verification Receipt последнего текущего Snapshot")
+    .addOption(new Option("--result <result>", "результат внешней проверки")
+      .choices(["pass", "fail"]).makeOptionMandatory())
+    .addOption(new Option("--source <source>", "источник результата")
+      .choices(["human", "agent", "ci"]).makeOptionMandatory())
+    .addOption(new Option("--note <text>", "необязательная заметка").argParser(singleValue()))
+    .action((changeId, options) => handlers.recordVerification({
+      changeId,
+      result: options.result,
+      source: options.source,
+      note: options.note,
+    }));
 
   return program;
 }

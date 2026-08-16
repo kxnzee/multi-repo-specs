@@ -6,6 +6,7 @@ import { createGitClient } from "../shared/git-client.js";
 import { assertChangeId, isGitRevision } from "../shared/schema.js";
 import { readStoreConfiguration } from "../shared/store.js";
 import {
+  assertCycleRepositories,
   createCycleRecord,
   cycleRecordPath,
   cycleRecordRelativePath,
@@ -79,6 +80,7 @@ export async function assignCycle({
   const recordPath = cycleRecordPath(storeRoot, changeId);
   const existing = await readCycleRecord(storeRoot, changeId);
   if (existing) {
+    assertCycleRepositories(existing, config);
     const unchanged = existing.planningRevision === planningRevision &&
       sameRepositorySet(existing.repositories, uniqueRepositoryIds);
     if (unchanged) return { status: "unchanged", cycle: existing, path: recordPath };

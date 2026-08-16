@@ -19,6 +19,7 @@ import {
 
 const QWEN_AGENT = agentFixture("qwen");
 const GIGACODE_AGENT = agentFixture("gigacode");
+const REMOTE_FIXTURES = new Map();
 
 /**
  * Собирает центральный Store, Code remote и локальный workspace для connect-тестов.
@@ -37,11 +38,14 @@ const GIGACODE_AGENT = agentFixture("gigacode");
 async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
   const root = await temporaryDirectory(t, "openspec-orchestrator-connect-");
   const codeFiles = pointer ? { "openspec/config.yaml": "store: payments-specs\n" } : {};
-  const codeRemote = await createBareRemote(root, "api", codeFiles);
+  const codeRemotePath = await createBareRemote(root, "api", codeFiles);
+  const fixtureId = path.basename(root);
+  const codeRemote = `https://example.test/${fixtureId}/api.git`;
   const centralSource = path.join(root, "central-source");
   await initializeGitRepository(centralSource);
 
-  const centralRemote = path.join(root, "payments-specs.git");
+  const centralRemotePath = path.join(root, "payments-specs.git");
+  const centralRemote = `https://example.test/${fixtureId}/payments-specs.git`;
   const orchestratorTemplate = "version: 1\nstrict: true\n\nrepositories: []\n\nextensions: {}\n";
   const centralFiles = {
     ".openspec-store/store.yaml": `version: 1\nid: payments-specs\nremote: ${JSON.stringify(centralRemote)}\n`,
@@ -67,12 +71,14 @@ async function createScenario(t, { pointer = false, agent = QWEN_AGENT } = {}) {
     ]),
   };
   await commitFiles(centralSource, centralFiles, { message: "initialize store" });
-  await runCommand("git", ["clone", "--bare", centralSource, centralRemote]);
+  await runCommand("git", ["clone", "--bare", centralSource, centralRemotePath]);
 
   const workspace = path.join(root, "workspace");
   const storeRoot = path.join(workspace, "payments-specs");
   await fs.mkdir(workspace, { recursive: true });
-  await runCommand("git", ["clone", centralRemote, storeRoot]);
+  await runCommand("git", ["clone", centralRemotePath, storeRoot]);
+  await runCommand("git", ["-C", storeRoot, "remote", "set-url", "origin", centralRemote]);
+  REMOTE_FIXTURES.set(codeRemote, codeRemotePath);
   return { root, workspace, storeRoot, centralRemote, codeRemote };
 }
 
@@ -91,7 +97,21 @@ function fakeOpenSpec(storeRoot, initialStores = []) {
   let stores = [...initialStores];
   const calls = [];
   const runner = (command, args, options = {}) => {
-    if (command === "git") return runCommand(command, args, options);
+    if (command === "git") {
+      const separator = args.indexOf("--");
+      const remote = separator >= 0 ? args[separator + 1] : undefined;
+      const localRemote = REMOTE_FIXTURES.get(remote);
+      if (localRemote && args[0] === "clone") {
+        const target = args[separator + 2];
+        const localArgs = [...args];
+        localArgs[separator + 1] = localRemote;
+        return runCommand(command, localArgs, options).then(async (output) => {
+          await runCommand("git", ["-C", target, "remote", "set-url", "origin", remote]);
+          return output;
+        });
+      }
+      return runCommand(command, args, options);
+    }
     assert.equal(command, "openspec");
     calls.push({ args, cwd: options.cwd });
 
@@ -231,7 +251,15 @@ test("connectProject remembers an explicit workspace for a nonstandard Store pat
   const state = JSON.parse(
     await fs.readFile(path.join(customStoreRoot, ".openspec-orch", "state.json"), "utf8"),
   );
-  assert.deepEqual(state, { contract_version: 1, workspace: scenario.workspace });
+  assert.deepEqual(state, {
+    contract_version: 1,
+    workspace: scenario.workspace,
+    result_receipts: [],
+    result_receipt_history: [],
+    snapshots: [],
+    verification_receipts: [],
+    verification_receipt_history: [],
+  });
 });
 
 test("connectProject does not infer workspace from the legacy openspec container", async (t) => {

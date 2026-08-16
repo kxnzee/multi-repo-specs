@@ -36,7 +36,7 @@ export async function runCli(argv = process.argv) {
     await program.parseAsync(argv);
   } catch (error) {
     if (error instanceof CommanderError) {
-      process.exitCode = error.exitCode;
+      process.exitCode = error.exitCode === 0 ? 0 : 2;
       return;
     }
     console.error(`openspec-orch: ${error.message}`);

@@ -249,6 +249,7 @@ test("parseRepository accepts the documented id=remote#branch format", () => {
 test("parseRepository rejects ambiguous repository input", () => {
   assert.throws(() => parseRepository("UI=https://example.test/ui.git#main"));
   assert.throws(() => parseRepository("ui=https://example.test/ui.git"));
+  assert.throws(() => parseRepository("ui=/private/tmp/ui.git#main"), /CONFIG_INVALID/);
 });
 
 test("base Project Template owns workflow assets but not Core configuration", async () => {

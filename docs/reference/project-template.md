@@ -1,5 +1,10 @@
 # Пользовательский Project Template
 
+> [!IMPORTANT]
+> В Alpha Project Template используется только командой `init` для bootstrap
+> проектных файлов. Agent mapping и handoff не сохраняются в `openspec-orch.yaml` и
+> не используются командами Alpha после `init`.
+
 Project Template — обычный локальный каталог, который `openspec-orch init` накладывает поверх результата штатного `openspec init`. Он определяет project-local обвязку команды, но не добавляет команды в Orchestrator Core и не изменяет внутреннюю логику OpenSpec.
 
 ## Граница ответственности
@@ -80,22 +85,10 @@ Core не требует context pack, `CODEOWNERS` или другие файл
 | `target_directory` | Итоговый provider-specific каталог проекта |
 | `commands_directory` | Каталог agent commands после применения Template |
 | `instructions_file` | Основной файл постоянных инструкций агента |
-| `handoffs` | Необязательные пути к Template-инструкциям, вызываемым конкретными Core-командами |
+| `handoffs` | Legacy-пути инструкций предыдущего прототипа; Alpha может скопировать связанные файлы при `init`, но runtime-команды их не вызывают |
 | `copy` | Упорядоченный список копирований `from -> to` относительно Template и Store |
 
 Поддерживаемая Core архитектура сейчас — Markdown commands. Имя директории Template, названия `skeleton`, `commands`, `skills` или `agents` и префиксы agent-facing файлов Core не задаёт.
-
-## Необязательные handoffs
-
-Handoff объявляется только если команда хочет использовать соответствующую помощь Core:
-
-```yaml
-handoffs:
-  explore: .team/instructions/explore.md
-  apply: .qwen/commands/team-apply.md
-```
-
-`connect` и независимые команды не требуют этих файлов. `openspec-orch explore` лениво проверит `explore`, а `openspec-orch load` — `apply`. Core сохраняет пути в `openspec-orch.yaml`, но не интерпретирует содержимое и не требует конкретного префикса.
 
 ## Собственная OpenSpec schema
 

@@ -64,15 +64,6 @@
  */
 
 /**
- * Начальный контекст Explore.
- *
- * @typedef {object} ExploreStartContext
- * @property {string} projectRoot
- * @property {string | null} codeRoot
- * @property {{doctor: OpenSpecResponse, context: OpenSpecResponse} | null} discovery
- */
-
-/**
  * Результат инициализации центрального Store.
  *
  * @typedef {object} InitResult
@@ -92,73 +83,6 @@
  * @property {string} id
  * @property {string} remote
  * @property {string} defaultBranch
- */
-
-/** @typedef {RegisteredRepository & {path: string}} ResolvedRepository */
-
-/**
- * Зафиксированное состояние чистого Git checkout.
- *
- * @typedef {object} GitState
- * @property {string} branch
- * @property {string} revision
- */
-
-/**
- * Проверенный технический вход агентского Explore.
- *
- * @typedef {object} ExplorePreparation
- * @property {string} ticket
- * @property {string} projectRoot
- * @property {string} storeRepositoryId
- * @property {GitState} store
- * @property {string} workspace
- * @property {boolean} projectSpecsOnly
- * @property {Array<{id: string, path: string, branch: string, revision: string}>} repositories
- * @property {string} exploreInstructionsPath
- * @property {"strict" | "relaxed"} executionMode
- */
-
-/**
- * Результат создания или безопасного продолжения каркаса Change.
- *
- * @typedef {object} ChangePreparation
- * @property {"created" | "existing"} changeStatus
- * @property {"strict" | "relaxed"} executionMode
- * @property {string} storeId
- * @property {string} storeRoot
- * @property {string} ticket
- * @property {string} changeId
- * @property {string | null} branch
- * @property {string} baseRevision
- * @property {string} changePath
- * @property {string} schema
- * @property {Record<string, unknown> | null} nextArtifact
- * @property {OpenSpecResponse} openSpecStatus
- */
-
-/**
- * Результат подготовки одного Code Repository к реализации.
- *
- * @typedef {object} LoadPreparation
- * @property {"implementation_ready"} stepStatus
- * @property {"strict" | "relaxed"} executionMode
- * @property {string} storeId
- * @property {string} changeId
- * @property {string} specBaseline
- * @property {string} repositoryId
- * @property {string | null} implementationBranch
- * @property {"created" | "tracking" | "existing" | "unmanaged"} branchStatus
- * @property {string} codeBaseRevision
- * @property {string} schema
- * @property {"package" | "whole-change"} implementationMode
- * @property {string} changePath
- * @property {Record<string, string[]>} contextFiles
- * @property {string[]} workPackages
- * @property {Array<{id: string, description: string}>} selectedTasks
- * @property {"06"} nextStep
- * @property {string} nextAction
- * @property {string} runtimePath
  */
 
 export {};

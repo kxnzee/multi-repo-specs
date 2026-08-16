@@ -3,43 +3,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { lstatOrNull, writeFileAtomic } from "./files.js";
-import { isRecord } from "./schema.js";
-
-const STATE_CONTRACT_VERSION = 1;
-const STATE_DIRECTORY = ".openspec-orch";
-const STATE_FILE = "state.json";
-
-/**
- * Читает версионированный `.openspec-orch/state.json`; отсутствие файла — не ошибка.
- *
- * @param {string} storeRoot Абсолютный путь центрального Store.
- * @returns {Promise<{workspace: string | null}>} Проверенное локальное состояние.
- */
-async function readLocalState(storeRoot) {
-  const statePath = path.join(storeRoot, STATE_DIRECTORY, STATE_FILE);
-  let source;
-  try {
-    source = await fs.readFile(statePath, "utf8");
-  } catch (error) {
-    if (error.code === "ENOENT") return { workspace: null };
-    throw error;
-  }
-  let payload;
-  try {
-    payload = JSON.parse(source);
-  } catch (error) {
-    throw new Error(`STATE_CORRUPTED: .openspec-orch/state.json повреждён: ${error.message}`);
-  }
-  if (!isRecord(payload)) throw new Error("STATE_CORRUPTED: .openspec-orch/state.json должен быть объектом");
-  if (payload.contract_version !== STATE_CONTRACT_VERSION) {
-    throw new Error("STATE_CORRUPTED: .openspec-orch/state.json: неподдерживаемая contract_version");
-  }
-  if (payload.workspace !== null && typeof payload.workspace !== "string") {
-    throw new Error("STATE_CORRUPTED: .openspec-orch/state.json: workspace должен быть строкой или null");
-  }
-  return { workspace: payload.workspace ?? null };
-}
+import { lstatOrNull } from "./files.js";
+import { readState, withStateLock, writeState } from "../state/index.js";
 
 /**
  * Атомарно записывает локальный workspace в `.openspec-orch/state.json`.
@@ -49,10 +14,10 @@ async function readLocalState(storeRoot) {
  * @returns {Promise<void>}
  */
 export async function rememberWorkspace(storeRoot, workspace) {
-  const directory = path.join(storeRoot, STATE_DIRECTORY);
-  await fs.mkdir(directory, { recursive: true });
-  const payload = { contract_version: STATE_CONTRACT_VERSION, workspace };
-  await writeFileAtomic(path.join(directory, STATE_FILE), `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 });
+  await withStateLock(storeRoot, async () => {
+    const state = await readState(storeRoot);
+    await writeState(storeRoot, { ...state, workspace });
+  });
 }
 
 /**
@@ -87,7 +52,7 @@ export async function resolveWorkspace(
   requestedWorkspace,
   useWorkspaceState = true,
 ) {
-  const state = useWorkspaceState ? await readLocalState(storeRoot) : { workspace: null };
+  const state = useWorkspaceState ? await readState(storeRoot) : { workspace: null };
   const storedWorkspace = state.workspace ? path.resolve(state.workspace) : "";
   const workspace = requestedWorkspace
     ? path.resolve(requestedWorkspace)

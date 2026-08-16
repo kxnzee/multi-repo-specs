@@ -40,18 +40,3 @@ export function isPortableRelativePath(value, { allowDot = true } = {}) {
     (segment) => segment && segment !== "." && segment !== "..",
   );
 }
-
-/**
- * Возвращает проверенный переносимый путь либо бросает предметную ошибку.
- *
- * @param {unknown} value Проверяемое значение.
- * @param {string} label Путь поля для сообщения об ошибке.
- * @param {{allowDot?: boolean}} [options] Разрешить значение `.`.
- * @returns {string} Проверенный путь.
- */
-export function assertPortableRelativePath(value, label, options) {
-  if (!isPortableRelativePath(value, options)) {
-    throw new Error(`${label} должен быть безопасным относительным POSIX-путём`);
-  }
-  return value;
-}

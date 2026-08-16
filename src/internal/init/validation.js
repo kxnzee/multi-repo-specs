@@ -1,6 +1,7 @@
 /** @fileoverview Проверка CLI-входа и Git-предусловий `openspec-orch init`. */
 
 import { createGitClient } from "../shared/git-client.js";
+import { assertRepositoryRemote } from "../config/index.js";
 
 const REPOSITORY_PATTERN = /^([a-z0-9]+(?:-[a-z0-9]+)*)=(.+)#([^#]+)$/;
 
@@ -37,5 +38,6 @@ export function parseRepository(value) {
   if (remote.startsWith("-") || defaultBranch.startsWith("-")) {
     throw new Error(`Некорректный репозиторий '${value}'. Ожидается <id=remote#branch>`);
   }
+  assertRepositoryRemote(remote, id);
   return { id, role: "code", remote, defaultBranch };
 }

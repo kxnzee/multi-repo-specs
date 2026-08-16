@@ -1,158 +1,22 @@
 ---
-description: "Реализовать назначенные Work Packages в одном Code Repository"
+description: "Недоступно в OpenSpec Orchestrator Alpha"
 ---
 
-Эта инструкция выполняет шаг 06 после успешного `openspec-orch load` шага 05. Она реализует назначенную часть принятого OpenSpec Change только в текущем Code Repository. Она не является slash-командой и не требует новой CLI-команды.
+# `/sdd-apply` вне Alpha
 
-## Вход
+Эта project-level инструкция зависела от удалённой команды
+`openspec-orch load` и runtime Work Packages прежней версии. В Alpha не запускай
+её и не восстанавливай скрытый runtime по истории диалога или файлам старого
+формата.
 
-Новая агентская сессия запускается из корня целевого Code Repository готовым первым сообщением `next_action`. Сообщение сначала указывает на файл инструкций выбранного агента из runtime Store, затем на эту инструкцию и параметры:
-
-```text
---store <store-id> --repo <repository-id> --change <change-id> --baseline <sha|unpinned> --execution-mode <strict|relaxed> --implementation-mode package --work-package <id>...
-```
-
-Требуй ровно по одному `--store`, `--repo`, `--change`, `--baseline`, `--execution-mode` и `--implementation-mode`, а также один или несколько уникальных `--work-package`. Базовый Template поддерживает только `--implementation-mode package`. Используй тот же набор значений, который был передан в успешный `openspec-orch load`. Не вычисляй Store, repository, Baseline, режим или Work Packages автоматически и не подменяй их значениями из истории диалога, Git-ветки или свободного текста.
-
-Из корня Code Repository определи workspace только по стандартному пути `<workspace>/src/<repository-id>` и открой точный runtime:
+Реализация выполняется обычным процессом команды вне Orchestrator. Alpha хранит
+только принятый Cycle и проверяемые результаты:
 
 ```text
-<workspace>/.openspec-orch/runtime/<store-id>/<change-id>/<repository-id>/context.json
+openspec-orch status <change-id>
+openspec-orch record assignment <change-id> --repo <repository-id> --commit <sha> --status completed --source <source>
 ```
 
-Не ищи `context.json` по glob, не запускай `openspec-orch load` автоматически и не требуй дополнительную команду подготовки.
-
-## 1. Проверь runtime и границы
-
-До любого изменения файлов прекрати выполнение, если выполняется хотя бы одно условие:
-
-- обязательный одиночный параметр отсутствует или повторён, либо `--implementation-mode` не равен `package`;
-- `--work-package` отсутствует, содержит пустой либо повторяющийся ID;
-- runtime отсутствует, не является обычным файлом, имеет неизвестную структуру или не содержит `version: 2` и `step_status: implementation_ready`;
-- переданные Store, repository, Change, Baseline, режим или полный набор Work Packages не совпадают с runtime;
-- `schema`, `implementation_mode` или `context_files` отсутствуют либо имеют некорректную форму;
-- cwd не равен `code_root` после разрешения реального пути;
-- `allowed_edit_roots` не содержит ровно один `code_root`;
-- для `strict`: Baseline и code revision не являются полными SHA, текущая ветка не равна `implementation_branch`, HEAD не является потомком `code_base_revision`, `immutable_roots` не содержит ровно один `spec_root` либо Store worktree изменён или находится не на `spec_baseline`;
-- для `relaxed`: `spec_baseline` или `code_base_revision` не равны `unpinned`, `implementation_branch` не равен `null` либо `immutable_roots` не является пустым списком.
-
-Несовпадение блокирует запись. Не исправляй runtime, ветку, параметры, dirty worktree или Baseline автоматически. Не выполняй stash, reset, rebase или checkout как способ пройти проверку.
-
-## 2. Подтверди Change штатным OpenSpec API
-
-Из `spec_root` выполни:
-
-```bash
-openspec instructions apply --change <change-id> --json
-```
-
-Перед `instructions` выполни validation: в `strict` — `openspec validate <change-id> --type change --strict --no-interactive --json`, в `relaxed` — ту же команду без `--strict`.
-
-Проверь, что обе команды разрешили тот же `spec_root` и тот же Change, выбранная валидация успешна, schema совпадает с runtime, а Apply имеет состояние `ready`. `changeDir` и каждый путь из `contextFiles` должны совпадать с `change_root` и `context_files` runtime; другой или новый путь блокирует работу. Каждый переданный Work Package должен существовать как точный `tasks[].id` официального ответа и оставаться невыполненным.
-
-Сразу отфильтруй официальный `tasks[]` по полному набору ID из runtime и зафиксируй для текущей сессии точные пары `id → description`. Для каждого ID должна существовать ровно одна отдельная строка. Это единственное допустимое сопоставление Work Packages на шаге 06.
-
-Каждый `task.id` означает один checkbox OpenSpec. Число в начале `description`, например `2.1`, является частью текста Task, а не `task.id`; заголовок раздела `tasks.md` также не является Work Package ID. Не объединяй несколько ID в один пакет, не перенумеровывай их по разделам и не приписывай ID описание соседней Task.
-
-Используй только перечисленные в runtime Work Package ID. Не копируй Tasks в runtime, не извлекай ID из `description` и не выводи назначение репозиторию из свободного текста.
-
-## 3. Собери минимальный контекст
-
-Из принятого Change прочитай только необходимые обычные файлы, перечисленные в `context_files` runtime. Для базовой schema это:
-
-- Proposal — для границ изменения;
-- применимые Specs и Scenarios — для ожидаемого поведения;
-- относящиеся к текущему репозиторию части `design.md` — для контракта, совместимости и rollout;
-- выбранные `tasks[].id` — для результата и проверок.
-
-Технический контекст сначала ищи в действующем файле инструкций агента текущего Code Repository. Его путь определён `agent.instructions_file` в `openspec-orch.yaml`. Не сканируй `commands/`, `skills/` или `agents/` в поиске другого контекста. Если файла нет или сведений недостаточно, адресно прочитай связанные код и тесты. Не загружай весь крупный репозиторий или другие Code Repositories автоматически.
-
-До реализации определи затронутые существующие публичные контракты по инструкциям репозитория, коду и подтверждающим тестам. В `strict` используй `code_base_revision` как точку сравнения; в `relaxed` явно укажи, что Git baseline не закреплён. Specs, Design и выбранный Work Package определяют, должно ли прежнее поведение сохраниться или Change явно вводит несовместимое изменение с миграцией и rollout.
-
-Для простой работы используй краткий план текущей сессии. Локальный technical design, implementation plan или checklist допустим только если действительно нужен по правилам Code Repository. Он необязателен, не создаёт SDD-гейт и не становится источником требований.
-
-## 4. Реализуй Work Packages
-
-Изменяй только текущий Code Repository внутри единственного `allowed_edit_root`. Реализуй только назначенные Work Packages и необходимые для них локальные тесты.
-
-Не изменяй:
-
-- центральный Store, `spec_root`, `tasks.md`, Specs или planning-артефакты;
-- другие Code Repositories;
-- Work Packages, назначенные другим репозиториям;
-- файл инструкций агента, если его обновление прямо не входит в назначенную работу;
-- встроенные skills `openspec-*` и команды `opsx-*` provider-specific agent pack.
-
-Не расширяй scope найденными сопутствующими проблемами. Перечисли их отдельно в отчёте или PR.
-
-Не изменяй существующие assertions только для того, чтобы согласовать их с незапланированным несовместимым поведением реализации. Изменение прежнего контракта и его тестов допустимо, только если оно прямо следует из принятых Specs, Design и выбранного Work Package. Если реализация требует несовместимого изменения, которого нет в принятых артефактах, не вноси его: оставь Work Package со статусом `blocked` и верни вопрос Change Owner на planning.
-
-Если точный Work Package нельзя завершить без записи в другой Code Repository, Composite Verification или недоступного внешнего окружения, не подменяй его соседней Task и не объявляй выполненным. Оставь этот ID со статусом `incomplete` либо `blocked` и укажи точную причину.
-
-Не заменяй проверку указанного в Work Package другого репозитория или точной ревизии локальной имитацией поведения потребителя. Если эта ревизия недоступна в разрешённых границах чтения, оставь Work Package незавершённым.
-
-При повторном запуске с теми же параметрами сначала прочитай текущий diff и продолжи только незавершённую работу. Новый progress-state не создавай. Повторный `openspec-orch load` не нужен, пока runtime, Baseline и назначение не изменились.
-
-## 5. Выполни проверки репозитория
-
-Определи команды из файла инструкций агента, package scripts и CI текущего Code Repository. Используй только уже существующие в репозитории инструменты и конфигурацию проверок. Не добавляй package manager, зависимости, test runner, build-конфигурацию или отдельные скомпилированные файлы только ради запуска проверки. Если штатной инфраструктуры нет, укажи проверку как `Not run` с причиной.
-
-Выполни применимые:
-
-- lint, format и static checks;
-- unit и компонентные тесты;
-- contract-тесты;
-- build или compile;
-- проверку diff на случайные и несвязанные изменения.
-
-Покажи пользователю итоговый diff и `git status --short`. Для каждой проверки зафиксируй фактическую команду и результат. Значение `passed` допустимо только для действительно выполненной команды с успешным exit code. Упавшая обязательная проверка блокирует готовность реализации. Невыполненную проверку укажи как `Not run` с причиной; отсутствие инструмента, конфигурации или test runner никогда не является `passed`.
-
-Если описание Work Package прямо требует тест, контрактную проверку или другое проверяемое подтверждение, `Not run` означает, что этот ID имеет статус `incomplete` либо `blocked`. Созданный, но не запущенный тест не завершает такой Work Package.
-
-Для каждого затронутого публичного контракта в `strict` сравни результат с `code_base_revision`; не выводи прежнее поведение из уже изменённого кода. В `relaxed` исследуй текущее состояние и явно укажи, что точка Git-сравнения отсутствует. Если Change не предусматривает изменение контракта, подтверди сохранение поведения существующей проверкой либо добавленной регрессионной проверкой. Если Change явно предусматривает breaking change, свяжи обновлённое поведение и тесты с соответствующими Specs, Design и Work Package. Без такого подтверждения затронутый ID не имеет статус `completed`.
-
-После работы в `strict` снова проверь, что `spec_root` чист и остаётся на том же `spec_baseline`. В `relaxed` не заявляй Git-гарантии Store, но проверь, что текущая работа не изменила файлы вне `allowed_edit_roots`. Любое изменение Store этой работой блокирует завершение.
-
-## 6. Подготовь передачу в implementation PR
-
-Не создавай commit, не выполняй push или rebase, не открывай и не изменяй PR или tracker без отдельного явного поручения пользователя. Если такое поручение получено, используй обычный Git-процесс Code Repository:
-
-1. после первого связного commit опубликуй ветку и открой Draft PR;
-2. свяжи PR с ticket, OpenSpec Change, Planning PR, implementation subtask и известными implementation PR других репозиториев;
-3. исправляй review comments в той же ветке и PR;
-4. перед переводом PR в ready синхронизируй ветку принятым в проекте rebase и повтори проверки;
-5. после успешного code review зафиксируй в subtask точную полную SHA HEAD готового PR только по явному поручению пользователя.
-
-После любого следующего commit прежняя `code_revision` устаревает и должна быть заменена после повторных проверок. Обычный `git push --force` запрещён; после разрешённого rebase собственной опубликованной ветки допустим только `git push --force-with-lease`.
-
-Implementation PR на шаге 06 не сливай. Не отмечай checkbox в центральном `tasks.md`, не выполняй Composite Verification, rollout или Archive и не предлагай `/opsx-archive`.
-
-## Итоговый отчёт
-
-Заверши ответ кратким структурированным итогом:
-
-```text
-step_status: implementation_ready_for_pr | implementation_in_progress | blocked
-store_id: <store-id>
-change_id: <change-id>
-spec_baseline: <full-store-sha | unpinned>
-execution_mode: strict | relaxed
-repository_id: <repository-id>
-work_packages: <id, ...>
-work_package_results:
-  - id: <exact task.id>
-    description: <exact official description>
-    implementation: <summary | none>
-    contract_compatibility: not_applicable | preserved | planned_breaking_change
-    contract_evidence: <baseline and verification | accepted artifact and verification | none>
-    verification: <command and evidence | Not run with reason>
-    status: completed | incomplete | blocked
-implementation_branch: <branch | null>
-checks: <command and passed | command and failed | Not run with reason>
-store_unchanged: true | false
-next_step: complete_checks | implementation_pr | 07 | blocked
-```
-
-Укажи `step_status: implementation_ready_for_pr` только если каждый переданный ID имеет статус `completed`, все обязательные проверки действительно выполнены и успешны, а Store остался неизменным. Незавершённый Work Package или обязательная проверка `Not run` требует `implementation_in_progress` либо `blocked`.
-
-Используй `next_step: complete_checks`, если реализация ожидает обязательные проверки, и `next_step: implementation_pr` — только для `implementation_ready_for_pr`. Используй `next_step: 07` только если implementation PR уже прошёл code review, его текущая полная `code_revision` зафиксирована в subtask и все implementation PR Change готовы к Composite Verification. Никогда не указывай Archive следующим шагом.
+После записи результатов всех репозиториев продолжи через `verify` и
+`record verification`. Если пользователь ожидает автоматический Apply, сообщи,
+что эта возможность отложена до следующей версии.

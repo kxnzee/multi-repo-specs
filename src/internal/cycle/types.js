@@ -41,6 +41,16 @@
  * @property {CycleRecord} cycle
  * @property {boolean} committed
  * @property {string} path
+ * @property {Array<{
+ *   repositoryId: string,
+ *   state: string,
+ *   receipt: object | null,
+ *   commitAvailable: boolean | null,
+ *   head: string | null,
+ *   headMatches: boolean | null
+ * }>} repositories
+ * @property {(object & {current: boolean}) | null} snapshot
+ * @property {(object & {current: boolean}) | null} verification
  * @property {string} nextAction
  */
 

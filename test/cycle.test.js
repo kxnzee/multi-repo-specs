@@ -209,6 +209,49 @@ test("readCycleRecord rejects a Cycle Record with an unknown repository-id shape
   await assert.rejects(readCycleRecord(storeRoot, "checkout-flow"), /STATE_CORRUPTED/);
 });
 
+test("readChangeStatus rejects unknown and duplicate Cycle repository IDs", async (t) => {
+  const storeRoot = await createStore(t);
+  await assignCycle({
+    storeRoot,
+    changeId: "checkout-flow",
+    repositoryIds: ["frontend"],
+    confirm: ALWAYS_CONFIRM,
+  });
+  const recordPath = path.join(
+    storeRoot,
+    ".openspec-orch",
+    "changes",
+    `${encodeChangeKey("checkout-flow")}.json`,
+  );
+  const tampered = JSON.parse(await fs.readFile(recordPath, "utf8"));
+  tampered.repositories = ["mobile", "mobile"];
+  await fs.writeFile(recordPath, JSON.stringify(tampered), "utf8");
+
+  await assert.rejects(readChangeStatus({ storeRoot, changeId: "checkout-flow" }), /STATE_CORRUPTED/);
+});
+
+test("readCycleRecord rejects non-v4 cycle IDs and impossible timestamps", async (t) => {
+  const storeRoot = await createStore(t);
+  await assignCycle({
+    storeRoot,
+    changeId: "checkout-flow",
+    repositoryIds: ["frontend"],
+    confirm: ALWAYS_CONFIRM,
+  });
+  const recordPath = path.join(
+    storeRoot,
+    ".openspec-orch",
+    "changes",
+    `${encodeChangeKey("checkout-flow")}.json`,
+  );
+  const tampered = JSON.parse(await fs.readFile(recordPath, "utf8"));
+  tampered.cycle_id = "cycle-00000000-0000-0000-0000-000000000000";
+  tampered.created_at = "2026-99-99T99:99:99Z";
+  await fs.writeFile(recordPath, JSON.stringify(tampered), "utf8");
+
+  await assert.rejects(readCycleRecord(storeRoot, "checkout-flow"), /STATE_CORRUPTED/);
+});
+
 test("assignCycle refuses a dirty Store working tree without writing a Cycle Record", async (t) => {
   const storeRoot = await createStore(t);
   await fs.writeFile(path.join(storeRoot, "dirty.txt"), "uncommitted\n", "utf8");

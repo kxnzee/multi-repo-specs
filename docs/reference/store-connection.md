@@ -18,11 +18,11 @@ C:/work/rum-multirepo/openspec/rum-specs/   ← дополнительная в�
 Передайте workspace один раз:
 
 ```bash
-openspec-orch connect --workspace <workspace>
+openspec-orch connect --workspace /absolute/path/to/workspace
 ```
 
-Команда сохранит абсолютный путь только в локальной Git-конфигурации Store. Он не
-попадёт в commit. Последующие `openspec-orch connect` и `openspec-orch explore` можно выполнять без
+Команда сохранит абсолютный путь в локальном `.openspec-orch/state.json`. Файл
+исключён из Git и не попадёт в commit. Последующие Alpha-команды можно выполнять без
 `--workspace`.
 
 OpenSpec Orchestrator определяет workspace в следующем порядке:
@@ -32,7 +32,7 @@ OpenSpec Orchestrator определяет workspace в следующем по�
 3. родитель Store, если имя каталога Store совпадает со `store-id`;
 4. остановка с инструкцией, если workspace определить нельзя.
 
-Если workspace перемещён, повторите `openspec-orch connect --workspace <workspace>` с новым
+Если workspace перемещён, повторите `openspec-orch connect --workspace /absolute/path/to/workspace` с новым
 путём.
 
 ## Store уже зарегистрирован локально

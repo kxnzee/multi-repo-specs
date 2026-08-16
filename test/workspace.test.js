@@ -47,7 +47,15 @@ test("resolveWorkspace round-trips a remembered workspace through state.json", a
   const state = JSON.parse(
     await fs.readFile(path.join(storeRoot, ".openspec-orch", "state.json"), "utf8"),
   );
-  assert.deepEqual(state, { contract_version: 1, workspace });
+  assert.deepEqual(state, {
+    contract_version: 1,
+    workspace,
+    result_receipts: [],
+    result_receipt_history: [],
+    snapshots: [],
+    verification_receipts: [],
+    verification_receipt_history: [],
+  });
 });
 
 test("resolveWorkspace falls back to the standard <workspace>/<store-id> layout", async (t) => {

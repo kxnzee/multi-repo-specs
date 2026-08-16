@@ -6,14 +6,13 @@ import process from "node:process";
 import * as z from "zod";
 
 import { parseOrchestratorConfig, parseStoreMetadata } from "../config/index.js";
-import { inspectOpenSpecCli, requireOpenSpecCapability } from "./compatibility.js";
 import { lstatOrNull, readRelativeRegularFile } from "./files.js";
 import { sameGitRemote } from "./git.js";
 import {
-  assertOpenSpecRoot,
-  assertOpenSpecStore,
+  parseOpenSpecRoot,
   runOpenSpecJson,
 } from "./openspec.js";
+import { POINTER_PATH, readPointer } from "./pointer.js";
 import {
   isRecord,
   openSpecContractError,
@@ -85,7 +84,62 @@ export async function findSpecRoot(start = process.cwd()) {
     if (parent === candidate) break;
     candidate = parent;
   }
-  throw new Error("Не удалось найти Spec Root среди родителей текущего каталога");
+  throw Object.assign(
+    new Error("Не удалось найти Spec Root среди родителей текущего каталога"),
+    { code: "STORE_ROOT_NOT_FOUND" },
+  );
+}
+
+/**
+ * Находит корень Code Repository по config-only OpenSpec pointer.
+ *
+ * @param {string} start Начальный каталог.
+ * @returns {Promise<string>} Канонический корень Code Repository.
+ */
+async function findCodeRepositoryRoot(start) {
+  let candidate = path.resolve(start);
+  const initial = await lstatOrNull(candidate);
+  if (!initial) throw new Error(`Начальный путь не существует: ${candidate}`);
+  if (!initial.isDirectory()) candidate = path.dirname(candidate);
+  while (true) {
+    const pointer = await lstatOrNull(path.join(candidate, POINTER_PATH));
+    if (pointer) return fs.realpath(candidate);
+    const parent = path.dirname(candidate);
+    if (parent === candidate) break;
+    candidate = parent;
+  }
+  throw new Error("Не удалось найти Store или Code Repository с openspec/config.yaml");
+}
+
+/**
+ * Разрешает Store как родительский root или через официальный OpenSpec context
+ * из Code Repository. Это позволяет записывать Result Receipt из checkout кода.
+ *
+ * @param {string} start Начальный каталог команды.
+ * @param {typeof import("./command.js").runCommand} commandRunner Исполнитель OpenSpec.
+ * @returns {Promise<string>} Канонический путь Store.
+ */
+export async function resolveCommandStoreRoot(start, commandRunner) {
+  try {
+    return await findSpecRoot(start);
+  } catch (error) {
+    if (error.code !== "STORE_ROOT_NOT_FOUND") throw error;
+  }
+
+  const repositoryRoot = await findCodeRepositoryRoot(start);
+  const storeId = await readPointer(repositoryRoot);
+  const command = "openspec context --json";
+  const response = await runOpenSpecJson(commandRunner, ["context", "--json"], repositoryRoot);
+  const root = parseOpenSpecRoot(response.root, command);
+  if (root.source !== "declared" || root.store_id !== storeId || !path.isAbsolute(root.path)) {
+    throw openSpecContractError(command, "pointer не разрешён в ожидаемый зарегистрированный Store");
+  }
+  const storeRoot = await requireStoreRoot(path.resolve(root.path));
+  const { metadata } = await readStoreConfiguration(storeRoot);
+  if (metadata.id !== storeId) {
+    throw new Error(`OpenSpec pointer указывает Store ${storeId}, но metadata содержит ${metadata.id}`);
+  }
+  return storeRoot;
 }
 
 /**
@@ -153,87 +207,4 @@ export function assertStoreDoctor(payload, storeId, projectRoot) {
         `но ответ \`${command}\` указал ${store.metadata.id}`,
     );
   }
-}
-
-/**
- * Выполняет полный набор предпроверок OpenSpec Store.
- *
- * @param {string} projectRoot Абсолютный путь Store.
- * @param {string} storeId Ожидаемый Store ID.
- * @param {typeof import("./command.js").runCommand} commandRunner Исполнитель OpenSpec.
- * @returns {Promise<Array<{name: string}>>} Активные Changes из разрешённого Store.
- */
-export async function validateOpenSpec(projectRoot, storeId, commandRunner) {
-  await inspectOpenSpecCli(commandRunner, projectRoot);
-
-  const storeList = await runOpenSpecJson(commandRunner, ["store", "list", "--json"], projectRoot);
-  requireOpenSpecCapability(
-    Array.isArray(storeList.stores),
-    "openspec store list --json: stores[]",
-  );
-  const registrations = storeList.stores.filter(
-    (store) => isRecord(store) && store.id === storeId,
-  );
-  if (registrations.length !== 1) {
-    throw new Error(`Store ${storeId} должен иметь ровно одну локальную регистрацию`);
-  }
-  assertOpenSpecStore(
-    registrations[0],
-    { path: projectRoot, storeId },
-    "openspec store list --json",
-  );
-
-  const storeDoctor = await runOpenSpecJson(
-    commandRunner,
-    ["store", "doctor", storeId, "--json"],
-    projectRoot,
-  );
-  assertStoreDoctor(storeDoctor, storeId, projectRoot);
-
-  const doctorCommand = `openspec doctor --store ${storeId} --json`;
-  const doctor = await runOpenSpecJson(
-    commandRunner,
-    ["doctor", "--store", storeId, "--json"],
-    projectRoot,
-  );
-  assertOpenSpecRoot(doctor.root, { path: projectRoot, storeId, source: "store" }, doctorCommand);
-  if (typeof doctor.root.healthy !== "boolean") {
-    throw openSpecContractError(doctorCommand, "root не содержит boolean healthy");
-  }
-  if (!isRecord(doctor.store) || typeof doctor.store.id !== "string") {
-    throw openSpecContractError(doctorCommand, "не передана обязательная Store identity");
-  }
-  if (doctor.root.healthy !== true) {
-    throw new Error(`Store ${storeId} не прошёл проверку здоровья \`${doctorCommand}\``);
-  }
-  if (doctor.store.id !== storeId) {
-    throw new Error(
-      `OpenSpec Orchestrator ожидал Store ${storeId}, ` +
-        `но ответ \`${doctorCommand}\` указал ${doctor.store.id}`,
-    );
-  }
-
-  const contextCommand = `openspec context --store ${storeId} --json`;
-  const context = await runOpenSpecJson(
-    commandRunner,
-    ["context", "--store", storeId, "--json"],
-    projectRoot,
-  );
-  assertOpenSpecRoot(context.root, { path: projectRoot, storeId, source: "store" }, contextCommand);
-
-  const changes = await runOpenSpecJson(
-    commandRunner,
-    ["list", "--changes", "--store", storeId, "--json"],
-    projectRoot,
-  );
-  requireOpenSpecCapability(
-    Array.isArray(changes.changes),
-    "openspec list --changes --json: changes[]",
-  );
-  assertOpenSpecRoot(
-    changes.root,
-    { path: projectRoot, storeId, source: "store" },
-    "openspec list --changes",
-  );
-  return changes.changes;
 }

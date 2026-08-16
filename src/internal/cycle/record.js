@@ -91,6 +91,28 @@ export async function readCycleRecord(storeRoot, changeId) {
 }
 
 /**
+ * Проверяет, что Cycle ссылается на уникальные Code Repository текущего реестра.
+ *
+ * @param {import("./types.js").CycleRecord} record Проверенный файловой схемой Cycle.
+ * @param {import("../config/index.js").NormalizedConfig} config Текущая конфигурация Store.
+ * @returns {void}
+ */
+export function assertCycleRepositories(record, config) {
+  const unique = new Set(record.repositories);
+  if (unique.size !== record.repositories.length) {
+    throw new Error("STATE_CORRUPTED: Cycle Record содержит повторяющийся repository-id");
+  }
+  const knownCodeIds = new Set(config.codeRepositories.map(({ id }) => id));
+  for (const repositoryId of record.repositories) {
+    if (!knownCodeIds.has(repositoryId)) {
+      throw new Error(
+        `STATE_CORRUPTED: Cycle Record содержит неизвестный Code Repository '${repositoryId}'`,
+      );
+    }
+  }
+}
+
+/**
  * Атомарно записывает Cycle Record в рабочую копию Store. Core не коммитит файл.
  *
  * @param {string} storeRoot Канонический путь Store.

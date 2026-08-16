@@ -37,6 +37,21 @@ test("parseOrchestratorConfig blocks credentials embedded in repository URL", ()
   );
 });
 
+test("parseOrchestratorConfig rejects local absolute repository remotes", () => {
+  for (const remote of [
+    "/private/tmp/specs.git",
+    "C:\\work\\specs.git",
+    "file:///private/tmp/specs.git",
+  ]) {
+    assert.throws(
+      () => parseOrchestratorConfig(config(
+        `  - id: specs\n    roles: [store]\n    remote: ${JSON.stringify(remote)}\n    default_branch: main`,
+      )),
+      /CONFIG_INVALID/,
+    );
+  }
+});
+
 test("parseOrchestratorConfig rejects missing schema sections and repository fields", () => {
   assert.throws(() => parseOrchestratorConfig("repositories: []\n"));
   assert.throws(() => parseOrchestratorConfig("version: 2\nrepositories: []\n"));

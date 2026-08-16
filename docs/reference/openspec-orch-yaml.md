@@ -59,7 +59,7 @@ extensions: {}
 |---|---|
 | `repositories[].id` | Устойчивый идентификатор репозитория в lowercase kebab-case. Используется в командах и в имени файла Cycle Record независимо от имени локального каталога. |
 | `repositories[].roles` | Singleton-массив: `[store]` для центральных спецификаций или `[code]` для реализации. Другие формы (multi-role, пустой массив) отклоняются. |
-| `repositories[].remote` | Git URL репозитория. Встроенные в HTTP(S)-URL логин и пароль запрещены. |
+| `repositories[].remote` | Сетевой Git URL репозитория. Встроенные в HTTP(S)-URL логин и пароль, `file://` и локальные абсолютные пути запрещены. |
 | `repositories[].default_branch` | Основная ветка репозитория, относительно которой выполняются `connect` и `repository status`. |
 
 Идентификаторы репозиториев не должны повторяться. Репозиторий с `roles: [store]` — единственный источник Cycle Records (`.openspec-orch/changes/`) и Master Specs. Репозитории с `roles: [code]` реализуют принятые изменения; `assign` принимает в состав Cycle только их — сам Store не может быть членом Cycle.

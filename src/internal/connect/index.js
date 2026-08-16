@@ -32,6 +32,9 @@ export async function connectProject({
   onProgress("Проверка Store и OpenSpec...");
   const storeRoot = await fs.realpath(path.resolve(start));
   const { metadata, config } = await readStoreConfiguration(storeRoot);
+  if (config.codeRepositories.length === 0) {
+    throw new Error("CONFIG_INVALID: для Alpha pilot нужен минимум один repository с roles: [code]");
+  }
   const executionMode = resolveExecutionMode(config.strict, noStrict);
   await inspectOpenSpecCli(commandRunner, storeRoot);
   const registration = await runOpenSpecJson(commandRunner, ["store", "register", storeRoot, "--id", metadata.id, "--yes", "--json"], storeRoot);

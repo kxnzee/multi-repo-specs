@@ -1,5 +1,6 @@
 /** @fileoverview Безопасное чтение и атомарная запись project files внутри доверенного root. */
 
+import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -117,7 +118,20 @@ export async function readRelativeRegularFile(root, relativePath) {
  */
 export async function writeFileAtomic(targetPath, contents, { mode } = {}) {
   const directory = path.dirname(targetPath);
-  const temporaryPath = path.join(directory, `.${path.basename(targetPath)}-${process.pid}.tmp`);
-  await fs.writeFile(temporaryPath, contents, mode === undefined ? { encoding: "utf8" } : { encoding: "utf8", mode });
-  await fs.rename(temporaryPath, targetPath);
+  const temporaryPath = path.join(
+    directory,
+    `.${path.basename(targetPath)}-${process.pid}-${randomUUID()}.tmp`,
+  );
+  try {
+    await fs.writeFile(
+      temporaryPath,
+      contents,
+      mode === undefined
+        ? { encoding: "utf8", flag: "wx" }
+        : { encoding: "utf8", flag: "wx", mode },
+    );
+    await fs.rename(temporaryPath, targetPath);
+  } finally {
+    await fs.rm(temporaryPath, { force: true });
+  }
 }

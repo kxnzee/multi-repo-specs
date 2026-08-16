@@ -1,5 +1,6 @@
 /** @fileoverview Разбор и строгая проверка конфигурации OpenSpec Orchestrator Alpha. */
 
+import path from "node:path";
 import { parse, stringify } from "yaml";
 
 import { assertRepositoryId } from "../shared/schema.js";
@@ -65,6 +66,28 @@ function hasHttpCredentials(value) {
 }
 
 /**
+ * Проверяет безопасную форму Git remote Alpha v1.
+ *
+ * @param {string} remote Git remote.
+ * @param {string} repositoryId Repository ID для диагностики.
+ * @returns {void}
+ */
+export function assertRepositoryRemote(remote, repositoryId) {
+  let fileUrl = false;
+  try {
+    fileUrl = new URL(remote).protocol === "file:";
+  } catch {
+    // SCP-подобные Git remote не являются WHATWG URL и проверяются ниже как строки.
+  }
+  if (path.posix.isAbsolute(remote) || path.win32.isAbsolute(remote) || fileUrl) {
+    throw new Error(`CONFIG_INVALID: remote repository-id ${repositoryId} не должен быть локальным абсолютным путём`);
+  }
+  if (remote.startsWith("-") || hasHttpCredentials(remote)) {
+    throw new Error(`CONFIG_INVALID: некорректный или содержащий credential remote repository-id ${repositoryId}`);
+  }
+}
+
+/**
  * Нормализует одну запись `repositories` из внешнего YAML-формата Alpha v1.
  *
  * @param {{id: string, roles: Array<"store" | "code">, remote: string, default_branch: string}} value Проверенная схемой запись.
@@ -79,12 +102,10 @@ function normalizeRepository(value) {
     defaultBranch: value.default_branch,
   };
   assertRepositoryId(repository.id, `repository-id ${repository.id}`);
-  if (repository.remote.startsWith("-") || repository.defaultBranch.startsWith("-")) {
+  if (repository.defaultBranch.startsWith("-")) {
     throw new Error(`CONFIG_INVALID: некорректные Git-параметры для repository-id ${repository.id}`);
   }
-  if (hasHttpCredentials(repository.remote)) {
-    throw new Error(`CONFIG_INVALID: URL repository-id ${repository.id} содержит credential`);
-  }
+  assertRepositoryRemote(repository.remote, repository.id);
   return repository;
 }
 

@@ -109,11 +109,12 @@ export async function createBareRemote(root, name, files = {}) {
  */
 export async function createCheckoutWithRemote(root, relativePath, remoteName, files) {
   const checkout = path.join(root, relativePath);
-  const remote = path.join(root, `${remoteName}.git`);
+  const remotePath = path.join(root, `${remoteName}.git`);
+  const remote = `https://example.test/${path.basename(root)}/${remoteName}.git`;
   await fs.mkdir(path.dirname(checkout), { recursive: true });
   await initializeGitRepository(checkout);
   await commitFiles(checkout, files);
-  await runCommand("git", ["clone", "--bare", checkout, remote]);
+  await runCommand("git", ["clone", "--bare", checkout, remotePath]);
   await runCommand("git", ["-C", checkout, "remote", "add", "origin", remote]);
   return { checkout: await fs.realpath(checkout), remote };
 }

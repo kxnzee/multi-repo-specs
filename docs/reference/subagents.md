@@ -1,5 +1,9 @@
 # Работа с subagents при планировании Change
 
+> [!IMPORTANT]
+> Subagents относятся к устанавливаемому Project Template и процессу OpenSpec. Они
+> не входят в публичный runtime Orchestrator Alpha и не вызываются его CLI.
+
 Repository Context Pass помогает основному агенту собрать технический контекст из Code Repositories при подготовке Specs, Design и Tasks на шаге 03. Здесь описано, когда запускаются subagents, какие данные они получают и как добавить новую специализацию.
 
 `openspec-orch init` устанавливает project-level native subagents в provider-specific каталог `agents/`. Обязательным является только базовый профиль; frontend и backend входят в начальный набор как optional специализации:

@@ -28,6 +28,9 @@ async function parseCommand(args) {
     repositoryStatus: handler("repositoryStatus"),
     assign: handler("assign"),
     status: handler("status"),
+    recordAssignment: handler("recordAssignment"),
+    verify: handler("verify"),
+    recordVerification: handler("recordVerification"),
   });
   for (const command of [program, ...program.commands]) {
     command.configureOutput({ writeOut() {}, writeErr() {} });
@@ -60,7 +63,7 @@ test("public binary exposes generated help", () => {
   assert.equal(result.status, 0);
   assert.equal(result.stderr, "");
   assert.match(result.stdout, /^Usage: openspec-orch/m);
-  for (const command of ["init", "connect", "repository", "assign", "status"]) {
+  for (const command of ["init", "connect", "repository", "assign", "status", "record", "verify"]) {
     assert.match(result.stdout, new RegExp(`^  ${command}`, "m"));
   }
 });
@@ -77,7 +80,7 @@ test("init hint follows the workspace layout accepted by connect", () => {
 });
 
 test("every subcommand exposes generated help without running its action", () => {
-  for (const command of ["init", "connect", "repository", "assign", "status"]) {
+  for (const command of ["init", "connect", "repository", "assign", "status", "record", "verify"]) {
     const result = spawnSync(
       process.execPath,
       ["src/bin/openspec-orch.js", command, "--help"],
@@ -181,6 +184,66 @@ test("status command requires the change-id positional argument", async () => {
     { name: "status", options: { changeId: "checkout-flow" } },
   );
   await assert.rejects(parseCommand(["status"]));
+});
+
+test("record assignment accepts only the Alpha Result Receipt flags", async () => {
+  assert.deepEqual(
+    await parseCommand([
+      "record",
+      "assignment",
+      "checkout-flow",
+      "--repo=frontend",
+      `--commit=${"a".repeat(40)}`,
+      "--status=completed",
+      "--source=human",
+      "--note=ready",
+    ]),
+    {
+      name: "recordAssignment",
+      options: {
+        changeId: "checkout-flow",
+        repositoryId: "frontend",
+        implementationRevision: "a".repeat(40),
+        status: "completed",
+        source: "human",
+        note: "ready",
+      },
+    },
+  );
+});
+
+test("verify and record verification do not accept user-supplied Cycle or Snapshot IDs", async () => {
+  assert.deepEqual(
+    await parseCommand(["verify", "checkout-flow"]),
+    { name: "verify", options: { changeId: "checkout-flow" } },
+  );
+  assert.deepEqual(
+    await parseCommand([
+      "record",
+      "verification",
+      "checkout-flow",
+      "--result=pass",
+      "--source=agent",
+    ]),
+    {
+      name: "recordVerification",
+      options: {
+        changeId: "checkout-flow",
+        result: "pass",
+        source: "agent",
+        note: undefined,
+      },
+    },
+  );
+  await assert.rejects(parseCommand(["verify", "checkout-flow", "--snapshot", "manual"]));
+});
+
+test("invalid CLI invocation exits with code 2", () => {
+  const result = spawnSync(process.execPath, ["src/bin/openspec-orch.js", "assign"], {
+    cwd: path.resolve("."),
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 2);
 });
 
 test("Commander rejects missing, duplicate and unknown options", async () => {
