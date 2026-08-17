@@ -13,7 +13,7 @@
 - Если существует `openspec-orch.yaml`, используйте его `repositories` как реестр
   точных `repository-id`; назначение и границы Code Repositories читайте в
   `system-map.yaml` и `repositories/<repository-id>.md`.
-- Для инициализации, аудита и обновления используйте skill `openspec-context`.
+- Для инициализации, аудита и обновления используйте команду `/openspec-context`.
 
 ## Маршрутизация
 

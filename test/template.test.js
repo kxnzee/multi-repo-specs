@@ -99,6 +99,7 @@ test("every base mapping installs the complete canonical agent contract", async 
   const skillFiles = (await fs.readdir(path.join(BASE_TEMPLATE_ROOT, "skills")))
     .map((name) => `${name}/SKILL.md`)
     .sort();
+  const commandFiles = (await fs.readdir(path.join(BASE_TEMPLATE_ROOT, "commands"))).sort();
   const subagentFiles = (await fs.readdir(path.join(BASE_TEMPLATE_ROOT, "subagents"))).sort();
 
   for (const agentId of BASE_AGENT_IDS) {
@@ -111,6 +112,13 @@ test("every base mapping installs the complete canonical agent contract", async 
     for (const relativePath of skillFiles) {
       assert.equal(
         targets.has(path.posix.join(builtIn.agent.targetDirectory, "skills", relativePath)),
+        true,
+        `${agentId}: ${relativePath}`,
+      );
+    }
+    for (const relativePath of commandFiles) {
+      assert.equal(
+        targets.has(path.posix.join(builtIn.agent.commandsDirectory, relativePath)),
         true,
         `${agentId}: ${relativePath}`,
       );
@@ -139,6 +147,11 @@ test("base mappings reuse canonical sources and isolate only necessary adaptatio
       { from: "skills", to: path.posix.join(agent.targetDirectory, "skills") },
       agentId,
     );
+    assert.deepEqual(
+      agent.copy.find(({ to }) => to === agent.commandsDirectory),
+      { from: "commands", to: agent.commandsDirectory },
+      agentId,
+    );
     const subagents = agent.copy.find(
       ({ to }) => to === path.posix.join(agent.targetDirectory, "agents"),
     );
@@ -163,25 +176,26 @@ test("supported-agent documentation matches the Template registry", async () => 
   assert.deepEqual(documentedIds, BASE_AGENT_IDS);
 });
 
-test("base context skill stays portable across ordinary OpenSpec projects", async () => {
-  const skill = await fs.readFile(
-    path.join(BASE_TEMPLATE_ROOT, "skills", "openspec-context", "SKILL.md"),
+test("base context command is shipped as provider-native operation", async () => {
+  const command = await fs.readFile(
+    path.join(BASE_TEMPLATE_ROOT, "commands", "openspec-context.md"),
     "utf8",
   );
 
-  assert.match(skill, /^name: openspec-context$/m);
-  assert.match(skill, /`openspec\/config\.yaml`/);
-  assert.match(skill, /Не требовать Orchestrator metadata, Store registry/);
-  assert.match(skill, /использовать его только как authoritative registry/);
+  assert.match(command, /^description: .+контекст/i);
+  assert.match(command, /\/openspec-context/);
+  assert.match(command, /openspec\/context/);
+  assert.match(command, /Не изменять встроенные OpenSpec `openspec-\*` навыки и `opsx-\*` команды/);
+  assert.match(command, /`context_status: updated`/);
 
   for (const legacyDependency of [
     "sdd.yaml",
     ".sdd/",
-    "sdd-context",
+    "sdd.",
     "CODEOWNERS",
     "Work Package",
   ]) {
-    assert.equal(skill.includes(legacyDependency), false, legacyDependency);
+    assert.equal(command.includes(legacyDependency), false, legacyDependency);
   }
 });
 

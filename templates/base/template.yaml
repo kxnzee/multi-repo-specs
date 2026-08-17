@@ -12,6 +12,8 @@ agents:
         to: openspec/config.yaml
       - from: context
         to: openspec/context
+      - from: commands
+        to: .claude/commands/opsx
       - from: skills
         to: .claude/skills
       - from: adapters/claude/subagents
@@ -32,6 +34,8 @@ agents:
         to: openspec/config.yaml
       - from: context
         to: openspec/context
+      - from: commands
+        to: .qwen/commands
       - from: skills
         to: .qwen/skills
       - from: subagents
@@ -52,6 +56,8 @@ agents:
         to: openspec/config.yaml
       - from: context
         to: openspec/context
+      - from: commands
+        to: .gigacode/commands
       - from: skills
         to: .gigacode/skills
       - from: subagents

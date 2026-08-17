@@ -24,8 +24,9 @@ cp -R templates/base ../team-template
 Базовый Template устанавливает только общий bootstrap-набор: постоянные инструкции
 выбранного агента, `.gitignore` для локального state, универсальный context pack,
 project-local `openspec/config.yaml` со штатной schema `spec-driven` и дополнительными
-правилами Planning, четыре русскоязычных project skills и пять нативных read-only
-subagents. Они не зависят от Orchestrator-команд, Store registry, конкретной структуры
+правилами Planning, три русскоязычных project skills, одна native команда
+для контекста (`/openspec-context`) и пять нативных read-only subagents. Они не
+зависят от Orchestrator-команд, Store registry, конкретной структуры
 репозиториев или ролей прежнего SDD-процесса.
 
 Передайте выбранный каталог только при первом `init`:
@@ -85,11 +86,11 @@ Follow the project OpenSpec configuration and the user's explicit request.
 в `target_directory`, после чего выполняет `copy` сверху вниз. Официальный pack
 создаёт каталог commands, а Template добавляет обязательный `instructions_file`.
 
-Базовый Template не устанавливает `CODEOWNERS` и не добавляет команды. Он сохраняет
+Базовый Template не устанавливает `CODEOWNERS`. Он сохраняет
 штатную schema `spec-driven`, но добавляет в `openspec/config.yaml` project context и
 artifact rules для опросника Proposal, Delta Specs, стабильных Scenario ID, Design и
-Tasks. Context pack является обычным набором project files, а project skills находятся
-рядом с официальными OpenSpec skills и не изменяют их.
+Tasks. Context pack является обычным набором project files, а project skills и native
+команды находятся рядом с официальными OpenSpec extensions и не изменяют их.
 
 `openspec-orch.yaml` остаётся единственным реестром точных repository identity.
 Context pack добавляет `system-map.yaml` и каталог
@@ -99,9 +100,12 @@ Planning rules требуют раздельный Repository impact в Proposal
 Design и Tasks по каждому id. Requirements и Scenarios продолжают описывать
 capability, а не структуру Git-репозиториев.
 
-Базовые skills:
+Базовый контекстный контракт:
 
-- `openspec-context` — долговечный подтверждённый контекст проекта;
+- `/openspec-context` — команда для инициализации, аудита и актуализации
+  долговечного project context;
+
+Базовые skills:
 - `openspec-analyze-impact` — read-only анализ влияния Change;
 - `openspec-review-change` — read-only ревью Proposal, Delta Specs, Design и Tasks:
   проверяет полноту затронутых `repository-id`, межрепозиторные контракты,

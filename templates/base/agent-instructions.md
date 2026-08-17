@@ -6,8 +6,8 @@
   источником истины для Specs и Changes; прикладной код находится в
   зарегистрированных Code Repositories.
 - `openspec/context/` хранит подтверждённый долговечный контекст проекта, но не
-  заменяет Requirements и Delta Specs. Для его инициализации и актуализации используй
-  project skill `openspec-context`.
+  заменяет Requirements и Delta Specs. Для его инициализации и актуализации вызывай
+  команду `/openspec-context`.
 - Для списка проверяемых тест-кейсов по конкретному Change используй project skill
   `openspec-test-cases`.
 - Для анализа затронутых систем, capability, контрактов и проверок используй project

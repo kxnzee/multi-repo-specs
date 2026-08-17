@@ -72,9 +72,10 @@ const OPEN_SPEC_COMMANDS = Object.freeze([
   "opsx-update.md",
 ]);
 
+const PROJECT_COMMANDS = Object.freeze(["openspec-context.md"]);
+
 const PROJECT_SKILLS = Object.freeze([
   "openspec-analyze-impact/SKILL.md",
-  "openspec-context/SKILL.md",
   "openspec-review-change/SKILL.md",
   "openspec-test-cases/SKILL.md",
 ]);
@@ -286,8 +287,8 @@ test("base Project Template owns only focused bootstrap assets", async () => {
     "openspec/config.yaml",
     "context/repositories/README.md",
     "context/system-map.yaml",
+    "commands/openspec-context.md",
     "skills/openspec-analyze-impact/SKILL.md",
-    "skills/openspec-context/SKILL.md",
     "skills/openspec-review-change/SKILL.md",
     "skills/openspec-test-cases/SKILL.md",
     "subagents/openspec-project-context-researcher.md",
@@ -445,9 +446,13 @@ test("initProject preserves the complete public file tree for every supported ag
     const commandFiles = OPEN_SPEC_COMMANDS.map(
       (name) => `${selected.commandsDirectory}/${name}`,
     );
+    const projectCommandFiles = PROJECT_COMMANDS.map(
+      (name) => `${selected.commandsDirectory}/${name}`,
+    );
     const expected = [
       ...COMMON_INIT_FILES,
       ...commandFiles,
+      ...projectCommandFiles,
       ...PROJECT_SKILLS.map((name) => `${selected.targetDirectory}/skills/${name}`),
       ...PROJECT_SUBAGENTS.map((name) => `${selected.targetDirectory}/agents/${name}`),
       selected.instructionsFile,
