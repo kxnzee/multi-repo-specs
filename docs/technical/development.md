@@ -16,6 +16,19 @@
 
 Публичного JavaScript API нет: поддерживаемая поверхность — CLI `openspec-orch`.
 
+## Добавление агента
+
+Поддержка нового агента добавляется без изменения Core:
+
+- добавьте mapping в `templates/base/template.yaml`;
+- копируйте совместимые канонические файлы напрямую, а несовместимые адаптируйте в
+  `templates/base/adapters/<agent-id>/`;
+- обновите только `docs/user/supported-agents.md` и универсальные тесты Template,
+  не добавляя отдельный реестр или тестовые ветвления по agent id;
+- проверьте `openspec-orch init` и обнаружение instructions, project skill и
+  subagent в нативном runtime. Если runtime недоступен, не объявляйте поддержку
+  проверенной.
+
 ## Проверки
 
 ```bash
