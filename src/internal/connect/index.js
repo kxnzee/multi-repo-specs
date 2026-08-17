@@ -6,7 +6,12 @@ import process from "node:process";
 import { resolveExecutionMode } from "../config/index.js";
 import { runCommand } from "../shared/command.js";
 import { inspectOpenSpecCli } from "../shared/compatibility.js";
-import { assertOpenSpecRoot, assertOpenSpecStore, runOpenSpecJson } from "../shared/openspec.js";
+import {
+  assertOpenSpecRoot,
+  assertOpenSpecStore,
+  reportOpenSpecDiagnostic,
+  runOpenSpecJson,
+} from "../shared/openspec.js";
 import { assertStoreDoctor, readStoreConfiguration } from "../shared/store.js";
 import { rememberWorkspace, resolveWorkspace } from "../shared/workspace.js";
 import { connectRepository } from "./repository.js";
@@ -44,7 +49,7 @@ export async function connectProject({
   const doctorOutput = await commandRunner("openspec", ["doctor", "--store", metadata.id], {
     cwd: storeRoot,
     environment: { NODE_NO_WARNINGS: "1" },
-    onStderr: (message) => onProgress(`Предупреждение OpenSpec:\n${message}`, "warning"),
+    onStderr: (message) => reportOpenSpecDiagnostic(onProgress, message),
   });
   if (doctorOutput) onProgress(doctorOutput, "info");
   const context = await runOpenSpecJson(commandRunner, ["context", "--store", metadata.id, "--json"], storeRoot);

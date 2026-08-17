@@ -9,6 +9,32 @@ import {
   openSpecContractError,
 } from "./schema.js";
 
+const OPEN_SPEC_ROOT_INFO_PREFIX = "Using OpenSpec root:";
+
+/**
+ * Классифицирует диагностический stderr OpenSpec для человекочитаемого прогресса.
+ *
+ * @param {string} message Сообщение stderr OpenSpec.
+ * @returns {"info" | "warning"} Уровень важности.
+ */
+export function classifyOpenSpecDiagnosticSeverity(message) {
+  const firstLine = String(message ?? "").split("\n")[0].trim();
+  return firstLine.startsWith(OPEN_SPEC_ROOT_INFO_PREFIX) ? "info" : "warning";
+}
+
+/**
+ * Публикует диагностическое сообщение OpenSpec в прогресс с корректной категорией.
+ *
+ * @param {(message: string, status?: "running" | "success" | "info" | "warning" | "failure") => void} onProgress
+ * @param {string} message Сообщение stderr OpenSpec.
+ * @returns {void}
+ */
+export function reportOpenSpecDiagnostic(onProgress, message) {
+  const severity = classifyOpenSpecDiagnosticSeverity(message);
+  const prefix = severity === "info" ? "Информация OpenSpec" : "Предупреждение OpenSpec";
+  onProgress(`${prefix}:\n${message}`, severity);
+}
+
 /**
  * Запускает OpenSpec через переданный runner и разбирает JSON-ответ.
  *

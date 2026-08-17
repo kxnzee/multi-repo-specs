@@ -4,7 +4,7 @@ import path from "node:path";
 import { lstatOrNull } from "../shared/files.js";
 import { inspectRepositoryIdentity } from "../shared/git.js";
 import { createGitClient } from "../shared/git-client.js";
-import { assertOpenSpecRoot, runOpenSpecJson } from "../shared/openspec.js";
+import { assertOpenSpecRoot, reportOpenSpecDiagnostic, runOpenSpecJson } from "../shared/openspec.js";
 import { ensurePointer, POINTER_PATH } from "../shared/pointer.js";
 import { isGitRevision } from "../shared/schema.js";
 
@@ -85,7 +85,7 @@ export async function connectRepository({
   const doctorOutput = await commandRunner("openspec", ["doctor"], {
     cwd: repositoryRoot,
     environment: { NODE_NO_WARNINGS: "1" },
-    onStderr: (message) => onProgress(`Предупреждение OpenSpec:\n${message}`, "warning"),
+    onStderr: (message) => reportOpenSpecDiagnostic(onProgress, message),
   });
   if (doctorOutput) onProgress(doctorOutput, "info");
   const context = await runOpenSpecJson(commandRunner, ["context", "--json"], repositoryRoot);

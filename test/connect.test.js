@@ -221,6 +221,27 @@ test("connectProject reports human-readable OpenSpec doctor output without block
   assert.equal(progress.some((message) => message.includes("project config warning")), true);
 });
 
+test("connectProject classifies OpenSpec root banner as info", async (t) => {
+  const scenario = await createScenario(t);
+  const openSpec = fakeOpenSpec(scenario.storeRoot);
+  const progress = [];
+  const runner = (command, args, options = {}) => {
+    if (command === "openspec" && args[0] === "doctor" && !args.includes("--store") && !args.includes("--json")) {
+      options.onStderr?.("Using OpenSpec root: /tmp/specs");
+    }
+    return openSpec.runner(command, args, options);
+  };
+
+  await connectProject({
+    start: scenario.storeRoot,
+    commandRunner: runner,
+    onProgress: (message, status) => progress.push({ message, status }),
+  });
+
+  const rootBanner = progress.find(({ message }) => message.includes("Using OpenSpec root: /tmp/specs"));
+  assert.equal(rootBanner?.status, "info");
+});
+
 test("connectProject is idempotent for an accepted pointer and existing checkout", async (t) => {
   const scenario = await createScenario(t, { pointer: true });
   const openSpec = fakeOpenSpec(scenario.storeRoot);
