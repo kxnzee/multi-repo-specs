@@ -210,10 +210,14 @@ test("base OpenSpec config adds native planning rules without changing schema", 
   assert.deepEqual(Object.keys(config.rules).sort(), ["design", "proposal", "specs", "tasks"]);
   assert.match(config.rules.proposal.join("\n"), /не создавать отдельный questionnaire-файл/i);
   assert.match(config.rules.proposal.join("\n"), /Repository impact/);
+  assert.match(config.rules.proposal.join("\n"), /openspec-base-planning-check.*proposal/i);
   assert.match(config.rules.specs.join("\n"), /SC-<CAPABILITY>-NNN/);
   assert.match(config.rules.specs.join("\n"), /Не делить Requirements и Scenarios по репозиториям/);
+  assert.match(config.rules.specs.join("\n"), /openspec-base-planning-check.*specs/i);
   assert.match(config.rules.design.join("\n"), /Repository implementation map/);
+  assert.match(config.rules.design.join("\n"), /openspec-base-planning-check.*design/i);
   assert.match(config.rules.tasks.join("\n"), /repository-id/);
+  assert.match(config.rules.tasks.join("\n"), /openspec-base-planning-check.*tasks/i);
   assert.equal(JSON.stringify(config).includes("sdd"), false);
 });
 
@@ -254,8 +258,12 @@ test("base context keeps repository-local technical context outside the Store", 
   );
 });
 
-test("base impact and review skills remain read-only OpenSpec extensions", async () => {
-  for (const name of ["openspec-base-analyze-impact", "openspec-base-review-change"]) {
+test("base planning, impact and review skills remain read-only OpenSpec extensions", async () => {
+  for (const name of [
+    "openspec-base-analyze-impact",
+    "openspec-base-planning-check",
+    "openspec-base-review-change",
+  ]) {
     const skill = await fs.readFile(
       path.join(BASE_TEMPLATE_ROOT, "skills", name, "SKILL.md"),
       "utf8",
@@ -270,6 +278,32 @@ test("base impact and review skills remain read-only OpenSpec extensions", async
     assert.equal(skill.includes("sdd.yaml"), false);
     assert.equal(skill.includes("Work Package"), false);
   }
+});
+
+test("base planning check routes artifact stages without changing the OpenSpec workflow", async () => {
+  const skill = await fs.readFile(
+    path.join(BASE_TEMPLATE_ROOT, "skills", "openspec-base-planning-check", "SKILL.md"),
+    "utf8",
+  );
+
+  for (const stage of ["proposal", "specs", "design", "tasks", "planning-review"]) {
+    assert.match(skill, new RegExp(`\\b${stage}\\b`, "i"), stage);
+  }
+  for (const dependency of [
+    "openspec-base-analyze-impact",
+    "openspec-base-review-change",
+    "openspec-base-test-cases",
+    "openspec-base-project-context-researcher",
+    "openspec-base-architecture-impact-reviewer",
+    "openspec-base-implementation-scout",
+    "openspec-base-specification-reviewer",
+    "openspec-base-verification-reviewer",
+  ]) {
+    assert.match(skill, new RegExp(`\\b${dependency}\\b`), dependency);
+  }
+  assert.match(skill, /check_status: ready \| needs_revision \| blocked/);
+  assert.match(skill, /Не изменять schema/);
+  assert.match(skill, /Не принимать Gate|Не подменять человеческий Gate/);
 });
 
 test("base review skill checks repository coverage without creating another workflow", async () => {

@@ -24,7 +24,7 @@ cp -R templates/base ../team-template
 Базовый Template устанавливает только общий bootstrap-набор: постоянные инструкции
 выбранного агента, `.gitignore` для локального state, универсальный context pack,
 project-local `openspec/config.yaml` со штатной schema `spec-driven` и дополнительными
-правилами Planning, три русскоязычных project skills, одна native команда
+правилами Planning, четыре русскоязычных project skills, одна native команда
 для контекста (`/openspec-base-context`) и пять нативных read-only subagents. Они не
 зависят от Orchestrator-команд, Store registry, конкретной структуры
 репозиториев или ролей прежнего SDD-процесса.
@@ -112,6 +112,8 @@ API/config-параметры, команды build/test/lint, CI и упако�
   долговечного project context;
 
 Базовые skills:
+- `openspec-base-planning-check` — read-only маршрутизация проверки текущего
+  Planning-артефакта к минимальному набору специализированных skills и subagents;
 - `openspec-base-analyze-impact` — read-only анализ влияния Change;
 - `openspec-base-review-change` — read-only ревью Proposal, Delta Specs, Design и Tasks:
   проверяет полноту затронутых `repository-id`, межрепозиторные контракты,

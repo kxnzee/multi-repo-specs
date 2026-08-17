@@ -10,6 +10,9 @@
   команду `/openspec-base-context`.
 - Для списка проверяемых тест-кейсов по конкретному Change используй project skill
   `openspec-base-test-cases`.
+- Для проверки текущего Planning-артефакта и выбора минимального набора проверок
+  используй project skill `openspec-base-planning-check`; он маршрутизирует
+  специализированные skills и доступные read-only subagents по стадии и рискам.
 - Для анализа затронутых систем, capability, контрактов и проверок используй project
   skill `openspec-base-analyze-impact`.
 - Для независимой проверки Proposal, Delta Specs, Design и Tasks перед Gate или PR
