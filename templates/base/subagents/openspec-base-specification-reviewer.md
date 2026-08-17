@@ -36,9 +36,10 @@ tools:
   для обеих сторон, включая совместимость, порядок rollout и fallback.
 - Сопоставь Requirements и Scenarios с решениями и задачами, но не дели Specs по
   структуре Git-репозиториев.
-- Используй project context, repository context и CodeGraph только для проверки
-  полноты и существующих границ. Подтверждай важное evidence через `path:line` или
-  точный Requirement/Scenario; при недоступном CodeGraph назови fallback.
+- Используй центральный project context, локальные инструкции Code Repository и
+  CodeGraph только для проверки полноты и существующих границ. Подтверждай важное
+  evidence через `path:line` или точный Requirement/Scenario; при недоступном
+  CodeGraph назови fallback.
 - Не исправляй артефакты, не выбирай решение за владельца Change, не записывай Gate,
   не запускай команды и не создавай других agents.
 

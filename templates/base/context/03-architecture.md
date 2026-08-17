@@ -8,12 +8,12 @@ owner: unassigned
 expected_source: Code, deployment configuration, architecture documentation, or accepted ADRs
 -->
 
-## Технические ограничения и инварианты
+## Межсистемные ограничения и инварианты
 
 <!-- TODO
-question: Какие устойчивые технические условия ограничивают выбор решений?
+question: Какие условия должны сохраняться между несколькими системами или определяют их общую границу ответственности?
 owner: unassigned
-expected_source: Code, configuration, tests, incidents, or accepted ADRs
+expected_source: Contracts, maintained requirements, incidents, or accepted ADRs
 -->
 
 ## Интеграции и контракты

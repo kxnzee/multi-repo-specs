@@ -27,7 +27,8 @@ description: Проанализировать влияние конкретно�
 3. Прочитать существующие outputs Proposal, Delta Specs, Design и Tasks. Для каждой
    изменяемой capability прочитать соответствующий Master Spec. Если существует
    `openspec-orch.yaml`, получить из него допустимые `repository-id` с role `code` и
-   сопоставить их с `system-map.yaml` и repository-specific context.
+   сопоставить их с `system-map.yaml`; локальный технический контекст читать в checkout
+   и файле инструкций агента соответствующего Code Repository.
 4. Прочитать только относящиеся к вопросу project context, ADR, системную карту,
    контракты, конфигурацию, код и тесты.
 5. При необходимости делегировать один ограниченный read-only вопрос:

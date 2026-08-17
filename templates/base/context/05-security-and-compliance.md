@@ -1,7 +1,8 @@
 # Security and compliance
 
 Не записывайте сюда секреты, токены, приватные ключи и лишние персональные данные.
-Фиксируйте только устойчивые правила и проверяемые ограничения.
+Фиксируйте только общие правила и проверяемые ограничения продукта. Конкретные
+параметры реализации и конфигурации принадлежат соответствующему Code Repository.
 
 ## Данные и классификация
 
@@ -16,7 +17,7 @@ expected_source: Data inventory, schemas, security policy, or maintainer confirm
 <!-- TODO
 question: Какие правила доступа, журналирования, аудита и приватности обязательны?
 owner: unassigned
-expected_source: Security policy, configuration, or compliance documentation
+expected_source: Security policy, compliance documentation, or maintainer confirmation
 -->
 
 ## Безусловные запреты

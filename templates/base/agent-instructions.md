@@ -18,9 +18,10 @@
   `.openspec-store/` — metadata Store.
 - Перед созданием или проверкой Change прочитай из `openspec-orch.yaml` точные
   `repository-id` с role `code`, затем сопоставь их с
-  `openspec/context/system-map.yaml` и файлами
-  `openspec/context/repositories/<repository-id>.md`. В Proposal, Design и Tasks
-  разделяй влияние и evidence по этим id; Requirements и Scenarios оставляй
+  `openspec/context/system-map.yaml`. Техническое устройство, команды и инженерные
+  ограничения проверяй в checkout и файле инструкций агента соответствующего Code
+  Repository; не копируй их в центральный `openspec/context/`. В Proposal, Design и
+  Tasks разделяй влияние и evidence по этим id; Requirements и Scenarios оставляй
   capability-oriented и не дублируй по репозиториям.
 - Если в исследуемом Code Repository есть актуальный `.codegraph/` и доступен MCP
   server `codegraph`, сначала используй CodeGraph для навигации и только затем

@@ -1,10 +1,12 @@
 version: 1
 
-# repositories[]: id, responsibilities, systems, context, sources
+# repositories[]: id, responsibilities, systems, sources
 # systems[]: id, name, responsibilities, location, sources
 # relationships[]: from, to, type, contract, sources
 # При наличии openspec-orch.yaml repository id должны точно совпадать с его
 # repositories[role=code]. Не копируйте сюда remote и default branch.
+# Не копируйте сюда локальную структуру, технологии, конфигурацию, build/test-команды,
+# CI и упаковку Code Repository.
 # Добавляйте только подтверждённые репозитории, системы и связи; id уникальны внутри
 # своей секции.
 

@@ -6,8 +6,9 @@ context: |
   сведения из openspec/context/_raw/. Jira является источником запроса, а
   Requirements и Scenarios после принятия принадлежат OpenSpec. Если существует
   openspec-orch.yaml, прочитай repositories с role: code и используй их точные id.
-  Смысловые границы репозиториев проверяй по openspec/context/system-map.yaml и
-  openspec/context/repositories/<repository-id>.md, когда такой файл существует.
+  Общие границы репозиториев проверяй по openspec/context/system-map.yaml. Локальный
+  технический контекст проверяй в checkout соответствующего Code Repository и его
+  файле инструкций агента; не копируй его в центральный openspec/context/.
 
 rules:
   proposal:

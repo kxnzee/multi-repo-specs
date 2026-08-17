@@ -11,8 +11,12 @@
 - Неизвестное оставляйте как TODO с полями `question`, `owner`, `expected_source`.
 - Используйте фактическую модель владения проекта; фиксированные роли не требуются.
 - Если существует `openspec-orch.yaml`, используйте его `repositories` как реестр
-  точных `repository-id`; назначение и границы Code Repositories читайте в
-  `system-map.yaml` и `repositories/<repository-id>.md`.
+  точных `repository-id`; общие границы Code Repositories читайте в
+  `system-map.yaml`, а их локальное техническое устройство — только в самих Code
+  Repositories и их файлах инструкций агента.
+- Не переносите в центральный Store структуру модулей и классов, версии технологий,
+  локальные API/config-параметры, команды build/test/lint, CI и упаковку отдельного
+  Code Repository.
 - Для инициализации, аудита и обновления используйте команду `/openspec-base-context`.
 
 ## Маршрутизация
@@ -21,7 +25,8 @@
 |---|---|
 | Назначение, пользователи и границы продукта | `01-product-context.md`, `02-domain-glossary.md` |
 | Архитектура, компоненты и интеграции | `03-architecture.md`, `system-map.yaml`, `ADR/` |
-| Репозитории, их ответственность и границы | `openspec-orch.yaml`, `system-map.yaml`, `repositories/` |
+| Репозитории и их общие границы | `openspec-orch.yaml`, `system-map.yaml` |
+| Локальное техническое устройство репозитория | Файл инструкций агента, документация, конфигурация, код и тесты соответствующего Code Repository |
 | Доменное поведение и общие инварианты | `04-domain-model.md`, `06-cross-system-invariants.md` |
 | Безопасность и ограничения данных | `05-security-and-compliance.md` |
 | Проверки и критерии качества | `07-quality-gates.md` |

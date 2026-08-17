@@ -217,21 +217,41 @@ test("base OpenSpec config adds native planning rules without changing schema", 
   assert.equal(JSON.stringify(config).includes("sdd"), false);
 });
 
-test("base repository context separates registry identity from semantic ownership", async () => {
+test("base context keeps repository-local technical context outside the Store", async () => {
   const systemMap = parse(
     await fs.readFile(path.join(BASE_TEMPLATE_ROOT, "context", "system-map.yaml"), "utf8"),
   );
-  const repositoryContext = await fs.readFile(
-    path.join(BASE_TEMPLATE_ROOT, "context", "repositories", "README.md"),
+  const startHere = await fs.readFile(
+    path.join(BASE_TEMPLATE_ROOT, "context", "00-start-here.md"),
+    "utf8",
+  );
+  const command = await fs.readFile(
+    path.join(BASE_TEMPLATE_ROOT, "commands", "openspec-base-context.md"),
+    "utf8",
+  );
+  const architecture = await fs.readFile(
+    path.join(BASE_TEMPLATE_ROOT, "context", "03-architecture.md"),
+    "utf8",
+  );
+  const qualityGates = await fs.readFile(
+    path.join(BASE_TEMPLATE_ROOT, "context", "07-quality-gates.md"),
     "utf8",
   );
 
   assert.deepEqual(systemMap.repositories, []);
   assert.deepEqual(systemMap.systems, []);
   assert.deepEqual(systemMap.relationships, []);
-  assert.match(repositoryContext, /`openspec-orch\.yaml`.*единственным\s+реестром/s);
-  assert.match(repositoryContext, /repositories\/<repository-id>\.md/);
-  assert.match(repositoryContext, /Requirements и Scenarios разделяются по capability/);
+  assert.match(startHere, /локальное техническое устройство.*только в самих Code\s+Repositories/s);
+  assert.match(command, /Не создавать `openspec\/context\/repositories\/`/);
+  assert.match(command, /локальный технический контекст должен оставаться в соответствующем Code Repository/);
+  assert.match(architecture, /Межсистемные ограничения и инварианты/);
+  assert.doesNotMatch(architecture, /устойчивые технические условия/);
+  assert.match(qualityGates, /Локальные команды build\/test\/lint/);
+  assert.doesNotMatch(qualityGates, /Команда или источник/);
+  await assert.rejects(
+    fs.stat(path.join(BASE_TEMPLATE_ROOT, "context", "repositories")),
+    { code: "ENOENT" },
+  );
 });
 
 test("base impact and review skills remain read-only OpenSpec extensions", async () => {

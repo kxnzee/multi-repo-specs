@@ -93,12 +93,14 @@ Tasks. Context pack является обычным набором project files
 команды находятся рядом с официальными OpenSpec extensions и не изменяют их.
 
 `openspec-orch.yaml` остаётся единственным реестром точных repository identity.
-Context pack добавляет `system-map.yaml` и каталог
-`openspec/context/repositories/`: они описывают ответственность, системы, контракты и
-устойчивые ограничения каждого `repository-id`, не копируя remotes и branches.
-Planning rules требуют раздельный Repository impact в Proposal, implementation map в
-Design и Tasks по каждому id. Requirements и Scenarios продолжают описывать
-capability, а не структуру Git-репозиториев.
+Context pack добавляет `system-map.yaml`: он описывает общую ответственность,
+системы и межсистемные контракты, не копируя remotes, branches и локальное устройство
+Code Repositories. Структура модулей и классов, версии технологий, локальные
+API/config-параметры, команды build/test/lint, CI и упаковка остаются в файлах
+инструкций и других источниках соответствующего Code Repository. Planning rules
+требуют раздельный Repository impact в Proposal, implementation map в Design и Tasks
+по каждому id. Requirements и Scenarios продолжают описывать capability, а не
+структуру Git-репозиториев.
 
 Все поставляемые базовым Template команды, skills и subagents используют namespace
 `openspec-base-*`. Штатные артефакты, созданные `openspec init`, сохраняют namespace

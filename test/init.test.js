@@ -61,7 +61,6 @@ const COMMON_INIT_FILES = Object.freeze([
   "openspec/context/08-release-process.md",
   "openspec/context/ADR/README.md",
   "openspec/context/_raw/README.md",
-  "openspec/context/repositories/README.md",
   "openspec/context/system-map.yaml",
   "openspec-orch.yaml",
 ]);
@@ -285,7 +284,6 @@ test("base Project Template owns only focused bootstrap assets", async () => {
     "assets/gitignore.template",
     "context/00-start-here.md",
     "openspec/config.yaml",
-    "context/repositories/README.md",
     "context/system-map.yaml",
     "commands/openspec-base-context.md",
     "skills/openspec-base-analyze-impact/SKILL.md",

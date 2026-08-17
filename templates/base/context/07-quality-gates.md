@@ -24,7 +24,7 @@ security/compliance, миграция данных, несколько доме�
 | Evidence | Минимальное условие |
 |---|---|
 | PR | Требуемые реализации прошли review и связаны с Change |
-| CI | Обязательные автоматические проверки успешны |
+| Repository checks | В каждом затронутом Code Repository выполнены его локальные обязательные проверки |
 | Snapshot | Зафиксированы точные commits всех затронутых репозиториев |
 | Artifact | Определён build, image или другой поставляемый результат |
 | Deviations | Отклонения от OpenSpec отсутствуют или явно разрешены |
@@ -55,16 +55,8 @@ owner: unassigned
 expected_source: Test strategy, maintained requirements, incidents, or CI
 -->
 
-## Обязательные проверки
-
-| Проверка | Область | Команда или источник | Условие принятия |
-|---|---|---|---|
-
-<!-- TODO
-question: Какие проверки и evidence обязательны для принятия изменения?
-owner: unassigned
-expected_source: CI configuration, test strategy, or maintainer confirmation
--->
+Локальные команды build/test/lint, CI-конфигурация и технические критерии хранятся в
+соответствующих Code Repositories и не дублируются в Store.
 
 ## Исключения
 
