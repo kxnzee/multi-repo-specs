@@ -1,5 +1,5 @@
 ---
-name: openspec-project-context-researcher
+name: openspec-base-project-context-researcher
 description: "Использовать для ограниченного read-only исследования текущего поведения, доменных правил и подтверждённого контекста проекта, когда основной агент выполняет OpenSpec-задачу и ему не хватает evidence."
 model: inherit
 approvalMode: plan

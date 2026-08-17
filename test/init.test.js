@@ -72,20 +72,20 @@ const OPEN_SPEC_COMMANDS = Object.freeze([
   "opsx-update.md",
 ]);
 
-const PROJECT_COMMANDS = Object.freeze(["openspec-context.md"]);
+const PROJECT_COMMANDS = Object.freeze(["openspec-base-context.md"]);
 
 const PROJECT_SKILLS = Object.freeze([
-  "openspec-analyze-impact/SKILL.md",
-  "openspec-review-change/SKILL.md",
-  "openspec-test-cases/SKILL.md",
+  "openspec-base-analyze-impact/SKILL.md",
+  "openspec-base-review-change/SKILL.md",
+  "openspec-base-test-cases/SKILL.md",
 ]);
 
 const PROJECT_SUBAGENTS = Object.freeze([
-  "openspec-architecture-impact-reviewer.md",
-  "openspec-implementation-scout.md",
-  "openspec-project-context-researcher.md",
-  "openspec-specification-reviewer.md",
-  "openspec-verification-reviewer.md",
+  "openspec-base-architecture-impact-reviewer.md",
+  "openspec-base-implementation-scout.md",
+  "openspec-base-project-context-researcher.md",
+  "openspec-base-specification-reviewer.md",
+  "openspec-base-verification-reviewer.md",
 ]);
 
 const BASE_TEMPLATE_ROOT = new URL("../templates/base/", import.meta.url);
@@ -287,11 +287,11 @@ test("base Project Template owns only focused bootstrap assets", async () => {
     "openspec/config.yaml",
     "context/repositories/README.md",
     "context/system-map.yaml",
-    "commands/openspec-context.md",
-    "skills/openspec-analyze-impact/SKILL.md",
-    "skills/openspec-review-change/SKILL.md",
-    "skills/openspec-test-cases/SKILL.md",
-    "subagents/openspec-project-context-researcher.md",
+    "commands/openspec-base-context.md",
+    "skills/openspec-base-analyze-impact/SKILL.md",
+    "skills/openspec-base-review-change/SKILL.md",
+    "skills/openspec-base-test-cases/SKILL.md",
+    "subagents/openspec-base-project-context-researcher.md",
     "agent-instructions.md",
   ]) {
     assert.equal((await fs.stat(new URL(relativePath, BASE_TEMPLATE_ROOT))).isFile(), true);

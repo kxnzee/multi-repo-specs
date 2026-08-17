@@ -178,12 +178,12 @@ test("supported-agent documentation matches the Template registry", async () => 
 
 test("base context command is shipped as provider-native operation", async () => {
   const command = await fs.readFile(
-    path.join(BASE_TEMPLATE_ROOT, "commands", "openspec-context.md"),
+    path.join(BASE_TEMPLATE_ROOT, "commands", "openspec-base-context.md"),
     "utf8",
   );
 
-  assert.match(command, /^description: .+контекст/i);
-  assert.match(command, /\/openspec-context/);
+  assert.match(command, /^---\ndescription: .+context/im);
+  assert.match(command, /\/openspec-base-context/);
   assert.match(command, /openspec\/context/);
   assert.match(command, /Не изменять встроенные OpenSpec `openspec-\*` навыки и `opsx-\*` команды/);
   assert.match(command, /`context_status: updated`/);
@@ -235,7 +235,7 @@ test("base repository context separates registry identity from semantic ownershi
 });
 
 test("base impact and review skills remain read-only OpenSpec extensions", async () => {
-  for (const name of ["openspec-analyze-impact", "openspec-review-change"]) {
+  for (const name of ["openspec-base-analyze-impact", "openspec-base-review-change"]) {
     const skill = await fs.readFile(
       path.join(BASE_TEMPLATE_ROOT, "skills", name, "SKILL.md"),
       "utf8",
@@ -254,24 +254,24 @@ test("base impact and review skills remain read-only OpenSpec extensions", async
 
 test("base review skill checks repository coverage without creating another workflow", async () => {
   const skill = await fs.readFile(
-    path.join(BASE_TEMPLATE_ROOT, "skills", "openspec-review-change", "SKILL.md"),
+    path.join(BASE_TEMPLATE_ROOT, "skills", "openspec-base-review-change", "SKILL.md"),
     "utf8",
   );
 
   assert.match(skill, /declared.*inferred.*checked-no-change/s);
   assert.match(skill, /Proposal impact → Design map → Tasks → verification plan\/evidence/);
   assert.match(skill, /симметричность межрепозиторных контрактов/);
-  assert.match(skill, /`openspec-specification-reviewer`/);
+  assert.match(skill, /`openspec-base-specification-reviewer`/);
   assert.match(skill, /Отсутствие subagents не\s+блокирует ревью/);
 });
 
 test("base test-case skill is Russian and does not introduce another OpenSpec workflow", async () => {
   const skill = await fs.readFile(
-    path.join(BASE_TEMPLATE_ROOT, "skills", "openspec-test-cases", "SKILL.md"),
+    path.join(BASE_TEMPLATE_ROOT, "skills", "openspec-base-test-cases", "SKILL.md"),
     "utf8",
   );
 
-  assert.match(skill, /^name: openspec-test-cases$/m);
+  assert.match(skill, /^name: openspec-base-test-cases$/m);
   assert.match(skill, /^description: [А-ЯЁ]/m);
   assert.match(skill, /openspec status --change/);
   assert.match(skill, /По умолчанию выводить список в ответе/);
@@ -287,11 +287,11 @@ test("base test-case skill is Russian and does not introduce another OpenSpec wo
 
 test("base subagents are Russian read-only native profiles", async () => {
   const expectedNames = [
-    "openspec-architecture-impact-reviewer",
-    "openspec-implementation-scout",
-    "openspec-project-context-researcher",
-    "openspec-specification-reviewer",
-    "openspec-verification-reviewer",
+    "openspec-base-architecture-impact-reviewer",
+    "openspec-base-implementation-scout",
+    "openspec-base-project-context-researcher",
+    "openspec-base-specification-reviewer",
+    "openspec-base-verification-reviewer",
   ];
   const readOnlyTools = [
     "read_file",
@@ -320,7 +320,7 @@ test("base subagents are Russian read-only native profiles", async () => {
     assert.ok(frontmatterMatch, name);
     const frontmatter = parse(frontmatterMatch[1]);
     assert.equal(frontmatter.name, name);
-    assert.match(frontmatter.name, /^openspec-/);
+    assert.match(frontmatter.name, /^openspec-base-/);
     assert.match(frontmatter.description, /[А-Яа-яЁё]/);
     assert.equal(frontmatter.model, "inherit");
     assert.equal(frontmatter.approvalMode, "plan");

@@ -2,7 +2,7 @@
 description: Инициализировать, проверить или актуализировать долговечный project context OpenSpec в `openspec/context`.
 ---
 
-# /openspec-context
+# /openspec-base-context
 
 ## Цель
 

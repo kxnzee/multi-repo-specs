@@ -45,7 +45,7 @@ codegraph status
 
 Alias является частью контракта Template: read-only subagents разрешают только
 инструменты `mcp__codegraph__codegraph_*`. После настройки проверьте `/mcp`, `/tools`
-и отдельный запуск `openspec-implementation-scout` на тестовом вопросе.
+и отдельный запуск `openspec-base-implementation-scout` на тестовом вопросе.
 
 ## Политика использования
 

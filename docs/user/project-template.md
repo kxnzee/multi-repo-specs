@@ -25,7 +25,7 @@ cp -R templates/base ../team-template
 выбранного агента, `.gitignore` для локального state, универсальный context pack,
 project-local `openspec/config.yaml` со штатной schema `spec-driven` и дополнительными
 правилами Planning, три русскоязычных project skills, одна native команда
-для контекста (`/openspec-context`) и пять нативных read-only subagents. Они не
+для контекста (`/openspec-base-context`) и пять нативных read-only subagents. Они не
 зависят от Orchestrator-команд, Store registry, конкретной структуры
 репозиториев или ролей прежнего SDD-процесса.
 
@@ -100,17 +100,21 @@ Planning rules требуют раздельный Repository impact в Proposal
 Design и Tasks по каждому id. Requirements и Scenarios продолжают описывать
 capability, а не структуру Git-репозиториев.
 
+Все поставляемые базовым Template команды, skills и subagents используют namespace
+`openspec-base-*`. Штатные артефакты, созданные `openspec init`, сохраняют namespace
+`openspec-*`, а произвольный пользовательский Template может выбрать собственный.
+
 Базовый контекстный контракт:
 
-- `/openspec-context` — команда для инициализации, аудита и актуализации
+- `/openspec-base-context` — команда для инициализации, аудита и актуализации
   долговечного project context;
 
 Базовые skills:
-- `openspec-analyze-impact` — read-only анализ влияния Change;
-- `openspec-review-change` — read-only ревью Proposal, Delta Specs, Design и Tasks:
+- `openspec-base-analyze-impact` — read-only анализ влияния Change;
+- `openspec-base-review-change` — read-only ревью Proposal, Delta Specs, Design и Tasks:
   проверяет полноту затронутых `repository-id`, межрепозиторные контракты,
   трассируемость и готовность к человеческому Gate;
-- `openspec-test-cases` — список трассируемых тест-кейсов без автоматической записи
+- `openspec-base-test-cases` — список трассируемых тест-кейсов без автоматической записи
   нештатного файла внутри Change.
 
 Subagents устанавливаются в нативный каталог, заданный agent mapping. Вложенные
@@ -120,22 +124,22 @@ provider.
 
 ### OpenSpec-сабагенты
 
-Их имена всегда начинаются с `openspec-`. Встроенный OpenSpec skill остаётся
+Их имена всегда начинаются с `openspec-base-`. Встроенный OpenSpec skill остаётся
 владельцем workflow и файлов; эти subagents нативно выполняют только ограниченное
 read-only исследование и возвращают evidence в текущую сессию:
 
-- `openspec-project-context-researcher`;
-- `openspec-architecture-impact-reviewer`;
-- `openspec-implementation-scout`;
-- `openspec-specification-reviewer` — независимое ревью спеки и матрицы покрытия
+- `openspec-base-project-context-researcher`;
+- `openspec-base-architecture-impact-reviewer`;
+- `openspec-base-implementation-scout`;
+- `openspec-base-specification-reviewer` — независимое ревью спеки и матрицы покрытия
   репозиториев;
-- `openspec-verification-reviewer`.
+- `openspec-base-verification-reviewer`.
 
 ### Общие project subagents
 
-Профили без префикса `openspec-` предназначены для задач, не принадлежащих OpenSpec
-workflow. Базовый Template сейчас не добавляет общих сабагентов; проект может
-добавить их через собственный Template.
+Префикс `openspec-base-` зарезервирован за OpenSpec-профилями базового Template.
+Общие project subagents используют namespace проекта. Базовый Template сейчас их не
+добавляет; проект может добавить такие профили через собственный Template.
 
 Core не запускает их и не сохраняет ответы. Для обнаружения готового Store он
 по-прежнему требует только metadata/config, штатный `openspec/config.yaml`, каталог

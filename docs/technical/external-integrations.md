@@ -17,7 +17,7 @@ credentials должны быть выбраны отдельно.
 ## Zephyr
 
 Исходником тестового покрытия являются OpenSpec Scenarios и результат skill
-`openspec-test-cases`. Нейтральная запись для будущего adapter содержит:
+`openspec-base-test-cases`. Нейтральная запись для будущего adapter содержит:
 
 ```text
 case_id

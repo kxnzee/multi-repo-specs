@@ -167,23 +167,12 @@ checkout Orchestrator как неявный target. До отдельного п
 ожидал, что `openspec-orch init --store specs` создаст Store `specs` в текущем
 workspace.
 
-### ORCH-B19 — классификация успешного stderr OpenSpec
-
-Разделять в человекочитаемом прогрессе документированный информационный баннер
-OpenSpec `Using OpenSpec root: ...` и фактические предупреждения. Настоящие
-диагностики не скрывать; успешный информационный вывод показывать как `info`, а не
-как warning.
-
-**Триггер:** на подготовке пилота успешный `openspec-orch connect` для Store и двух
-Code Repositories трижды показал информационный баннер выбора root как
-«Предупреждение OpenSpec», из-за чего пользователь отдельно проверял наличие ошибки.
-
-### ORCH-B20 — `openspec-context` только как project command
+### ORCH-B20 — `openspec-base-context` только как project command
 
 Перенести сбор и актуализацию долговечного project context из одноимённого project
-skill в отдельную provider-native команду `/openspec-context`. После установки
+skill в отдельную provider-native команду `/openspec-base-context`. После установки
 Project Template команда должна содержать полный самостоятельный контракт операции,
-а `openspec-context` не должен присутствовать или обнаруживаться как skill. Не
+а `openspec-base-context` не должен присутствовать или обнаруживаться как skill. Не
 изменять встроенные OpenSpec `openspec-*` skills и `opsx-*` commands.
 
 При отдельном проектировании определить provider-specific размещение команды,
@@ -191,8 +180,9 @@ Project Template команда должна содержать полный с�
 текущие границы записи: только подтверждённый долговечный контекст в
 `openspec/context/`, без Changes, Specs и прикладного кода.
 
-**Триггер:** во время пилота Claude вызвал `/openspec-context`, но фактически
-исполнение было атрибутировано одноимённому project skill, установленному Template.
+**Триггер:** во время пилота Claude вызвал тогдашнюю `/openspec-context` (теперь
+`/openspec-base-context`), но фактически исполнение было атрибутировано одноимённому
+project skill, установленному Template.
 Пользователь подтвердил требование: контекст должен запускаться только явной
 командой, а не предоставляться как skill.
 

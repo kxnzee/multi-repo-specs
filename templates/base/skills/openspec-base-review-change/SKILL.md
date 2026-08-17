@@ -1,5 +1,5 @@
 ---
-name: openspec-review-change
+name: openspec-base-review-change
 description: Провести независимое ревью спеки конкретного OpenSpec Change перед Gate 1, Development или PR Review. Проверять Proposal, Delta Specs, Design и Tasks, полноту списка затронутых репозиториев, согласованность Repository impact, межрепозиторные контракты, трассируемость, тестируемость и evidence поверх штатного openspec validate. Использовать также по запросам «проверь спеку», «готов ли Change к разработке» и «все ли репозитории учтены». По умолчанию работать на чтение, не исправлять артефакты и не записывать решение Gate.
 ---
 
@@ -65,11 +65,11 @@ description: Провести независимое ревью спеки ко�
    - Developer — реализуемость, контракты, миграция, rollback и задачи;
    - QA — однозначность Scenarios, негативные и граничные случаи, evidence;
    - Lead — breaking changes, security, данные, несколько доменов и SLO.
-9. Если доступен `openspec-specification-reviewer`, передать ему Change, режим,
+9. Если доступен `openspec-base-specification-reviewer`, передать ему Change, режим,
    review set и один независимый read-only вопрос о полноте или согласованности
    спеки. Для архитектурной неопределённости использовать
-   `openspec-architecture-impact-reviewer`, а для evidence готовой реализации —
-   `openspec-verification-reviewer`. Отсутствие subagents не блокирует ревью.
+   `openspec-base-architecture-impact-reviewer`, а для evidence готовой реализации —
+   `openspec-base-verification-reviewer`. Отсутствие subagents не блокирует ревью.
 10. Удалить дубликаты и отсортировать findings по значимости:
    - `BLOCKER` — без решения нельзя принимать текущий Gate;
    - `WARNING` — риск требует явного решения владельца;

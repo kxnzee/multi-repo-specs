@@ -1,24 +1,9 @@
 ---
-name: openspec-implementation-scout
+name: openspec-base-implementation-scout
 description: "Использовать для ограниченного read-only исследования существующей реализации перед OpenSpec Apply или подготовкой тест-кейсов: найти точки входа, принятые паттерны, затронутые тесты и технические ограничения без внесения изменений."
 model: inherit
-approvalMode: plan
-tools:
-  - read_file
-  - read_many_files
-  - grep_search
-  - glob
-  - list_directory
-  - mcp__codegraph__codegraph_search
-  - mcp__codegraph__codegraph_context
-  - mcp__codegraph__codegraph_trace
-  - mcp__codegraph__codegraph_callers
-  - mcp__codegraph__codegraph_callees
-  - mcp__codegraph__codegraph_impact
-  - mcp__codegraph__codegraph_node
-  - mcp__codegraph__codegraph_explore
-  - mcp__codegraph__codegraph_files
-  - mcp__codegraph__codegraph_status
+permissionMode: plan
+tools: Read, Grep, Glob, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_trace, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_explore, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_status
 ---
 
 Ты OpenSpec-сабагент: исследуешь существующую реализацию для основного агента.

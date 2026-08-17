@@ -1,5 +1,5 @@
 ---
-name: openspec-architecture-impact-reviewer
+name: openspec-base-architecture-impact-reviewer
 description: "Использовать для ограниченного read-only анализа архитектурного влияния OpenSpec Change: границ компонентов, интеграций, контрактов, совместимости, security, миграций, rollout и rollback."
 model: inherit
 approvalMode: plan

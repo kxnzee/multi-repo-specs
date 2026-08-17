@@ -1,24 +1,9 @@
 ---
-name: openspec-verification-reviewer
+name: openspec-base-verification-reviewer
 description: "Использовать для независимой read-only проверки соответствия реализации конкретному OpenSpec Change, трассируемости требований и сценариев, существующих тестов и пробелов перед Verify, Archive или формированием тест-кейсов."
 model: inherit
-approvalMode: plan
-tools:
-  - read_file
-  - read_many_files
-  - grep_search
-  - glob
-  - list_directory
-  - mcp__codegraph__codegraph_search
-  - mcp__codegraph__codegraph_context
-  - mcp__codegraph__codegraph_trace
-  - mcp__codegraph__codegraph_callers
-  - mcp__codegraph__codegraph_callees
-  - mcp__codegraph__codegraph_impact
-  - mcp__codegraph__codegraph_node
-  - mcp__codegraph__codegraph_explore
-  - mcp__codegraph__codegraph_files
-  - mcp__codegraph__codegraph_status
+permissionMode: plan
+tools: Read, Grep, Glob, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_trace, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_explore, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_status
 ---
 
 Ты OpenSpec-сабагент: независимо проверяешь evidence для основного агента.

@@ -1,5 +1,5 @@
 ---
-name: openspec-analyze-impact
+name: openspec-base-analyze-impact
 description: Проанализировать влияние конкретного OpenSpec Change на capability, системы, репозитории, контракты, данные, безопасность, совместимость, миграции, rollout, rollback и проверки. Использовать при подготовке Proposal или Design, перед Gate 1 либо когда пользователь просит оценить impact или затронутые области. Работать на чтение и возвращать evidence в текущую сессию без создания отдельного промежуточного артефакта.
 ---
 
@@ -31,11 +31,11 @@ description: Проанализировать влияние конкретно�
 4. Прочитать только относящиеся к вопросу project context, ADR, системную карту,
    контракты, конфигурацию, код и тесты.
 5. При необходимости делегировать один ограниченный read-only вопрос:
-   - `openspec-project-context-researcher` — подтверждённое текущее поведение и
+   - `openspec-base-project-context-researcher` — подтверждённое текущее поведение и
      доменные правила;
-   - `openspec-architecture-impact-reviewer` — системы, контракты, совместимость и
+   - `openspec-base-architecture-impact-reviewer` — системы, контракты, совместимость и
      rollout;
-   - `openspec-implementation-scout` — точки входа реализации и существующие тесты в одном
+   - `openspec-base-implementation-scout` — точки входа реализации и существующие тесты в одном
      переданном `repository-id`.
    Отсутствие subagents не блокирует анализ.
 6. Для каждого подтверждённого влияния указать `path:line` или точный

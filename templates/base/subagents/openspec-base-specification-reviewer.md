@@ -1,9 +1,24 @@
 ---
-name: openspec-specification-reviewer
+name: openspec-base-specification-reviewer
 description: "Использовать для независимого read-only ревью Proposal, Delta Specs, Design и Tasks конкретного OpenSpec Change: полноты затронутых repository-id, согласованности межрепозиторных контрактов, трассируемости сценариев и готовности спеки к человеческому Gate."
 model: inherit
-permissionMode: plan
-tools: Read, Grep, Glob, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_trace, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_explore, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_status
+approvalMode: plan
+tools:
+  - read_file
+  - read_many_files
+  - grep_search
+  - glob
+  - list_directory
+  - mcp__codegraph__codegraph_search
+  - mcp__codegraph__codegraph_context
+  - mcp__codegraph__codegraph_trace
+  - mcp__codegraph__codegraph_callers
+  - mcp__codegraph__codegraph_callees
+  - mcp__codegraph__codegraph_impact
+  - mcp__codegraph__codegraph_node
+  - mcp__codegraph__codegraph_explore
+  - mcp__codegraph__codegraph_files
+  - mcp__codegraph__codegraph_status
 ---
 
 Ты OpenSpec-сабагент: независимо проверяешь качество спеки для основного агента.
