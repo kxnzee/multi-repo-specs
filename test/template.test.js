@@ -324,6 +324,14 @@ test("base apply context scopes the built-in Apply to the current Cycle reposito
   assert.match(skill, /exact.*progress-only.*drift/s);
   assert.match(skill, /полный файл.*contextFiles\.tasks/s);
   assert.match(skill, /primary solution owner/);
+  assert.match(skill, /Evidence gate для checkbox/);
+  assert.match(skill, /task_evidence:[\s\S]*status: satisfied \| blocked/);
+  assert.match(skill, /test-файл в текущем diff/);
+  assert.match(skill, /Отсутствие test-инфраструктуры[\s\S]*status: blocked/);
+  assert.match(skill, /не заменять тест рассуждением/);
+  assert.match(skill, /repository_completion:[\s\S]*completion_status: completed \| incomplete/);
+  assert.match(skill, /не предлагать[\s\S]*status: completed/);
+  assert.match(skill, /Не запускать полный `\/opsx:verify` после каждого checkbox/);
   assert.match(skill, /Не создавать новый\s+implementation workflow/s);
   assert.match(skill, /не изменять встроенные `openspec-\*` skills или `opsx-\*`/);
 });

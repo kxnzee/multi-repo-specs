@@ -114,7 +114,9 @@ API/config-параметры, команды build/test/lint, CI и упако�
 Базовые skills:
 - `openspec-base-apply-context` — preflight штатного Apply: подтверждает текущий
   repository-id и Cycle, проверяет принятую planning revision и выбирает только
-  принадлежащие репозиторию sections Tasks;
+  принадлежащие репозиторию sections Tasks; перед каждым `[x]` требует task-level
+  evidence (реальный artifact и выполненную проверку), а при незакрытой задаче не
+  разрешает объявить repository Result завершённым;
 - `openspec-base-planning-check` — read-only маршрутизация проверки текущего
   Planning-артефакта к минимальному набору специализированных skills и subagents;
 - `openspec-base-analyze-impact` — read-only анализ влияния Change;

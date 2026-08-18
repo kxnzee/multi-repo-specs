@@ -25,7 +25,10 @@
 текущий Cycle и выполняет только sections Tasks этого repository-id. Общая секция
 выполняется указанным owner либо primary solution owner из Design. Изменение
 Proposal, Specs, Design или текста Tasks во время активного Cycle возвращает Change
-в Planning; обычное переключение checkbox является состоянием выполнения.
+в Planning; обычное переключение checkbox является состоянием выполнения. Apply
+переключает checkbox только после task-level evidence: требуемый artifact существует,
+а предусмотренная задачей проверка фактически выполнена. Для test-задачи отсутствие
+test-файла или успешного запуска оставляет `[ ]` и блокирует completed Result Receipt.
 
 ## Артефакты Planning
 
