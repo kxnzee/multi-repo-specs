@@ -1,13 +1,14 @@
 ---
 name: openspec-base-apply-context
-description: Подготовить repository-scoped контекст для штатного OpenSpec Apply по принятому Cycle. Использовать внутри /opsx:apply перед изменением кода, когда Change хранится в центральном Store, а реализация распределена по Code Repositories. Проверять текущий repository-id, участие в Cycle, неизменность принятого Planning и выбирать только принадлежащие текущему репозиторию секции Tasks. Не заменять встроенный openspec-apply-change.
+description: Выбрать standard или orchestrated режим штатного OpenSpec Apply и подготовить repository-scoped контекст для принятого Cycle. Использовать внутри /opsx:apply перед изменением кода, когда Change хранится в центральном Store. При CYCLE_NOT_FOUND предлагать обычный Apply без Orchestrator либо создание Cycle; при существующем Cycle проверять repository-id, planning revision и выбирать только принадлежащие текущему репозиторию секции Tasks. Не заменять встроенный openspec-apply-change.
 ---
 
 # Repository-scoped контекст Apply
 
-Ограничить один запуск штатного Apply текущим Code Repository. Не создавать новый
-implementation workflow и не изменять встроенные `openspec-*` skills или `opsx-*`
-commands.
+Сохранить обычный OpenSpec Apply доступным для Change без Cycle и ограничить Apply
+текущим Code Repository, когда пользователь включил Orchestrator созданием Cycle.
+Не создавать новый implementation workflow и не изменять встроенные `openspec-*`
+skills или `opsx-*` commands.
 
 ## Preflight
 
@@ -17,15 +18,57 @@ commands.
    Tasks и project `context`, не собирать пути вручную.
 2. Из текущего рабочего каталога выполнить `openspec-orch status "<change-id>"
    --json`.
-3. Остановить Apply со статусом `blocked`, если:
+3. Классифицировать результат `status`:
+   - успешный ответ с Cycle — продолжить в orchestrated-режиме;
+   - только ошибка `CYCLE_NOT_FOUND` — перейти к выбору режима ниже;
+   - любая другая ошибка — остановить Apply со статусом `blocked`. Не трактовать
+     недоступную команду, повреждённый state, ошибку repository identity или иной
+     сбой как отсутствие Cycle.
+4. В orchestrated-режиме остановить Apply со статусом `blocked`, если:
    - Cycle Record не закоммичен;
    - `current_repository` отсутствует или имеет role `store`;
    - `current_repository.in_cycle` не равен `true`;
    - repository identity или OpenSpec pointer не прошли проверку Core.
-4. Если сессия открыта не из Code Repository, предложить открыть персональный
+5. Если сессия открыта не из Code Repository, предложить открыть персональный
    OpenSpec Workset, где Code Repository является первым member, а Store — вторым.
 
+## Выбор режима без Cycle
+
+Если `status` завершился именно с `CYCLE_NOT_FOUND`, не блокировать штатный Apply и
+не создавать Cycle автоматически. Предложить пользователю два явных варианта:
+
+1. **Standard OpenSpec Apply** — продолжить встроенный `openspec-apply-change` без
+   repository scope, Planning pin, Result Receipts и Snapshot Orchestrator.
+2. **Orchestrated Apply** — остановиться до изменения кода и предложить создать и
+   закоммитить Cycle обычной командой `openspec-orch assign` из Store.
+
+Если пользователь уже явно выбрал standard-режим в текущем запросе, не спрашивать
+повторно. В standard-режиме вывести следующий контракт и передать встроенному Apply
+исходные `contextFiles`, Tasks и project context без repository-фильтрации:
+
+```yaml
+apply_mode:
+  change: <change-id>
+  mode: standard
+  orchestration: disabled
+  reason: CYCLE_NOT_FOUND
+```
+
+Не вызывать для standard-режима проверки целостности Cycle из следующих разделов,
+не создавать фиктивные Receipts и не предлагать `record assignment` или `verify`.
+Явно предупредить, что встроенный Apply самостоятельно определяет доступный scope и
+что воспроизводимый multi-repository Snapshot в этом режиме отсутствует.
+
+Если пользователь выбрал orchestrated-режим, не продолжать встроенный Apply в этой
+сессии: вывести требуемое следующее действие `openspec-orch assign` и дождаться
+закоммиченного Cycle. Если Cycle существует, не предлагать standard-режим как обход
+его guardrails: Change завершается в orchestrated-режиме либо сначала получает
+отдельное явное человеческое решение об отмене Cycle вне этого skill.
+
 ## Целостность принятого Planning
+
+Этот и следующие разделы до передачи управления применять только в
+orchestrated-режиме.
 
 1. Взять `planning_revision` только из JSON-ответа Orchestrator и проверить наличие
    commit через Git без сети.
@@ -115,6 +158,7 @@ task_evidence:
 ```yaml
 apply_scope:
   change: <change-id>
+  mode: orchestrated
   cycle: <cycle-id>
   planning_revision: <sha>
   planning_integrity: exact | progress-only

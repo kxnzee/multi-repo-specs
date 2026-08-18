@@ -19,16 +19,23 @@
 11. **Archive** — штатный OpenSpec Archive и обязательная производная копия в
     Confluence.
 
-Разработчик открывает персональный OpenSpec Workset, в котором его Code Repository
-является первым member, а центральный Store — вторым, и запускает штатный
-`/opsx:apply <change-id>`. Project skill `openspec-base-apply-context` подтверждает
-текущий Cycle и выполняет только sections Tasks этого repository-id. Общая секция
-выполняется указанным owner либо primary solution owner из Design. Изменение
-Proposal, Specs, Design или текста Tasks во время активного Cycle возвращает Change
-в Planning; обычное переключение checkbox является состоянием выполнения. Apply
-переключает checkbox только после task-level evidence: требуемый artifact существует,
-а предусмотренная задачей проверка фактически выполнена. Для test-задачи отсутствие
-test-файла или успешного запуска оставляет `[ ]` и блокирует completed Result Receipt.
+Разработчик запускает штатный `/opsx:apply <change-id>`. Project skill
+`openspec-base-apply-context` сначала проверяет наличие Cycle. Только
+`CYCLE_NOT_FOUND` открывает выбор: продолжить standard OpenSpec Apply без
+Orchestrator либо остановиться и создать Cycle. Standard-режим не даёт repository
+scope, Planning pin, Result Receipts и воспроизводимый multi-repository Snapshot.
+
+При существующем Cycle применяется orchestrated-режим. Разработчик открывает
+персональный OpenSpec Workset, в котором его Code Repository является первым member,
+а центральный Store — вторым. Skill выполняет только sections Tasks этого
+repository-id; существующий Cycle нельзя обходить переключением в standard-режим.
+Общая секция выполняется указанным owner либо primary solution owner из Design.
+Изменение Proposal, Specs, Design или текста Tasks во время активного Cycle возвращает
+Change в Planning; обычное переключение checkbox является состоянием выполнения.
+Apply переключает checkbox только после task-level evidence: требуемый artifact
+существует, а предусмотренная задачей проверка фактически выполнена. Для test-задачи
+отсутствие test-файла или успешного запуска оставляет `[ ]` и блокирует completed
+Result Receipt.
 
 ## Артефакты Planning
 

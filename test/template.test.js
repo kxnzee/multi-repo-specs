@@ -208,7 +208,10 @@ test("base OpenSpec config adds native planning rules without changing schema", 
   assert.match(config.context, /openspec\/context\/00-start-here\.md/);
   assert.match(config.context, /openspec-orch\.yaml/);
   assert.match(config.context, /openspec-base-apply-context/);
-  assert.match(config.context, /Встроенный openspec-apply-change\s+остаётся владельцем workflow/);
+  assert.match(config.context, /CYCLE_NOT_FOUND/);
+  assert.match(config.context, /standard OpenSpec Apply без Orchestrator/);
+  assert.match(config.context, /другие ошибки не превращай в fallback/);
+  assert.match(config.context, /Встроенный openspec-apply-change\s+остаётся\s+владельцем workflow/);
   assert.deepEqual(Object.keys(config.rules).sort(), ["design", "proposal", "specs", "tasks"]);
   assert.match(config.rules.proposal.join("\n"), /не создавать отдельный questionnaire-файл/i);
   assert.match(config.rules.proposal.join("\n"), /Repository impact/);
@@ -222,6 +225,17 @@ test("base OpenSpec config adds native planning rules without changing schema", 
   assert.match(config.rules.tasks.join("\n"), /primary solution owner/);
   assert.match(config.rules.tasks.join("\n"), /openspec-base-planning-check.*tasks/i);
   assert.equal(JSON.stringify(config).includes("sdd"), false);
+});
+
+test("base agent instructions keep standard Apply available when no Cycle exists", async () => {
+  const instructions = await fs.readFile(
+    path.join(BASE_TEMPLATE_ROOT, "agent-instructions.md"),
+    "utf8",
+  );
+
+  assert.match(instructions, /Только при `CYCLE_NOT_FOUND`/);
+  assert.match(instructions, /standard\s+OpenSpec Apply без Orchestrator/s);
+  assert.match(instructions, /либо создание Cycle/);
 });
 
 test("base context keeps repository-local technical context outside the Store", async () => {
@@ -320,6 +334,13 @@ test("base apply context scopes the built-in Apply to the current Cycle reposito
   assert.deepEqual(Object.keys(frontmatter).sort(), ["description", "name"]);
   assert.equal(frontmatter.name, "openspec-base-apply-context");
   assert.match(skill, /openspec-orch status.*--json/s);
+  assert.match(skill, /только ошибка `CYCLE_NOT_FOUND`/);
+  assert.match(skill, /любая другая ошибка.*статусом `blocked`/s);
+  assert.match(skill, /Standard OpenSpec Apply/);
+  assert.match(skill, /mode: standard[\s\S]*orchestration: disabled/);
+  assert.match(skill, /не создавать фиктивные Receipts/);
+  assert.match(skill, /не предлагать `record assignment` или `verify`/);
+  assert.match(skill, /Если Cycle существует, не предлагать standard-режим как обход/);
   assert.match(skill, /current_repository\.in_cycle/);
   assert.match(skill, /exact.*progress-only.*drift/s);
   assert.match(skill, /полный файл.*contextFiles\.tasks/s);
@@ -329,11 +350,12 @@ test("base apply context scopes the built-in Apply to the current Cycle reposito
   assert.match(skill, /test-файл в текущем diff/);
   assert.match(skill, /Отсутствие test-инфраструктуры[\s\S]*status: blocked/);
   assert.match(skill, /не заменять тест рассуждением/);
+  assert.match(skill, /mode: orchestrated[\s\S]*planning_revision/);
   assert.match(skill, /repository_completion:[\s\S]*completion_status: completed \| incomplete/);
   assert.match(skill, /не предлагать[\s\S]*status: completed/);
   assert.match(skill, /Не запускать полный `\/opsx:verify` после каждого checkbox/);
   assert.match(skill, /Не создавать новый\s+implementation workflow/s);
-  assert.match(skill, /не изменять встроенные `openspec-\*` skills или `opsx-\*`/);
+  assert.match(skill, /не изменять встроенные `openspec-\*`\s+skills или `opsx-\*`/);
 });
 
 test("base review skill checks repository coverage without creating another workflow", async () => {

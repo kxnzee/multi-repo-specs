@@ -10,9 +10,11 @@ context: |
   технический контекст проверяй в checkout соответствующего Code Repository и его
   файле инструкций агента; не копируй его в центральный openspec/context/.
   Во время штатного Apply сначала используй project skill
-  openspec-base-apply-context: он проверяет принятый Cycle и ограничивает текущий
-  запуск секциями Tasks текущего Code Repository. Встроенный openspec-apply-change
-  остаётся владельцем workflow; не выполняй секции других репозиториев.
+  openspec-base-apply-context. Если Cycle существует, он ограничивает запуск секциями
+  Tasks текущего Code Repository. Если status возвращает именно CYCLE_NOT_FOUND,
+  предложи пользователю standard OpenSpec Apply без Orchestrator либо создание Cycle;
+  другие ошибки не превращай в fallback. Встроенный openspec-apply-change остаётся
+  владельцем workflow.
 
 rules:
   proposal:

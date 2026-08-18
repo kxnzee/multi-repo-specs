@@ -14,9 +14,10 @@
   используй project skill `openspec-base-planning-check`; он маршрутизирует
   специализированные skills и доступные read-only subagents по стадии и рискам.
 - Во время штатного `/opsx:apply` используй project skill
-  `openspec-base-apply-context`: он подтверждает текущий Code Repository и Cycle,
-  проверяет принятую planning revision и ограничивает Apply принадлежащими этому
-  репозиторию sections Tasks. Он не заменяет встроенный Apply.
+  `openspec-base-apply-context`: при существующем Cycle он подтверждает текущий Code
+  Repository, проверяет planning revision и ограничивает Apply принадлежащими этому
+  репозиторию sections Tasks. Только при `CYCLE_NOT_FOUND` он предлагает standard
+  OpenSpec Apply без Orchestrator либо создание Cycle. Он не заменяет встроенный Apply.
 - Для анализа затронутых систем, capability, контрактов и проверок используй project
   skill `openspec-base-analyze-impact`.
 - Для независимой проверки Proposal, Delta Specs, Design и Tasks перед Gate или PR
