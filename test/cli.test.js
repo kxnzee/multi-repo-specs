@@ -41,19 +41,32 @@ async function parseCommand(args) {
   return invocation;
 }
 
-test("rejects Node versions below the runtime dependency boundary", () => {
+test("enforces the Node runtime dependency boundary", () => {
   const entrypoint = pathToFileURL(path.resolve("src/bin/openspec-orch.js")).href;
-  const script = `
-    Object.defineProperty(process.versions, "node", { value: "20.4.0" });
+  const unsupportedScript = `
+    Object.defineProperty(process.versions, "node", { value: "20.18.0" });
     await import(${JSON.stringify(entrypoint)});
   `;
-  const result = spawnSync(
+  const unsupported = spawnSync(
     process.execPath,
-    ["--input-type=module", "--eval", script],
+    ["--input-type=module", "--eval", unsupportedScript],
     { cwd: path.resolve("."), encoding: "utf8" },
   );
-  assert.equal(result.status, 1);
-  assert.notEqual(result.stderr, "");
+  assert.equal(unsupported.status, 1);
+  assert.match(unsupported.stderr, /требует Node\.js 20\.19\.0 или новее/);
+
+  const supportedScript = `
+    Object.defineProperty(process.versions, "node", { value: "20.19.0" });
+    process.argv = [process.execPath, ${JSON.stringify(path.resolve("src/bin/openspec-orch.js"))}, "--help"];
+    await import(${JSON.stringify(entrypoint)});
+  `;
+  const supported = spawnSync(
+    process.execPath,
+    ["--input-type=module", "--eval", supportedScript],
+    { cwd: path.resolve("."), encoding: "utf8" },
+  );
+  assert.equal(supported.status, 0, supported.stderr);
+  assert.match(supported.stdout, /^Usage: openspec-orch/m);
 });
 
 test("public binary exposes generated help", () => {
