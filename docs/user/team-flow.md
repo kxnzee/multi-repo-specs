@@ -19,6 +19,14 @@
 11. **Archive** — штатный OpenSpec Archive и обязательная производная копия в
     Confluence.
 
+Разработчик открывает персональный OpenSpec Workset, в котором его Code Repository
+является первым member, а центральный Store — вторым, и запускает штатный
+`/opsx:apply <change-id>`. Project skill `openspec-base-apply-context` подтверждает
+текущий Cycle и выполняет только sections Tasks этого repository-id. Общая секция
+выполняется указанным owner либо primary solution owner из Design. Изменение
+Proposal, Specs, Design или текста Tasks во время активного Cycle возвращает Change
+в Planning; обычное переключение checkbox является состоянием выполнения.
+
 ## Артефакты Planning
 
 Полный Change включает:

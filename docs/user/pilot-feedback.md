@@ -26,6 +26,24 @@
 
 ## Подтверждённые дефекты до пилота
 
+### 2026-08-18 — штатный `/opsx:apply` не получает repository scope текущего Cycle
+
+- Проверка: первый реальный multi-repository Change
+  `jit-002-moderated-visitor-promotion` после принятия Planning и создания Cycle.
+- Наблюдаемый факт: `openspec instructions apply --json` из подключённого Code
+  Repository возвращает общий список Tasks Change, а существующий
+  `openspec-orch status` не работает из Code Repository и не имеет JSON-контракта,
+  по которому агент мог бы подтвердить текущий repository-id и его участие в Cycle.
+- Нарушает текущий контракт: да — Code Repository подключён официальным OpenSpec
+  pointer, но штатный `/opsx:apply` нельзя безопасно ограничить его частью Tasks.
+- Блокирует продолжение пилота: да — разработчик либо должен обходить штатный Apply,
+  либо рискует выполнить задачи другого репозитория.
+- Решение: не добавлять новую операцию и не изменять штатный `/opsx:apply`; расширить
+  существующий `status` опцией `--json`, разрешать Store через pointer Code Repository
+  и передавать repository-scoped правила через Project Template skill.
+- Регрессия: CLI-тест JSON-опции, тест identity текущего checkout и Template-тест
+  repository-scoped Apply-контракта.
+
 ### 2026-08-16 — повторный `init` после ошибки Store registry
 
 - Проверка: smoke-test базового Template с выбранным `--agent`.

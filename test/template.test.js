@@ -207,6 +207,8 @@ test("base OpenSpec config adds native planning rules without changing schema", 
   assert.equal(config.schema, "spec-driven");
   assert.match(config.context, /openspec\/context\/00-start-here\.md/);
   assert.match(config.context, /openspec-orch\.yaml/);
+  assert.match(config.context, /openspec-base-apply-context/);
+  assert.match(config.context, /Встроенный openspec-apply-change\s+остаётся владельцем workflow/);
   assert.deepEqual(Object.keys(config.rules).sort(), ["design", "proposal", "specs", "tasks"]);
   assert.match(config.rules.proposal.join("\n"), /не создавать отдельный questionnaire-файл/i);
   assert.match(config.rules.proposal.join("\n"), /Repository impact/);
@@ -217,6 +219,7 @@ test("base OpenSpec config adds native planning rules without changing schema", 
   assert.match(config.rules.design.join("\n"), /Repository implementation map/);
   assert.match(config.rules.design.join("\n"), /openspec-base-planning-check.*design/i);
   assert.match(config.rules.tasks.join("\n"), /repository-id/);
+  assert.match(config.rules.tasks.join("\n"), /primary solution owner/);
   assert.match(config.rules.tasks.join("\n"), /openspec-base-planning-check.*tasks/i);
   assert.equal(JSON.stringify(config).includes("sdd"), false);
 });
@@ -304,6 +307,25 @@ test("base planning check routes artifact stages without changing the OpenSpec w
   assert.match(skill, /check_status: ready \| needs_revision \| blocked/);
   assert.match(skill, /Не изменять schema/);
   assert.match(skill, /Не принимать Gate|Не подменять человеческий Gate/);
+});
+
+test("base apply context scopes the built-in Apply to the current Cycle repository", async () => {
+  const skill = await fs.readFile(
+    path.join(BASE_TEMPLATE_ROOT, "skills", "openspec-base-apply-context", "SKILL.md"),
+    "utf8",
+  );
+  const frontmatterMatch = skill.match(/^---\n([\s\S]*?)\n---/);
+  assert.ok(frontmatterMatch);
+  const frontmatter = parse(frontmatterMatch[1]);
+  assert.deepEqual(Object.keys(frontmatter).sort(), ["description", "name"]);
+  assert.equal(frontmatter.name, "openspec-base-apply-context");
+  assert.match(skill, /openspec-orch status.*--json/s);
+  assert.match(skill, /current_repository\.in_cycle/);
+  assert.match(skill, /exact.*progress-only.*drift/s);
+  assert.match(skill, /полный файл.*contextFiles\.tasks/s);
+  assert.match(skill, /primary solution owner/);
+  assert.match(skill, /Не создавать новый\s+implementation workflow/s);
+  assert.match(skill, /не изменять встроенные `openspec-\*` skills или `opsx-\*`/);
 });
 
 test("base review skill checks repository coverage without creating another workflow", async () => {

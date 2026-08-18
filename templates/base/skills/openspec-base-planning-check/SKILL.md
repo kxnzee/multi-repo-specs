@@ -71,6 +71,10 @@ review-файл.
 
 - Передать specification reviewer режим `artifact-review` для проверки цепочки
   `Scenario → Design decision → Task` по уже существующим артефактам.
+- Проверить, что repository sections имеют в заголовке точный `repository-id`.
+  Для общей секции должен быть указан owner либо однозначно определяться primary
+  solution owner из Repository implementation map Design; неоднозначный ownership
+  считать `BLOCKER` перед Apply.
 - Использовать `openspec-base-verification-reviewer`, если неясны evidence, уровень
   проверки или покрытие нескольких репозиториев.
 - Применять `openspec-base-test-cases` только когда пользователь просит тест-кейсы

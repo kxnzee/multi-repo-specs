@@ -8,6 +8,7 @@ import test from "node:test";
 import { pathToFileURL } from "node:url";
 
 import { buildConnectHint } from "../src/cli/commands/init.js";
+import { formatStatusJson } from "../src/cli/commands/status.js";
 import { createProgram } from "../src/cli/program.js";
 import { reportProgress, withProgress } from "../src/cli/progress.js";
 
@@ -181,9 +182,44 @@ test("assign command requires at least one --repo and collects the change-id", a
 test("status command requires the change-id positional argument", async () => {
   assert.deepEqual(
     await parseCommand(["status", "checkout-flow"]),
-    { name: "status", options: { changeId: "checkout-flow" } },
+    { name: "status", options: { changeId: "checkout-flow", json: false } },
+  );
+  assert.deepEqual(
+    await parseCommand(["status", "checkout-flow", "--json"]),
+    { name: "status", options: { changeId: "checkout-flow", json: true } },
   );
   await assert.rejects(parseCommand(["status"]));
+});
+
+test("status JSON exposes the current repository without changing Cycle semantics", () => {
+  const payload = formatStatusJson({
+    changeId: "checkout-flow",
+    cycle: {
+      cycleId: "cycle-11111111-1111-4111-8111-111111111111",
+      planningRevision: "a".repeat(40),
+      repositories: ["frontend", "backend"],
+    },
+    committed: true,
+    repositories: [
+      {
+        repositoryId: "frontend",
+        state: "missing",
+        receipt: null,
+        commitAvailable: null,
+        head: null,
+        headMatches: null,
+      },
+    ],
+    snapshot: null,
+    verification: null,
+    nextAction: "записать результаты",
+  }, { id: "frontend", role: "code", path: "/work/src/frontend" });
+
+  assert.equal(payload.change_id, "checkout-flow");
+  assert.equal(payload.current_repository.repository_id, "frontend");
+  assert.equal(payload.current_repository.in_cycle, true);
+  assert.equal(payload.results[0].status, "missing");
+  assert.equal(payload.planning_revision, "a".repeat(40));
 });
 
 test("record assignment accepts only the v1 Result Receipt flags", async () => {

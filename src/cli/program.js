@@ -113,7 +113,8 @@ export function createProgram(handlers = DEFAULT_HANDLERS) {
 
   program.command("status <change-id>")
     .description("показать текущий Cycle Record и следующее действие")
-    .action((changeId) => handlers.status({ changeId }));
+    .option("--json", "вывести машиночитаемый контекст Cycle и текущего Repository")
+    .action((changeId, options) => handlers.status({ changeId, json: Boolean(options.json) }));
 
   const record = program.command("record")
     .description("записать внешний результат в локальное состояние");

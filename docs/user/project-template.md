@@ -112,6 +112,9 @@ API/config-параметры, команды build/test/lint, CI и упако�
   долговечного project context;
 
 Базовые skills:
+- `openspec-base-apply-context` — preflight штатного Apply: подтверждает текущий
+  repository-id и Cycle, проверяет принятую planning revision и выбирает только
+  принадлежащие репозиторию sections Tasks;
 - `openspec-base-planning-check` — read-only маршрутизация проверки текущего
   Planning-артефакта к минимальному набору специализированных skills и subagents;
 - `openspec-base-analyze-impact` — read-only анализ влияния Change;
@@ -148,6 +151,11 @@ read-only исследование и возвращают evidence в теку�
 Core не запускает их и не сохраняет ответы. Для обнаружения готового Store он
 по-прежнему требует только metadata/config, штатный `openspec/config.yaml`, каталог
 команд официального agent pack и `instructions_file`.
+
+Для Apply разработчик открывает персональный OpenSpec Workset с Code Repository
+первым member и Store вторым. Штатный `/opsx:apply <change-id>` получает skills из
+подключённого Store, а `openspec-base-apply-context` ограничивает запуск текущим
+repository section без изменения встроенной команды.
 
 Если Code Repositories используют `colbymchenry/codegraph`, настройте его как MCP
 server с alias `codegraph`. Базовые subagents уже содержат read-only allowlist его

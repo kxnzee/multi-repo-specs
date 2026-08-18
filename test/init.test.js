@@ -75,6 +75,7 @@ const PROJECT_COMMANDS = Object.freeze(["openspec-base-context.md"]);
 
 const PROJECT_SKILLS = Object.freeze([
   "openspec-base-analyze-impact/SKILL.md",
+  "openspec-base-apply-context/SKILL.md",
   "openspec-base-planning-check/SKILL.md",
   "openspec-base-review-change/SKILL.md",
   "openspec-base-test-cases/SKILL.md",
@@ -288,6 +289,7 @@ test("base Project Template owns only focused bootstrap assets", async () => {
     "context/system-map.yaml",
     "commands/openspec-base-context.md",
     "skills/openspec-base-analyze-impact/SKILL.md",
+    "skills/openspec-base-apply-context/SKILL.md",
     "skills/openspec-base-planning-check/SKILL.md",
     "skills/openspec-base-review-change/SKILL.md",
     "skills/openspec-base-test-cases/SKILL.md",

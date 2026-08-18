@@ -9,6 +9,10 @@ context: |
   Общие границы репозиториев проверяй по openspec/context/system-map.yaml. Локальный
   технический контекст проверяй в checkout соответствующего Code Repository и его
   файле инструкций агента; не копируй его в центральный openspec/context/.
+  Во время штатного Apply сначала используй project skill
+  openspec-base-apply-context: он проверяет принятый Cycle и ограничивает текущий
+  запуск секциями Tasks текущего Code Repository. Встроенный openspec-apply-change
+  остаётся владельцем workflow; не выполняй секции других репозиториев.
 
 rules:
   proposal:
@@ -32,4 +36,4 @@ rules:
     - "Перед тем как считать Tasks завершёнными, использовать project skill openspec-base-planning-check для текущего Change и стадии tasks; проверить трассировку Scenario → Design decision → Task и план evidence."
     - "Связать задачи реализации и проверки с Requirement или Scenario ID, когда такой ID существует."
     - "Включить подготовку evidence для PR Review, IFT и QA, но не отмечать внешнюю проверку выполненной заранее."
-    - "Группировать задачи по точным repository-id из Repository impact; межрепозиторные и общие проверки выделять отдельно. Не использовать условные backend/frontend вместо зарегистрированного id."
+    - "Группировать задачи в sections, заголовок которых содержит точный repository-id из Repository impact. Межрепозиторные и общие проверки выделять отдельно и указывать owner; если owner не указан, им считается однозначный primary solution owner из Repository implementation map Design. Не использовать условные backend/frontend вместо зарегистрированного id."

@@ -13,6 +13,10 @@
 - Для проверки текущего Planning-артефакта и выбора минимального набора проверок
   используй project skill `openspec-base-planning-check`; он маршрутизирует
   специализированные skills и доступные read-only subagents по стадии и рискам.
+- Во время штатного `/opsx:apply` используй project skill
+  `openspec-base-apply-context`: он подтверждает текущий Code Repository и Cycle,
+  проверяет принятую planning revision и ограничивает Apply принадлежащими этому
+  репозиторию sections Tasks. Он не заменяет встроенный Apply.
 - Для анализа затронутых систем, capability, контрактов и проверок используй project
   skill `openspec-base-analyze-impact`.
 - Для независимой проверки Proposal, Delta Specs, Design и Tasks перед Gate или PR
