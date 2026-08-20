@@ -1,6 +1,6 @@
 ---
 name: openspec-base-apply-context
-description: Выбрать standard или orchestrated режим штатного OpenSpec Apply и подготовить repository-scoped контекст для принятого Cycle. Использовать внутри /opsx:apply перед изменением кода, когда Change хранится в центральном Store. При CYCLE_NOT_FOUND предлагать обычный Apply без Orchestrator либо создание Cycle; при существующем Cycle проверять repository-id, planning revision и выбирать только принадлежащие текущему репозиторию секции Tasks. Не заменять встроенный openspec-apply-change.
+description: Выбрать standard или orchestrated режим штатного OpenSpec Apply и подготовить repository-scoped контекст для принятого Cycle. Использовать внутри штатного Apply перед изменением кода, когда Change хранится в центральном Store. При CYCLE_NOT_FOUND предлагать обычный Apply без Orchestrator либо создание Cycle; при существующем Cycle проверять repository-id, planning revision и выбирать только принадлежащие текущему репозиторию секции Tasks. Не заменять встроенный openspec-apply-change.
 ---
 
 # Repository-scoped контекст Apply
@@ -9,6 +9,10 @@ description: Выбрать standard или orchestrated режим штатно
 текущим Code Repository, когда пользователь включил Orchestrator созданием Cycle.
 Не создавать новый implementation workflow и не изменять встроенные `openspec-*`
 skills или `opsx-*` commands.
+
+Быть leaf-skill: не вызывать project skills, project commands или subagents.
+Передача подготовленного scope встроенному `openspec-apply-change` не является
+project orchestration.
 
 ## Preflight
 
@@ -135,7 +139,7 @@ task_evidence:
    Существовавший до сессии `[x]` без доступного evidence не менять молча: остановить
    scope и запросить ссылку на evidence или решение человека.
 
-Не запускать полный `/opsx:verify` после каждого checkbox: task-level gate использует
+Не запускать полный штатный OpenSpec Verify после каждого checkbox: task-level gate использует
 узкую проверку, а независимый Verify остаётся проверкой завершённого Snapshot.
 
 ## Передача управления штатному Apply

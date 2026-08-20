@@ -13,7 +13,7 @@ agents:
       - from: context
         to: openspec/context
       - from: commands
-        to: .claude/commands/opsx
+        to: .claude/commands
       - from: skills
         to: .claude/skills
       - from: adapters/claude/subagents
