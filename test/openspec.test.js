@@ -1,6 +1,7 @@
 /** @fileoverview Проверка строгой обработки машинных ответов OpenSpec. */
 
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 import {
   assertOpenSpecRoot,
@@ -109,19 +110,20 @@ test("assertOpenSpecStore requires the expected Store ID and root", () => {
 });
 
 test("Store doctor errors distinguish its JSON contract from an unhealthy Store", () => {
+  const projectRoot = path.resolve("/tmp/specs");
   assert.throws(
-    () => assertStoreDoctor({ stores: [{ id: "specs" }] }, "specs", "/tmp/specs"),
+    () => assertStoreDoctor({ stores: [{ id: "specs" }] }, "specs", projectRoot),
     /OpenSpec Orchestrator не может обработать ответ `openspec store doctor specs --json`/,
   );
   assert.throws(
     () => assertStoreDoctor({
       stores: [{
         id: "specs",
-        root: "/tmp/specs",
+        root: projectRoot,
         metadata: { present: true, valid: true },
         openspec_root: { healthy: false },
       }],
-    }, "specs", "/tmp/specs"),
+    }, "specs", projectRoot),
     /Store specs не прошёл проверку здоровья/,
   );
 });

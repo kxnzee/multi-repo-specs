@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 
 import { createGitClient } from "../src/internal/shared/git-client.js";
@@ -56,7 +57,10 @@ test("GitClient returns structured refs, worktrees and divergence", async () => 
     await git.refs(["refs/heads", "refs/remotes/origin"]),
     new Set(["refs/heads/main", "refs/remotes/origin/main"]),
   );
-  assert.deepEqual(await git.worktreePaths(), new Set(["/project", "/runtime/store"]));
+  assert.deepEqual(
+    await git.worktreePaths(),
+    new Set([path.resolve("/project"), path.resolve("/runtime/store")]),
+  );
   assert.deepEqual(
     await git.divergence("feature", "origin/feature"),
     { localOnly: 2, remoteOnly: 3 },
