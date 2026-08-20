@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import process from "node:process";
 import test from "node:test";
 
 import { parse, stringify } from "yaml";
@@ -18,6 +19,7 @@ const BASE_TEMPLATE_DESCRIPTOR = parseTemplateDescriptor(
   await fs.readFile(path.join(BASE_TEMPLATE_ROOT, "template.yaml"), "utf8"),
 );
 const BASE_AGENT_IDS = Object.freeze(Object.keys(BASE_TEMPLATE_DESCRIPTOR.agents).sort());
+const DIRECTORY_LINK_TYPE = process.platform === "win32" ? "junction" : "dir";
 
 /**
  * Создаёт изолированные Template и target roots.
@@ -486,6 +488,7 @@ test("copy plan preserves operation order, overrides and executable mode", async
   const executable = path.join(templateRoot, "base", "nested", "run.sh");
   await fs.writeFile(executable, "#!/bin/sh\n", "utf8");
   await fs.chmod(executable, 0o755);
+  const sourceMode = (await fs.stat(executable)).mode & 0o777;
   await fs.writeFile(path.join(templateRoot, "override.txt"), "override\n", "utf8");
 
   const result = await buildTemplatePlan({ templateRoot, targetRoot, agentId: "test" });
@@ -499,8 +502,9 @@ test("copy plan preserves operation order, overrides and executable mode", async
   ]);
   assert.equal(
     result.files.find(({ targetRelative }) => targetRelative.endsWith("run.sh")).mode,
-    0o755,
+    sourceMode,
   );
+  if (process.platform !== "win32") assert.equal(sourceMode, 0o755);
 });
 
 test("descriptor rejects missing fields and unsafe portable paths", () => {
@@ -575,16 +579,19 @@ test("planner rejects symlinks in Template and target", async (t) => {
     templateRoot,
     descriptorValue([{ from: "payload", to: "output" }]),
   );
-  await fs.writeFile(path.join(root, "outside.txt"), "outside\n", "utf8");
-  await fs.symlink(path.join(root, "outside.txt"), path.join(templateRoot, "payload"));
+  const outside = path.join(root, "outside");
+  await fs.mkdir(outside);
+  await fs.writeFile(path.join(outside, "outside.txt"), "outside\n", "utf8");
+  await fs.symlink(outside, path.join(templateRoot, "payload"), DIRECTORY_LINK_TYPE);
   await assert.rejects(
     buildTemplatePlan({ templateRoot, targetRoot, agentId: "test" }),
     /содержит symlink/,
   );
 
   await fs.rm(path.join(templateRoot, "payload"));
-  await fs.writeFile(path.join(templateRoot, "payload"), "payload\n", "utf8");
-  await fs.symlink(path.join(root, "outside.txt"), path.join(targetRoot, "output"));
+  await fs.mkdir(path.join(templateRoot, "payload"));
+  await fs.writeFile(path.join(templateRoot, "payload", "payload.txt"), "payload\n", "utf8");
+  await fs.symlink(outside, path.join(targetRoot, "output"), DIRECTORY_LINK_TYPE);
   await assert.rejects(
     buildTemplatePlan({ templateRoot, targetRoot, agentId: "test" }),
     /Target содержит symlink/,
@@ -594,16 +601,18 @@ test("planner rejects symlinks in Template and target", async (t) => {
 test("planner rejects an unreferenced Template symlink and an agent-path symlink", async (t) => {
   const { root, templateRoot, targetRoot } = await temporaryRoots(t);
   await writeDescriptor(templateRoot, descriptorValue([]));
-  await fs.writeFile(path.join(root, "outside.txt"), "outside\n", "utf8");
+  const outside = path.join(root, "outside");
+  await fs.mkdir(outside);
+  await fs.writeFile(path.join(outside, "outside.txt"), "outside\n", "utf8");
   const unusedLink = path.join(templateRoot, "unused-link");
-  await fs.symlink(path.join(root, "outside.txt"), unusedLink);
+  await fs.symlink(outside, unusedLink, DIRECTORY_LINK_TYPE);
   await assert.rejects(
     buildTemplatePlan({ templateRoot, targetRoot, agentId: "test" }),
     /Template root содержит symlink/,
   );
 
   await fs.rm(unusedLink);
-  await fs.symlink(path.join(root, "outside.txt"), path.join(targetRoot, ".agent"));
+  await fs.symlink(outside, path.join(targetRoot, ".agent"), DIRECTORY_LINK_TYPE);
   await assert.rejects(
     buildTemplatePlan({ templateRoot, targetRoot, agentId: "test" }),
     /Target содержит symlink/,
