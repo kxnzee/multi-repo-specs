@@ -24,10 +24,12 @@ cp -R templates/base ../team-template
 Базовый Template устанавливает только общий bootstrap-набор: постоянные инструкции
 выбранного агента, `.gitignore` для локального state, универсальный context pack,
 project-local `openspec/config.yaml` со штатной schema `spec-driven` и дополнительными
-правилами Planning, четыре русскоязычных project skills, одна native команда
-для контекста (`/openspec-base-context`) и пять нативных read-only subagents. Они не
-зависят от Orchestrator-команд, Store registry, конкретной структуры
-репозиториев или ролей прежнего SDD-процесса.
+правилами Planning, три русскоязычных project skills, одна native команда
+для контекста (`/openspec-base-context`) и три нативных read-only subagents. Template
+не требует существующего Cycle для установки: Orchestrator используется только в
+тех режимах, где нужен repository scope или точный реестр Code Repositories. При
+неиспользуемом Orchestrator обычный OpenSpec workflow остаётся доступным, а ошибки
+существующего Cycle или repository identity не превращаются в неявный fallback.
 
 Передайте выбранный каталог только при первом `init`:
 
@@ -102,6 +104,15 @@ API/config-параметры, команды build/test/lint, CI и упако�
 по каждому id. Requirements и Scenarios продолжают описывать capability, а не
 структуру Git-репозиториев.
 
+`system-map.yaml` версии 2 хранит каждую подтверждённую направленную связь как
+`source → relation → target`. Стороны задаются только типизированными ссылками
+`system:<id>` и `repository:<id>`, а relation выбирается из allowlist карты:
+`implemented_by`, `depends_on`, `calls`, `publishes_to` или `verifies`. Для `calls`
+и `publishes_to` обязателен contract. Связи нельзя достраивать по похожим именам,
+расположению каталогов, обратному или транзитивному предположению. Версия 1 с
+неоднозначными `from/to/type` не мигрируется автоматически: команда контекста
+показывает предложенное направление и запрашивает отдельное подтверждение.
+
 Все поставляемые базовым Template команды, skills и subagents используют namespace
 `openspec-base-*`. Штатные артефакты, созданные `openspec init`, сохраняют namespace
 `openspec-*`, а произвольный пользовательский Template может выбрать собственный.
@@ -109,23 +120,29 @@ API/config-параметры, команды build/test/lint, CI и упако�
 Базовый контекстный контракт:
 
 - `/openspec-base-context` — команда для инициализации, аудита и актуализации
-  долговечного project context;
+  долговечного project context. Это единственное исключение вне meta-skill: команда
+  может вызвать только context researcher и repository evidence scout.
 
 Базовые skills:
+
+- `openspec-base-meta-planning` — единственный meta-skill и единая read-only точка
+  входа для стадий `proposal`, `specs`, `design`, `tasks`, `impact-review` и
+  `planning-review`. Он выбирает минимальный набор проверок и может маршрутизировать
+  Planning subagents и leaf-skill тест-кейсов, но не изменяет артефакты и не принимает
+  человеческий Gate;
 - `openspec-base-apply-context` — выбирает режим штатного Apply: только при
   `CYCLE_NOT_FOUND` предлагает standard OpenSpec Apply без Orchestrator либо создание
   Cycle; при существующем Cycle подтверждает repository-id, проверяет planning
   revision и выбирает только принадлежащие репозиторию sections Tasks. Перед каждым
   `[x]` требует task-level evidence (реальный artifact и выполненную проверку), а при
   незакрытой задаче не разрешает объявить repository Result завершённым;
-- `openspec-base-planning-check` — read-only маршрутизация проверки текущего
-  Planning-артефакта к минимальному набору специализированных skills и subagents;
-- `openspec-base-analyze-impact` — read-only анализ влияния Change;
-- `openspec-base-review-change` — read-only ревью Proposal, Delta Specs, Design и Tasks:
-  проверяет полноту затронутых `repository-id`, межрепозиторные контракты,
-  трассируемость и готовность к человеческому Gate;
 - `openspec-base-test-cases` — список трассируемых тест-кейсов без автоматической записи
   нештатного файла внутри Change.
+
+`openspec-base-apply-context` и `openspec-base-test-cases` являются leaf-skills:
+основной агент или пользователь может выбрать их напрямую, но они не вызывают
+project skills, commands или subagents. Только `openspec-base-meta-planning` может
+оркестрировать Planning-проверки; рекурсивный вызов meta-skill запрещён.
 
 Subagents устанавливаются в нативный каталог, заданный agent mapping. Вложенные
 каталоги внутри итоговой `agents/` не используются: назначение выражается через
@@ -138,12 +155,19 @@ provider.
 владельцем workflow и файлов; эти subagents нативно выполняют только ограниченное
 read-only исследование и возвращают evidence в текущую сессию:
 
-- `openspec-base-project-context-researcher`;
-- `openspec-base-architecture-impact-reviewer`;
-- `openspec-base-implementation-scout`;
-- `openspec-base-specification-reviewer` — независимое ревью спеки и матрицы покрытия
-  репозиториев;
-- `openspec-base-verification-reviewer`.
+- `openspec-base-project-context-researcher` — отвечает на один ограниченный вопрос
+  по подтверждённому продуктовому или доменному контексту центрального Store и не
+  открывает Code Repositories;
+- `openspec-base-planning-reviewer` — независимо проверяет одну стадию Planning или
+  полный Change по уже разрешённым артефактам и evidence bundle;
+- `openspec-base-repository-evidence-scout` — собирает evidence для одного вопроса,
+  одного `repository-id` и одной точной Git revision в одном Code Repository.
+
+Subagents являются leaf-артефактами: они не вызывают skills, commands или других
+agents и не являются пользовательскими точками входа. Их вызывает meta-skill;
+команда `/openspec-base-context` может вызвать только context researcher и repository
+evidence scout. Межрепозиторный вывод всегда собирает основной агент, не смешивая
+evidence разных репозиториев и revisions.
 
 ### Общие project subagents
 
@@ -155,6 +179,31 @@ Core не запускает их и не сохраняет ответы. Дл�
 по-прежнему требует только metadata/config, штатный `openspec/config.yaml`, каталог
 команд официального agent pack и `instructions_file`.
 
+## Безопасное определение Code Repository
+
+Путь к checkout принимается только из разрешённого root текущего runtime/workset,
+явного абсолютного пути пользователя или результата
+`openspec-orch repository status --repo <repository-id>`. Агент не ищет workspace,
+`src` или репозитории обходом `/`, домашнего каталога, родителя Store либо соседних
+каталогов и не читает `.openspec-orch/state.json` напрямую. Если путь не предоставлен
+или не прошёл проверку, repository-specific исследование блокируется до получения
+одного точного пути либо выполнения пользователем `openspec-orch connect`.
+
+Перед запуском repository evidence scout основной агент канонизирует путь,
+подтверждает Git root и точный `repository-id`, получает полный commit SHA, проверяет,
+что `HEAD` равен этой revision, а working tree чист. Scout возвращает blocker, если
+любое обязательное поле отсутствует или проверка не пройдена; он не ищет другой
+checkout и не выходит в родительские или соседние каталоги.
+
+## Взаимодействие с пользователем
+
+Когда требуется выбор или уточнение, постоянные инструкции требуют предлагать 2–4
+конкретных взаимоисключающих варианта с краткими последствиями. Обоснованно лучший
+вариант помечается как рекомендуемый; если evidence недостаточно, варианты остаются
+нейтральными. Пользователь всегда может ответить номером, коротким подтверждением
+или написать собственный вариант. Разрешение на запись, удаление или внешнее действие
+не помечается как рекомендуемое и не выбирается по умолчанию.
+
 Без Cycle штатный `/opsx:apply <change-id>` предлагает standard OpenSpec Apply либо
 переход к `openspec-orch assign`. В standard-режиме встроенная команда работает без
 repository scope и Snapshot Orchestrator. При существующем Cycle разработчик открывает
@@ -163,9 +212,10 @@ repository scope и Snapshot Orchestrator. При существующем Cycle
 изменения встроенной команды.
 
 Если Code Repositories используют `colbymchenry/codegraph`, настройте его как MCP
-server с alias `codegraph`. Базовые subagents уже содержат read-only allowlist его
-поисковых инструментов и используют обычный read/search как fallback. Индекс остаётся
-локальным в каждом Code Repository; инструкции приведены в
+server с alias `codegraph`. `openspec-base-repository-evidence-scout` содержит
+read-only allowlist его поисковых инструментов и использует обычный read/search как
+fallback. Индекс остаётся локальным в каждом Code Repository и используется только
+когда его status соответствует проверенной revision; инструкции приведены в
 [справочнике CodeGraph](codegraph.md).
 
 ## Поля agent mapping

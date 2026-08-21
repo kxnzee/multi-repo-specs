@@ -43,19 +43,29 @@ codegraph status
 }
 ```
 
-Alias является частью контракта Template: read-only subagents разрешают только
-инструменты `mcp__codegraph__codegraph_*`. После настройки проверьте `/mcp`, `/tools`
-и отдельный запуск `openspec-base-implementation-scout` на тестовом вопросе.
+Alias является частью контракта Template: read-only subagent
+`openspec-base-repository-evidence-scout` разрешает только инструменты
+`mcp__codegraph__codegraph_*`. После настройки проверьте `/mcp`, `/tools` и отдельный
+запуск scout на одном тестовом вопросе, одном `repository-id` и одной точной Git
+revision.
+
+До запуска scout основной агент должен получить разрешённый абсолютный путь без
+поиска по файловой системе, подтвердить точный Git root и repository identity,
+полный commit SHA, равенство `HEAD` этой revision и чистый working tree. При
+неполном входе scout возвращает blocker и не ищет другой checkout. Для нескольких
+репозиториев выполняются отдельные проходы; межрепозиторный вывод собирает основной
+агент.
 
 ## Политика использования
 
 1. Если `.codegraph/` существует и MCP доступен, сначала вызвать
-   `codegraph_status`.
+   `codegraph_status` и убедиться, что индекс соответствует проверенной revision.
 2. Для первичной карты задачи использовать `codegraph_context`.
 3. Для влияния изменения использовать `codegraph_impact`, для пути вызовов —
    `codegraph_trace`, для точечной навигации — search/node/callers/callees.
-4. Если индекс сообщает ошибку или не покрывает нужный язык, использовать обычные
-   read/search tools и явно назвать fallback.
+4. Если revision индекса неизвестна, индекс сообщает ошибку или не покрывает нужный
+   язык, использовать обычные read/search tools внутри того же разрешённого checkout
+   и явно назвать fallback.
 5. Не объявлять runtime behavior, тест или внешний контракт подтверждённым только по
    ребру графа, когда решение Gate требует независимого evidence.
 

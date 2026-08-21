@@ -33,8 +33,9 @@ Store со спецификациями и Code Repositories, фиксирует
 
 - инструкциями и нативными mapping для Qwen, GigaCode и Claude;
 - правилами подготовки и проверки Proposal, Delta Specs, Design и Tasks;
-- project skills и read-only subagents для анализа влияния, ревью планирования,
-  подготовки тест-кейсов и проверки реализации;
+- единым meta-skill `openspec-base-meta-planning`, двумя leaf-skills для Apply-контекста
+  и тест-кейсов, тремя ограниченными read-only subagents и project command
+  `/openspec-base-context`;
 - структурой долговечного контекста проекта: продукт, доменная модель, архитектура,
   безопасность, quality gates и release process;
 - командой обновления проектного контекста без переноса прикладного кода в Store.
@@ -44,6 +45,15 @@ Store со спецификациями и Code Repositories, фиксирует
 только во время `init`: после установки Core не зависит от его исходного каталога и
 не изменяет встроенные команды или skills OpenSpec. Заготовки контекста нужно
 заполнить фактами конкретного проекта до использования в рабочем Change.
+
+Только meta-skill оркестрирует Planning subagents; остальные skills и все subagents
+являются leaf-артефактами. Команда контекста может вызвать только context researcher
+и repository evidence scout. Repository-specific исследование выполняется отдельно
+для каждого точного `repository-id`, разрешённого checkout и проверенной полной Git
+revision с чистым working tree; агент не ищет репозитории за пределами переданного
+workspace. Направленные зависимости систем хранятся в `system-map.yaml` версии 2 как
+типизированные `source → relation → target`, а новые Scenario ID имеют формат
+`<change-id>-<index>`.
 
 Текущая версия рассчитана на одного инженера, одну машину, один Store и локальные checkout
 Code Repositories. Она не планирует Change, не запускает агента или тесты, не делает
