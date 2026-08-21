@@ -48,7 +48,7 @@ agents:
     generated_directory: .qwen
     target_directory: .gigacode
     commands_directory: .gigacode/commands
-    instructions_file: .gigacode/GIGACODE.md
+    instructions_file: GIGACODE.md
     copy:
       - from: assets/gitignore.template
         to: .gitignore
@@ -63,4 +63,4 @@ agents:
       - from: subagents
         to: .gigacode/agents
       - from: agent-instructions.md
-        to: .gigacode/GIGACODE.md
+        to: GIGACODE.md
