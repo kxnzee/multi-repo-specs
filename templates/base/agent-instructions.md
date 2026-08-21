@@ -10,6 +10,9 @@
   команду `/openspec-base-context`.
 - Для списка проверяемых тест-кейсов по конкретному Change используй project skill
   `openspec-base-test-cases`.
+- Для фасилитации Intent перед переходом к Planning используй самостоятельный
+  project skill `base-intent`. Он помогает сформулировать ценность, ожидаемое
+  улучшение и критерии успеха, но не создаёт Change и не заменяет Proposal.
 - Для проверки текущего Planning-артефакта, анализа влияния и полного ревью Change
   используй единый meta-skill `openspec-base-meta-planning`; он выбирает режим и
   маршрутизирует доступные read-only subagents по стадии и рискам.
@@ -95,6 +98,8 @@
 - Остальные project skills являются leaf-артефактами: основной агент или пользователь
   может выбрать их напрямую, но они не вызывают другие project skills, project
   commands или subagents.
+- `base-intent` является leaf-skill и не входит в namespace `openspec-base-*`, потому
+  что не обслуживает OpenSpec workflow напрямую.
 - Все project subagents также являются leaf-артефактами, но не пользовательскими
   точками входа. Их вызывает только `openspec-base-meta-planning`; исключение
   `/openspec-base-context` ограничено двумя subagents, названными выше. Subagents не

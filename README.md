@@ -33,9 +33,9 @@ Store со спецификациями и Code Repositories, фиксирует
 
 - инструкциями и нативными mapping для Qwen, GigaCode и Claude;
 - правилами подготовки и проверки Proposal, Delta Specs, Design и Tasks;
-- единым meta-skill `openspec-base-meta-planning`, двумя leaf-skills для Apply-контекста
-  и тест-кейсов, тремя ограниченными read-only subagents и project command
-  `/openspec-base-context`;
+- единым meta-skill `openspec-base-meta-planning`, тремя leaf-skills для Intent,
+  Apply-контекста и тест-кейсов, тремя ограниченными read-only subagents и project
+  command `/openspec-base-context`;
 - структурой долговечного контекста проекта: продукт, доменная модель, архитектура,
   безопасность, quality gates и release process;
 - командой обновления проектного контекста без переноса прикладного кода в Store.

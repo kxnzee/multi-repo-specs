@@ -24,7 +24,7 @@ cp -R templates/base ../team-template
 Базовый Template устанавливает только общий bootstrap-набор: постоянные инструкции
 выбранного агента, `.gitignore` для локального state, универсальный context pack,
 project-local `openspec/config.yaml` со штатной schema `spec-driven` и дополнительными
-правилами Planning, три русскоязычных project skills, одна native команда
+правилами Planning, четыре русскоязычных project skills, одна native команда
 для контекста (`/openspec-base-context`) и три нативных read-only subagents. Template
 не требует существующего Cycle для установки: Orchestrator используется только в
 тех режимах, где нужен repository scope или точный реестр Code Repositories. При
@@ -113,9 +113,11 @@ API/config-параметры, команды build/test/lint, CI и упако�
 неоднозначными `from/to/type` не мигрируется автоматически: команда контекста
 показывает предложенное направление и запрашивает отдельное подтверждение.
 
-Все поставляемые базовым Template команды, skills и subagents используют namespace
-`openspec-base-*`. Штатные артефакты, созданные `openspec init`, сохраняют namespace
-`openspec-*`, а произвольный пользовательский Template может выбрать собственный.
+Поставляемые базовым Template расширения OpenSpec используют namespace
+`openspec-base-*`. Самостоятельный skill `base-intent` является намеренным
+исключением: он формулирует Intent до Planning и не оркестрирует OpenSpec workflow.
+Штатные артефакты, созданные `openspec init`, сохраняют namespace `openspec-*`, а
+произвольный пользовательский Template может выбрать собственный.
 
 Базовый контекстный контракт:
 
@@ -125,6 +127,10 @@ API/config-параметры, команды build/test/lint, CI и упако�
 
 Базовые skills:
 
+- `base-intent` — русскоязычная фасилитация Intent перед Planning: помогает уточнить
+  тип изменения, Why Now, ожидаемое улучшение, критерии успеха, ограничения и риски,
+  после чего формирует Daily Intent Brief. Skill не создаёт Change и не изменяет
+  файлы;
 - `openspec-base-meta-planning` — единственный meta-skill и единая read-only точка
   входа для стадий `proposal`, `specs`, `design`, `tasks`, `impact-review` и
   `planning-review`. Он выбирает минимальный набор проверок и может маршрутизировать
@@ -139,7 +145,8 @@ API/config-параметры, команды build/test/lint, CI и упако�
 - `openspec-base-test-cases` — список трассируемых тест-кейсов без автоматической записи
   нештатного файла внутри Change.
 
-`openspec-base-apply-context` и `openspec-base-test-cases` являются leaf-skills:
+`base-intent`, `openspec-base-apply-context` и `openspec-base-test-cases` являются
+leaf-skills:
 основной агент или пользователь может выбрать их напрямую, но они не вызывают
 project skills, commands или subagents. Только `openspec-base-meta-planning` может
 оркестрировать Planning-проверки; рекурсивный вызов meta-skill запрещён.
