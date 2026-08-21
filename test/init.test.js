@@ -74,19 +74,15 @@ const OPEN_SPEC_COMMANDS = Object.freeze([
 const PROJECT_COMMANDS = Object.freeze(["openspec-base-context.md"]);
 
 const PROJECT_SKILLS = Object.freeze([
-  "openspec-base-analyze-impact/SKILL.md",
   "openspec-base-apply-context/SKILL.md",
-  "openspec-base-planning-check/SKILL.md",
-  "openspec-base-review-change/SKILL.md",
+  "openspec-base-meta-planning/SKILL.md",
   "openspec-base-test-cases/SKILL.md",
 ]);
 
 const PROJECT_SUBAGENTS = Object.freeze([
-  "openspec-base-architecture-impact-reviewer.md",
-  "openspec-base-implementation-scout.md",
+  "openspec-base-planning-reviewer.md",
   "openspec-base-project-context-researcher.md",
-  "openspec-base-specification-reviewer.md",
-  "openspec-base-verification-reviewer.md",
+  "openspec-base-repository-evidence-scout.md",
 ]);
 
 const BASE_TEMPLATE_ROOT = new URL("../templates/base/", import.meta.url);
@@ -288,12 +284,12 @@ test("base Project Template owns only focused bootstrap assets", async () => {
     "openspec/config.yaml",
     "context/system-map.yaml",
     "commands/openspec-base-context.md",
-    "skills/openspec-base-analyze-impact/SKILL.md",
     "skills/openspec-base-apply-context/SKILL.md",
-    "skills/openspec-base-planning-check/SKILL.md",
-    "skills/openspec-base-review-change/SKILL.md",
+    "skills/openspec-base-meta-planning/SKILL.md",
     "skills/openspec-base-test-cases/SKILL.md",
+    "subagents/openspec-base-planning-reviewer.md",
     "subagents/openspec-base-project-context-researcher.md",
+    "subagents/openspec-base-repository-evidence-scout.md",
     "agent-instructions.md",
   ]) {
     assert.equal((await fs.stat(new URL(relativePath, BASE_TEMPLATE_ROOT))).isFile(), true);
@@ -354,7 +350,8 @@ test("initProject creates Store, official expanded pack and minimal base assets"
   assert.equal(openSpecConfig.schema, "spec-driven");
   assert.match(openSpecConfig.rules.proposal.join("\n"), /Jira Story/);
   assert.match(openSpecConfig.rules.proposal.join("\n"), /Repository impact/);
-  assert.match(openSpecConfig.rules.specs.join("\n"), /SC-<CAPABILITY>-NNN/);
+  assert.match(openSpecConfig.rules.specs.join("\n"), /<change-id>-<index>/);
+  assert.match(openSpecConfig.rules.specs.join("\n"), /add-profile-contacts-001/);
   const config = parseOrchestratorConfig(await fs.readFile(path.join(target, "openspec-orch.yaml"), "utf8"));
   assert.deepEqual(config.storeRepository, {
     id: "payments-specs",
@@ -448,8 +445,10 @@ test("initProject preserves the complete public file tree for every supported ag
     const commandFiles = OPEN_SPEC_COMMANDS.map(
       (name) => `${selected.commandsDirectory}/${name}`,
     );
+    const projectCommandsCopy = selected.copy.find(({ from }) => from === "commands");
+    assert.ok(projectCommandsCopy, `${agentId}: project commands copy`);
     const projectCommandFiles = PROJECT_COMMANDS.map(
-      (name) => `${selected.commandsDirectory}/${name}`,
+      (name) => `${projectCommandsCopy.to}/${name}`,
     );
     const expected = [
       ...COMMON_INIT_FILES,

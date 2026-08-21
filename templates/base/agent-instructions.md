@@ -27,6 +27,12 @@
   Repository; не копируй их в центральный `openspec/context/`. В Proposal, Design и
   Tasks разделяй влияние и evidence по этим id; Requirements и Scenarios оставляй
   capability-oriented и не дублируй по репозиториям.
+- Relationship из `system-map.yaml` читай буквально как
+  `source → relation → target`: только типизированные ссылки `system:<id>` и
+  `repository:<id>` задают стороны связи. Не меняй направление, не подставляй
+  похожее имя и не достраивай отсутствующую обратную или транзитивную связь. Для
+  impact используй только подтверждённую relationship с разрешившимися сторонами и
+  evidence; иначе зафиксируй неизвестное.
 - Если в исследуемом Code Repository есть актуальный `.codegraph/` и доступен MCP
   server `codegraph`, сначала используй CodeGraph для навигации и только затем
   адресное чтение недостающих источников. Его отсутствие не блокирует работу.

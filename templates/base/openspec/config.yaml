@@ -31,7 +31,7 @@ rules:
   specs:
     - "Перед тем как считать Delta Specs завершёнными, использовать project skill openspec-base-meta-planning для текущего Change и стадии specs; отсутствие ещё не созданных Design и Tasks не считать ошибкой этой промежуточной проверки."
     - "Создавать один Delta Spec на каждую capability из Proposal и сохранять существующий вложенный capability path."
-    - "Каждому новому Scenario присваивать стабильный ID в заголовке формата [SC-<CAPABILITY>-NNN]; существующий ID не переименовывать и не переиспользовать."
+    - "Каждому новому Scenario присваивать стабильный ID в заголовке формата `<change-id>-<index>`, например `#### Scenario: Контакты доступны владельцу — add-profile-contacts-001`. Использовать точный `change-id`, а трёхзначный index увеличивать последовательно и не переиспользовать внутри Change. После создания не переименовывать ID, включая перенос Scenario в Master Spec и последующие Changes."
     - "В MODIFIED переносить полный Requirement и все сохраняемые Scenarios вместе с их существующими ID."
     - "Не делить Requirements и Scenarios по репозиториям: Specs описывают наблюдаемое поведение, а размещение реализации относится к Proposal, Design и Tasks."
   design:

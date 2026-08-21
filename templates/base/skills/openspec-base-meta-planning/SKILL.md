@@ -56,6 +56,11 @@ implementation readiness или PR alignment: их владельцы — соо
    записей с `roles: [code]` и сопоставить их с `system-map.yaml`. Технический
    контекст читать только в checkout соответствующего Code Repository через контракт
    `openspec-base-repository-evidence-scout`; не смешивать evidence разных revisions.
+5. Relationship из `system-map.yaml` учитывать только когда `source` и `target`
+   являются разрешившимися типизированными ссылками, а `relation` соответствует их
+   kind и читается строго в направлении `source → target`. Не выводить обратные,
+   транзитивные или repository-level связи автоматически. Невалидную или
+   неоднозначную запись вернуть как context finding, а не использовать в impact.
 
 ## Общий порядок
 

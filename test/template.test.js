@@ -111,6 +111,8 @@ test("every base mapping installs the complete canonical agent contract", async 
       agentId,
     });
     const targets = new Set(builtIn.files.map(({ targetRelative }) => targetRelative));
+    const projectCommandsCopy = builtIn.agent.copy.find(({ from }) => from === "commands");
+    assert.ok(projectCommandsCopy, `${agentId}: project commands copy`);
     for (const relativePath of skillFiles) {
       assert.equal(
         targets.has(path.posix.join(builtIn.agent.targetDirectory, "skills", relativePath)),
@@ -120,7 +122,7 @@ test("every base mapping installs the complete canonical agent contract", async 
     }
     for (const relativePath of commandFiles) {
       assert.equal(
-        targets.has(path.posix.join(builtIn.agent.commandsDirectory, relativePath)),
+        targets.has(path.posix.join(projectCommandsCopy.to, relativePath)),
         true,
         `${agentId}: ${relativePath}`,
       );
@@ -149,11 +151,13 @@ test("base mappings reuse canonical sources and isolate only necessary adaptatio
       { from: "skills", to: path.posix.join(agent.targetDirectory, "skills") },
       agentId,
     );
-    assert.deepEqual(
-      agent.copy.find(({ to }) => to === agent.commandsDirectory),
-      { from: "commands", to: agent.commandsDirectory },
-      agentId,
-    );
+    const expectedProjectCommandsDirectory = agentId === "claude"
+      ? path.posix.dirname(agent.commandsDirectory)
+      : agent.commandsDirectory;
+    assert.deepEqual(agent.copy.find(({ from }) => from === "commands"), {
+      from: "commands",
+      to: expectedProjectCommandsDirectory,
+    }, agentId);
     const subagents = agent.copy.find(
       ({ to }) => to === path.posix.join(agent.targetDirectory, "agents"),
     );
@@ -217,15 +221,16 @@ test("base OpenSpec config adds native planning rules without changing schema", 
   assert.deepEqual(Object.keys(config.rules).sort(), ["design", "proposal", "specs", "tasks"]);
   assert.match(config.rules.proposal.join("\n"), /не создавать отдельный questionnaire-файл/i);
   assert.match(config.rules.proposal.join("\n"), /Repository impact/);
-  assert.match(config.rules.proposal.join("\n"), /openspec-base-planning-check.*proposal/i);
-  assert.match(config.rules.specs.join("\n"), /SC-<CAPABILITY>-NNN/);
+  assert.match(config.rules.proposal.join("\n"), /openspec-base-meta-planning.*proposal/i);
+  assert.match(config.rules.specs.join("\n"), /<change-id>-<index>/);
+  assert.match(config.rules.specs.join("\n"), /add-profile-contacts-001/);
   assert.match(config.rules.specs.join("\n"), /Не делить Requirements и Scenarios по репозиториям/);
-  assert.match(config.rules.specs.join("\n"), /openspec-base-planning-check.*specs/i);
+  assert.match(config.rules.specs.join("\n"), /openspec-base-meta-planning.*specs/i);
   assert.match(config.rules.design.join("\n"), /Repository implementation map/);
-  assert.match(config.rules.design.join("\n"), /openspec-base-planning-check.*design/i);
+  assert.match(config.rules.design.join("\n"), /openspec-base-meta-planning.*design/i);
   assert.match(config.rules.tasks.join("\n"), /repository-id/);
   assert.match(config.rules.tasks.join("\n"), /primary solution owner/);
-  assert.match(config.rules.tasks.join("\n"), /openspec-base-planning-check.*tasks/i);
+  assert.match(config.rules.tasks.join("\n"), /openspec-base-meta-planning.*tasks/i);
   assert.equal(JSON.stringify(config).includes("sdd"), false);
 });
 
@@ -241,9 +246,11 @@ test("base agent instructions keep standard Apply available when no Cycle exists
 });
 
 test("base context keeps repository-local technical context outside the Store", async () => {
-  const systemMap = parse(
-    await fs.readFile(path.join(BASE_TEMPLATE_ROOT, "context", "system-map.yaml"), "utf8"),
+  const systemMapSource = await fs.readFile(
+    path.join(BASE_TEMPLATE_ROOT, "context", "system-map.yaml"),
+    "utf8",
   );
+  const systemMap = parse(systemMapSource);
   const startHere = await fs.readFile(
     path.join(BASE_TEMPLATE_ROOT, "context", "00-start-here.md"),
     "utf8",
@@ -261,12 +268,19 @@ test("base context keeps repository-local technical context outside the Store", 
     "utf8",
   );
 
+  assert.equal(systemMap.version, 2);
   assert.deepEqual(systemMap.repositories, []);
   assert.deepEqual(systemMap.systems, []);
   assert.deepEqual(systemMap.relationships, []);
+  assert.match(systemMapSource, /source, relation, target/);
+  assert.match(systemMapSource, /implemented_by: system -> repository/);
+  assert.match(systemMapSource, /system:<systems\[\]\.id>/);
+  assert.match(systemMapSource, /repository:<repositories\[\]\.id>/);
   assert.match(startHere, /локальное техническое устройство.*только в самих Code\s+Repositories/s);
   assert.match(command, /Не создавать `openspec\/context\/repositories\/`/);
-  assert.match(command, /локальный технический контекст должен оставаться в соответствующем Code Repository/);
+  assert.match(command, /локальный технический контекст одного репозитория → без записи в Store/);
+  assert.match(command, /source → relation → target/);
+  assert.match(command, /from\/to\/type.*не интерпретировать/s);
   assert.match(architecture, /Межсистемные ограничения и инварианты/);
   assert.doesNotMatch(architecture, /устойчивые технические условия/);
   assert.match(qualityGates, /Локальные команды build\/test\/lint/);
@@ -277,52 +291,52 @@ test("base context keeps repository-local technical context outside the Store", 
   );
 });
 
-test("base planning, impact and review skills remain read-only OpenSpec extensions", async () => {
-  for (const name of [
-    "openspec-base-analyze-impact",
-    "openspec-base-planning-check",
-    "openspec-base-review-change",
-  ]) {
-    const skill = await fs.readFile(
-      path.join(BASE_TEMPLATE_ROOT, "skills", name, "SKILL.md"),
-      "utf8",
-    );
-    const frontmatterMatch = skill.match(/^---\n([\s\S]*?)\n---/);
-    assert.ok(frontmatterMatch, name);
-    const frontmatter = parse(frontmatterMatch[1]);
-    assert.deepEqual(Object.keys(frontmatter).sort(), ["description", "name"]);
-    assert.equal(frontmatter.name, name);
-    assert.match(frontmatter.description, /[А-Яа-яЁё]/);
-    assert.match(skill, /не измен/i);
-    assert.equal(skill.includes("sdd.yaml"), false);
-    assert.equal(skill.includes("Work Package"), false);
-  }
+test("base Template has one read-only planning meta-skill", async () => {
+  const skillDirectories = (await fs.readdir(path.join(BASE_TEMPLATE_ROOT, "skills"))).sort();
+  assert.deepEqual(skillDirectories, [
+    "openspec-base-apply-context",
+    "openspec-base-meta-planning",
+    "openspec-base-test-cases",
+  ]);
+
+  const name = "openspec-base-meta-planning";
+  const skill = await fs.readFile(
+    path.join(BASE_TEMPLATE_ROOT, "skills", name, "SKILL.md"),
+    "utf8",
+  );
+  const frontmatterMatch = skill.match(/^---\n([\s\S]*?)\n---/);
+  assert.ok(frontmatterMatch);
+  const frontmatter = parse(frontmatterMatch[1]);
+  assert.deepEqual(Object.keys(frontmatter).sort(), ["description", "name"]);
+  assert.equal(frontmatter.name, name);
+  assert.match(frontmatter.description, /[А-Яа-яЁё]/);
+  assert.match(skill, /Работать только на чтение/);
+  assert.match(skill, /единственным project meta-skill/);
+  assert.match(skill, /Не вызывать `openspec-base-meta-planning` рекурсивно/);
+  assert.equal(skill.includes("sdd.yaml"), false);
+  assert.equal(skill.includes("Work Package"), false);
 });
 
-test("base planning check routes artifact stages without changing the OpenSpec workflow", async () => {
+test("base planning meta-skill routes artifact stages without changing the OpenSpec workflow", async () => {
   const skill = await fs.readFile(
-    path.join(BASE_TEMPLATE_ROOT, "skills", "openspec-base-planning-check", "SKILL.md"),
+    path.join(BASE_TEMPLATE_ROOT, "skills", "openspec-base-meta-planning", "SKILL.md"),
     "utf8",
   );
 
-  for (const stage of ["proposal", "specs", "design", "tasks", "planning-review"]) {
+  for (const stage of ["proposal", "specs", "design", "tasks", "impact-review", "planning-review"]) {
     assert.match(skill, new RegExp(`\\b${stage}\\b`, "i"), stage);
   }
   for (const dependency of [
-    "openspec-base-analyze-impact",
-    "openspec-base-review-change",
     "openspec-base-test-cases",
     "openspec-base-project-context-researcher",
-    "openspec-base-architecture-impact-reviewer",
-    "openspec-base-implementation-scout",
-    "openspec-base-specification-reviewer",
-    "openspec-base-verification-reviewer",
+    "openspec-base-planning-reviewer",
+    "openspec-base-repository-evidence-scout",
   ]) {
     assert.match(skill, new RegExp(`\\b${dependency}\\b`), dependency);
   }
   assert.match(skill, /check_status: ready \| needs_revision \| blocked/);
   assert.match(skill, /Не изменять schema/);
-  assert.match(skill, /Не принимать Gate|Не подменять человеческий Gate/);
+  assert.match(skill, /Не считать результат approval, Gate/);
 });
 
 test("base apply context scopes the built-in Apply to the current Cycle repository", async () => {
@@ -355,22 +369,22 @@ test("base apply context scopes the built-in Apply to the current Cycle reposito
   assert.match(skill, /mode: orchestrated[\s\S]*planning_revision/);
   assert.match(skill, /repository_completion:[\s\S]*completion_status: completed \| incomplete/);
   assert.match(skill, /не предлагать[\s\S]*status: completed/);
-  assert.match(skill, /Не запускать полный `\/opsx:verify` после каждого checkbox/);
+  assert.match(skill, /Не запускать полный штатный OpenSpec Verify после каждого checkbox/);
   assert.match(skill, /Не создавать новый\s+implementation workflow/s);
   assert.match(skill, /не изменять встроенные `openspec-\*`\s+skills или `opsx-\*`/);
 });
 
-test("base review skill checks repository coverage without creating another workflow", async () => {
+test("base planning meta-skill checks repository coverage without creating another workflow", async () => {
   const skill = await fs.readFile(
-    path.join(BASE_TEMPLATE_ROOT, "skills", "openspec-base-review-change", "SKILL.md"),
+    path.join(BASE_TEMPLATE_ROOT, "skills", "openspec-base-meta-planning", "SKILL.md"),
     "utf8",
   );
 
-  assert.match(skill, /declared.*inferred.*checked-no-change/s);
-  assert.match(skill, /Proposal impact → Design map → Tasks → verification plan\/evidence/);
-  assert.match(skill, /симметричность межрепозиторных контрактов/);
-  assert.match(skill, /`openspec-base-specification-reviewer`/);
-  assert.match(skill, /Отсутствие subagents не\s+блокирует ревью/);
+  assert.match(skill, /заявленные `repository-id`.*обоснованные `no-change`/s);
+  assert.match(skill, /Proposal impact → Design map → Tasks →\s+verification plan/s);
+  assert.match(skill, /симметричность межрепозиторных изменений/);
+  assert.match(skill, /`openspec-base-planning-reviewer`/);
+  assert.match(skill, /Отсутствие subagent само\s+по себе не блокирует проверку/);
 });
 
 test("base test-case skill is Russian and does not introduce another OpenSpec workflow", async () => {
@@ -395,18 +409,18 @@ test("base test-case skill is Russian and does not introduce another OpenSpec wo
 
 test("base subagents are Russian read-only native profiles", async () => {
   const expectedNames = [
-    "openspec-base-architecture-impact-reviewer",
-    "openspec-base-implementation-scout",
+    "openspec-base-planning-reviewer",
     "openspec-base-project-context-researcher",
-    "openspec-base-specification-reviewer",
-    "openspec-base-verification-reviewer",
+    "openspec-base-repository-evidence-scout",
   ];
-  const readOnlyTools = [
+  const commonReadOnlyTools = [
     "read_file",
     "read_many_files",
     "grep_search",
     "glob",
     "list_directory",
+  ];
+  const codeGraphTools = [
     "mcp__codegraph__codegraph_search",
     "mcp__codegraph__codegraph_context",
     "mcp__codegraph__codegraph_trace",
@@ -432,7 +446,10 @@ test("base subagents are Russian read-only native profiles", async () => {
     assert.match(frontmatter.description, /[А-Яа-яЁё]/);
     assert.equal(frontmatter.model, "inherit");
     assert.equal(frontmatter.approvalMode, "plan");
-    assert.deepEqual(frontmatter.tools, readOnlyTools);
+    const expectedTools = name === "openspec-base-repository-evidence-scout"
+      ? [...commonReadOnlyTools, ...codeGraphTools]
+      : commonReadOnlyTools;
+    assert.deepEqual(frontmatter.tools, expectedTools);
     assert.match(contents, /Верни по-русски/);
     assert.match(contents, /Ты OpenSpec-сабагент/);
     assert.match(contents, /[Cc]ode[Gg]raph|\.codegraph/);
