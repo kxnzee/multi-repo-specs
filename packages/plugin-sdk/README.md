@@ -36,6 +36,14 @@ Plugin импортирует только `@openspec-orch/plugin-sdk`. Дост
 repositories, Git, OpenSpec, files, process, storage, Agent и logger предоставляется
 Core через новый immutable `PluginContext` для каждого invocation.
 
+Repository lifecycle получает context, уже привязанный к одному Repository. Core
+проверяет project registration, `repositories[].plugins`, поддерживаемую role и
+локальный checkout до вызова Plugin. `repository`, `project.repositories` и
+`repositories.list()` содержат только immutable `{ id, role }` handles; filesystem
+root и изменяемая Project model в Plugin не передаются. `git`, `openspec`, `files`
+и `process` автоматически работают в проверенном checkout, а `storage` — только в
+namespace текущего Plugin.
+
 `PluginPackage` аналогично инкапсулирует проверку `package.json` и предоставляет
 только package identity и ESM entrypoint. Тестовый `PluginContract` связывает обе
 модели и проверяет регистрацию команд, не выполняя их actions.

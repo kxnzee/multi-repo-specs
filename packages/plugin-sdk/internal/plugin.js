@@ -19,6 +19,50 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
  */
 
 /**
+ * @typedef {object} ProjectHandle
+ * @property {string} id
+ * @property {boolean} strict
+ * @property {RepositoryHandle} store
+ * @property {readonly RepositoryHandle[]} repositories
+ * @property {{readonly id: string}} agent
+ */
+
+/**
+ * @typedef {object} GitFacade
+ * @property {() => Promise<string>} currentBranch
+ * @property {(pathspec?: readonly string[]) => Promise<readonly string[]>} statusPaths
+ * @property {(pathspec?: readonly string[]) => Promise<boolean>} isClean
+ * @property {() => Promise<string>} revision
+ */
+
+/** @typedef {{version: () => Promise<string>}} OpenSpecFacade */
+
+/**
+ * @typedef {object} FilesFacade
+ * @property {(relativePath: string) => Promise<string>} read
+ * @property {(relativePath: string, contents: string, options?: object) => Promise<void>} write
+ */
+
+/**
+ * @typedef {object} ProcessFacade
+ * @property {(executable: string, args: readonly string[], options?: object) => Promise<string>} run
+ */
+
+/**
+ * @typedef {object} StorageFacade
+ * @property {() => Promise<unknown>} read
+ * @property {(data: unknown) => Promise<unknown>} write
+ * @property {(operation: (current: unknown) => unknown | Promise<unknown>) => Promise<unknown>} update
+ */
+
+/**
+ * @typedef {object} LoggerFacade
+ * @property {(message: string) => void} info
+ * @property {(message: string) => void} warn
+ * @property {(message: string) => void} error
+ */
+
+/**
  * @typedef {object} CommandBuilder
  * @property {(description: string) => CommandBuilder} description
  * @property {(handler: (...args: unknown[]) => unknown) => CommandBuilder} action
@@ -31,16 +75,16 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
 
 /**
  * @typedef {object} PluginContext
- * @property {Readonly<object>} project
+ * @property {Readonly<ProjectHandle>} project
  * @property {RepositoryRegistry} repositories
  * @property {RepositoryHandle} [repository]
- * @property {Readonly<object>} git
- * @property {Readonly<object>} openspec
- * @property {Readonly<object>} files
- * @property {Readonly<object>} process
- * @property {Readonly<object>} storage
- * @property {Readonly<object>} agent
- * @property {Readonly<object>} logger
+ * @property {GitFacade} git
+ * @property {OpenSpecFacade} openspec
+ * @property {FilesFacade} files
+ * @property {ProcessFacade} process
+ * @property {StorageFacade} storage
+ * @property {{readonly id: string}} agent
+ * @property {LoggerFacade} logger
  */
 
 /**
