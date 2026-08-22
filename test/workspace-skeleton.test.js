@@ -28,7 +28,10 @@ test("Core and Plugin SDK expose only their package root", async () => {
   const sdk = await readManifest("packages/plugin-sdk/package.json");
 
   assert.deepEqual(core.exports, { ".": "./index.js" });
-  assert.deepEqual(sdk.exports, { ".": "./index.js" });
+  assert.deepEqual(sdk.exports, {
+    ".": "./index.js",
+    "./testing": "./testing.js",
+  });
   assert.equal(core.private, true);
   assert.equal(sdk.private, true);
   assert.equal(sdk.dependencies, undefined);
@@ -74,6 +77,22 @@ test("ESLint enforces static Core, SDK and Plugin import boundaries", async () =
       result.messages.some(({ ruleId }) => ruleId === "no-restricted-imports"),
       true,
       fixture.filePath,
+    );
+  }
+
+  for (const filePath of [
+    path.resolve("packages/core/internal/sdk-consumer.js"),
+    path.resolve("packages/plugin-sdk/test/self-reference.js"),
+    path.resolve("plugins/example/index.js"),
+  ]) {
+    const [result] = await eslint.lintText(
+      "import { definePlugin } from '@openspec-orch/plugin-sdk';\nvoid definePlugin;\n",
+      { filePath },
+    );
+    assert.equal(
+      result.messages.some(({ ruleId }) => ruleId === "no-restricted-imports"),
+      false,
+      filePath,
     );
   }
 });

@@ -1,0 +1,106 @@
+/** @fileoverview Доменная модель package.json одного Plugin package. */
+
+import { PLUGIN_API_VERSION } from "./constants.js";
+
+const EXACT_VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+
+/** Завершает проверку Package contract стабильной ошибкой. */
+function invalid(message) {
+  throw new Error(`PLUGIN_CONTRACT_INVALID: ${message}`);
+}
+
+/** Проверяет object из разобранного package.json. */
+function assertPlainObject(value, label) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    invalid(`${label} должен быть plain object`);
+  }
+}
+
+/** Проверяет безопасный относительный ESM entrypoint. */
+function assertPluginPath(value) {
+  if (
+    typeof value !== "string" ||
+    !value.startsWith("./") ||
+    value.includes("\\") ||
+    value.split("/").some((segment) => segment === ".." || segment === "")
+  ) {
+    invalid("openspecOrchestrator.plugin должен быть безопасным относительным POSIX path");
+  }
+}
+
+/** Возвращает root export из строковой или conditional exports формы. */
+function resolveRootExport(exportsValue) {
+  if (typeof exportsValue === "string") return exportsValue;
+  if (exportsValue && typeof exportsValue === "object" && !Array.isArray(exportsValue)) {
+    const root = exportsValue["."];
+    if (typeof root === "string") return root;
+    if (root && typeof root === "object") return root.import ?? root.default;
+  }
+  return undefined;
+}
+
+/** Проверенная package identity и точка входа одного Plugin. */
+export class PluginPackage {
+  #name;
+  #version;
+  #entrypoint;
+
+  /** @param {Record<string, unknown>} manifest Parsed package.json. */
+  constructor(manifest) {
+    assertPlainObject(manifest, "package.json");
+    if (typeof manifest.name !== "string" || manifest.name.length === 0) {
+      invalid("package name обязателен");
+    }
+    if (typeof manifest.version !== "string" || !EXACT_VERSION_PATTERN.test(manifest.version)) {
+      invalid("package version должна быть exact semantic version");
+    }
+    if (manifest.type !== "module") invalid("Plugin package должен использовать type=module");
+    assertPlainObject(manifest.openspecOrchestrator, "openspecOrchestrator");
+    const metadata = manifest.openspecOrchestrator;
+    const metadataKeys = Object.keys(metadata);
+    if (
+      metadataKeys.length !== 2 ||
+      !metadataKeys.includes("apiVersion") ||
+      !metadataKeys.includes("plugin")
+    ) {
+      invalid("openspecOrchestrator содержит только apiVersion и plugin");
+    }
+    if (metadata.apiVersion !== PLUGIN_API_VERSION) {
+      invalid(`поддерживается только apiVersion=${PLUGIN_API_VERSION}`);
+    }
+    assertPluginPath(metadata.plugin);
+    if (resolveRootExport(manifest.exports) !== metadata.plugin) {
+      invalid("package root export должен совпадать с openspecOrchestrator.plugin");
+    }
+    const sdkRange = manifest.peerDependencies?.["@openspec-orch/plugin-sdk"] ??
+      manifest.dependencies?.["@openspec-orch/plugin-sdk"];
+    if (typeof sdkRange !== "string" || sdkRange.length === 0) {
+      invalid("Plugin package должен объявить @openspec-orch/plugin-sdk");
+    }
+
+    this.#name = manifest.name;
+    this.#version = manifest.version;
+    this.#entrypoint = metadata.plugin;
+    Object.freeze(this);
+  }
+
+  get name() {
+    return this.#name;
+  }
+
+  get version() {
+    return this.#version;
+  }
+
+  get entrypoint() {
+    return this.#entrypoint;
+  }
+
+  identity() {
+    return Object.freeze({
+      name: this.#name,
+      version: this.#version,
+      plugin: this.#entrypoint,
+    });
+  }
+}

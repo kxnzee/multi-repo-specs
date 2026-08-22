@@ -1,0 +1,165 @@
+/** @fileoverview Проверки минимального Plugin SDK и его внешнего test kit. */
+
+import assert from "node:assert/strict";
+import { promises as fs } from "node:fs";
+import test from "node:test";
+
+import {
+  definePlugin,
+  Plugin,
+  PluginPackage,
+  PLUGIN_API_VERSION,
+} from "@openspec-orch/plugin-sdk";
+import {
+  assertPluginContract,
+  assertPluginPackageManifest,
+  PluginContract,
+  testPluginContract,
+} from "@openspec-orch/plugin-sdk/testing";
+
+const SAMPLE_ROOT = new URL("../../../test-fixtures/plugin-sdk/sample-plugin/", import.meta.url);
+const SAMPLE_MANIFEST = JSON.parse(await fs.readFile(new URL("package.json", SAMPLE_ROOT), "utf8"));
+const { default: SAMPLE_PLUGIN } = await import(new URL("index.js", SAMPLE_ROOT));
+
+testPluginContract({ plugin: SAMPLE_PLUGIN, packageManifest: SAMPLE_MANIFEST });
+
+test("definePlugin returns an immutable domain model without running contributions", () => {
+  const calls = [];
+  const supports = ["code"];
+  const plugin = definePlugin({
+    id: "dependency-audit",
+    supports,
+    repository: {
+      connect(context) { calls.push(["connect", context]); },
+      status(context) { calls.push(["status", context]); },
+    },
+  });
+  supports.push("store");
+
+  assert.equal(plugin instanceof Plugin, true);
+  assert.deepEqual(calls, []);
+  assert.deepEqual(plugin.supports, ["code"]);
+  assert.equal(Object.isFrozen(plugin), true);
+  assert.equal(Object.isFrozen(plugin.supports), true);
+  assert.equal(plugin.hasRepositoryContribution(), true);
+  assert.equal(plugin.supportsRole("code"), true);
+  plugin.assertSupports({ id: "frontend", role: "code" });
+  assert.throws(
+    () => plugin.assertSupports({ id: "specs", role: "store" }),
+    /PLUGIN_SCOPE_UNSUPPORTED/,
+  );
+
+  const context = Object.freeze({ repository: { id: "frontend", role: "code" } });
+  plugin.connect(context);
+  plugin.status(context);
+  assert.deepEqual(calls, [["connect", context], ["status", context]]);
+  assert.equal(plugin.canSync(), false);
+  assert.throws(() => plugin.sync(context), /PLUGIN_SYNC_UNSUPPORTED/);
+  assert.equal(plugin.hasAgentContribution(), false);
+  assert.throws(() => plugin.integrateAgent(context), /PLUGIN_AGENT_UNSUPPORTED/);
+});
+
+test("definePlugin rejects invalid definitions without instanceof coupling", () => {
+  assert.throws(() => definePlugin(null), /PLUGIN_DEFINITION_INVALID/);
+  assert.throws(() => definePlugin({ id: "Demo", supports: [], registerCommands() {} }), /kebab-case/);
+  assert.throws(
+    () => definePlugin({ id: "demo", supports: ["code", "code"], repository: { connect() {}, status() {} } }),
+    /повторяющуюся role/,
+  );
+  assert.throws(
+    () => definePlugin({ id: "demo", supports: ["code"], registerCommands() {} }),
+    /supports разрешён только вместе с repository/,
+  );
+  assert.throws(
+    () => definePlugin({ id: "demo", supports: ["code"], repository: { connect() {} } }),
+    /repository.status/,
+  );
+  assert.throws(
+    () => definePlugin({ id: "demo", supports: [], unexpected: true, registerCommands() {} }),
+    /неизвестное поле/,
+  );
+});
+
+test("Package manifest contract replaces plugin.yaml with one ESM entrypoint", () => {
+  assert.equal(PLUGIN_API_VERSION, 1);
+  const pluginPackage = new PluginPackage(SAMPLE_MANIFEST);
+  assert.equal(pluginPackage.name, "@test/openspec-orch-plugin-sample");
+  assert.equal(pluginPackage.version, "1.0.0");
+  assert.equal(pluginPackage.entrypoint, "./index.js");
+  assert.deepEqual(assertPluginPackageManifest(SAMPLE_MANIFEST), {
+    name: "@test/openspec-orch-plugin-sample",
+    version: "1.0.0",
+    plugin: "./index.js",
+  });
+  assert.throws(
+    () => assertPluginPackageManifest({
+      ...SAMPLE_MANIFEST,
+      openspecOrchestrator: { apiVersion: 1, manifest: "plugin.yaml", plugin: "./index.js" },
+    }),
+    /только apiVersion и plugin/,
+  );
+  assert.throws(
+    () => assertPluginPackageManifest({ ...SAMPLE_MANIFEST, peerDependencies: {} }),
+    /должен объявить @openspec-orch\/plugin-sdk/,
+  );
+});
+
+test("contract test kit validates command registration without running actions", () => {
+  let actionCalls = 0;
+  const plugin = definePlugin({
+    id: "commands-only",
+    supports: [],
+    registerCommands(commands) {
+      commands.command("hello")
+        .description("Hello")
+        .action(() => { actionCalls += 1; });
+    },
+  });
+
+  assert.deepEqual(
+    assertPluginContract({ plugin, packageManifest: SAMPLE_MANIFEST }),
+    { id: "commands-only", commands: ["hello"] },
+  );
+  const contract = new PluginContract({ plugin, packageManifest: SAMPLE_MANIFEST });
+  assert.equal(contract instanceof PluginContract, true);
+  assert.equal(contract.package instanceof PluginPackage, true);
+  assert.equal(actionCalls, 0);
+  assert.throws(
+    () => assertPluginContract({
+      plugin: definePlugin({
+        id: "duplicate-commands",
+        supports: [],
+        registerCommands(commands) {
+          commands.command("hello");
+          commands.command("hello");
+        },
+      }),
+      packageManifest: SAMPLE_MANIFEST,
+    }),
+    /повторяющаяся Command/,
+  );
+});
+
+test("contract validation uses the public Plugin API instead of instanceof", () => {
+  const plugin = SAMPLE_PLUGIN;
+  const externalPlugin = Object.freeze({
+    id: plugin.id,
+    supports: plugin.supports,
+    supportsRole: plugin.supportsRole.bind(plugin),
+    assertSupports: plugin.assertSupports.bind(plugin),
+    hasRepositoryContribution: plugin.hasRepositoryContribution.bind(plugin),
+    connect: plugin.connect.bind(plugin),
+    status: plugin.status.bind(plugin),
+    canSync: plugin.canSync.bind(plugin),
+    sync: plugin.sync.bind(plugin),
+    hasAgentContribution: plugin.hasAgentContribution.bind(plugin),
+    integrateAgent: plugin.integrateAgent.bind(plugin),
+    hasCommandContribution: plugin.hasCommandContribution.bind(plugin),
+    registerCommands: plugin.registerCommands.bind(plugin),
+  });
+
+  assert.deepEqual(
+    assertPluginContract({ plugin: externalPlugin, packageManifest: SAMPLE_MANIFEST }),
+    { id: "sample", commands: ["hello"] },
+  );
+});
