@@ -1,5 +1,6 @@
 /** @fileoverview Доменная модель Repository из проектного реестра. */
 
+import { CORE_PATTERNS } from "./constants.js";
 import { deepFreeze } from "./value.js";
 
 const REPOSITORY_ROLES = new Set(["store", "code"]);
@@ -69,6 +70,12 @@ export class Repository {
 
   hasPlugin(pluginId) {
     return this.#plugins.includes(pluginId);
+  }
+
+  matchesRemote(remote) {
+    if (typeof remote !== "string") return false;
+    const normalize = (value) => value.trim().replace(CORE_PATTERNS.trailingSlashes, "");
+    return normalize(this.#remote) === normalize(remote);
   }
 
   connectPlugin(pluginId) {

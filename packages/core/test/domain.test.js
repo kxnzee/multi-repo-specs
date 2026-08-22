@@ -55,6 +55,8 @@ test("Core exports Repository as an immutable domain entity", () => {
   assert.equal(repository instanceof Repository, true);
   assert.equal(repository.isCode(), true);
   assert.equal(repository.isStore(), false);
+  assert.equal(repository.matchesRemote("https://example.test/frontend.git/"), true);
+  assert.equal(repository.matchesRemote("https://example.test/backend.git"), false);
   assert.equal(Object.isFrozen(repository), true);
   assert.equal(Object.isFrozen(repository.plugins), true);
 

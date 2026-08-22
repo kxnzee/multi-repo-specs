@@ -16,7 +16,9 @@ export { PluginStorage, PluginStorageService, pluginStorage } from "./internal/p
 export { ProcessService, ScopedProcess, processes } from "./internal/process.js";
 export { Project, createProject } from "./internal/project.js";
 export { Repository, createRepository } from "./internal/repository.js";
+export { RepositoryStatus, RepositoryStatusService, repositoryStatuses } from "./internal/repository-status.js";
 export { Store, createStore } from "./internal/store.js";
+export { StoreProject, StoreProjectService, storeProjects } from "./internal/store-project.js";
 export { StoreTarget } from "./internal/store-target.js";
 export {
   ProjectTemplateService,

@@ -12,8 +12,8 @@ import {
   CandidateCli,
   ConnectionResult,
   ConnectionService,
-  CoreConfiguration,
   CoreStateService,
+  CoreConfiguration,
   createRepositoryCheckout,
   GitService,
   OpenSpecService,
@@ -21,6 +21,7 @@ import {
   ProcessService,
   Project,
   Repository,
+  StoreProjectService,
   WorkspaceResolver,
 } from "@openspec-orch/core";
 
@@ -154,11 +155,11 @@ function connectExecutor(scenario, { diagnostic } = {}) {
 function connectionFixture(executor) {
   const processService = new ProcessService(executor);
   return new ConnectionService({
-    configurationService: new CoreConfiguration(),
     gitService: new GitService(processService),
     openSpecService: new OpenSpecService(processService),
     pointerService: new OpenSpecPointerService(),
     stateService: new CoreStateService(),
+    storeProjectService: new StoreProjectService(new CoreConfiguration()),
     workspaceService: new WorkspaceResolver(),
   });
 }

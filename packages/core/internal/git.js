@@ -25,12 +25,6 @@ function parseStatusPaths(output) {
   return paths;
 }
 
-/** Сравнивает Git remotes без завершающих slash. */
-function sameRemote(left, right) {
-  const normalize = (value) => value.trim().replace(CORE_PATTERNS.trailingSlashes, "");
-  return normalize(left) === normalize(right);
-}
-
 /** Git API одного проверенного RepositoryCheckout. */
 export class RepositoryGit {
   #scope;
@@ -84,7 +78,7 @@ export class RepositoryGit {
     if (typeof this.#scope.repository?.remote !== "string") {
       throw new Error("GIT_SCOPE_INVALID: identity требует RepositoryCheckout");
     }
-    if (!sameRemote(remote, this.#scope.repository.remote)) {
+    if (!this.#scope.repository.matchesRemote(remote)) {
       throw new Error(`${this.#scope.id}: origin не совпадает с openspec-orch.yaml`);
     }
   }
