@@ -7,7 +7,9 @@
     ".": "./index.js"
   },
   "dependencies": {
-    "commander": "14.0.3"
+    "commander": "14.0.3",
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
   },
   "engines": {
     "node": ">=20.19.0"

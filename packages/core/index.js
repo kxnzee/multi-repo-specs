@@ -2,6 +2,7 @@
 
 import { Command } from "commander";
 
+export { CoreConfiguration, configuration } from "./internal/configuration.js";
 export { Project, createProject } from "./internal/project.js";
 export { Repository, createRepository } from "./internal/repository.js";
 export { Store, createStore } from "./internal/store.js";

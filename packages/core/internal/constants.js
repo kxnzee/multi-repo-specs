@@ -2,4 +2,15 @@
 
 export const CORE_FILES = Object.freeze({
   orchestratorConfig: "openspec-orch.yaml",
+  storeMetadata: ".openspec-store/store.yaml",
+});
+
+export const CORE_CONTRACT_VERSIONS = Object.freeze({
+  project: 2,
+  legacyProject: 1,
+  store: 1,
+});
+
+export const CORE_PATTERNS = Object.freeze({
+  id: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
 });
