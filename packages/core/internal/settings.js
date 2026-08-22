@@ -25,6 +25,9 @@ export const CORE_SETTINGS = Object.freeze({
       ]),
     }),
   }),
+  repositories: Object.freeze({
+    processConcurrency: 4,
+  }),
   workspace: Object.freeze({
     repositoriesDirectory: "src",
   }),

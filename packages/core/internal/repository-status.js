@@ -6,6 +6,7 @@ import process from "node:process";
 import { RepositoryCheckout } from "./checkout.js";
 import { coreState } from "./core-state.js";
 import { git } from "./git.js";
+import { repositoryRunner, repositorySelector } from "./repository-operations.js";
 import { storeProjects } from "./store-project.js";
 import { workspace } from "./workspace.js";
 
@@ -60,17 +61,23 @@ export class RepositoryStatus {
 /** Читает состояние Store и Code Repository checkouts без мутаций. */
 export class RepositoryStatusService {
   #git;
+  #runner;
+  #selector;
   #state;
   #storeProjects;
   #workspace;
 
   constructor({
     gitService = git,
+    repositoryRunnerService = repositoryRunner,
+    repositorySelectorService = repositorySelector,
     stateService = coreState,
     storeProjectService = storeProjects,
     workspaceService = workspace,
   } = {}) {
     this.#git = gitService;
+    this.#runner = repositoryRunnerService;
+    this.#selector = repositorySelectorService;
     this.#state = stateService;
     this.#storeProjects = storeProjectService;
     this.#workspace = workspaceService;
@@ -79,7 +86,7 @@ export class RepositoryStatusService {
 
   async inspect({ start = process.cwd(), repositoryIds } = {}) {
     const storeProject = await this.#storeProjects.find(start);
-    const selected = storeProject.project.selectRepositories(repositoryIds);
+    const selected = this.#selector.select(storeProject.project, { repositoryIds });
     const storedWorkspace = (await this.#state.forStore(storeProject.checkout).read()).workspace;
     const workspaceModel = await this.#workspace.resolve({
       storeRoot: storeProject.root,
@@ -89,16 +96,14 @@ export class RepositoryStatusService {
       if (error.code === "WORKSPACE_UNRESOLVED") return null;
       throw error;
     });
-    const statuses = [];
-    for (const repository of selected) {
+    return this.#runner.run(selected, async (repository) => {
       const expectedPath = repository.isStore()
         ? storeProject.root
         : workspaceModel?.checkoutPath(repository) ?? null;
-      statuses.push(expectedPath
+      return expectedPath
         ? await this.#inspectRepository(repository, expectedPath)
-        : new RepositoryStatus({ repository, state: "workspace_unresolved" }));
-    }
-    return Object.freeze(statuses);
+        : new RepositoryStatus({ repository, state: "workspace_unresolved" });
+    });
   }
 
   async #inspectRepository(repository, expectedPath) {
