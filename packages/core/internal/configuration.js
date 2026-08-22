@@ -5,8 +5,9 @@ import path from "node:path";
 import { parse, stringify } from "yaml";
 
 import { parseProjectConfigSchema, parseStoreMetadataSchema } from "./config-schema.js";
-import { CORE_CONTRACT_VERSIONS, CORE_FILES } from "./constants.js";
+import { CORE_CONTRACT_VERSIONS, CORE_FILES, CORE_PATTERNS } from "./constants.js";
 import { Project } from "./project.js";
+import { Repository } from "./repository.js";
 import { Store } from "./store.js";
 
 /** Разбирает YAML и требует object верхнего уровня. */
@@ -107,6 +108,22 @@ function assertProjectContract(plugins, repositories) {
 
 /** API трансляции внешних Core contracts в Project и Store. */
 export class CoreConfiguration {
+  parseRepositoryArgument(value) {
+    if (typeof value !== "string") {
+      throw new Error(`Некорректный репозиторий '${value ?? ""}'. Ожидается <id=remote#branch>`);
+    }
+    const match = value.match(CORE_PATTERNS.repositoryArgument);
+    if (!match) {
+      throw new Error(`Некорректный репозиторий '${value}'. Ожидается <id=remote#branch>`);
+    }
+    const [, id, remote, defaultBranch] = match;
+    if (remote.startsWith("-") || defaultBranch.startsWith("-")) {
+      throw new Error(`Некорректный репозиторий '${value}'. Ожидается <id=remote#branch>`);
+    }
+    assertRepositoryRemote(remote, id);
+    return new Repository({ id, role: "code", remote, defaultBranch, plugins: [] });
+  }
+
   parseProject(source) {
     const value = parseProjectConfigSchema(
       parseYaml(source, `Некорректный ${CORE_FILES.orchestratorConfig}`),

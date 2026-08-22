@@ -13,6 +13,7 @@ import {
   FailClosedLock,
   PluginStorage,
   PluginStorageService,
+  StoreTarget,
 } from "@openspec-orch/core";
 
 /** Создаёт изолированный Store checkout fixture. */
@@ -169,5 +170,6 @@ test("PluginStorage accepts only Store checkout and canonical Plugin ID", async 
   const codeCheckout = createRepositoryCheckout(codeRepository, root);
 
   assert.throws(() => new PluginStorageService().forPlugin(codeCheckout, "demo"), /Store/);
+  assert.throws(() => new PluginStorageService().forPlugin(new StoreTarget("specs", root), "demo"), /Store/);
   assert.throws(() => new PluginStorageService().forPlugin(checkout, "../demo"), /plugin-id/);
 });

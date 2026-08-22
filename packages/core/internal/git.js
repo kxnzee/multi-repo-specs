@@ -113,6 +113,10 @@ export class GitService {
     return new RepositoryGit(this.#processService.forRepository(checkout));
   }
 
+  forStoreTarget(target) {
+    return new RepositoryGit(this.#processService.forStoreTarget(target));
+  }
+
   forWorkspace(workspace) {
     return new WorkspaceGit(workspace, this.#processService.forWorkspace(workspace));
   }

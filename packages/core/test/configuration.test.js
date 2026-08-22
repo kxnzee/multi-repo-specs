@@ -110,3 +110,20 @@ test("configuration parses Store metadata into Store identity", () => {
   assert.throws(() => configuration.parseStore("version: 2\nid: specs\n"), /version: 1/);
   assert.throws(() => configuration.parseStore("version: 1\nid: Demo\n"), /CONFIG_INVALID/);
 });
+
+test("configuration parses the public init repository argument into Repository", () => {
+  const repository = configuration.parseRepositoryArgument(
+    "frontend=https://example.test/frontend.git#main",
+  );
+
+  assert.equal(repository instanceof Repository, true);
+  assert.deepEqual(repository.toConfig(), {
+    id: "frontend",
+    role: "code",
+    remote: "https://example.test/frontend.git",
+    defaultBranch: "main",
+    plugins: [],
+  });
+  assert.throws(() => configuration.parseRepositoryArgument("Frontend=remote#main"), /Ожидается/);
+  assert.throws(() => configuration.parseRepositoryArgument("frontend=/tmp/frontend#main"), /CONFIG_INVALID/);
+});

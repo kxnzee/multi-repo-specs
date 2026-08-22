@@ -1,6 +1,6 @@
 /** @fileoverview Доменный агрегат Project поверх нормализованного config. */
 
-import { CORE_FILES } from "./constants.js";
+import { CORE_FILES, CORE_PATTERNS } from "./constants.js";
 import { Repository } from "./repository.js";
 import { deepFreeze, ownValue } from "./value.js";
 
@@ -91,6 +91,20 @@ export class Project {
 
   hasPlugin(pluginId) {
     return this.#plugins.includes(pluginId);
+  }
+
+  registerAgent(agentId) {
+    if (typeof agentId !== "string" || !CORE_PATTERNS.id.test(agentId)) {
+      throw new Error(`PROJECT_INVALID: некорректный Agent ID '${agentId ?? ""}'`);
+    }
+    if (this.#agents.includes(agentId)) return false;
+    if (this.#agents.length > 0) {
+      throw new Error(
+        `STORE_AGENT_MISMATCH: Store зарегистрирован для ${this.#agents.join(", ")}, а не ${agentId}`,
+      );
+    }
+    this.#agents = Object.freeze([agentId]);
+    return true;
   }
 
   requirePlugin(pluginId) {

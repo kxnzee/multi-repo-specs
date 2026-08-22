@@ -3,6 +3,7 @@
 import { execa } from "execa";
 
 import { CORE_SETTINGS } from "./settings.js";
+import { StoreTarget } from "./store-target.js";
 
 const COMMAND_ENV = Object.freeze({
   GIT_OPTIONAL_LOCKS: "0",
@@ -92,6 +93,13 @@ export class ProcessService {
 
   forRepository(checkout) {
     return new ScopedProcess(checkout.root, this.#executor);
+  }
+
+  forStoreTarget(target) {
+    if (!(target instanceof StoreTarget)) {
+      throw new Error("PROCESS_SCOPE_INVALID: требуется StoreTarget");
+    }
+    return new ScopedProcess(target.root, this.#executor);
   }
 
   forWorkspace(workspace) {

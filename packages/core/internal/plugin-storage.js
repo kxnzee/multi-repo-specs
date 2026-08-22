@@ -77,7 +77,13 @@ async function hasSafeDirectories(root, relativePath) {
 
 /** Проверяет Store checkout перед созданием scoped storage. */
 function assertStoreCheckout(checkout) {
-  if (!checkout || checkout.role !== "store" || typeof checkout.root !== "string") {
+  if (
+    !checkout ||
+    checkout.role !== "store" ||
+    typeof checkout.root !== "string" ||
+    typeof checkout.repository?.isStore !== "function" ||
+    !checkout.repository.isStore()
+  ) {
     throw new Error("PLUGIN_STORAGE_INVALID: требуется Store RepositoryCheckout");
   }
 }

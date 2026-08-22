@@ -50,7 +50,7 @@ test("legacy and candidate entrypoints run independently", () => {
   assert.equal(legacy.status, 0, legacy.stderr);
   assert.equal(candidate.status, 0, candidate.stderr);
   assert.match(legacy.stdout, /Cycle и Snapshot для multi-repo Change/);
-  assert.match(candidate.stdout, /candidate runtime/);
+  assert.match(candidate.stdout, /init \[options\] \[path\]/);
   assert.notEqual(candidate.stdout, legacy.stdout);
 });
 
