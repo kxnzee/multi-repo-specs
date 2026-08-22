@@ -12,6 +12,7 @@ export { InitializationService, initialization } from "./internal/initialization
 export { OpenSpecService, RepositoryOpenSpec, openspec } from "./internal/openspec.js";
 export { OpenSpecPointerService, pointers } from "./internal/pointer.js";
 export { FailClosedLock, locks } from "./internal/lock.js";
+export { LoadedPlugin, PluginLoader, pluginLoader } from "./internal/plugin-loader.js";
 export { PluginStorage, PluginStorageService, pluginStorage } from "./internal/plugin-storage.js";
 export { ProcessService, ScopedProcess, processes } from "./internal/process.js";
 export { Project, createProject } from "./internal/project.js";
