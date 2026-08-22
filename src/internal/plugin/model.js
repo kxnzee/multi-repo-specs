@@ -41,6 +41,27 @@ export class PluginModel {
     return this.#invocation(args);
   }
 
+  /** Сообщает, предоставляет ли Plugin интеграцию с зарегистрированными Agents. */
+  hasAgentIntegration() {
+    return this.#descriptor.agent !== undefined;
+  }
+
+  /** Возвращает invocation установки Plugin для одного зарегистрированного Agent. */
+  agentInstallInvocation(agentId) {
+    if (!this.#descriptor.agent) {
+      throw new Error(`PLUGIN_AGENT_UNSUPPORTED: ${this.#descriptor.id} не предоставляет Agent integration`);
+    }
+    return this.#invocation([...this.#descriptor.agent.install, "--agent", agentId]);
+  }
+
+  /** Возвращает invocation удаления Plugin у одного зарегистрированного Agent. */
+  agentRemoveInvocation(agentId) {
+    if (!this.#descriptor.agent) {
+      throw new Error(`PLUGIN_AGENT_UNSUPPORTED: ${this.#descriptor.id} не предоставляет Agent integration`);
+    }
+    return this.#invocation([...this.#descriptor.agent.remove, "--agent", agentId]);
+  }
+
   #invocation(args) {
     return {
       command: this.#descriptor.command,

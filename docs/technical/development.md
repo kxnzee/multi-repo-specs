@@ -12,6 +12,7 @@
 - `src/internal/receipt/`, `snapshot/`, `state/` — локальные результаты и Snapshot;
 - `src/internal/init/`, `connect/`, `config/` — bootstrap и реестр репозиториев;
 - `src/internal/config/project.js` — общий доменный facade Repository и Plugin operations;
+- `src/internal/config/agent.js` — project-config contract зарегистрированных Agent IDs;
 - `src/internal/config/plugin.js` — project-config contract Plugin IDs и Repository bindings;
 - `src/internal/config/settings.js` — единая точка эксплуатационных defaults Core;
 - `src/internal/config/constants.js` — версии контрактов, regex и служебные пути;
@@ -48,6 +49,11 @@ Plugin CLI запускается существующим `execa`-адапте�
 это сохраняет порядок результата и не создаёт неограниченный fan-out на проектах с
 сотнями repositories. `connect` записывает все новые bindings в config один раз
 после успешного batch setup.
+
+Необязательные `agent.install`/`agent.remove` в descriptor являются generic lifecycle
+границей. Core передаёт только зарегистрированный Agent ID. Provider-specific пути,
+форматы MCP-конфигов, инструкции и server launcher принадлежат конкретному Plugin
+Package и не добавляются в `src/` или Project Template.
 
 `config/settings.js` содержит централизованные изменяемые defaults: command timeout,
 project strict default, каталог Code Repositories, Plugin concurrency и параметры

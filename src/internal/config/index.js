@@ -26,6 +26,7 @@ import { PROJECT_SETTINGS } from "./settings.js";
  * @typedef {object} NormalizedConfig
  * @property {number} version
  * @property {boolean} strict
+ * @property {string[]} agents
  * @property {string[]} plugins
  * @property {Record<string, unknown>} extensions Legacy v1 data retained for safe migration checks.
  * @property {Repository[]} repositories
@@ -144,6 +145,7 @@ export function parseOrchestratorConfig(source) {
   return {
     version: value.version,
     strict: value.strict,
+    agents: value.version === CONTRACT_VERSIONS.orchestratorConfig ? value.agents : [],
     plugins,
     extensions: value.version === CONTRACT_VERSIONS.legacyOrchestratorConfig ? value.extensions : {},
     repositories,
@@ -174,13 +176,14 @@ export function resolveExecutionMode(projectStrict, noStrict = false) {
  * @param {Repository[]} repositories
  * @param {object} [options] Опции сериализации.
  * @param {boolean} [options.strict] Project default для Git-гарантий Core.
+ * @param {string[]} [options.agents] Зарегистрированные Agents проекта.
  * @param {string[]} [options.plugins] Выбранные Plugins проекта.
  * @returns {string}
  */
 export function serializeOrchestratorConfig(
   template,
   repositories,
-  { strict = PROJECT_SETTINGS.execution.strictByDefault, plugins = [] } = {},
+  { strict = PROJECT_SETTINGS.execution.strictByDefault, agents = [], plugins = [] } = {},
 ) {
   const value = parseYaml(template, `Некорректный шаблон ${SERVICE_PATHS.orchestratorConfig}`);
   if (![
@@ -195,6 +198,7 @@ export function serializeOrchestratorConfig(
   const serialized = {
     version: CONTRACT_VERSIONS.orchestratorConfig,
     strict,
+    agents,
     plugins,
     repositories: repositories.map(({ id, role, remote, defaultBranch, plugins: repositoryPlugins = [] }) => ({
       id,
@@ -222,9 +226,9 @@ export function serializeNormalizedOrchestratorConfig(config) {
     );
   }
   return serializeOrchestratorConfig(
-    `version: ${CONTRACT_VERSIONS.orchestratorConfig}\nrepositories: []\nplugins: []\n`,
+    `version: ${CONTRACT_VERSIONS.orchestratorConfig}\nrepositories: []\nagents: []\nplugins: []\n`,
     config.repositories,
-    { strict: config.strict, plugins: config.plugins },
+    { strict: config.strict, agents: config.agents, plugins: config.plugins },
   );
 }
 

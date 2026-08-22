@@ -354,6 +354,7 @@ test("initProject creates Store, official expanded pack and minimal base assets"
   assert.match(openSpecConfig.rules.specs.join("\n"), /<change-id>-<index>/);
   assert.match(openSpecConfig.rules.specs.join("\n"), /add-profile-contacts-001/);
   const config = parseOrchestratorConfig(await fs.readFile(path.join(target, "openspec-orch.yaml"), "utf8"));
+  assert.deepEqual(config.agents, [DEFAULT_AGENT_ID]);
   assert.deepEqual(config.storeRepository, {
     id: "payments-specs",
     role: "store",
@@ -578,6 +579,56 @@ test("initProject does not modify a complete initialized Store", async (t) => {
   assert.equal(result.alreadyInitialized, true);
   assert.deepEqual(result.created, []);
   assert.equal(openSpec.calls.length, callsBeforeRepeat);
+});
+
+test("initProject registers the requested Agent in a complete legacy Store", async (t) => {
+  const target = await temporaryProject(t);
+  const openSpec = fakeOpenSpec(target);
+  await initProject({
+    target,
+    storeId: "payments-specs",
+    agentId: DEFAULT_AGENT_ID,
+    commandRunner: openSpec.runner,
+  });
+  const configPath = path.join(target, "openspec-orch.yaml");
+  const legacyConfig = (await fs.readFile(configPath, "utf8"))
+    .replace(/^agents:\n(?: {2}- .+\n)+/m, "");
+  await fs.writeFile(configPath, legacyConfig, "utf8");
+  await runCommand("git", ["-C", target, "add", "."]);
+  await runCommand("git", ["-C", target, "commit", "-m", "legacy initialized store"]);
+
+  const result = await initProject({
+    target,
+    storeId: "payments-specs",
+    agentId: DEFAULT_AGENT_ID,
+    commandRunner: openSpec.runner,
+  });
+  const migrated = parseOrchestratorConfig(await fs.readFile(configPath, "utf8"));
+  assert.equal(result.alreadyInitialized, true);
+  assert.deepEqual(result.updated, ["openspec-orch.yaml"]);
+  assert.deepEqual(migrated.agents, [DEFAULT_AGENT_ID]);
+});
+
+test("initProject rejects another Agent for an initialized Store", async (t) => {
+  assert.ok(BASE_AGENT_IDS.length > 1, "base Template должен содержать несколько Agents");
+  const target = await temporaryProject(t);
+  const openSpec = fakeOpenSpec(target);
+  await initProject({
+    target,
+    storeId: "payments-specs",
+    agentId: DEFAULT_AGENT_ID,
+    commandRunner: openSpec.runner,
+  });
+
+  await assert.rejects(
+    initProject({
+      target,
+      storeId: "payments-specs",
+      agentId: BASE_AGENT_IDS.find((agentId) => agentId !== DEFAULT_AGENT_ID),
+      commandRunner: openSpec.runner,
+    }),
+    /STORE_AGENT_MISMATCH/,
+  );
 });
 
 test("initProject does not require an optional handoff file on successful repeat", async (t) => {

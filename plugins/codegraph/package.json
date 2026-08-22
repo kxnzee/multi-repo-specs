@@ -5,6 +5,8 @@
   "type": "module",
   "files": [
     "bin",
+    "instructions.md",
+    "lib",
     "plugin.yaml"
   ],
   "openspecOrchestrator": {

@@ -114,6 +114,13 @@ export async function runPluginInit(options) {
   const result = await initializePlugins({ storeRoot, pluginIds, sourceRoots });
   for (const pluginId of result.initialized) console.log(`${pluginId}: initialized`);
   for (const pluginId of result.alreadyInitialized) console.log(`${pluginId}: already_initialized`);
+  for (const integration of result.agentIntegrations ?? []) {
+    console.log(`${integration.pluginId} -> ${integration.agentId}: agent_installed`);
+    if (integration.output) console.log(integration.output);
+  }
+  if ((result.agentIntegrations ?? []).length > 0) {
+    console.log("Перезапустите Agent, чтобы он загрузил изменения Plugin.");
+  }
   console.log("Далее: openspec-orch plugin connect <plugin-id>");
 }
 

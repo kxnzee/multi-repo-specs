@@ -136,6 +136,7 @@ Receipts и Snapshots **никогда** не попадают в Git в тек�
 ```yaml
 version: 2
 strict: true
+agents: [qwen]
 plugins: [dependency-audit]
 
 repositories:
@@ -154,7 +155,8 @@ repositories:
 Правила:
 
 - обязательное поле `version`; неподдерживаемая версия — ошибка;
-- в v2 неизвестные поля вне `version`, `strict`, `plugins`, `repositories` — ошибка; секции `agent`, `handoffs` и старый `extensions` не допускаются;
+- в v2 неизвестные поля вне `version`, `strict`, `agents`, `plugins`, `repositories` — ошибка; секции `agent`, `handoffs` и старый `extensions` не допускаются;
+- `agents` содержит уникальные Agent ID, зарегистрированные успешным `init`;
 - ровно один репозиторий с ролью `store`;
 - без секретов и локальных абсолютных путей;
 - каждый `repositories[].plugins` ссылается только на ID из верхнеуровневого `plugins`;
@@ -167,6 +169,8 @@ package и его production dependencies один раз в локальный 
 без shell; Package без entrypoint использует executable из descriptor.
 `plugin register` создаёт самостоятельный исходный Package с manifest и entrypoint;
 он не меняет Store, Template или Plugin-specific код в Core.
+Необязательные Agent hooks позволяют Package установить и удалить собственные MCP и
+инструкции для каждого зарегистрированного агента; Core не знает их provider formats.
 
 ### 3.3. Cycle Record и текущий Cycle
 

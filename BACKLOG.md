@@ -149,8 +149,9 @@ handoff.
 
 Первый Plugin уже адресно выполняет `init`/`status`/`sync` для одного Repository.
 После пилота спроектировать безопасный batch-режим для десятков и сотен repositories,
-агрегированную свежесть индексов и ограничение параллелизма. Сам индекс и MCP остаются
-ответственностью CodeGraph и Code Repository.
+агрегированную свежесть индексов и ограничение параллелизма. Сам индекс и реализация
+MCP остаются ответственностью CodeGraph Plugin и Code Repository; generic Agent hooks
+Core не должны превращаться в Plugin-specific orchestration.
 
 ### ORCH-B17 — read-only API и dashboard
 

@@ -30,6 +30,10 @@ export class ProjectModel {
     return this.#config.strict;
   }
 
+  get agents() {
+    return this.#config.agents;
+  }
+
   get repositories() {
     return this.#config.repositories;
   }

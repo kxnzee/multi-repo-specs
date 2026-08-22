@@ -2,6 +2,7 @@
 
 import * as z from "zod";
 
+import { AGENT_IDS_SCHEMA } from "./agent.js";
 import { CONTRACT_VERSIONS, SERVICE_PATHS } from "./constants.js";
 import { PLUGIN_IDS_SCHEMA } from "./plugin.js";
 import { PROJECT_SETTINGS } from "./settings.js";
@@ -27,6 +28,7 @@ const ORCHESTRATOR_CONFIG_V1_SCHEMA = z.strictObject({
 const ORCHESTRATOR_CONFIG_V2_SCHEMA = z.strictObject({
   version: z.literal(CONTRACT_VERSIONS.orchestratorConfig),
   strict: z.boolean().default(PROJECT_SETTINGS.execution.strictByDefault),
+  agents: AGENT_IDS_SCHEMA,
   plugins: PLUGIN_IDS_SCHEMA,
   repositories: z.array(REPOSITORY_V2_SCHEMA).default([]),
 });

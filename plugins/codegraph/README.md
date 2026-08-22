@@ -40,25 +40,21 @@ openspec-orch codegraph --repository frontend explore "authentication flow"
 
 ## MCP для агента
 
-Встроенная зависимость обслуживает lifecycle и нативные команды Plugin. Прямое
-подключение stdio MCP к агенту пока остаётся отдельной интеграцией CodeGraph и не
-маршрутизируется через CLI Orchestrator. Если оно требуется, настройте MCP server с
-alias `codegraph` по инструкции используемого агента:
+`openspec-orch init` сохраняет выбранный Agent ID в `openspec-orch.yaml`. Во время
+`plugin init codegraph` Package автоматически:
 
-```json
-{
-  "mcpServers": {
-    "codegraph": {
-      "command": "codegraph",
-      "args": ["serve", "--mcp"]
-    }
-  }
-}
-```
+- добавляет stdio MCP server `openspec-orch-codegraph` в project-local конфиг каждого
+  зарегистрированного Codex, Claude, Qwen или GigaCode;
+- указывает абсолютные пути к текущему Node.js и bundled launcher, поэтому глобальный
+  `codegraph` в `PATH` не нужен;
+- добавляет в project instructions короткое правило использования
+  `codegraph_explore`;
+- сохраняет существующие MCP servers и пользовательские инструкции.
 
-Plugin намеренно не изменяет Project Template и provider-specific файлы агента.
-После отдельной настройки MCP проверьте `/mcp` или `/tools` и один тестовый вопрос на
-одном `repository-id` и одной точной Git revision.
+Эти adapters находятся в CodeGraph Package, а не в Core или Project Template.
+`plugin remove codegraph` симметрично удаляет только принадлежащие Package блоки.
+После `plugin init` или `plugin remove` перезапустите агент, затем проверьте его список
+MCP tools и выполните один тестовый `codegraph_explore`.
 
 До чтения графа агент должен получить разрешённый абсолютный путь без поиска по
 файловой системе, подтвердить точный Git root и repository identity, полный commit
@@ -68,15 +64,14 @@ SHA, равенство `HEAD` этой revision и чистый working tree. �
 
 ## Политика использования
 
-1. Если `.codegraph/` существует и MCP доступен, сначала вызвать
-   `codegraph_status` и убедиться, что индекс соответствует проверенной revision.
-2. Для первичной карты задачи использовать `codegraph_explore`.
-3. Для влияния изменения использовать `codegraph_impact`, для точечной навигации —
-   explore/node/callers/callees.
-4. Если revision индекса неизвестна, индекс сообщает ошибку или не покрывает нужный
+1. Если `.codegraph/` существует и MCP доступен, для первичной карты задачи и анализа
+   влияния сначала использовать `codegraph_explore`.
+2. При обращении к другому checkout передавать его разрешённый абсолютный путь через
+   `projectPath`; один MCP server обслуживает несколько проиндексированных repositories.
+3. Если revision индекса неизвестна, индекс сообщает ошибку или не покрывает нужный
    язык, использовать обычные read/search tools внутри того же разрешённого checkout
    и явно назвать fallback.
-5. Не объявлять runtime behavior, тест или внешний контракт подтверждённым только по
+4. Не объявлять runtime behavior, тест или внешний контракт подтверждённым только по
    ребру графа, когда решение Gate требует независимого evidence.
 
 ## Пилот

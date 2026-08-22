@@ -84,6 +84,7 @@ test("parseOrchestratorConfig accepts a store-only registry and splits code repo
     plugins: [],
   });
   assert.deepEqual(parsed.codeRepositories.map(({ id }) => id), ["frontend"]);
+  assert.deepEqual(parsed.agents, []);
   assert.deepEqual(parsed.plugins, []);
   assert.deepEqual(parsed.extensions, {});
 });
@@ -107,10 +108,11 @@ test("serializeOrchestratorConfig upgrades a v1 Core template to strict v2", () 
   const serialized = serializeOrchestratorConfig(template, [
     { id: "specs", role: "store", remote: "https://example.test/specs.git", defaultBranch: "main" },
     { id: "frontend", role: "code", remote: "https://example.test/frontend.git", defaultBranch: "main" },
-  ], { strict: false });
+  ], { strict: false, agents: ["qwen"] });
   const parsed = parseOrchestratorConfig(serialized);
   assert.equal(parsed.strict, false);
   assert.equal(parsed.version, 2);
+  assert.deepEqual(parsed.agents, ["qwen"]);
   assert.deepEqual(parsed.plugins, []);
   assert.deepEqual(parsed.storeRepository.id, "specs");
   assert.deepEqual(parsed.codeRepositories.map(({ id }) => id), ["frontend"]);
@@ -138,6 +140,28 @@ repositories:
     default_branch: main
     plugins: [dependency-audit]
 `), /необъявленный plugin-id dependency-audit/);
+});
+
+test("parseOrchestratorConfig validates registered Agent IDs", () => {
+  const source = `version: 2
+agents: [qwen, codex]
+plugins: []
+repositories:
+  - id: specs
+    roles: [store]
+    remote: https://example.test/specs.git
+    default_branch: main
+    plugins: []
+`;
+  assert.deepEqual(parseOrchestratorConfig(source).agents, ["qwen", "codex"]);
+  assert.throws(
+    () => parseOrchestratorConfig(source.replace("[qwen, codex]", "[qwen, qwen]")),
+    /agents содержит повторяющийся agent-id/,
+  );
+  assert.throws(
+    () => parseOrchestratorConfig(source.replace("[qwen, codex]", "[Qwen]")),
+    /lowercase kebab-case/,
+  );
 });
 
 test("serializeOrchestratorConfig rejects a template with an unsupported version", () => {

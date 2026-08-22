@@ -17,6 +17,10 @@ const DESCRIPTOR = Object.freeze({
     connect: ["init", "."],
     status: ["status", "."],
   },
+  agent: {
+    install: ["agent", "install"],
+    remove: ["agent", "remove"],
+  },
 });
 
 test("PluginModel owns scope and lifecycle invocation semantics", () => {
@@ -38,7 +42,23 @@ test("PluginModel owns scope and lifecycle invocation semantics", () => {
     command: "demo-plugin",
     args: ["--team", "explore", "auth"],
   });
+  assert.equal(plugin.hasAgentIntegration(), true);
+  assert.deepEqual(plugin.agentInstallInvocation("qwen"), {
+    command: "demo-plugin",
+    args: ["--team", "agent", "install", "--agent", "qwen"],
+  });
+  assert.deepEqual(plugin.agentRemoveInvocation("qwen"), {
+    command: "demo-plugin",
+    args: ["--team", "agent", "remove", "--agent", "qwen"],
+  });
   assert.throws(() => plugin.syncInvocation(), /PLUGIN_SYNC_UNSUPPORTED/);
+});
+
+test("PluginModel reports an unsupported Agent integration", () => {
+  const plugin = createPluginModel({ ...DESCRIPTOR, agent: undefined });
+  assert.equal(plugin.hasAgentIntegration(), false);
+  assert.throws(() => plugin.agentInstallInvocation("qwen"), /PLUGIN_AGENT_UNSUPPORTED/);
+  assert.throws(() => plugin.agentRemoveInvocation("qwen"), /PLUGIN_AGENT_UNSUPPORTED/);
 });
 
 test("PluginClient only executes a prepared invocation in Repository cwd", async () => {

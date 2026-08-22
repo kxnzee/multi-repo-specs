@@ -17,3 +17,10 @@ lifecycle:
   sync:
     - sync
     - .
+agent:
+  install:
+    - agent
+    - install
+  remove:
+    - agent
+    - remove

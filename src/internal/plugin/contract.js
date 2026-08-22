@@ -31,6 +31,10 @@ const PLUGIN_DESCRIPTOR_SCHEMA = z.strictObject({
     status: ARGUMENTS_SCHEMA,
     sync: ARGUMENTS_SCHEMA.optional(),
   }),
+  agent: z.strictObject({
+    install: ARGUMENTS_SCHEMA,
+    remove: ARGUMENTS_SCHEMA,
+  }).optional(),
 }).superRefine((descriptor, context) => {
   if (new Set(descriptor.supports).size !== descriptor.supports.length) {
     context.addIssue({ code: "custom", message: "supports содержит повторяющуюся роль" });

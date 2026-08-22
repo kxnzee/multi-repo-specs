@@ -118,6 +118,7 @@ export async function initializePlugins({
   pluginIds,
   sourceRoots = [],
   packageInstaller = runCommand,
+  commandRunner = runCommand,
 }) {
   const { project } = await readStoreConfiguration(storeRoot);
   project.assertPluginInitializationAllowed();
@@ -129,17 +130,36 @@ export async function initializePlugins({
       throw new Error(`PLUGIN_ID_RESERVED: plugin-id '${pluginId}' занят встроенной командой CLI`);
     }
     if (!byId.has(pluginId)) throw new Error(`PLUGIN_UNKNOWN: plugin-id '${pluginId}' не найден`);
+    const plugin = createPluginModel(byId.get(pluginId).descriptor);
+    if (plugin.hasAgentIntegration() && project.agents.length === 0) {
+      throw new Error(
+        `PLUGIN_AGENT_NOT_REGISTERED: для Plugin '${pluginId}' не зарегистрирован ни один Agent`,
+      );
+    }
   }
 
   const initialized = [];
   const alreadyInitialized = [];
+  const agentIntegrations = [];
   for (const pluginId of selected) {
     const state = await installPluginPackage(storeRoot, byId.get(pluginId), packageInstaller);
     (state === "initialized" ? initialized : alreadyInitialized).push(pluginId);
+    const pluginPackage = await readInstalledPluginPackage(storeRoot, pluginId);
+    const plugin = createPluginModel(pluginPackage.descriptor);
+    if (plugin.hasAgentIntegration()) {
+      const client = createPluginClient(storeRoot, commandRunner, pluginPackage);
+      for (const agentId of project.agents) {
+        agentIntegrations.push({
+          pluginId,
+          agentId,
+          output: await client.execute(plugin.agentInstallInvocation(agentId)),
+        });
+      }
+    }
   }
   project.registerPlugins(selected);
   await writeProjectConfig(storeRoot, project);
-  return { initialized, alreadyInitialized };
+  return { initialized, alreadyInitialized, agentIntegrations };
 }
 
 /** Подключает Plugin к нескольким repositories и сохраняет связи одной записью. */
@@ -261,9 +281,17 @@ export async function disconnectPlugin({ storeRoot, pluginId, repositoryId }) {
 }
 
 /** Удаляет неиспользуемый Plugin из project config и локального cache. */
-export async function removePlugin({ storeRoot, pluginId }) {
+export async function removePlugin({ storeRoot, pluginId, commandRunner = runCommand }) {
   const { project } = await readStoreConfiguration(storeRoot);
   if (!project.removePlugin(pluginId)) return false;
+  const pluginPackage = await readInstalledPluginPackage(storeRoot, pluginId);
+  const plugin = createPluginModel(pluginPackage.descriptor);
+  if (plugin.hasAgentIntegration()) {
+    const client = createPluginClient(storeRoot, commandRunner, pluginPackage);
+    for (const agentId of project.agents) {
+      await client.execute(plugin.agentRemoveInvocation(agentId));
+    }
+  }
   await removeInstalledPlugin(storeRoot, pluginId);
   await writeProjectConfig(storeRoot, project);
   return true;

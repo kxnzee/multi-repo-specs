@@ -6,12 +6,13 @@ import path from "node:path";
 import {
   parseOrchestratorConfig,
   parseStoreMetadata,
+  serializeNormalizedOrchestratorConfig,
   serializeOrchestratorConfig,
 } from "../config/index.js";
 import { PROJECT_SETTINGS } from "../config/settings.js";
 import { runCommand } from "../shared/command.js";
 import { inspectOpenSpecCli } from "../shared/compatibility.js";
-import { lstatOrNull } from "../shared/files.js";
+import { lstatOrNull, writeFileAtomic } from "../shared/files.js";
 import { assertRepositoryId } from "../shared/schema.js";
 import { BASE_TEMPLATE_ROOT, buildTemplatePlan } from "../template/index.js";
 import {
@@ -87,6 +88,15 @@ export async function initProject({
     if (metadata.id !== storeId) {
       throw new Error(`Store уже инициализирован с ID ${metadata.id}, а не ${storeId}`);
     }
+    const registeredConfig = parseOrchestratorConfig(
+      await fs.readFile(path.join(projectRoot, INIT_PATHS.orchestratorConfig), "utf8"),
+    );
+    if (registeredConfig.agents.length > 0 && !registeredConfig.agents.includes(agentId)) {
+      throw new Error(
+        `STORE_AGENT_MISMATCH: Store зарегистрирован для ` +
+          `${registeredConfig.agents.join(", ")}, а не ${agentId}`,
+      );
+    }
     const existingTemplatePlan = await buildTemplatePlan({ templateRoot, targetRoot: projectRoot, agentId });
     const config = await assertInitializationComplete({
       projectRoot,
@@ -94,13 +104,22 @@ export async function initProject({
       agent: existingTemplatePlan.agent,
       metadata,
     });
+    const updated = [];
+    if (config.agents.length === 0) {
+      await inspectGit(projectRoot, commandRunner);
+      await writeFileAtomic(
+        path.join(projectRoot, INIT_PATHS.orchestratorConfig),
+        serializeNormalizedOrchestratorConfig({ ...config, agents: [agentId] }),
+      );
+      updated.push(INIT_PATHS.orchestratorConfig);
+    }
     return {
       target: projectRoot,
       storeId,
       alreadyInitialized: true,
       executionMode: config.strict ? "strict" : "relaxed",
       created: [],
-      updated: [],
+      updated,
       agent: existingTemplatePlan.agent,
     };
   }
@@ -127,7 +146,7 @@ export async function initProject({
   const orchestratorContents = serializeOrchestratorConfig(
     await fs.readFile(INIT_PATHS.orchestratorTemplate, "utf8"),
     configuredRepositories,
-    { strict },
+    { strict, agents: [agentId] },
   );
   parseOrchestratorConfig(orchestratorContents);
 

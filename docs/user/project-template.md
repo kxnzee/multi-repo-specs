@@ -13,7 +13,9 @@ Project Template — обычный локальный каталог, кото�
 
 Template и Plugins не зависят друг от друга: Template применяется во время bootstrap,
 а Plugin имеет собственный lifecycle `init → connect → status` и repository scope.
-OpenSpec ничего не знает об обоих механизмах.
+Plugin может установить собственные MCP и инструкции для Agent ID, сохранённого при
+bootstrap, не читая и не изменяя исходный Template. OpenSpec ничего не знает об обоих
+механизмах.
 
 ## Создание из базового Template
 

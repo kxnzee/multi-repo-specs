@@ -1,8 +1,9 @@
 # Plugins
 
 Plugin — отдельный CLI-адаптер, который Orchestrator подключает к выбранным
-Repository. Он не входит в Project Template и не копируется в provider-specific
-каталоги агента.
+Repository. Его Package не входит в Project Template и устанавливается в отдельный
+Store-local cache; необязательными Agent hooks он может управлять только собственными
+project-local MCP entries и инструкциями.
 
 ## Основной lifecycle
 
@@ -17,6 +18,11 @@ openspec-orch plugin status
 `plugin init` показывает checkbox пакетов стандартной поставки. В том же интерфейсе
 можно добавить Plugin Package из каталога, `.tgz`, Git URL или npm registry. `connect`
 показывает repositories, с которыми нужно связать выбранный Plugin.
+
+Если Plugin объявляет Agent integration, `plugin init` дополнительно вызывает её для
+каждого Agent ID, сохранённого командой `openspec-orch init`. Сам Plugin владеет
+форматом MCP-конфига и инструкций конкретного агента; Core только запускает объявленный
+hook. После изменения MCP-конфига перезапустите агент.
 
 Для CI и скриптов те же действия доступны без prompt:
 
@@ -99,6 +105,20 @@ lifecycle:
   status: [status, .]
   sync: [sync, .]
 ```
+
+Plugin, которому нужно настроить окружение агента, может добавить два симметричных
+hook. Core передаёт им `--agent <agent-id>` и запускает entrypoint из корня Store:
+
+```yaml
+agent:
+  install: [agent, install]
+  remove: [agent, remove]
+```
+
+Эта секция необязательна. Реализация hook, перечень поддерживаемых агентов, MCP server
+и project-local инструкции находятся только внутри Plugin Package. `plugin remove`
+вызывает `agent.remove` до удаления локального пакета и не трогает чужие записи в
+конфигах агента.
 
 При `plugin init` пакет атомарно materialize в
 `.openspec-orch/cache/plugins/<plugin-id>/` один раз на Store и затем может быть

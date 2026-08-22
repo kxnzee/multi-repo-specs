@@ -12,6 +12,9 @@
 version: 2
 strict: true
 
+agents:
+  - qwen
+
 plugins:
   - secret-scanner
   - dependency-audit
@@ -58,6 +61,21 @@ repositories:
 | `connect` | Клонирует отсутствующие Code Repositories и проверяет их Git-состояние. | Использует только уже существующие `<workspace>/src/<repository-id>` и не вызывает Git для их проверки. |
 
 Рекомендуемая и проверенная версия — OpenSpec `1.7.0`. Это рекомендация документации, а не exact pin: Core проверяет semantic version CLI, фактически вызываемые команды и обязательные поля их JSON-ответов.
+
+## `agents`
+
+`agents` — уникальный список Agent ID, зарегистрированных успешным
+`openspec-orch init --agent <agent-id>`. Поле принадлежит проектной конфигурации и
+не заменяет mapping в Project Template: mapping определяет bootstrap-файлы, а список
+фиксирует, для каких агентов Plugin с Agent integration должен установить свои MCP и
+инструкции.
+
+Обычный пользователь не редактирует список вручную. Старые конфигурации без поля
+читаются как `agents: []`. Для их безопасной миграции повторите исходный
+`openspec-orch init --agent <agent-id> --store <store-id> <store-path>`: после полной
+проверки Store команда запишет только Agent ID. До этой миграции Plugin, которому
+нужна Agent integration, завершит `plugin init` ошибкой
+`PLUGIN_AGENT_NOT_REGISTERED`, не создавая частичной установки.
 
 ## `repositories`
 

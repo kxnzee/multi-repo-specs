@@ -7,7 +7,10 @@ import process from "node:process";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { parseOrchestratorConfig } from "../src/internal/config/index.js";
+import {
+  parseOrchestratorConfig,
+  serializeOrchestratorConfig,
+} from "../src/internal/config/index.js";
 import {
   connectPlugin,
   connectPluginRepositories,
@@ -56,6 +59,18 @@ extensions: {}
 `,
   });
   return { workspace, storeRoot, codeRoot: codeRoots.frontend, codeRoots };
+}
+
+/** Сохраняет зарегистрированных Agents в актуальном project-config contract. */
+async function registerAgents(storeRoot, agents) {
+  const configPath = path.join(storeRoot, "openspec-orch.yaml");
+  const current = parseOrchestratorConfig(await fs.readFile(configPath, "utf8"));
+  const source = serializeOrchestratorConfig(
+    "version: 2\nagents: []\nplugins: []\nrepositories: []\n",
+    current.repositories,
+    { strict: current.strict, agents, plugins: current.plugins },
+  );
+  await fs.writeFile(configPath, source, "utf8");
 }
 
 /**
@@ -111,6 +126,7 @@ test("discovers every Plugin Package declared by the distribution", async () => 
 
 test("runs a bundled Plugin through its Package entrypoint", async (t) => {
   const { storeRoot, codeRoot } = await createStore(t);
+  await registerAgents(storeRoot, ["qwen"]);
   const [bundled] = await discoverPlugins();
   assert.ok(bundled);
   const repositoryId = bundled.descriptor.supports.includes("code") ? "frontend" : "specs";
@@ -151,7 +167,7 @@ test("runs init, connect, status, sync, native command, disconnect and remove", 
 
   assert.deepEqual(
     await initializePlugins({ storeRoot, pluginIds: ["demo"], sourceRoots: [catalog] }),
-    { initialized: ["demo"], alreadyInitialized: [] },
+    { initialized: ["demo"], alreadyInitialized: [], agentIntegrations: [] },
   );
   const initializedConfig = parseOrchestratorConfig(
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
@@ -313,6 +329,106 @@ test("installs local Plugin Package dependencies without lifecycle scripts", asy
     "--no-fund",
   ]);
   assert.equal(path.basename(path.dirname(calls[0].cwd)), "plugins");
+});
+
+test("runs Plugin-owned Agent lifecycle for every registered Agent", async (t) => {
+  const { storeRoot } = await createStore(t);
+  await registerAgents(storeRoot, ["qwen", "codex"]);
+  const descriptor = `${DEMO_DESCRIPTOR}agent:
+  install: [agent, install]
+  remove: [agent, remove]
+`;
+  const catalog = await createPluginCatalog(t, { demo: descriptor });
+  const packageRoot = path.join(catalog, "demo");
+  const packagePath = path.join(packageRoot, "package.json");
+  const packageManifest = JSON.parse(await fs.readFile(packagePath, "utf8"));
+  packageManifest.openspecOrchestrator.entrypoint = "bin/plugin.js";
+  await fs.writeFile(packagePath, `${JSON.stringify(packageManifest, null, 2)}\n`, "utf8");
+  await writeFiles(packageRoot, {
+    "bin/plugin.js": "// test MCP entrypoint\n",
+  });
+  const calls = [];
+  const commandRunner = async (command, args, options) => {
+    calls.push({ command, args, cwd: options.cwd });
+    return "ready";
+  };
+
+  await initializePlugins({
+    storeRoot,
+    pluginIds: ["demo"],
+    sourceRoots: [catalog],
+    commandRunner,
+  });
+  const entrypoint = path.join(
+    storeRoot,
+    ".openspec-orch",
+    "cache",
+    "plugins",
+    "demo",
+    "bin",
+    "plugin.js",
+  );
+  assert.deepEqual(calls, [
+    {
+      command: process.execPath,
+      args: [entrypoint, "--team", "agent", "install", "--agent", "qwen"],
+      cwd: storeRoot,
+    },
+    {
+      command: process.execPath,
+      args: [entrypoint, "--team", "agent", "install", "--agent", "codex"],
+      cwd: storeRoot,
+    },
+  ]);
+
+  await assert.rejects(
+    removePlugin({
+      storeRoot,
+      pluginId: "demo",
+      commandRunner: async () => {
+        throw new Error("agent remove failed");
+      },
+    }),
+    /agent remove failed/,
+  );
+  assert.deepEqual(
+    parseOrchestratorConfig(
+      await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
+    ).plugins,
+    ["demo"],
+  );
+  await fs.access(entrypoint);
+
+  assert.equal(await removePlugin({ storeRoot, pluginId: "demo", commandRunner }), true);
+  assert.deepEqual(calls.slice(2), [
+    {
+      command: process.execPath,
+      args: [entrypoint, "--team", "agent", "remove", "--agent", "qwen"],
+      cwd: storeRoot,
+    },
+    {
+      command: process.execPath,
+      args: [entrypoint, "--team", "agent", "remove", "--agent", "codex"],
+      cwd: storeRoot,
+    },
+  ]);
+});
+
+test("rejects Agent-integrated Plugin when Store has no registered Agents", async (t) => {
+  const { storeRoot } = await createStore(t);
+  const descriptor = `${DEMO_DESCRIPTOR}agent:
+  install: [agent, install]
+  remove: [agent, remove]
+`;
+  const catalog = await createPluginCatalog(t, { demo: descriptor });
+
+  await assert.rejects(
+    initializePlugins({ storeRoot, pluginIds: ["demo"], sourceRoots: [catalog] }),
+    /PLUGIN_AGENT_NOT_REGISTERED: для Plugin 'demo' не зарегистрирован ни один Agent/,
+  );
+  await assert.rejects(
+    fs.access(path.join(storeRoot, ".openspec-orch", "cache", "plugins", "demo")),
+  );
 });
 
 test("rejects changed Package metadata for an initialized Plugin version", async (t) => {

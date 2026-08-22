@@ -146,6 +146,7 @@ preview и требуют интерактивного подтверждени�
 ```yaml
 version: 2
 strict: true
+agents: [qwen]
 plugins: []
 
 repositories:
