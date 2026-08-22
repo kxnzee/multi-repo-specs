@@ -8,6 +8,7 @@ import test from "node:test";
 
 import {
   createRepository,
+  RepositoryCheckout,
   workspace,
   Workspace,
   WorkspaceResolver,
@@ -75,10 +76,10 @@ test("Workspace owns checkout layout and rejects Store as Code checkout", async 
   assert.throws(() => model.checkoutPath(repository("specs", "store")), /WORKSPACE_ROLE_UNSUPPORTED/);
 
   await fs.mkdir(model.checkoutPath(frontend), { recursive: true });
-  assert.equal(
-    await workspace.resolveCheckout(model, frontend),
-    await fs.realpath(model.checkoutPath(frontend)),
-  );
+  const checkout = await workspace.resolveCheckout(model, frontend);
+  assert.equal(checkout instanceof RepositoryCheckout, true);
+  assert.equal(checkout.repository, frontend);
+  assert.equal(checkout.root, await fs.realpath(model.checkoutPath(frontend)));
   await assert.rejects(
     workspace.resolveCheckout(model, repository("backend")),
     /REPOSITORY_CHECKOUT_UNAVAILABLE/,

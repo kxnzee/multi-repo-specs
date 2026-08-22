@@ -13,5 +13,8 @@ export const CORE_CONTRACT_VERSIONS = Object.freeze({
 });
 
 export const CORE_PATTERNS = Object.freeze({
+  gitRenameOrCopyState: /[RC]/,
   id: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+  lineBreak: /\r?\n/,
+  windowsDrivePrefix: /^[A-Za-z]:/,
 });

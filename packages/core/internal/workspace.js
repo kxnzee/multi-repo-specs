@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { CORE_FILES } from "./constants.js";
+import { RepositoryCheckout } from "./checkout.js";
 import { CORE_SETTINGS } from "./settings.js";
 
 /** Канонический Workspace с единым правилом размещения Code Repositories. */
@@ -97,7 +98,7 @@ export class WorkspaceResolver {
     if (!stat?.isDirectory() || stat.isSymbolicLink()) {
       throw new Error(`REPOSITORY_CHECKOUT_UNAVAILABLE: ${candidate}`);
     }
-    return fs.realpath(candidate);
+    return new RepositoryCheckout(repository, await fs.realpath(candidate));
   }
 
   async #lstatOrNull(target) {
