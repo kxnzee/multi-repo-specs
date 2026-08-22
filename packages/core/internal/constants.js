@@ -2,6 +2,7 @@
 
 export const CORE_FILES = Object.freeze({
   orchestratorConfig: "openspec-orch.yaml",
+  openSpecDirectory: "openspec",
   storeMetadata: ".openspec-store/store.yaml",
 });
 
