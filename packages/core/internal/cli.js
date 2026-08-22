@@ -2,8 +2,9 @@
 
 import path from "node:path";
 
-import { Command, InvalidArgumentError, Option } from "commander";
+import { Command, Option } from "commander";
 
+import { collectValues, singleValue } from "./cli-values.js";
 import { configuration } from "./configuration.js";
 import { CORE_FILES } from "./constants.js";
 import { connection } from "./connection.js";
@@ -11,21 +12,9 @@ import { initialization } from "./initialization.js";
 import { repositoryStatuses } from "./repository-status.js";
 import { workspace } from "./workspace.js";
 
-/** Запрещает повтор одиночной Commander option. */
-function singleValue(value, previous) {
-  if (value.startsWith("--")) throw new InvalidArgumentError("ожидается значение опции");
-  if (previous !== undefined) throw new InvalidArgumentError("опцию можно указать только один раз");
-  return value;
-}
-
 /** Собирает повторяемую Commander option. */
 function collectRepositories(value, previous = []) {
   return [...previous, configuration.parseRepositoryArgument(value)];
-}
-
-/** Собирает повторяемую Commander option в массив строк. */
-function collectValues(value, previous = []) {
-  return [...previous, value];
 }
 
 /** Печатает read-only состояние одного Repository. */
@@ -64,6 +53,7 @@ export class CandidateCli {
   #connection;
   #initialization;
   #pluginCommands;
+  #pluginLifecycleCommands;
   #repositoryStatuses;
   #templateRoot;
 
@@ -71,6 +61,7 @@ export class CandidateCli {
     connectionService = connection,
     initializationService = initialization,
     pluginCommandMounter,
+    pluginLifecycleCommands,
     repositoryStatusService = repositoryStatuses,
     templateRoot,
   } = {}) {
@@ -80,6 +71,10 @@ export class CandidateCli {
       throw new Error("CLI_INVALID: pluginCommandMounter должен предоставлять mount");
     }
     this.#pluginCommands = pluginCommandMounter;
+    if (pluginLifecycleCommands && typeof pluginLifecycleCommands.mount !== "function") {
+      throw new Error("CLI_INVALID: pluginLifecycleCommands должен предоставлять mount");
+    }
+    this.#pluginLifecycleCommands = pluginLifecycleCommands;
     this.#repositoryStatuses = repositoryStatusService;
     this.#templateRoot = templateRoot;
     Object.freeze(this);
@@ -152,6 +147,7 @@ export class CandidateCli {
         console.log(`connect_status: ${result.status}`);
         if (result.status === "ready") console.log("Локальное подключение готово.");
       });
+    this.#pluginLifecycleCommands?.mount(program);
     const repository = program.command("repository")
       .description("операции только чтения над репозиториями реестра");
     repository.command("status")

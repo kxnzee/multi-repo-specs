@@ -38,6 +38,12 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
 /** @typedef {{version: () => Promise<string>}} OpenSpecFacade */
 
 /**
+ * @typedef {object} PluginRepositoryStatus
+ * @property {string} state
+ * @property {string} [details]
+ */
+
+/**
  * @typedef {object} FilesFacade
  * @property {(relativePath: string) => Promise<string>} read
  * @property {(relativePath: string, contents: string, options?: object) => Promise<void>} write
@@ -91,7 +97,7 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
 /**
  * @typedef {object} RepositoryContribution
  * @property {(context: PluginContext) => unknown | Promise<unknown>} connect
- * @property {(context: PluginContext) => unknown | Promise<unknown>} status
+ * @property {(context: PluginContext) => PluginRepositoryStatus | Promise<PluginRepositoryStatus>} status
  * @property {(context: PluginContext) => unknown | Promise<unknown>} [sync]
  */
 

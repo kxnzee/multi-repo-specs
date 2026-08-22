@@ -81,30 +81,57 @@ export class PluginBindingService {
   }
 
   async connect(storeProject, pluginId, repositoryId, operation) {
+    const [change] = await this.connectMany(
+      storeProject,
+      pluginId,
+      [repositoryId],
+      (current) => operation(current),
+    );
+    return change;
+  }
+
+  async connectMany(storeProject, pluginId, repositoryIds, operation) {
     if (!(storeProject instanceof StoreProject)) {
       throw new Error("PLUGIN_BINDING_INVALID: требуется StoreProject");
+    }
+    if (!Array.isArray(repositoryIds) || repositoryIds.length === 0) {
+      throw new Error("PLUGIN_BINDING_INVALID: repositoryIds должен быть непустым массивом");
     }
     if (typeof operation !== "function") {
       throw new Error("PLUGIN_BINDING_INVALID: требуется connect operation");
     }
+    const selectedIds = [...new Set(repositoryIds)];
     await ensureLockDirectory(storeProject.root);
     return this.#lock.run(
       path.join(storeProject.root, CORE_SERVICE_PATHS.projectConfigLock),
       async () => {
         const current = await this.#storeProjects.load(storeProject.root);
         current.project.requirePlugin(pluginId);
-        current.project.requireRepository(repositoryId);
-        if (current.project.isPluginConnected(pluginId, repositoryId)) {
-          return new PluginBindingChange({ changed: false, output: "", storeProject: current });
+        for (const repositoryId of selectedIds) current.project.requireRepository(repositoryId);
+        const changes = [];
+        const connectedIds = [];
+        for (const repositoryId of selectedIds) {
+          if (current.project.isPluginConnected(pluginId, repositoryId)) {
+            changes.push(new PluginBindingChange({
+              changed: false,
+              output: "",
+              storeProject: current,
+            }));
+            continue;
+          }
+          const output = await operation(current, repositoryId);
+          connectedIds.push(repositoryId);
+          changes.push(new PluginBindingChange({ changed: true, output, storeProject: current }));
         }
-        const output = await operation(current);
-        current.project.connectPlugin(pluginId, [repositoryId]);
-        const source = this.#configuration.serializeProject(current.project);
-        await this.#files.forRepository(current.checkout).write(
-          CORE_FILES.orchestratorConfig,
-          source,
-        );
-        return new PluginBindingChange({ changed: true, output, storeProject: current });
+        if (connectedIds.length > 0) {
+          current.project.connectPlugin(pluginId, connectedIds);
+          const source = this.#configuration.serializeProject(current.project);
+          await this.#files.forRepository(current.checkout).write(
+            CORE_FILES.orchestratorConfig,
+            source,
+          );
+        }
+        return Object.freeze(changes);
       },
       { busyCode: "PLUGIN_BINDING_BUSY" },
     );

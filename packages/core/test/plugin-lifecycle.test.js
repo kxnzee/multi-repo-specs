@@ -14,10 +14,11 @@ import {
   PluginLifecycleService,
   PluginLoader,
   PluginRegistry,
+  PluginStatusResult,
 } from "@openspec-orch/core";
 
 /** Записывает project fixture с одним Store и одним Code Repository. */
-async function createStoreFixture(t, { connected = false } = {}) {
+async function createStoreFixture(t, { backendConnected = false, connected = false } = {}) {
   const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-plugin-lifecycle-"));
   t.after(() => fs.rm(workspaceRoot, { recursive: true, force: true }));
   const storeRoot = path.join(workspaceRoot, "specs");
@@ -44,6 +45,13 @@ async function createStoreFixture(t, { connected = false } = {}) {
         defaultBranch: "main",
         plugins: connected ? ["sample"] : [],
       },
+      {
+        id: "backend",
+        role: "code",
+        remote: "https://example.test/backend.git",
+        defaultBranch: "main",
+        plugins: backendConnected ? ["sample"] : [],
+      },
     ],
   });
   await fs.writeFile(
@@ -59,7 +67,7 @@ async function createStoreFixture(t, { connected = false } = {}) {
 }
 
 /** Загружает наблюдаемый Plugin через реальную package boundary Loader. */
-async function loadPlugin(t, calls, { connect } = {}) {
+async function loadPlugin(t, calls, { connect, status } = {}) {
   const packageRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-lifecycle-package-"));
   t.after(() => fs.rm(packageRoot, { recursive: true, force: true }));
   const manifest = {
@@ -84,9 +92,9 @@ async function loadPlugin(t, calls, { connect } = {}) {
       calls.push(["connect", context]);
       return connect ? connect(context) : "connected";
     },
-    status(context) {
+    async status(context) {
       calls.push(["status", context]);
-      return { state: "ready" };
+      return status ? status(context) : { state: "ready" };
     },
     canSync: () => true,
     sync(context) {
@@ -210,11 +218,86 @@ test("PluginLifecycleService delegates bound status and sync without changing co
     repositoryId: "frontend",
   };
 
-  assert.deepEqual(await service.status(request), { state: "ready" });
+  const status = await service.status(request);
+  assert.equal(status instanceof PluginStatusResult, true);
+  assert.deepEqual(status.toJSON(), {
+    pluginId: "sample",
+    repositoryId: "frontend",
+    state: "ready",
+    output: "",
+  });
   assert.equal(await service.sync(request), "synced");
   assert.equal(await fs.readFile(fixture.configPath, "utf8"), before);
   assert.deepEqual(contextCalls.map(([mode]) => mode), ["connected", "connected"]);
   assert.deepEqual(calls.map(([operation]) => operation), ["status", "sync"]);
+});
+
+test("PluginLifecycleService connects multiple repositories once under one project update", async (t) => {
+  const fixture = await createStoreFixture(t);
+  const calls = [];
+  const { service } = await lifecycle(t, calls);
+
+  const results = await service.connectMany({
+    start: fixture.storeRoot,
+    pluginId: "sample",
+    repositoryIds: ["backend", "frontend", "backend"],
+  });
+
+  assert.deepEqual(results.map(({ repositoryId }) => repositoryId), ["backend", "frontend"]);
+  assert.deepEqual(results.map(({ connected }) => connected), [true, true]);
+  assert.deepEqual(calls.map(([, context]) => context.repositoryId), ["backend", "frontend"]);
+  const persisted = configuration.parseProject(await fs.readFile(fixture.configPath, "utf8"));
+  assert.equal(persisted.isPluginConnected("sample", "frontend"), true);
+  assert.equal(persisted.isPluginConnected("sample", "backend"), true);
+});
+
+test("batch connect writes no bindings when a later callback fails", async (t) => {
+  const fixture = await createStoreFixture(t);
+  const before = await fs.readFile(fixture.configPath, "utf8");
+  const calls = [];
+  const { service } = await lifecycle(t, calls, {
+    connect: async (context) => {
+      if (context.repositoryId === "backend") throw new Error("backend setup failed");
+      return "configured";
+    },
+  });
+
+  await assert.rejects(service.connectMany({
+    start: fixture.storeRoot,
+    pluginId: "sample",
+    repositoryIds: ["frontend", "backend"],
+  }), /backend setup failed/);
+
+  assert.equal(await fs.readFile(fixture.configPath, "utf8"), before);
+  assert.deepEqual(calls.map(([, context]) => context.repositoryId), ["frontend", "backend"]);
+});
+
+test("PluginLifecycleService reports statuses in project order and isolates failures", async (t) => {
+  const fixture = await createStoreFixture(t, { backendConnected: true, connected: true });
+  const calls = [];
+  const { service } = await lifecycle(t, calls, {
+    status: async (context) => {
+      if (context.repositoryId === "backend") return Promise.reject("backend unavailable");
+      return { state: "ready", details: "frontend ready" };
+    },
+  });
+
+  const statuses = await service.statuses({ start: fixture.storeRoot });
+
+  assert.deepEqual(statuses.map((status) => status.toJSON()), [
+    {
+      pluginId: "sample",
+      repositoryId: "frontend",
+      state: "ready",
+      output: "frontend ready",
+    },
+    {
+      pluginId: "sample",
+      repositoryId: "backend",
+      state: "unavailable",
+      output: "backend unavailable",
+    },
+  ]);
 });
 
 test("Plugin binding lock fails closed without changing project config", async (t) => {

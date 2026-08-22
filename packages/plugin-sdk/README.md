@@ -46,6 +46,10 @@ root и изменяемая Project model в Plugin не передаются. 
 и `process` автоматически работают в проверенном checkout, а `storage` — только в
 namespace текущего Plugin.
 
+`repository.status` возвращает `{ state: string, details?: string }`. Core добавляет
+Plugin и Repository identity, а ошибка одного status превращается в `unavailable`,
+не прерывая вывод остальных bindings.
+
 `PluginPackage` аналогично инкапсулирует проверку `package.json` и предоставляет
 только package identity и ESM entrypoint. Тестовый `PluginContract` связывает обе
 модели и проверяет регистрацию команд, не выполняя их actions.
