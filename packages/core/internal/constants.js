@@ -18,6 +18,7 @@ export const CORE_SERVICE_PATHS = Object.freeze({
   coreStateLock: ".openspec-orch/cache/locks/core-state.lock",
   directory: ".openspec-orch",
   lockDirectory: ".openspec-orch/cache/locks",
+  projectConfigLock: ".openspec-orch/cache/locks/project-config.lock",
   pluginStateFile: "state.json",
   pluginsDirectory: ".openspec-orch/plugins",
 });

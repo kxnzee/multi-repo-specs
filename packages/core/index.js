@@ -13,7 +13,9 @@ export { OpenSpecService, RepositoryOpenSpec, openspec } from "./internal/opensp
 export { OpenSpecPointerService, pointers } from "./internal/pointer.js";
 export { FailClosedLock, locks } from "./internal/lock.js";
 export { PluginContext, PluginContextFactory, pluginContexts } from "./internal/plugin-context.js";
+export { PluginBindingChange, PluginBindingService, pluginBindings } from "./internal/plugin-binding.js";
 export { PluginHost, PluginRegistry } from "./internal/plugin-host.js";
+export { PluginConnectionResult, PluginLifecycleService } from "./internal/plugin-lifecycle.js";
 export { LoadedPlugin, PluginLoader, pluginLoader } from "./internal/plugin-loader.js";
 export { PluginStorage, PluginStorageService, pluginStorage } from "./internal/plugin-storage.js";
 export { ProcessService, ScopedProcess, processes } from "./internal/process.js";

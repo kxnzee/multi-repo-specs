@@ -60,6 +60,10 @@ export class PluginHost {
     return this.#invoke("connect", options);
   }
 
+  assertLoaded(pluginId) {
+    this.#registry.require(pluginId);
+  }
+
   status(options) {
     return this.#invoke("status", options);
   }
