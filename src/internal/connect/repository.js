@@ -4,7 +4,8 @@ import path from "node:path";
 import { lstatOrNull } from "../shared/files.js";
 import { inspectRepositoryIdentity } from "../shared/git.js";
 import { createGitClient } from "../shared/git-client.js";
-import { assertOpenSpecRoot, reportOpenSpecDiagnostic, runOpenSpecJson } from "../shared/openspec.js";
+import { createOpenSpecClient } from "../shared/openspec-client.js";
+import { assertOpenSpecRoot, parseOpenSpecJson, reportOpenSpecDiagnostic } from "../shared/openspec-model.js";
 import { ensurePointer, POINTER_PATH } from "../shared/pointer.js";
 import { isGitRevision } from "../shared/schema.js";
 
@@ -82,14 +83,16 @@ export async function connectRepository({
   const pointerPending = executionMode === "strict" &&
     !(await createGitClient(repositoryRoot, commandRunner).isClean([POINTER_PATH]));
   onProgress("проверка OpenSpec pointer...");
-  const doctorOutput = await commandRunner("openspec", ["doctor"], {
-    cwd: repositoryRoot,
+  const openSpec = createOpenSpecClient(repositoryRoot, commandRunner);
+  const doctorOutput = await openSpec.execute(["doctor"], {
     environment: { NODE_NO_WARNINGS: "1" },
     onStderr: (message) => reportOpenSpecDiagnostic(onProgress, message),
   });
   if (doctorOutput) onProgress(doctorOutput, "info");
-  const context = await runOpenSpecJson(commandRunner, ["context", "--json"], repositoryRoot);
-  assertOpenSpecRoot(context.root, { path: storeRoot, storeId, source: "declared" }, "openspec context --json");
+  const contextArgs = ["context", "--json"];
+  const contextCommand = `openspec ${contextArgs.join(" ")}`;
+  const context = parseOpenSpecJson(await openSpec.execute(contextArgs), contextCommand);
+  assertOpenSpecRoot(context.root, { path: storeRoot, storeId, source: "declared" }, contextCommand);
   return {
     id: repository.id,
     path: repositoryRoot,

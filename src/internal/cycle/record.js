@@ -5,11 +5,9 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { CONTRACT_VERSIONS, IDENTIFIER_PREFIXES, SERVICE_PATHS } from "../config/constants.js";
 import { writeFileAtomic } from "../shared/files.js";
 import { parseCycleRecordSchema } from "./schema.js";
-
-const CYCLE_CONTRACT_VERSION = 1;
-const CHANGES_DIRECTORY = path.join(".openspec-orch", "changes");
 
 /**
  * Кодирует `change-id` в безопасное имя файла Cycle Record.
@@ -28,7 +26,8 @@ export function encodeChangeKey(changeId) {
  * @returns {string} Относительный POSIX-путь.
  */
 export function cycleRecordRelativePath(changeId) {
-  return `.openspec-orch/changes/${encodeChangeKey(changeId)}.json`;
+  const directory = SERVICE_PATHS.cycleRecords.split(path.sep).join("/");
+  return `${directory}/${encodeChangeKey(changeId)}.json`;
 }
 
 /**
@@ -39,7 +38,7 @@ export function cycleRecordRelativePath(changeId) {
  * @returns {string} Абсолютный путь.
  */
 export function cycleRecordPath(storeRoot, changeId) {
-  return path.join(storeRoot, CHANGES_DIRECTORY, `${encodeChangeKey(changeId)}.json`);
+  return path.join(storeRoot, SERVICE_PATHS.cycleRecords, `${encodeChangeKey(changeId)}.json`);
 }
 
 /**
@@ -94,15 +93,15 @@ export async function readCycleRecord(storeRoot, changeId) {
  * Проверяет, что Cycle ссылается на уникальные Code Repository текущего реестра.
  *
  * @param {import("./types.js").CycleRecord} record Проверенный файловой схемой Cycle.
- * @param {import("../config/index.js").NormalizedConfig} config Текущая конфигурация Store.
+ * @param {import("../config/project.js").ProjectModel} project Текущий доменный facade Store.
  * @returns {void}
  */
-export function assertCycleRepositories(record, config) {
+export function assertCycleRepositories(record, project) {
   const unique = new Set(record.repositories);
   if (unique.size !== record.repositories.length) {
     throw new Error("STATE_CORRUPTED: Cycle Record содержит повторяющийся repository-id");
   }
-  const knownCodeIds = new Set(config.codeRepositories.map(({ id }) => id));
+  const knownCodeIds = new Set(project.codeRepositories.map(({ id }) => id));
   for (const repositoryId of record.repositories) {
     if (!knownCodeIds.has(repositoryId)) {
       throw new Error(
@@ -143,8 +142,8 @@ export async function writeCycleRecord(storeRoot, record) {
  */
 export function createCycleRecord({ changeId, planningRevision, repositories }) {
   return {
-    contractVersion: CYCLE_CONTRACT_VERSION,
-    cycleId: `cycle-${randomUUID()}`,
+    contractVersion: CONTRACT_VERSIONS.cycleRecord,
+    cycleId: `${IDENTIFIER_PREFIXES.cycle}${randomUUID()}`,
     changeId,
     planningRevision,
     repositories,

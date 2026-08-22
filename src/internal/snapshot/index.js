@@ -1,5 +1,6 @@
 /** @fileoverview Детерминированное вычисление и сохранение Snapshot v1. */
 
+import { CONTRACT_VERSIONS } from "../config/constants.js";
 import { assertCycleCommitted, readCurrentCycle } from "../cycle/current.js";
 import { runCommand } from "../shared/command.js";
 import { readState, withStateLock, writeState } from "../state/index.js";
@@ -7,8 +8,6 @@ import { SNAPSHOT_SCHEMA } from "../state/schema.js";
 import { computeSnapshotId } from "./identity.js";
 
 export { computeSnapshotId } from "./identity.js";
-
-const CONTRACT_VERSION = 1;
 
 /**
  * Возвращает канонически отсортированные реализации текущего Cycle.
@@ -56,7 +55,7 @@ export async function verifyCycle({ storeRoot, changeId, commandRunner = runComm
     if (existing?.snapshot_id === snapshotId) return { status: "unchanged", snapshot: existing };
 
     const snapshot = SNAPSHOT_SCHEMA.parse({
-      contract_version: CONTRACT_VERSION,
+      contract_version: CONTRACT_VERSIONS.snapshot,
       snapshot_id: snapshotId,
       cycle_id: context.cycle.cycleId,
       implementations: Object.fromEntries(

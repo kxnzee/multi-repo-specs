@@ -7,11 +7,11 @@
 ## Актуальные документы
 
 1. [Продуктовый контракт](product-contract.md) — нормативные границы, термины и
-   контракт v1.
+   текущие файловые контракты.
 2. [План реализации](implementation-plan.md) — техническая декомпозиция реализации
    v1.
 3. [External Integrations](external-integrations.md) — границы Jira, Zephyr и
-   Confluence до появления Plugin API.
+   Confluence до появления event Plugin API.
 4. [Разработка Core](development.md) — структура исходного кода и проверки.
 5. [Backlog после пилота](../../BACKLOG.md) — кандидаты развития, которые не входят в
    текущую версию.

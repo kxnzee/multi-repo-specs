@@ -1,4 +1,4 @@
-/** @fileoverview Общая структурная проверка машинных JSON-ответов OpenSpec. */
+/** @fileoverview Доменная модель машинных ответов и identity OpenSpec. */
 
 import path from "node:path";
 import {
@@ -33,19 +33,6 @@ export function reportOpenSpecDiagnostic(onProgress, message) {
   const severity = classifyOpenSpecDiagnosticSeverity(message);
   const prefix = severity === "info" ? "Информация OpenSpec" : "Предупреждение OpenSpec";
   onProgress(`${prefix}:\n${message}`, severity);
-}
-
-/**
- * Запускает OpenSpec через переданный runner и разбирает JSON-ответ.
- *
- * @param {typeof import("./command.js").runCommand} commandRunner Исполнитель внешних команд.
- * @param {string[]} args Аргументы OpenSpec.
- * @param {string} cwd Рабочий каталог.
- * @returns {Promise<import("./types.js").OpenSpecResponse>} Проверенный ответ.
- */
-export async function runOpenSpecJson(commandRunner, args, cwd) {
-  const command = `openspec ${args.join(" ")}`;
-  return parseOpenSpecJson(await commandRunner("openspec", args, { cwd }), command);
 }
 
 /**

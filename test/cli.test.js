@@ -10,6 +10,8 @@ import { pathToFileURL } from "node:url";
 import { buildConnectHint } from "../src/cli/commands/init.js";
 import { formatStatusJson } from "../src/cli/commands/status.js";
 import { createProgram } from "../src/cli/program.js";
+import { parseNativePluginArguments } from "../src/internal/plugin/router.js";
+import { assertNodeVersion } from "../src/internal/shared/runtime.js";
 import { reportProgress, withProgress } from "../src/cli/progress.js";
 
 /**
@@ -26,6 +28,13 @@ async function parseCommand(args) {
   const program = createProgram({
     init: handler("init"),
     connect: handler("connect"),
+    pluginRegister: handler("pluginRegister"),
+    pluginInit: handler("pluginInit"),
+    pluginConnect: handler("pluginConnect"),
+    pluginStatus: handler("pluginStatus"),
+    pluginSync: handler("pluginSync"),
+    pluginDisconnect: handler("pluginDisconnect"),
+    pluginRemove: handler("pluginRemove"),
     repositoryStatus: handler("repositoryStatus"),
     assign: handler("assign"),
     status: handler("status"),
@@ -69,6 +78,13 @@ test("enforces the Node runtime dependency boundary", () => {
   assert.match(supported.stdout, /^Usage: openspec-orch/m);
 });
 
+test("shared runtime validation accepts the exact boundary and rejects malformed versions", () => {
+  assert.doesNotThrow(() => assertNodeVersion("20.19.0"));
+  assert.doesNotThrow(() => assertNodeVersion("22.0.0"));
+  assert.throws(() => assertNodeVersion("20.18.99"), /20\.19\.0/);
+  assert.throws(() => assertNodeVersion("20.19.invalid"), /20\.19\.0/);
+});
+
 test("public binary exposes generated help", () => {
   const result = spawnSync(process.execPath, ["src/bin/openspec-orch.js", "--help"], {
     cwd: path.resolve("."),
@@ -77,7 +93,7 @@ test("public binary exposes generated help", () => {
   assert.equal(result.status, 0);
   assert.equal(result.stderr, "");
   assert.match(result.stdout, /^Usage: openspec-orch/m);
-  for (const command of ["init", "connect", "repository", "assign", "status", "record", "verify"]) {
+  for (const command of ["init", "connect", "plugin", "repository", "assign", "status", "record", "verify"]) {
     assert.match(result.stdout, new RegExp(`^  ${command}`, "m"));
   }
 });
@@ -94,7 +110,7 @@ test("init hint follows the workspace layout accepted by connect", () => {
 });
 
 test("every subcommand exposes generated help without running its action", () => {
-  for (const command of ["init", "connect", "repository", "assign", "status", "record", "verify"]) {
+  for (const command of ["init", "connect", "plugin", "repository", "assign", "status", "record", "verify"]) {
     const result = spawnSync(
       process.execPath,
       ["src/bin/openspec-orch.js", command, "--help"],
@@ -166,6 +182,78 @@ test("connect command normalizes shared options", async () => {
   assert.deepEqual(
     await parseCommand(["connect", "--workspace=/tmp/work", "--no-strict"]),
     { name: "connect", options: { workspace: "/tmp/work", noStrict: true } },
+  );
+});
+
+test("plugin lifecycle commands normalize interactive and non-interactive options", async () => {
+  assert.deepEqual(
+    await parseCommand([
+      "plugin",
+      "register",
+      "dependency-audit",
+      "./team-plugins/dependency-audit",
+      "--name=Dependency Audit",
+      "--support=store",
+      "--support=code",
+    ]),
+    {
+      name: "pluginRegister",
+      options: {
+        pluginId: "dependency-audit",
+        target: "./team-plugins/dependency-audit",
+        name: "Dependency Audit",
+        supports: ["store", "code"],
+      },
+    },
+  );
+  assert.deepEqual(
+    await parseCommand(["plugin", "init", "--plugin=dependency-audit", "--from=./team-plugins"]),
+    {
+      name: "pluginInit",
+      options: { pluginIds: ["dependency-audit"], sourceRoots: ["./team-plugins"], all: false },
+    },
+  );
+  assert.deepEqual(
+    await parseCommand(["plugin", "connect", "dependency-audit", "--repo=frontend", "--repo=backend"]),
+    {
+      name: "pluginConnect",
+      options: { pluginId: "dependency-audit", repositoryIds: ["frontend", "backend"] },
+    },
+  );
+  assert.deepEqual(
+    await parseCommand(["plugin", "status", "--plugin=dependency-audit", "--repo=frontend", "--json"]),
+    {
+      name: "pluginStatus",
+      options: { pluginId: "dependency-audit", repositoryId: "frontend", json: true },
+    },
+  );
+  assert.deepEqual(
+    await parseCommand(["plugin", "sync", "dependency-audit", "--repo=frontend"]),
+    { name: "pluginSync", options: { pluginId: "dependency-audit", repositoryId: "frontend" } },
+  );
+  assert.deepEqual(
+    await parseCommand(["plugin", "disconnect", "dependency-audit", "--repo=frontend"]),
+    { name: "pluginDisconnect", options: { pluginId: "dependency-audit", repositoryId: "frontend" } },
+  );
+  assert.deepEqual(
+    await parseCommand(["plugin", "remove", "dependency-audit"]),
+    { name: "pluginRemove", options: { pluginId: "dependency-audit" } },
+  );
+});
+
+test("native Plugin routing removes only the required repository selector", () => {
+  assert.deepEqual(
+    parseNativePluginArguments(["--repository=frontend", "explore", "authentication flow"]),
+    { repositoryId: "frontend", pluginArgs: ["explore", "authentication flow"] },
+  );
+  assert.deepEqual(
+    parseNativePluginArguments(["explore", "--repository", "frontend", "--json"]),
+    { repositoryId: "frontend", pluginArgs: ["explore", "--json"] },
+  );
+  assert.throws(() => parseNativePluginArguments(["explore"]), /--repository/);
+  assert.throws(
+    () => parseNativePluginArguments(["--repository=frontend", "--repository=backend"]),
+    /одно значение/,
   );
 });
 

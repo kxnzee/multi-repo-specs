@@ -294,6 +294,7 @@ test("base context keeps repository-local technical context outside the Store", 
 test("base Template has one read-only planning meta-skill", async () => {
   const skillDirectories = (await fs.readdir(path.join(BASE_TEMPLATE_ROOT, "skills"))).sort();
   assert.deepEqual(skillDirectories, [
+    "base-intent",
     "openspec-base-apply-context",
     "openspec-base-meta-planning",
     "openspec-base-test-cases",
@@ -420,19 +421,6 @@ test("base subagents are Russian read-only native profiles", async () => {
     "glob",
     "list_directory",
   ];
-  const codeGraphTools = [
-    "mcp__codegraph__codegraph_search",
-    "mcp__codegraph__codegraph_context",
-    "mcp__codegraph__codegraph_trace",
-    "mcp__codegraph__codegraph_callers",
-    "mcp__codegraph__codegraph_callees",
-    "mcp__codegraph__codegraph_impact",
-    "mcp__codegraph__codegraph_node",
-    "mcp__codegraph__codegraph_explore",
-    "mcp__codegraph__codegraph_files",
-    "mcp__codegraph__codegraph_status",
-  ];
-
   for (const name of expectedNames) {
     const contents = await fs.readFile(
       path.join(BASE_TEMPLATE_ROOT, "subagents", `${name}.md`),
@@ -446,13 +434,10 @@ test("base subagents are Russian read-only native profiles", async () => {
     assert.match(frontmatter.description, /[А-Яа-яЁё]/);
     assert.equal(frontmatter.model, "inherit");
     assert.equal(frontmatter.approvalMode, "plan");
-    const expectedTools = name === "openspec-base-repository-evidence-scout"
-      ? [...commonReadOnlyTools, ...codeGraphTools]
-      : commonReadOnlyTools;
-    assert.deepEqual(frontmatter.tools, expectedTools);
+    assert.deepEqual(frontmatter.tools, commonReadOnlyTools);
     assert.match(contents, /Верни по-русски/);
     assert.match(contents, /Ты OpenSpec-сабагент/);
-    assert.match(contents, /[Cc]ode[Gg]raph|\.codegraph/);
+    assert.doesNotMatch(contents, /code\s*graph/i);
 
     for (const forbiddenTool of ["write_file", "edit", "run_shell_command", "\n  - agent\n"]) {
       assert.equal(contents.includes(forbiddenTool), false, `${name}: ${forbiddenTool}`);

@@ -1,5 +1,6 @@
 /** @fileoverview Оркестрация `openspec-orch assign`: preview, подтверждение, запись Cycle Record. */
 
+import { SERVICE_PATHS } from "../config/constants.js";
 import { runCommand } from "../shared/command.js";
 import { assertNoGitOperation } from "../shared/git.js";
 import { createGitClient } from "../shared/git-client.js";
@@ -53,14 +54,14 @@ export async function assignCycle({
     throw new Error("REPO_UNKNOWN: один и тот же --repo передан дважды");
   }
 
-  const { config } = await readStoreConfiguration(storeRoot);
-  const knownCodeIds = new Set(config.codeRepositories.map(({ id }) => id));
+  const { project } = await readStoreConfiguration(storeRoot);
+  const knownCodeIds = new Set(project.codeRepositories.map(({ id }) => id));
   for (const id of uniqueRepositoryIds) {
     if (!knownCodeIds.has(id)) {
       throw new Error(
-        id === config.storeRepository.id
+        id === project.storeRepository.id
           ? `REPO_UNKNOWN: repository-id '${id}' — это Store, Cycle принимает только roles: [code]`
-          : `REPO_UNKNOWN: repository-id '${id}' отсутствует в openspec-orch.yaml`,
+          : `REPO_UNKNOWN: repository-id '${id}' отсутствует в ${SERVICE_PATHS.orchestratorConfig}`,
       );
     }
   }
@@ -80,7 +81,7 @@ export async function assignCycle({
   const recordPath = cycleRecordPath(storeRoot, changeId);
   const existing = await readCycleRecord(storeRoot, changeId);
   if (existing) {
-    assertCycleRepositories(existing, config);
+    assertCycleRepositories(existing, project);
     const unchanged = existing.planningRevision === planningRevision &&
       sameRepositorySet(existing.repositories, uniqueRepositoryIds);
     if (unchanged) return { status: "unchanged", cycle: existing, path: recordPath };

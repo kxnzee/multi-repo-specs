@@ -1,6 +1,6 @@
-version: 1
+version: 2
 strict: true
 
-repositories: []
+plugins: []
 
-extensions: {}
+repositories: []

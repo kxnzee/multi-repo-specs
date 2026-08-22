@@ -1,6 +1,7 @@
 /** @fileoverview Capability-based совместимость с внешним OpenSpec CLI. */
 
-const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+import { CONTRACT_PATTERNS } from "../config/constants.js";
+import { createOpenSpecClient } from "./openspec-client.js";
 
 /**
  * Проверяет только наличие работоспособного OpenSpec CLI и машинно читаемой версии.
@@ -11,8 +12,8 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?
  * @returns {Promise<string>}
  */
 export async function inspectOpenSpecCli(commandRunner, cwd) {
-  const version = (await commandRunner("openspec", ["--version"], { cwd })).trim();
-  if (!VERSION_PATTERN.test(version)) {
+  const version = (await createOpenSpecClient(cwd, commandRunner).execute(["--version"])).trim();
+  if (!CONTRACT_PATTERNS.semanticVersion.test(version)) {
     throw new Error(
       "OpenSpec Orchestrator не может определить версию OpenSpec CLI: " +
         "ожидалась semantic version",

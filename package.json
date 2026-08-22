@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "plugins/*"
+  ],
+  "openspecOrchestrator": {
+    "bundledPlugins": [
+      "@openspec-orch/plugin-codegraph"
+    ]
+  },
   "files": [
     "src/bin",
     "src/cli",
@@ -14,9 +22,12 @@
   },
   "dependencies": {
     "@inquirer/prompts": "7.10.1",
+    "@openspec-orch/plugin-codegraph": "1.0.0",
     "commander": "14.0.3",
     "execa": "9.6.0",
     "ora": "8.2.0",
+    "p-map": "7.0.6",
+    "pacote": "21.5.1",
     "yaml": "2.9.0",
     "zod": "4.4.3"
   },

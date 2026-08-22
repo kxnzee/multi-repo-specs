@@ -2,6 +2,7 @@
 
 import path from "node:path";
 
+import { PROJECT_SETTINGS } from "../config/settings.js";
 import { runCommand } from "../shared/command.js";
 import { lstatOrNull } from "../shared/files.js";
 import { createGitClient } from "../shared/git-client.js";
@@ -62,17 +63,8 @@ async function inspectRepository(repository, expectedPath, commandRunner) {
  * @returns {Promise<import("./types.js").RepositoryStatus[]>} Проверенные статусы.
  */
 export async function readRepositoryStatus({ storeRoot, repositoryIds, commandRunner = runCommand }) {
-  const { metadata, config } = await readStoreConfiguration(storeRoot);
-
-  let selected = config.repositories;
-  if (repositoryIds && repositoryIds.length > 0) {
-    const known = new Set(config.repositories.map(({ id }) => id));
-    for (const id of repositoryIds) {
-      if (!known.has(id)) throw new Error(`REPO_UNKNOWN: repository-id '${id}' отсутствует в openspec-orch.yaml`);
-    }
-    const wanted = new Set(repositoryIds);
-    selected = config.repositories.filter(({ id }) => wanted.has(id));
-  }
+  const { metadata, project } = await readStoreConfiguration(storeRoot);
+  const selected = project.selectRepositories(repositoryIds);
 
   const workspace = await resolveWorkspace(storeRoot, metadata.id, undefined, true).catch((error) => {
     if (error.code === "WORKSPACE_UNRESOLVED") return null;
@@ -82,7 +74,9 @@ export async function readRepositoryStatus({ storeRoot, repositoryIds, commandRu
   for (const repository of selected) {
     const expectedPath = repository.role === "store"
       ? storeRoot
-      : (workspace ? path.join(workspace, "src", repository.id) : null);
+      : (workspace
+        ? path.join(workspace, PROJECT_SETTINGS.workspace.repositoriesDirectory, repository.id)
+        : null);
     if (!expectedPath) {
       statuses.push({
         id: repository.id,

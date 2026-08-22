@@ -3,6 +3,7 @@
 import { parse } from "yaml";
 import * as z from "zod";
 
+import { DESCRIPTOR_FILES } from "../config/constants.js";
 import { isPortableRelativePath } from "../shared/paths.js";
 import { isRecord, isRepositoryId } from "../shared/schema.js";
 
@@ -41,7 +42,7 @@ const AGENT_SCHEMA = z.strictObject({
 const TEMPLATE_SCHEMA = z.strictObject({
   agents: z.record(z.string(), AGENT_SCHEMA).refine(
     (agents) => Object.keys(agents).length > 0,
-    "template.yaml должен содержать непустой agents",
+    `${DESCRIPTOR_FILES.template} должен содержать непустой agents`,
   ).refine(
     (agents) => Object.keys(agents).every(isRepositoryId),
     "Agent ID должен быть в lowercase kebab-case",
@@ -91,17 +92,19 @@ export function parseTemplateDescriptor(source) {
   try {
     value = parse(source);
   } catch (error) {
-    throw new Error(`Некорректный template.yaml: ${error.message}`);
+    throw new Error(`Некорректный ${DESCRIPTOR_FILES.template}: ${error.message}`);
   }
   if (isRecord(value) && isRecord(value.agents)) {
     const invalidId = Object.keys(value.agents).find((id) => !isRepositoryId(id));
     if (invalidId) {
-      throw new Error(`Agent ID '${invalidId}' в template.yaml должен быть в lowercase kebab-case`);
+      throw new Error(
+        `Agent ID '${invalidId}' в ${DESCRIPTOR_FILES.template} должен быть в lowercase kebab-case`,
+      );
     }
   }
   const result = TEMPLATE_SCHEMA.safeParse(value);
   if (!result.success) {
-    throw new Error(`Некорректный template.yaml: ${z.prettifyError(result.error)}`);
+    throw new Error(`Некорректный ${DESCRIPTOR_FILES.template}: ${z.prettifyError(result.error)}`);
   }
   return {
     agents: Object.fromEntries(

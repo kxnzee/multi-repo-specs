@@ -1,4 +1,4 @@
-/** @fileoverview Проверка строгой схемы v1 и безопасности openspec-orch.yaml. */
+/** @fileoverview Проверка строгой схемы v1/v2 и безопасности openspec-orch.yaml. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -81,9 +81,16 @@ test("parseOrchestratorConfig accepts a store-only registry and splits code repo
     role: "store",
     remote: "https://example.test/specs.git",
     defaultBranch: "main",
+    plugins: [],
   });
   assert.deepEqual(parsed.codeRepositories.map(({ id }) => id), ["frontend"]);
+  assert.deepEqual(parsed.plugins, []);
   assert.deepEqual(parsed.extensions, {});
+});
+
+test("v1 keeps legacy extensions visible so a write cannot drop them silently", () => {
+  const parsed = parseOrchestratorConfig(`${config(STORE_ONLY)}extensions:\n  team: payments\n`);
+  assert.deepEqual(parsed.extensions, { team: "payments" });
 });
 
 test("strict defaults to true and may be disabled without an OpenSpec version pin", () => {
@@ -95,7 +102,7 @@ test("strict defaults to true and may be disabled without an OpenSpec version pi
   assert.throws(() => parseOrchestratorConfig(`strict: disabled\n${config(STORE_ONLY)}`));
 });
 
-test("serializeOrchestratorConfig produces a strict v1 document from the Core template", () => {
+test("serializeOrchestratorConfig upgrades a v1 Core template to strict v2", () => {
   const template = "version: 1\nstrict: true\n\nrepositories: []\n\nextensions: {}\n";
   const serialized = serializeOrchestratorConfig(template, [
     { id: "specs", role: "store", remote: "https://example.test/specs.git", defaultBranch: "main" },
@@ -103,12 +110,38 @@ test("serializeOrchestratorConfig produces a strict v1 document from the Core te
   ], { strict: false });
   const parsed = parseOrchestratorConfig(serialized);
   assert.equal(parsed.strict, false);
+  assert.equal(parsed.version, 2);
+  assert.deepEqual(parsed.plugins, []);
   assert.deepEqual(parsed.storeRepository.id, "specs");
   assert.deepEqual(parsed.codeRepositories.map(({ id }) => id), ["frontend"]);
 });
 
+test("parseOrchestratorConfig validates Plugin declarations and repository bindings", () => {
+  const parsed = parseOrchestratorConfig(`version: 2
+plugins: [dependency-audit]
+repositories:
+  - id: specs
+    roles: [store]
+    remote: https://example.test/specs.git
+    default_branch: main
+    plugins: [dependency-audit]
+`);
+  assert.deepEqual(parsed.plugins, ["dependency-audit"]);
+  assert.deepEqual(parsed.storeRepository.plugins, ["dependency-audit"]);
+
+  assert.throws(() => parseOrchestratorConfig(`version: 2
+plugins: []
+repositories:
+  - id: specs
+    roles: [store]
+    remote: https://example.test/specs.git
+    default_branch: main
+    plugins: [dependency-audit]
+`), /необъявленный plugin-id dependency-audit/);
+});
+
 test("serializeOrchestratorConfig rejects a template with an unsupported version", () => {
-  assert.throws(() => serializeOrchestratorConfig("version: 2\nrepositories: []\n", [], {}));
+  assert.throws(() => serializeOrchestratorConfig("version: 3\nrepositories: []\n", [], {}));
 });
 
 test("parseStoreMetadata validates its schema before normalization", () => {

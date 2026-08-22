@@ -1,9 +1,8 @@
 /** @fileoverview Проверка CLI-входа и Git-предусловий `openspec-orch init`. */
 
+import { CONTRACT_PATTERNS } from "../config/constants.js";
 import { createGitClient } from "../shared/git-client.js";
 import { assertRepositoryRemote } from "../config/index.js";
-
-const REPOSITORY_PATTERN = /^([a-z0-9]+(?:-[a-z0-9]+)*)=(.+)#([^#]+)$/;
 
 /**
  * Проверяет Git-предусловия и читает identity центрального репозитория.
@@ -32,7 +31,7 @@ export async function inspectGit(projectRoot, commandRunner) {
  * @returns {{id: string, role: "code", remote: string, defaultBranch: string}} Репозиторий.
  */
 export function parseRepository(value) {
-  const match = value.match(REPOSITORY_PATTERN);
+  const match = value.match(CONTRACT_PATTERNS.repositoryArgument);
   if (!match) throw new Error(`Некорректный репозиторий '${value}'. Ожидается <id=remote#branch>`);
   const [, id, remote, defaultBranch] = match;
   if (remote.startsWith("-") || defaultBranch.startsWith("-")) {

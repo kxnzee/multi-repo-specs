@@ -3,9 +3,19 @@
 import { Command, InvalidArgumentError, Option } from "commander";
 
 import { parseRepository } from "../internal/init/index.js";
+import { TOP_LEVEL_COMMANDS } from "../internal/shared/cli-grammar.js";
 import { runAssign } from "./commands/assign.js";
 import { runConnect } from "./commands/connect.js";
 import { runInit } from "./commands/init.js";
+import {
+  runPluginConnect,
+  runPluginDisconnect,
+  runPluginInit,
+  runPluginRegister,
+  runPluginRemove,
+  runPluginStatus,
+  runPluginSync,
+} from "./commands/plugin.js";
 import { runRepositoryStatus } from "./commands/repository.js";
 import { runRecordAssignment } from "./commands/record-assignment.js";
 import { runRecordVerification } from "./commands/record-verification.js";
@@ -15,6 +25,13 @@ import { runVerify } from "./commands/verify.js";
 const DEFAULT_HANDLERS = Object.freeze({
   init: runInit,
   connect: runConnect,
+  pluginInit: runPluginInit,
+  pluginRegister: runPluginRegister,
+  pluginConnect: runPluginConnect,
+  pluginStatus: runPluginStatus,
+  pluginSync: runPluginSync,
+  pluginDisconnect: runPluginDisconnect,
+  pluginRemove: runPluginRemove,
   repositoryStatus: runRepositoryStatus,
   assign: runAssign,
   status: runStatus,
@@ -73,7 +90,7 @@ export function createProgram(handlers = DEFAULT_HANDLERS) {
     .showHelpAfterError()
     .exitOverride();
 
-  withExecutionMode(program.command("init [path]", { isDefault: false })
+  withExecutionMode(program.command(`${TOP_LEVEL_COMMANDS.init} [path]`, { isDefault: false })
     .description("создать OpenSpec Store и применить Project Template")
     .requiredOption("--store <store-id>", "Store ID", singleValue())
     .requiredOption("--agent <agent-id>", "agent mapping из Project Template", singleValue())
@@ -88,7 +105,7 @@ export function createProgram(handlers = DEFAULT_HANDLERS) {
       noStrict: options.strict === false,
     }));
 
-  withExecutionMode(program.command("connect")
+  withExecutionMode(program.command(TOP_LEVEL_COMMANDS.connect)
     .description("подключить рабочую машину и Code Repositories")
     .addOption(new Option("--workspace <path>", "явный workspace").argParser(singleValue())))
     .action((options) => handlers.connect({
@@ -96,14 +113,73 @@ export function createProgram(handlers = DEFAULT_HANDLERS) {
       noStrict: options.strict === false,
     }));
 
-  const repository = program.command("repository")
+  const plugin = program.command(TOP_LEVEL_COMMANDS.plugin)
+    .description("инициализация, подключение и состояние CLI Plugins");
+  plugin.command("register <plugin-id> [path]")
+    .description("создать самостоятельный Plugin Package с готовым entrypoint")
+    .addOption(new Option("--name <display-name>", "читаемое имя Plugin").argParser(singleValue()))
+    .addOption(new Option("--support <role>", "роль Repository: store или code").argParser(collectValues()))
+    .action((pluginId, target, options) => handlers.pluginRegister({
+      pluginId,
+      target,
+      name: options.name,
+      supports: options.support?.length ? options.support : undefined,
+    }));
+  plugin.command("init")
+    .description("выбрать Plugins из встроенного или пользовательского каталога")
+    .addOption(new Option("--plugin <plugin-id>", "выбрать plugin-id без prompt").argParser(collectValues()))
+    .addOption(new Option("--from <source>", "добавить Package, каталог, .tgz или Git URL").argParser(collectValues()))
+    .option("--all", "выбрать все обнаруженные Plugins")
+    .action((options) => handlers.pluginInit({
+      pluginIds: options.plugin ?? [],
+      sourceRoots: options.from ?? [],
+      all: Boolean(options.all),
+    }));
+  plugin.command("connect <plugin-id>")
+    .description("связать Plugin с одним или несколькими repositories")
+    .addOption(new Option("--repo <repository-id>", "repository-id без prompt").argParser(collectValues()))
+    .action((pluginId, options) => handlers.pluginConnect({
+      pluginId,
+      repositoryIds: options.repo ?? [],
+    }));
+  plugin.command("status")
+    .description("показать состояние Plugin connections")
+    .addOption(new Option("--plugin <plugin-id>", "ограничить одним Plugin").argParser(singleValue()))
+    .addOption(new Option("--repo <repository-id>", "ограничить одним Repository").argParser(singleValue()))
+    .option("--json", "вывести машиночитаемый статус")
+    .action((options) => handlers.pluginStatus({
+      pluginId: options.plugin,
+      repositoryId: options.repo,
+      json: Boolean(options.json),
+    }));
+  plugin.command("sync <plugin-id>")
+    .description("синхронизировать Plugin в связанном Repository")
+    .addOption(new Option("--repo <repository-id>", "repository-id")
+      .argParser(singleValue()).makeOptionMandatory())
+    .action((pluginId, options) => handlers.pluginSync({
+      pluginId,
+      repositoryId: options.repo,
+    }));
+  plugin.command("disconnect <plugin-id>")
+    .description("удалить связь Plugin без очистки repository data")
+    .addOption(new Option("--repo <repository-id>", "repository-id")
+      .argParser(singleValue()).makeOptionMandatory())
+    .action((pluginId, options) => handlers.pluginDisconnect({
+      pluginId,
+      repositoryId: options.repo,
+    }));
+  plugin.command("remove <plugin-id>")
+    .description("удалить неиспользуемый Plugin из проекта")
+    .action((pluginId) => handlers.pluginRemove({ pluginId }));
+
+  const repository = program.command(TOP_LEVEL_COMMANDS.repository)
     .description("операции только чтения над репозиториями реестра");
   repository.command("status")
     .description("показать подключение, чистоту, remote и ветку каждого репозитория")
     .addOption(new Option("--repo <repository-id>", "ограничить вывод одним repository-id").argParser(collectValues()))
     .action((options) => handlers.repositoryStatus({ repositoryIds: options.repo ?? [] }));
 
-  program.command("assign <change-id>")
+  program.command(`${TOP_LEVEL_COMMANDS.assign} <change-id>`)
     .description("создать или подтвердить текущий Cycle для change-id")
     .requiredOption("--repo <repository-id>", "repository-id из состава Cycle", collectValues())
     .action((changeId, options) => handlers.assign({
@@ -111,12 +187,12 @@ export function createProgram(handlers = DEFAULT_HANDLERS) {
       repositoryIds: options.repo,
     }));
 
-  program.command("status <change-id>")
+  program.command(`${TOP_LEVEL_COMMANDS.status} <change-id>`)
     .description("показать текущий Cycle Record и следующее действие")
     .option("--json", "вывести машиночитаемый контекст Cycle и текущего Repository")
     .action((changeId, options) => handlers.status({ changeId, json: Boolean(options.json) }));
 
-  const record = program.command("record")
+  const record = program.command(TOP_LEVEL_COMMANDS.record)
     .description("записать внешний результат в локальное состояние");
   record.command("assignment <change-id>")
     .description("записать Result Receipt одного Code Repository")
@@ -138,7 +214,7 @@ export function createProgram(handlers = DEFAULT_HANDLERS) {
       note: options.note,
     }));
 
-  program.command("verify <change-id>")
+  program.command(`${TOP_LEVEL_COMMANDS.verify} <change-id>`)
     .description("вычислить Snapshot текущих completed Result Receipts")
     .action((changeId) => handlers.verify({ changeId }));
 

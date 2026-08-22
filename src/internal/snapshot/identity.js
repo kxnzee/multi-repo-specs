@@ -2,8 +2,7 @@
 
 import { createHash } from "node:crypto";
 
-const SNAPSHOT_HASH_VERSION = 1;
-const CONTRACT_VERSION = 1;
+import { CONTRACT_VERSIONS, IDENTIFIER_PREFIXES } from "../config/constants.js";
 
 /**
  * Возвращает фиксированную каноническую проекцию реализаций Snapshot.
@@ -29,11 +28,11 @@ export function canonicalImplementations(implementations) {
  */
 export function computeSnapshotId(cycleId, implementations) {
   const projection = {
-    hash_version: SNAPSHOT_HASH_VERSION,
-    contract_version: CONTRACT_VERSION,
+    hash_version: CONTRACT_VERSIONS.snapshotHash,
+    contract_version: CONTRACT_VERSIONS.snapshot,
     cycle_id: cycleId,
     implementations: canonicalImplementations(implementations),
   };
   const digest = createHash("sha256").update(JSON.stringify(projection), "utf8").digest("hex");
-  return `snap-v1-${digest}`;
+  return `${IDENTIFIER_PREFIXES.snapshot}${digest}`;
 }

@@ -22,18 +22,18 @@ import {
  */
 export async function readCurrentCycle({ storeRoot, changeId, commandRunner = runCommand }) {
   assertChangeId(changeId);
-  const { metadata, config } = await readStoreConfiguration(storeRoot);
+  const { metadata, project } = await readStoreConfiguration(storeRoot);
   const cycle = await readCycleRecord(storeRoot, changeId);
   if (!cycle) {
     throw new Error(`CYCLE_NOT_FOUND: нет Cycle Record для change-id '${changeId}' в рабочей копии Store`);
   }
-  assertCycleRepositories(cycle, config);
+  assertCycleRepositories(cycle, project);
   const changedPaths = await createGitClient(storeRoot, commandRunner)
     .statusPaths([cycleRecordRelativePath(changeId)]);
   return {
     storeRoot,
     metadata,
-    config,
+    project,
     cycle,
     committed: changedPaths.length === 0,
     path: cycleRecordPath(storeRoot, changeId),

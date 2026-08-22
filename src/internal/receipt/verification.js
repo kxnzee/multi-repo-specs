@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 
+import { CONTRACT_VERSIONS, IDENTIFIER_PREFIXES } from "../config/constants.js";
 import { assertCycleCommitted, readCurrentCycle } from "../cycle/current.js";
 import { runCommand } from "../shared/command.js";
 import { computeSnapshotId, currentImplementations } from "../snapshot/index.js";
@@ -50,8 +51,8 @@ export async function recordVerification({
     ({ cycle_id: cycleId }) => cycleId === context.cycle.cycleId,
   );
   const receipt = VERIFICATION_RECEIPT_SCHEMA.parse({
-    contract_version: 1,
-    receipt_id: `verification-${randomUUID()}`,
+    contract_version: CONTRACT_VERSIONS.verificationReceipt,
+    receipt_id: `${IDENTIFIER_PREFIXES.verification}${randomUUID()}`,
     cycle_id: context.cycle.cycleId,
     snapshot_id: snapshot.snapshot_id,
     result,

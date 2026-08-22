@@ -2,6 +2,8 @@
 
 import * as z from "zod";
 
+import { CONTRACT_PATTERNS } from "../config/constants.js";
+
 const OPEN_SPEC_ROOT_SCHEMA = z.looseObject({
   path: z.string(),
   store_id: z.string().optional(),
@@ -17,8 +19,7 @@ const OPEN_SPEC_RESPONSE_SCHEMA = z.looseObject({
   root: OPEN_SPEC_ROOT_SCHEMA.optional(),
   status: z.array(z.unknown()).optional(),
 });
-const GIT_REVISION_SCHEMA = z.string().regex(/^[0-9a-f]{40}$/);
-const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const GIT_REVISION_SCHEMA = z.string().regex(CONTRACT_PATTERNS.gitRevision);
 
 /**
  * Проверяет формат устойчивого ID Store, репозитория или agent mapping.
@@ -27,7 +28,7 @@ const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
  * @returns {value is string} Соответствует ли значение lowercase kebab-case.
  */
 export function isRepositoryId(value) {
-  return typeof value === "string" && ID_PATTERN.test(value);
+  return typeof value === "string" && CONTRACT_PATTERNS.id.test(value);
 }
 
 /**

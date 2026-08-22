@@ -19,8 +19,9 @@
 | Понять или проверить `openspec-orch.yaml` | [Конфигурация](configuration.md) |
 | Подключить Store в нестандартном workspace | [Подключение Store](store-connection.md) |
 | Создать или изменить Project Template | [Project Template](project-template.md) |
+| Выбрать и подключить CLI Plugin | [Plugins](plugins.md) |
 | Выбрать поддерживаемого агента | [Поддерживаемые агенты](supported-agents.md) |
-| Настроить навигацию агентов по коду | [CodeGraph](codegraph.md) |
+| Настроить навигацию агентов по коду | [CodeGraph Plugin](../../plugins/codegraph/README.md) |
 
 Технический контракт реализации Orchestrator пользователю для ежедневной работы не
 нужен. Он находится в [`docs/technical/`](../technical/README.md).

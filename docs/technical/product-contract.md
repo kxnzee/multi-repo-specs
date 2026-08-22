@@ -108,55 +108,65 @@ v1 предполагает **одного пользователя и одну 
 После ревизии функция может попасть в отдельный Beta Plan только против записи в
 `docs/user/pilot-feedback.md` (раздел 7).
 
-## 3. Модель данных v1
+## 3. Модель данных
 
-Четыре класса данных — зафиксированная структурная граница v1:
+Основные классы данных разделены по владельцу и сроку жизни:
 
 | Данные | Хранение | Владелец |
 |---|---|---|
 | `openspec-orch.yaml` | Git, Store | Пользователь |
 | `.openspec-orch/changes/<change-key>.json` (Cycle Records) | Git, Store | Core |
 | `.openspec-orch/state.json` (Receipts, Snapshots, локальные пути) | только локальная машина, в `.gitignore` | Core |
+| `.openspec-orch/cache/plugins/<plugin-id>/` | только локальная машина, в `.gitignore` | Plugin manager |
 | `openspec/…` | Git, Store | OpenSpec — Core не читает внутреннюю структуру и не пишет туда |
 
 Receipts и Snapshots **никогда** не попадают в Git в текущей версии. Cycle Record **никогда** не хранится только в state.json.
 
-### 3.1. Два обязательных задела на будущее
+### 3.1. Версионирование
 
-В v1 есть ровно два резерва совместимости. Оба дёшевы сейчас и предотвращают болезненную миграцию данных после пилота:
+Файловые контракты содержат явные версии:
 
-1. **`contract_version`** в каждом из файловых форматов: конфиг, Cycle Record, Receipt (обоих видов), Snapshot, state.json. Неподдерживаемая версия при чтении — ошибка, а не тихая интерпретация.
+1. **`version` или `contract_version`** в каждом файловом формате. Неподдерживаемая версия при чтении — ошибка, а не тихая интерпретация. `openspec-orch.yaml` v1 читается для миграции, но управляемые записи сохраняются как v2.
 2. **Версия алгоритма внутри вычисления `snapshot_id`**: версия входит в хешируемые данные, чтобы бета могла расширить проекцию (например, отпечатком договора проверки) без коллизий со старыми идентификаторами.
 
-Никакие другие поля, значения enum или секции конфигурации заранее не резервируются.
-Будущее расширение добавляет их через инкремент `contract_version` соответствующего формата.
+Будущее расширение добавляет поля через инкремент версии соответствующего формата.
 
 ### 3.2. `openspec-orch.yaml`
 
 ```yaml
-version: 1
+version: 2
 strict: true
+plugins: [dependency-audit]
 
 repositories:
   - id: specs
     roles: [store]
     remote: ssh://git.example.org/product/specs.git
     default_branch: main
+    plugins: []
   - id: frontend
     roles: [code]
     remote: ssh://git.example.org/product/frontend.git
     default_branch: main
-
-extensions: {}
+    plugins: [dependency-audit]
 ```
 
 Правила:
 
 - обязательное поле `version`; неподдерживаемая версия — ошибка;
-- в строгом режиме неизвестные поля вне `extensions` — ошибка; это относится и к не входящим в v1 секциям `agent` и `handoffs`;
+- в v2 неизвестные поля вне `version`, `strict`, `plugins`, `repositories` — ошибка; секции `agent`, `handoffs` и старый `extensions` не допускаются;
 - ровно один репозиторий с ролью `store`;
 - без секретов и локальных абсолютных путей;
+- каждый `repositories[].plugins` ссылается только на ID из верхнеуровневого `plugins`;
 - перечитывается при каждой операции.
+
+Plugin Package не является частью Template. `plugin init` materialize выбранный npm
+package и его production dependencies один раз в локальный cache Store, после чего
+объявляет ID в проекте. `plugin connect` выполняет setup в точном Repository и только
+после успеха сохраняет связь. Нативный вызов передаёт аргументы Package entrypoint
+без shell; Package без entrypoint использует executable из descriptor.
+`plugin register` создаёт самостоятельный исходный Package с manifest и entrypoint;
+он не меняет Store, Template или Plugin-specific код в Core.
 
 ### 3.3. Cycle Record и текущий Cycle
 

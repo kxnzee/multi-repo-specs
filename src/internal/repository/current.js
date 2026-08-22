@@ -3,6 +3,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { PROJECT_SETTINGS } from "../config/settings.js";
 import { runCommand } from "../shared/command.js";
 import { createGitClient } from "../shared/git-client.js";
 import { sameGitRemote } from "../shared/git.js";
@@ -17,7 +18,7 @@ import { resolveWorkspace } from "../shared/workspace.js";
  * @param {string} options.start Каталог вызова команды.
  * @param {string} options.storeRoot Канонический Store.
  * @param {object} options.metadata Проверенная Store metadata.
- * @param {object} options.config Проверенный registry.
+ * @param {import("../config/project.js").ProjectModel} options.project Доменный facade registry.
  * @param {typeof runCommand} [options.commandRunner] Исполнитель Git.
  * @returns {Promise<{id: string, role: "store" | "code", path: string} | null>} Текущий repository.
  */
@@ -25,7 +26,7 @@ export async function readCurrentRepository({
   start,
   storeRoot,
   metadata,
-  config,
+  project,
   commandRunner = runCommand,
 }) {
   let repositoryRoot;
@@ -36,12 +37,16 @@ export async function readCurrentRepository({
   }
 
   if (repositoryRoot === storeRoot) {
-    return { id: config.storeRepository.id, role: "store", path: storeRoot };
+    return { id: project.storeRepository.id, role: "store", path: storeRoot };
   }
 
   const workspace = await resolveWorkspace(storeRoot, metadata.id, undefined, true);
-  for (const repository of config.codeRepositories) {
-    const expectedPath = path.join(workspace, "src", repository.id);
+  for (const repository of project.codeRepositories) {
+    const expectedPath = path.join(
+      workspace,
+      PROJECT_SETTINGS.workspace.repositoriesDirectory,
+      repository.id,
+    );
     let canonicalExpectedPath;
     try {
       canonicalExpectedPath = await fs.realpath(expectedPath);

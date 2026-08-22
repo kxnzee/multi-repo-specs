@@ -8,6 +8,7 @@ import {
   parseStoreMetadata,
   serializeOrchestratorConfig,
 } from "../config/index.js";
+import { PROJECT_SETTINGS } from "../config/settings.js";
 import { runCommand } from "../shared/command.js";
 import { inspectOpenSpecCli } from "../shared/compatibility.js";
 import { lstatOrNull } from "../shared/files.js";
@@ -60,6 +61,7 @@ export async function initProject({
     throw new Error(`openspec-orch init требует существующий обычный каталог: ${requestedRoot}`);
   }
   const projectRoot = await fs.realpath(requestedRoot);
+  const strict = noStrict ? false : PROJECT_SETTINGS.execution.strictByDefault;
   if (await lstatOrNull(path.join(projectRoot, INIT_PATHS.alternateOpenSpecConfig))) {
     throw new Error(
       `${INIT_PATHS.alternateOpenSpecConfig} нужно перенести в ` +
@@ -125,7 +127,7 @@ export async function initProject({
   const orchestratorContents = serializeOrchestratorConfig(
     await fs.readFile(INIT_PATHS.orchestratorTemplate, "utf8"),
     configuredRepositories,
-    { strict: !noStrict },
+    { strict },
   );
   parseOrchestratorConfig(orchestratorContents);
 
@@ -174,7 +176,7 @@ export async function initProject({
     target: projectRoot,
     storeId,
     alreadyInitialized: false,
-    executionMode: noStrict ? "relaxed" : "strict",
+    executionMode: strict ? "strict" : "relaxed",
     created: [INIT_PATHS.metadata, ...installed.created.sort()],
     updated: installed.updated,
     agent: templatePlan.agent,

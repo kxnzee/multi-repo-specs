@@ -61,7 +61,7 @@ export async function runStatus(options) {
     start: invocationRoot,
     storeRoot,
     metadata: storeConfiguration.metadata,
-    config: storeConfiguration.config,
+    project: storeConfiguration.project,
   });
   if (options.json) {
     console.log(JSON.stringify(formatStatusJson(result, currentRepository), null, 2));

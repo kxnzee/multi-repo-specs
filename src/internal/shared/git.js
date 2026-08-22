@@ -2,6 +2,7 @@
 
 import path from "node:path";
 
+import { CONTRACT_PATTERNS, SERVICE_PATHS } from "../config/constants.js";
 import { lstatOrNull } from "./files.js";
 import { createGitClient } from "./git-client.js";
 
@@ -12,7 +13,7 @@ import { createGitClient } from "./git-client.js";
  * @returns {string} Нормализованный URL.
  */
 function normalizeGitRemote(value) {
-  return value.trim().replace(/\/+$/, "");
+  return value.trim().replace(CONTRACT_PATTERNS.trailingSlashes, "");
 }
 
 /**
@@ -42,7 +43,7 @@ export async function inspectRepositoryIdentity(repositoryRoot, repository, comm
   }
   const origin = await git.originUrl();
   if (!sameGitRemote(origin, repository.remote)) {
-    throw new Error(`${repository.id}: origin не совпадает с openspec-orch.yaml`);
+    throw new Error(`${repository.id}: origin не совпадает с ${SERVICE_PATHS.orchestratorConfig}`);
   }
 }
 

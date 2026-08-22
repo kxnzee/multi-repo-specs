@@ -44,8 +44,8 @@ async function createScenario(t) {
     ].join("\n"),
     "openspec/config.yaml": "schema: spec-driven\n",
   });
-  const { metadata, config } = await readStoreConfiguration(store.checkout);
-  return { storeRoot: store.checkout, frontendRoot: frontend.checkout, metadata, config };
+  const { metadata, project } = await readStoreConfiguration(store.checkout);
+  return { storeRoot: store.checkout, frontendRoot: frontend.checkout, metadata, project };
 }
 
 test("readCurrentRepository resolves a connected Code Repository from a nested directory", async (t) => {
@@ -58,7 +58,7 @@ test("readCurrentRepository resolves a connected Code Repository from a nested d
       start: nested,
       storeRoot: scenario.storeRoot,
       metadata: scenario.metadata,
-      config: scenario.config,
+      project: scenario.project,
     }),
     { id: "frontend", role: "code", path: scenario.frontendRoot },
   );
@@ -71,7 +71,7 @@ test("readCurrentRepository reports the Store without treating it as a Code Repo
       start: scenario.storeRoot,
       storeRoot: scenario.storeRoot,
       metadata: scenario.metadata,
-      config: scenario.config,
+      project: scenario.project,
     }),
     { id: "specs", role: "store", path: scenario.storeRoot },
   );
@@ -87,7 +87,7 @@ test("readCurrentRepository rejects a checkout whose origin no longer matches th
       start: scenario.frontendRoot,
       storeRoot: scenario.storeRoot,
       metadata: scenario.metadata,
-      config: scenario.config,
+      project: scenario.project,
     }),
     /REPO_IDENTITY_MISMATCH/,
   );

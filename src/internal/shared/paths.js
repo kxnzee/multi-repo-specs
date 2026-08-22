@@ -2,6 +2,8 @@
 
 import path from "node:path";
 
+import { CONTRACT_PATTERNS } from "../config/constants.js";
+
 /**
  * Проверяет, находится ли абсолютный путь внутри заданного root.
  *
@@ -31,7 +33,7 @@ export function isPortableRelativePath(value, { allowDot = true } = {}) {
     value.includes("\\") ||
     path.posix.isAbsolute(value) ||
     path.win32.isAbsolute(value) ||
-    /^[A-Za-z]:/.test(value)
+    CONTRACT_PATTERNS.windowsDrivePrefix.test(value)
   ) {
     return false;
   }

@@ -4,24 +4,12 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { SERVICE_PATHS } from "../config/constants.js";
+import { PROJECT_SETTINGS } from "../config/settings.js";
 import { requireOpenSpecCapability } from "../shared/compatibility.js";
-import { assertOpenSpecStore, parseOpenSpecJson } from "../shared/openspec.js";
+import { createOpenSpecClient } from "../shared/openspec-client.js";
+import { assertOpenSpecStore, parseOpenSpecJson } from "../shared/openspec-model.js";
 import { assertRepositoryId, isRecord } from "../shared/schema.js";
-
-const EXPANDED_WORKFLOWS = Object.freeze([
-  "propose",
-  "explore",
-  "new",
-  "continue",
-  "apply",
-  "update",
-  "ff",
-  "sync",
-  "archive",
-  "bulk-archive",
-  "verify",
-  "onboard",
-]);
 
 /**
  * Устанавливает официальный expanded agent pack без изменения профиля пользователя.
@@ -32,23 +20,31 @@ const EXPANDED_WORKFLOWS = Object.freeze([
  * @returns {Promise<void>}
  */
 export async function installOpenSpec(projectRoot, agentAdapter, commandRunner) {
+  const openSpec = createOpenSpecClient(projectRoot, commandRunner);
   const configRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orchestrator-openspec-profile-"));
-  const openSpecConfigRoot = path.join(configRoot, "openspec");
+  const openSpecConfigRoot = path.join(configRoot, SERVICE_PATHS.openSpecDirectory);
   try {
     await fs.mkdir(openSpecConfigRoot, { recursive: true });
     await fs.writeFile(
-      path.join(openSpecConfigRoot, "config.json"),
+      path.join(configRoot, SERVICE_PATHS.openSpecProfileConfig),
       `${JSON.stringify({
-        profile: "custom",
-        delivery: "both",
-        workflows: EXPANDED_WORKFLOWS,
+        profile: PROJECT_SETTINGS.openSpec.init.profile,
+        delivery: PROJECT_SETTINGS.openSpec.init.delivery,
+        workflows: PROJECT_SETTINGS.openSpec.init.workflows,
       }, null, 2)}\n`,
       "utf8",
     );
-    await commandRunner(
-      "openspec",
-      ["init", projectRoot, "--tools", agentAdapter, "--profile", "custom", "--no-animation"],
-      { cwd: projectRoot, environment: { XDG_CONFIG_HOME: configRoot } },
+    await openSpec.execute(
+      [
+        "init",
+        projectRoot,
+        "--tools",
+        agentAdapter,
+        "--profile",
+        PROJECT_SETTINGS.openSpec.init.profile,
+        "--no-animation",
+      ],
+      { environment: { XDG_CONFIG_HOME: configRoot } },
     );
   } finally {
     await fs.rm(configRoot, { recursive: true, force: true });
@@ -63,9 +59,11 @@ export async function installOpenSpec(projectRoot, agentAdapter, commandRunner) 
  * @returns {Promise<void>}
  */
 export async function assertStorePathAvailable(projectRoot, commandRunner) {
+  const openSpec = createOpenSpecClient(projectRoot, commandRunner);
+  const args = ["store", "list", "--json"];
   const registry = parseOpenSpecJson(
-    await commandRunner("openspec", ["store", "list", "--json"], { cwd: projectRoot }),
-    "openspec store list --json",
+    await openSpec.execute(args),
+    `openspec ${args.join(" ")}`,
   );
   requireOpenSpecCapability(
     Array.isArray(registry.stores),
@@ -102,21 +100,19 @@ export async function assertStorePathAvailable(projectRoot, commandRunner) {
  * @returns {Promise<void>}
  */
 export async function setupStore(projectRoot, storeId, remote, commandRunner) {
-  const output = await commandRunner(
-    "openspec",
-    [
-      "store",
-      "setup",
-      storeId,
-      "--path",
-      projectRoot,
-      "--no-init-git",
-      "--remote",
-      remote,
-      "--json",
-    ],
-    { cwd: projectRoot, sensitiveValues: [remote] },
-  );
+  const openSpec = createOpenSpecClient(projectRoot, commandRunner);
+  const args = [
+    "store",
+    "setup",
+    storeId,
+    "--path",
+    projectRoot,
+    "--no-init-git",
+    "--remote",
+    remote,
+    "--json",
+  ];
+  const output = await openSpec.execute(args, { sensitiveValues: [remote] });
   const result = parseOpenSpecJson(output, `openspec store setup ${storeId}`);
   assertOpenSpecStore(result.store, { path: projectRoot, storeId }, "openspec store setup");
 }

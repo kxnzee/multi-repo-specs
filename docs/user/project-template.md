@@ -9,9 +9,11 @@ Project Template — обычный локальный каталог, кото�
 | OpenSpec | Схемы, Changes, Specs, artifact graph и штатные `opsx-*` commands/skills |
 | Orchestrator Core | `openspec-orch` commands, безопасное копирование Template, Store/repository routing, режимы и технические проверки |
 | Project Template | Agent mapping и явно выбранные bootstrap-файлы; пользовательский Template также может добавлять schema/config, команды, skills, subagents и правила команды |
-| Orchestrator Plugins | Будущие дополнительные capabilities Core, например интеграция с Jira; Template сможет определять, где они используются |
+| Orchestrator Plugins | Независимые CLI-адаптеры, которые пользователь выбирает из Plugin-каталога и явно связывает с repositories |
 
-Связь однонаправленная: Template использует публичные точки расширения OpenSpec и сохраняемый контракт Core; Plugin в будущем будет расширять только Core. OpenSpec ничего не знает об оркестраторе.
+Template и Plugins не зависят друг от друга: Template применяется во время bootstrap,
+а Plugin имеет собственный lifecycle `init → connect → status` и repository scope.
+OpenSpec ничего не знает об обоих механизмах.
 
 ## Создание из базового Template
 
@@ -217,13 +219,6 @@ repository scope и Snapshot Orchestrator. При существующем Cycle
 персональный OpenSpec Workset с Code Repository первым member и Store вторым, а
 `openspec-base-apply-context` ограничивает запуск текущим repository section без
 изменения встроенной команды.
-
-Если Code Repositories используют `colbymchenry/codegraph`, настройте его как MCP
-server с alias `codegraph`. `openspec-base-repository-evidence-scout` содержит
-read-only allowlist его поисковых инструментов и использует обычный read/search как
-fallback. Индекс остаётся локальным в каждом Code Repository и используется только
-когда его status соответствует проверенной revision; инструкции приведены в
-[справочнике CodeGraph](codegraph.md).
 
 ## Поля agent mapping
 

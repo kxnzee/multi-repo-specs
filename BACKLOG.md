@@ -100,9 +100,10 @@ Confluence publication. Не хранить дублирующий mutable `phas
 
 ## Кандидаты P1
 
-### ORCH-B09 — Plugin API и transactional outbox
+### ORCH-B09 — Event Plugin API и transactional outbox
 
-Определить out-of-process Plugin API, версионированные события, idempotency key,
+Поверх простых repository-scoped CLI Plugins определить event Plugin API,
+версионированные события, idempotency key,
 повторные попытки, dead-letter состояние, contract test kit и явные разрешения на
 чтение/запись. Plugin failure не должен повреждать OpenSpec или Core state.
 
@@ -144,11 +145,12 @@ Receipts, Gate и внешних evidence.
 отслеживать обязательную публикацию Confluence и явно показывать неполный внешний
 handoff.
 
-### ORCH-B16 — операционная поддержка CodeGraph
+### ORCH-B16 — массовое управление CodeGraph
 
-Опционально обнаруживать `.codegraph/` в Code Repositories, показывать здоровье и
-устаревание индекса, а также адресно запускать `init`/`sync` через Plugin или явную
-операцию. Сам индекс и MCP остаются ответственностью CodeGraph и Code Repository.
+Первый Plugin уже адресно выполняет `init`/`status`/`sync` для одного Repository.
+После пилота спроектировать безопасный batch-режим для десятков и сотен repositories,
+агрегированную свежесть индексов и ограничение параллелизма. Сам индекс и MCP остаются
+ответственностью CodeGraph и Code Repository.
 
 ### ORCH-B17 — read-only API и dashboard
 

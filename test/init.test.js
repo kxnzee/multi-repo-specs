@@ -74,6 +74,7 @@ const OPEN_SPEC_COMMANDS = Object.freeze([
 const PROJECT_COMMANDS = Object.freeze(["openspec-base-context.md"]);
 
 const PROJECT_SKILLS = Object.freeze([
+  "base-intent/SKILL.md",
   "openspec-base-apply-context/SKILL.md",
   "openspec-base-meta-planning/SKILL.md",
   "openspec-base-test-cases/SKILL.md",
@@ -358,6 +359,7 @@ test("initProject creates Store, official expanded pack and minimal base assets"
     role: "store",
     remote: "https://example.test/specs.git",
     defaultBranch: "main",
+    plugins: [],
   });
   assert.deepEqual(config.codeRepositories.map(({ id }) => id), ["ui"]);
   assert.equal((await fs.stat(path.join(target, result.agent.commandsDirectory))).isDirectory(), true);

@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { DESCRIPTOR_FILES, SERVICE_PATHS } from "../config/constants.js";
 import { lstatOrNull } from "../shared/files.js";
 import { isContainedPath } from "../shared/paths.js";
 import { parseTemplateDescriptor } from "./descriptor.js";
@@ -11,7 +12,11 @@ import { parseTemplateDescriptor } from "./descriptor.js";
 const MODULE_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = path.dirname(path.dirname(path.dirname(MODULE_ROOT)));
 export const BASE_TEMPLATE_ROOT = path.join(PACKAGE_ROOT, "templates", "base");
-const PROTECTED_ROOTS = new Set([".git", ".openspec-store", "openspec-orch.yaml"]);
+const PROTECTED_ROOTS = new Set([
+  SERVICE_PATHS.gitDirectory,
+  SERVICE_PATHS.storeMetadata.split(path.sep)[0],
+  SERVICE_PATHS.orchestratorConfig,
+]);
 
 /**
  * Проверяет существующий корневой каталог без symlink.
@@ -229,10 +234,16 @@ export async function buildTemplatePlan({
   }
 
   await listSourceFiles(templateRoot, "", "Template root");
-  const descriptorStat = await inspectSourcePath(templateRoot, "template.yaml", "Template descriptor");
-  if (!descriptorStat.isFile()) throw new Error("template.yaml должен быть обычным файлом");
+  const descriptorStat = await inspectSourcePath(
+    templateRoot,
+    DESCRIPTOR_FILES.template,
+    "Template descriptor",
+  );
+  if (!descriptorStat.isFile()) {
+    throw new Error(`${DESCRIPTOR_FILES.template} должен быть обычным файлом`);
+  }
   const descriptor = parseTemplateDescriptor(
-    await fs.readFile(path.join(templateRoot, "template.yaml"), "utf8"),
+    await fs.readFile(path.join(templateRoot, DESCRIPTOR_FILES.template), "utf8"),
   );
   const supportedAgentIds = Object.keys(descriptor.agents).sort();
   const agent = descriptor.agents[agentId];

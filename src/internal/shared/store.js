@@ -5,13 +5,16 @@ import path from "node:path";
 import process from "node:process";
 import * as z from "zod";
 
+import { SERVICE_PATHS } from "../config/constants.js";
 import { parseOrchestratorConfig, parseStoreMetadata } from "../config/index.js";
+import { createProjectModel } from "../config/project.js";
 import { lstatOrNull, readRelativeRegularFile } from "./files.js";
 import { sameGitRemote } from "./git.js";
 import {
   parseOpenSpecRoot,
-  runOpenSpecJson,
-} from "./openspec.js";
+  parseOpenSpecJson,
+} from "./openspec-model.js";
+import { createOpenSpecClient } from "./openspec-client.js";
 import { POINTER_PATH, readPointer } from "./pointer.js";
 import {
   isRecord,
@@ -31,9 +34,9 @@ const STORE_DOCTOR_ENTRY_SCHEMA = z.looseObject({
 });
 
 const REQUIRED_ROOT_PATHS = Object.freeze([
-  path.join(".openspec-store", "store.yaml"),
-  "openspec-orch.yaml",
-  path.join("openspec", "config.yaml"),
+  SERVICE_PATHS.storeMetadata,
+  SERVICE_PATHS.orchestratorConfig,
+  SERVICE_PATHS.openSpecConfig,
 ]);
 
 /**
@@ -108,7 +111,9 @@ async function findCodeRepositoryRoot(start) {
     if (parent === candidate) break;
     candidate = parent;
   }
-  throw new Error("Не удалось найти Store или Code Repository с openspec/config.yaml");
+  throw new Error(
+    `Не удалось найти Store или Code Repository с ${SERVICE_PATHS.openSpecConfig}`,
+  );
 }
 
 /**
@@ -129,7 +134,9 @@ export async function resolveCommandStoreRoot(start, commandRunner) {
   const repositoryRoot = await findCodeRepositoryRoot(start);
   const storeId = await readPointer(repositoryRoot);
   const command = "openspec context --json";
-  const response = await runOpenSpecJson(commandRunner, ["context", "--json"], repositoryRoot);
+  const output = await createOpenSpecClient(repositoryRoot, commandRunner)
+    .execute(["context", "--json"]);
+  const response = parseOpenSpecJson(output, command);
   const root = parseOpenSpecRoot(response.root, command);
   if (root.source !== "declared" || root.store_id !== storeId || !path.isAbsolute(root.path)) {
     throw openSpecContractError(command, "pointer не разрешён в ожидаемый зарегистрированный Store");
@@ -148,23 +155,26 @@ export async function resolveCommandStoreRoot(start, commandRunner) {
  * @param {string} projectRoot Абсолютный путь Store.
  * @returns {Promise<{
  *   metadata: ReturnType<typeof parseStoreMetadata>,
- *   config: ReturnType<typeof parseOrchestratorConfig>
+ *   project: import("../config/project.js").ProjectModel
  * }>} Проверенные Store metadata и конфигурация.
  */
 export async function readStoreConfiguration(projectRoot) {
   const [metadataSource, configSource] = await Promise.all([
-    readRelativeRegularFile(projectRoot, ".openspec-store/store.yaml"),
-    readRelativeRegularFile(projectRoot, "openspec-orch.yaml"),
+    readRelativeRegularFile(projectRoot, SERVICE_PATHS.storeMetadata),
+    readRelativeRegularFile(projectRoot, SERVICE_PATHS.orchestratorConfig),
   ]);
   const metadata = parseStoreMetadata(metadataSource);
   const config = parseOrchestratorConfig(configSource);
-  if (config.storeRepository.id !== metadata.id) {
-    throw new Error("Store ID в openspec-orch.yaml не совпадает с Store metadata");
+  const project = createProjectModel(config);
+  if (project.storeRepository.id !== metadata.id) {
+    throw new Error(
+      `Store ID в ${SERVICE_PATHS.orchestratorConfig} не совпадает с Store metadata`,
+    );
   }
-  if (!metadata.remote || !sameGitRemote(config.storeRepository.remote, metadata.remote)) {
+  if (!metadata.remote || !sameGitRemote(project.storeRepository.remote, metadata.remote)) {
     throw new Error("URL role: store не совпадает с Store metadata");
   }
-  return { metadata, config };
+  return { metadata, project };
 }
 
 /**

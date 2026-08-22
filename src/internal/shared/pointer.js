@@ -3,9 +3,10 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { CONTRACT_PATTERNS, SERVICE_PATHS } from "../config/constants.js";
 import { lstatOrNull } from "./files.js";
 
-export const POINTER_PATH = "openspec/config.yaml";
+export const POINTER_PATH = SERVICE_PATHS.openSpecConfig;
 
 /**
  * Читает строгий config-only pointer Code Repository.
@@ -20,7 +21,7 @@ export async function readPointer(repositoryRoot) {
     throw new Error(`${POINTER_PATH} должна быть обычным файлом`);
   }
   const source = (await fs.readFile(pointerPath, "utf8")).replaceAll("\r\n", "\n");
-  const match = /^store: ([a-z0-9]+(?:-[a-z0-9]+)*)\n$/.exec(source);
+  const match = CONTRACT_PATTERNS.pointer.exec(source);
   if (!match) {
     throw new Error(`${POINTER_PATH} должна содержать только 'store: <store-id>'`);
   }
@@ -35,7 +36,7 @@ export async function readPointer(repositoryRoot) {
  * @returns {Promise<boolean>} `true`, если pointer создан.
  */
 export async function ensurePointer(repositoryRoot, storeId) {
-  const openSpecRoot = path.join(repositoryRoot, "openspec");
+  const openSpecRoot = path.join(repositoryRoot, SERVICE_PATHS.openSpecDirectory);
   for (const directory of ["specs", "changes"]) {
     if (await lstatOrNull(path.join(openSpecRoot, directory))) {
       throw new Error(

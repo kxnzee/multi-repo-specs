@@ -1,5 +1,6 @@
 /** @fileoverview Пользовательский сценарий команды `openspec-orch connect`. */
 
+import { SERVICE_PATHS } from "../../internal/config/constants.js";
 import { connectProject } from "../../internal/connect/index.js";
 import { reportProgress, withProgress } from "../progress.js";
 
@@ -34,8 +35,11 @@ export async function runConnect(options) {
   for (const repository of result.repositories) {
     console.log(`${repository.id}: ${repository.status}${repository.cloned ? ", cloned" : ", existing"}`);
     console.log(`  ${repository.path}`);
-    if (repository.pointerCreated) console.log("  создан openspec/config.yaml; требуется setup PR");
-    else if (repository.pointerPending) console.log("  openspec/config.yaml ещё не принят; требуется setup PR");
+    if (repository.pointerCreated) {
+      console.log(`  создан ${SERVICE_PATHS.openSpecConfig}; требуется setup PR`);
+    } else if (repository.pointerPending) {
+      console.log(`  ${SERVICE_PATHS.openSpecConfig} ещё не принят; требуется setup PR`);
+    }
   }
   console.log(`connect_status: ${result.status}`);
   if (result.status === "ready") console.log("Локальное подключение готово.");

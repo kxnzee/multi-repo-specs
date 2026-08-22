@@ -1,34 +1,46 @@
 # Конфигурация `openspec-orch.yaml`
 
-Справочник описывает текущий формат `version: 1`. Секции `agent`/`handoffs` и поля
-`role`/`url` предыдущего прототипа отклоняются строгой схемой.
+Справочник описывает текущий формат `version: 2`. Конфигурация `version: 1`
+по-прежнему читается, а первая управляемая запись переводит её в v2. Секции
+`agent`/`handoffs` и поля `role`/`url` предыдущего прототипа отклоняются строгой схемой.
 
 `openspec-orch.yaml` находится в корне центрального Store Repository и описывает режим Core и репозитории проекта. Файл создаётся командой `openspec-orch init` и используется командами Core как машинная конфигурация. Версия OpenSpec здесь намеренно не закрепляется.
 
 ## Полный пример
 
 ```yaml
-version: 1
+version: 2
 strict: true
+
+plugins:
+  - secret-scanner
+  - dependency-audit
 
 repositories:
   - id: sdd-specs
     roles: [store]
     remote: https://example.test/sdd-specs.git
     default_branch: main
+    plugins: []
 
   - id: frontend
     roles: [code]
     remote: https://example.test/frontend.git
     default_branch: main
-
-extensions: {}
+    plugins:
+      - secret-scanner
+      - dependency-audit
 ```
+
+В примере к одному `frontend` подключены два независимых Plugin. Их пакеты сначала
+выбираются через `openspec-orch plugin init`, а связи с репозиторием создаются через
+`openspec-orch plugin connect`.
 
 ## `version`
 
-Обязательное поле. Текущий формат принимает только `version: 1`; любое другое
-значение или отсутствие поля — ошибка `CONFIG_INVALID`.
+Обязательное поле. Текущий формат записи — `version: 2`; `version: 1` поддерживается
+только для совместимого чтения. Любое другое значение или отсутствие поля — ошибка
+`CONFIG_INVALID`.
 
 ## `strict`
 
@@ -57,15 +69,20 @@ extensions: {}
 | `repositories[].roles` | Singleton-массив: `[store]` для центральных спецификаций или `[code]` для реализации. Другие формы (multi-role, пустой массив) отклоняются. |
 | `repositories[].remote` | Сетевой Git URL репозитория. Встроенные в HTTP(S)-URL логин и пароль, `file://` и локальные абсолютные пути запрещены. |
 | `repositories[].default_branch` | Основная ветка репозитория, относительно которой выполняются `connect` и `repository status`. |
+| `repositories[].plugins` | Plugin ID, уже подключённые к этому Repository. Каждый ID должен присутствовать в верхнеуровневом `plugins`. |
 
 Идентификаторы репозиториев не должны повторяться. Репозиторий с `roles: [store]` — единственный источник Cycle Records (`.openspec-orch/changes/`) и Master Specs. Репозитории с `roles: [code]` реализуют принятые изменения; `assign` принимает в состав Cycle только их — сам Store не может быть членом Cycle.
 
-## `extensions`
+## `plugins`
 
-Свободная секция для расширений вне контракта v1. Core не интерпретирует её
-содержимое. В строгом режиме любое поле верхнего уровня вне `version`, `strict`,
-`repositories`, `extensions` — ошибка `CONFIG_INVALID`; это относится и к секциям
-`agent`/`handoffs` предыдущего прототипа.
+Верхнеуровневый `plugins` — список Plugin, выбранных для проекта. Он не связывает
+Plugin с Repository сам по себе. Фактическая связь хранится в
+`repositories[].plugins`, поэтому один Plugin можно подключить к нескольким
+репозиториям, а к одному репозиторию — несколько Plugin.
+
+`extensions` остаётся допустимым только в старом `version: 1`; в v2 его заменяет
+явная модель Plugins. Template-данные здесь не хранятся: Project Template применяется
+один раз во время `init`, а Plugins имеют отдельный каталог и lifecycle.
 
 ## Редактирование
 

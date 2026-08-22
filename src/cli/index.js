@@ -4,20 +4,8 @@ import process from "node:process";
 import { CommanderError } from "commander";
 
 import { createProgram } from "./program.js";
-
-/**
- * Проверяет минимальную версию Node.js.
- *
- * @param {string} [version] Версия runtime в semver-формате.
- * @returns {void}
- * @throws {Error} Если версия меньше 20.5 или не распознана.
- */
-export function assertNodeVersion(version = process.versions.node) {
-  const [major, minor] = version.split(".").map(Number);
-  if (!Number.isInteger(major) || !Number.isInteger(minor) || major < 20 || (major === 20 && minor < 5)) {
-    throw new Error("OpenSpec Orchestrator requires Node.js 20.5 or newer");
-  }
-}
+import { routeNativePluginCommand } from "../internal/plugin/index.js";
+import { assertNodeVersion } from "../internal/shared/runtime.js";
 
 /**
  * Маршрутизирует аргументы процесса в пользовательскую команду.
@@ -28,6 +16,11 @@ export function assertNodeVersion(version = process.versions.node) {
 export async function runCli(argv = process.argv) {
   try {
     assertNodeVersion();
+    const routedPlugin = await routeNativePluginCommand(argv.slice(2), { cwd: process.cwd() });
+    if (routedPlugin) {
+      if (routedPlugin.output) console.log(routedPlugin.output);
+      return;
+    }
     const program = createProgram();
     if (argv.length === 2) {
       program.outputHelp();

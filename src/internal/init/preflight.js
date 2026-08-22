@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { SERVICE_PATHS } from "../config/constants.js";
 import { parseOrchestratorConfig } from "../config/index.js";
 import { lstatOrNull } from "../shared/files.js";
 import { sameGitRemote } from "../shared/git.js";
@@ -11,11 +12,11 @@ import { sameGitRemote } from "../shared/git.js";
 const MODULE_ROOT = path.dirname(fileURLToPath(import.meta.url));
 
 export const INIT_PATHS = Object.freeze({
-  metadata: path.join(".openspec-store", "store.yaml"),
-  openSpecConfig: path.join("openspec", "config.yaml"),
-  alternateOpenSpecConfig: path.join("openspec", "config.yml"),
-  orchestratorConfig: "openspec-orch.yaml",
-  orchestratorTemplate: path.join(MODULE_ROOT, "openspec-orch.yaml"),
+  metadata: SERVICE_PATHS.storeMetadata,
+  openSpecConfig: SERVICE_PATHS.openSpecConfig,
+  alternateOpenSpecConfig: SERVICE_PATHS.alternateOpenSpecConfig,
+  orchestratorConfig: SERVICE_PATHS.orchestratorConfig,
+  orchestratorTemplate: path.join(MODULE_ROOT, SERVICE_PATHS.orchestratorConfig),
 });
 
 /**
@@ -74,7 +75,7 @@ export async function assertInitializationComplete({ projectRoot, storeId, agent
     issues.push(`${agent.commandsDirectory}/ не является обычным каталогом`);
   }
   await inspectRequiredFile(projectRoot, INIT_PATHS.openSpecConfig, issues);
-  for (const relativePath of ["openspec/specs", "openspec/changes/archive"]) {
+  for (const relativePath of [SERVICE_PATHS.openSpecSpecs, SERVICE_PATHS.openSpecChangeArchive]) {
     const stat = await lstatOrNull(path.join(projectRoot, relativePath));
     if (!stat?.isDirectory() || stat.isSymbolicLink()) {
       issues.push(`${relativePath}/ не является обычным каталогом`);

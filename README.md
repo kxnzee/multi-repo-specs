@@ -74,8 +74,13 @@ checkout и не выполняет `git add`, `commit`, `push`, `merge` или 
 ## Требования и локальная установка
 
 - Node.js `20.19.0+`;
+- npm (для установки dependencies пользовательских Plugin Packages);
 - Git;
 - OpenSpec CLI `1.7.0` для `init` и `connect`.
+
+Пакеты стандартной поставки устанавливаются как dependencies Orchestrator и владеют
+собственными runtime dependencies. Их исходники и документация находятся в
+каталоге [`plugins/`](plugins/).
 
 Из корня этого репозитория:
 
@@ -95,6 +100,11 @@ openspec-orch --help
 ```text
 openspec-orch init [path] --store <id> --agent <id> [--template <path>] [--repo <id=remote#branch>]...
 openspec-orch connect [--workspace <path>]
+openspec-orch plugin init [--plugin <plugin-id>]... [--from <path>]...
+openspec-orch plugin connect <plugin-id> [--repo <repository-id>]...
+openspec-orch plugin status [--plugin <plugin-id>] [--repo <repository-id>] [--json]
+openspec-orch plugin sync <plugin-id> --repo <repository-id>
+openspec-orch <plugin-id> --repository <repository-id> <native-args...>
 openspec-orch repository status [--repo <repository-id>]...
 openspec-orch assign <change-id> --repo <repository-id>...
 openspec-orch status <change-id>
@@ -134,24 +144,26 @@ preview и требуют интерактивного подтверждени�
 Минимальная конфигурация пилота:
 
 ```yaml
-version: 1
+version: 2
 strict: true
+plugins: []
 
 repositories:
   - id: specs
     roles: [store]
     remote: ssh://git.example.org/product/specs.git
     default_branch: main
+    plugins: []
   - id: frontend
     roles: [code]
     remote: ssh://git.example.org/product/frontend.git
     default_branch: main
+    plugins: []
   - id: backend
     roles: [code]
     remote: ssh://git.example.org/product/backend.git
     default_branch: main
-
-extensions: {}
+    plugins: []
 ```
 
 Точный формат описан в [справочнике `openspec-orch.yaml`](docs/user/configuration.md).

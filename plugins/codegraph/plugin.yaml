@@ -1,0 +1,19 @@
+id: codegraph
+name: CodeGraph
+version: 1.0.0
+type: cli
+command: codegraph
+args: []
+supports:
+  - store
+  - code
+lifecycle:
+  connect:
+    - init
+    - .
+  status:
+    - status
+    - .
+  sync:
+    - sync
+    - .

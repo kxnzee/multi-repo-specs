@@ -3,11 +3,9 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { CONTRACT_VERSIONS, SERVICE_PATHS } from "../config/constants.js";
 import { lstatOrNull, writeFileAtomic } from "../shared/files.js";
 import { parseStateSchema } from "./schema.js";
-
-const STATE_RELATIVE_PATH = path.join(".openspec-orch", "state.json");
-const STATE_LOCK_RELATIVE_PATH = path.join(".openspec-orch", "cache", "state.lock");
 
 /**
  * Создаёт один служебный каталог и запрещает подмену symlink или файлом.
@@ -33,7 +31,7 @@ async function ensureStateDirectory(target, label) {
 
 /** @returns {ReturnType<typeof parseStateSchema>} Пустое локальное состояние. */
 export function createEmptyState() {
-  return parseStateSchema({ contract_version: 1, workspace: null });
+  return parseStateSchema({ contract_version: CONTRACT_VERSIONS.state, workspace: null });
 }
 
 /**
@@ -43,14 +41,14 @@ export function createEmptyState() {
  * @returns {Promise<ReturnType<typeof parseStateSchema>>} Проверенное состояние.
  */
 export async function readState(storeRoot) {
-  const target = path.join(storeRoot, STATE_RELATIVE_PATH);
+  const target = path.join(storeRoot, SERVICE_PATHS.state);
   const directoryStat = await lstatOrNull(path.dirname(target));
   if (directoryStat && (!directoryStat.isDirectory() || directoryStat.isSymbolicLink())) {
-    throw new Error("STATE_CORRUPTED: .openspec-orch должен быть обычным каталогом");
+    throw new Error(`STATE_CORRUPTED: ${SERVICE_PATHS.stateDirectory} должен быть обычным каталогом`);
   }
   const targetStat = await lstatOrNull(target);
   if (targetStat && (!targetStat.isFile() || targetStat.isSymbolicLink())) {
-    throw new Error("STATE_CORRUPTED: .openspec-orch/state.json должен быть обычным файлом");
+    throw new Error(`STATE_CORRUPTED: ${SERVICE_PATHS.state} должен быть обычным файлом`);
   }
   let source;
   try {
@@ -63,7 +61,7 @@ export async function readState(storeRoot) {
   try {
     payload = JSON.parse(source);
   } catch (error) {
-    throw new Error(`STATE_CORRUPTED: .openspec-orch/state.json повреждён: ${error.message}`);
+    throw new Error(`STATE_CORRUPTED: ${SERVICE_PATHS.state} повреждён: ${error.message}`);
   }
   return parseStateSchema(payload);
 }
@@ -76,9 +74,9 @@ export async function readState(storeRoot) {
  * @returns {Promise<void>}
  */
 export async function writeState(storeRoot, state) {
-  const target = path.join(storeRoot, STATE_RELATIVE_PATH);
+  const target = path.join(storeRoot, SERVICE_PATHS.state);
   const checked = parseStateSchema(state);
-  await ensureStateDirectory(path.dirname(target), ".openspec-orch");
+  await ensureStateDirectory(path.dirname(target), SERVICE_PATHS.stateDirectory);
   await writeFileAtomic(target, `${JSON.stringify(checked, null, 2)}\n`, { mode: 0o600 });
 }
 
@@ -92,9 +90,12 @@ export async function writeState(storeRoot, state) {
  * @returns {Promise<T>} Результат операции.
  */
 export async function withStateLock(storeRoot, operation) {
-  const lockPath = path.join(storeRoot, STATE_LOCK_RELATIVE_PATH);
-  await ensureStateDirectory(path.join(storeRoot, ".openspec-orch"), ".openspec-orch");
-  await ensureStateDirectory(path.dirname(lockPath), ".openspec-orch/cache");
+  const lockPath = path.join(storeRoot, SERVICE_PATHS.stateLock);
+  await ensureStateDirectory(
+    path.join(storeRoot, SERVICE_PATHS.stateDirectory),
+    SERVICE_PATHS.stateDirectory,
+  );
+  await ensureStateDirectory(path.dirname(lockPath), SERVICE_PATHS.stateCacheDirectory);
   try {
     await fs.mkdir(lockPath, { mode: 0o700 });
   } catch (error) {

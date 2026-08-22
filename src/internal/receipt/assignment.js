@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 
+import { CONTRACT_VERSIONS, IDENTIFIER_PREFIXES } from "../config/constants.js";
 import { assertCycleCommitted, readCurrentCycle } from "../cycle/current.js";
 import { inspectImplementationRevision } from "../repository/revision.js";
 import { runCommand } from "../shared/command.js";
@@ -50,8 +51,8 @@ export async function recordAssignment(options) {
     (receipt) => receipt.cycle_id === context.cycle.cycleId && receipt.repository_id === repositoryId,
   );
   const receipt = RESULT_RECEIPT_SCHEMA.parse({
-    contract_version: 1,
-    receipt_id: `result-${randomUUID()}`,
+    contract_version: CONTRACT_VERSIONS.resultReceipt,
+    receipt_id: `${IDENTIFIER_PREFIXES.result}${randomUUID()}`,
     cycle_id: context.cycle.cycleId,
     repository_id: repositoryId,
     implementation_revision: implementationRevision,

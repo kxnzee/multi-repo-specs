@@ -2,11 +2,13 @@
 
 import { execa } from "execa";
 
+import { PROJECT_SETTINGS } from "../config/settings.js";
+
 const COMMAND_ENV = Object.freeze({
   GIT_OPTIONAL_LOCKS: "0",
   GIT_TERMINAL_PROMPT: "0",
 });
-export const DEFAULT_TIMEOUT = 120_000;
+export const DEFAULT_TIMEOUT = PROJECT_SETTINGS.execution.externalCommandTimeoutMs;
 
 /**
  * Скрывает переданные секретные значения в диагностическом тексте команды.

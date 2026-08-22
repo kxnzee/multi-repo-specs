@@ -4,9 +4,10 @@ import path from "node:path";
 import { parse, stringify } from "yaml";
 
 import { assertRepositoryId } from "../shared/schema.js";
+import { CONTRACT_VERSIONS, SERVICE_PATHS } from "./constants.js";
+import { assertPluginBindings } from "./plugin.js";
 import { parseOrchestratorConfigSchema, parseStoreMetadataSchema } from "./schema.js";
-
-const CONTRACT_VERSION = 1;
+import { PROJECT_SETTINGS } from "./settings.js";
 
 /**
  * Репозиторий в нормализованном внутреннем формате CLI.
@@ -16,6 +17,7 @@ const CONTRACT_VERSION = 1;
  * @property {"store" | "code"} role
  * @property {string} remote
  * @property {string} defaultBranch
+ * @property {string[]} plugins
  */
 
 /**
@@ -24,7 +26,8 @@ const CONTRACT_VERSION = 1;
  * @typedef {object} NormalizedConfig
  * @property {number} version
  * @property {boolean} strict
- * @property {Record<string, unknown>} extensions
+ * @property {string[]} plugins
+ * @property {Record<string, unknown>} extensions Legacy v1 data retained for safe migration checks.
  * @property {Repository[]} repositories
  * @property {Repository} storeRepository
  * @property {Repository[]} codeRepositories
@@ -66,7 +69,7 @@ function hasHttpCredentials(value) {
 }
 
 /**
- * Проверяет безопасную форму Git remote контракта v1.
+ * Проверяет безопасную форму Git remote контракта.
  *
  * @param {string} remote Git remote.
  * @param {string} repositoryId Repository ID для диагностики.
@@ -88,7 +91,7 @@ export function assertRepositoryRemote(remote, repositoryId) {
 }
 
 /**
- * Нормализует одну запись `repositories` из внешнего YAML-формата v1.
+ * Нормализует одну запись `repositories` из внешнего YAML-формата.
  *
  * @param {{id: string, roles: Array<"store" | "code">, remote: string, default_branch: string}} value Проверенная схемой запись.
  * @returns {Repository} Проверенная запись во внутреннем формате CLI.
@@ -100,6 +103,7 @@ function normalizeRepository(value) {
     role,
     remote: value.remote,
     defaultBranch: value.default_branch,
+    plugins: value.plugins ?? [],
   };
   assertRepositoryId(repository.id, `repository-id ${repository.id}`);
   if (repository.defaultBranch.startsWith("-")) {
@@ -110,7 +114,7 @@ function normalizeRepository(value) {
 }
 
 /**
- * Читает и проверяет `openspec-orch.yaml` по строгому контракту v1.
+ * Читает и проверяет `openspec-orch.yaml` по строгому контракту v1/v2.
  * OpenSpec-конфигурацию эта функция намеренно не интерпретирует.
  *
  * @param {string} source Содержимое `openspec-orch.yaml`.
@@ -118,22 +122,30 @@ function normalizeRepository(value) {
  */
 export function parseOrchestratorConfig(source) {
   const value = parseOrchestratorConfigSchema(
-    parseYaml(source, "Некорректный openspec-orch.yaml"),
+    parseYaml(source, `Некорректный ${SERVICE_PATHS.orchestratorConfig}`),
   );
 
   const repositories = value.repositories.map(normalizeRepository);
   const ids = new Set(repositories.map(({ id }) => id));
   if (ids.size !== repositories.length) {
-    throw new Error("CONFIG_INVALID: openspec-orch.yaml содержит повторяющийся repository-id");
+    throw new Error(
+      `CONFIG_INVALID: ${SERVICE_PATHS.orchestratorConfig} содержит повторяющийся repository-id`,
+    );
   }
   const stores = repositories.filter(({ role }) => role === "store");
   if (stores.length !== 1) {
-    throw new Error("CONFIG_INVALID: openspec-orch.yaml должен содержать ровно одну запись roles: [store]");
+    throw new Error(
+      `CONFIG_INVALID: ${SERVICE_PATHS.orchestratorConfig} должен содержать ` +
+        "ровно одну запись roles: [store]",
+    );
   }
+  const plugins = value.version === CONTRACT_VERSIONS.orchestratorConfig ? value.plugins : [];
+  assertPluginBindings(plugins, repositories);
   return {
     version: value.version,
     strict: value.strict,
-    extensions: value.extensions,
+    plugins,
+    extensions: value.version === CONTRACT_VERSIONS.legacyOrchestratorConfig ? value.extensions : {},
     repositories,
     storeRepository: stores[0],
     codeRepositories: repositories.filter(({ role }) => role === "code"),
@@ -155,34 +167,65 @@ export function resolveExecutionMode(projectStrict, noStrict = false) {
 }
 
 /**
- * Заполняет встроенный шаблон `openspec-orch.yaml` составом репозиториев v1.
+ * Заполняет встроенный шаблон `openspec-orch.yaml` составом репозиториев.
  * Core не хранит agent mapping в конфигурации.
  *
  * @param {string} template Встроенный YAML-шаблон конфигурации.
  * @param {Repository[]} repositories
  * @param {object} [options] Опции сериализации.
  * @param {boolean} [options.strict] Project default для Git-гарантий Core.
- * @param {Record<string, unknown>} [options.extensions] Внешние расширения конфигурации.
+ * @param {string[]} [options.plugins] Выбранные Plugins проекта.
  * @returns {string}
  */
-export function serializeOrchestratorConfig(template, repositories, { strict = true, extensions = {} } = {}) {
-  const value = parseYaml(template, "Некорректный шаблон openspec-orch.yaml");
-  if (value.version !== CONTRACT_VERSION) {
-    throw new Error(`Шаблон openspec-orch.yaml имеет неподдерживаемую version: ${value.version}`);
+export function serializeOrchestratorConfig(
+  template,
+  repositories,
+  { strict = PROJECT_SETTINGS.execution.strictByDefault, plugins = [] } = {},
+) {
+  const value = parseYaml(template, `Некорректный шаблон ${SERVICE_PATHS.orchestratorConfig}`);
+  if (![
+    CONTRACT_VERSIONS.legacyOrchestratorConfig,
+    CONTRACT_VERSIONS.orchestratorConfig,
+  ].includes(value.version)) {
+    throw new Error(
+      `Шаблон ${SERVICE_PATHS.orchestratorConfig} имеет неподдерживаемую version: ${value.version}`,
+    );
   }
   if (typeof strict !== "boolean") throw new Error("strict должен быть boolean");
   const serialized = {
-    version: CONTRACT_VERSION,
+    version: CONTRACT_VERSIONS.orchestratorConfig,
     strict,
-    repositories: repositories.map(({ id, role, remote, defaultBranch }) => ({
+    plugins,
+    repositories: repositories.map(({ id, role, remote, defaultBranch, plugins: repositoryPlugins = [] }) => ({
       id,
       roles: [role],
       remote,
       default_branch: defaultBranch,
+      plugins: repositoryPlugins,
     })),
-    extensions: extensions ?? {},
   };
-  return stringify(serialized, { lineWidth: 0 });
+  const source = stringify(serialized, { lineWidth: 0 });
+  parseOrchestratorConfig(source);
+  return source;
+}
+
+/**
+ * Сериализует уже нормализованную конфигурацию после контролируемого изменения Core.
+ *
+ * @param {NormalizedConfig} config Проверенная конфигурация.
+ * @returns {string} YAML-контракт актуальной версии.
+ */
+export function serializeNormalizedOrchestratorConfig(config) {
+  if (Object.keys(config.extensions ?? {}).length > 0) {
+    throw new Error(
+      "CONFIG_MIGRATION_REQUIRED: непустой extensions из version: 1 нельзя удалить автоматически",
+    );
+  }
+  return serializeOrchestratorConfig(
+    `version: ${CONTRACT_VERSIONS.orchestratorConfig}\nrepositories: []\nplugins: []\n`,
+    config.repositories,
+    { strict: config.strict, plugins: config.plugins },
+  );
 }
 
 /**
@@ -194,9 +237,13 @@ export function serializeOrchestratorConfig(template, repositories, { strict = t
  */
 export function parseStoreMetadata(source) {
   const value = parseStoreMetadataSchema(
-    parseYaml(source, "Некорректная .openspec-store/store.yaml"),
+    parseYaml(source, `Некорректная ${SERVICE_PATHS.storeMetadata}`),
   );
-  if (value.version !== CONTRACT_VERSION) throw new Error("CONFIG_INVALID: Store metadata должна иметь version: 1");
+  if (value.version !== CONTRACT_VERSIONS.storeMetadata) {
+    throw new Error(
+      `CONFIG_INVALID: Store metadata должна иметь version: ${CONTRACT_VERSIONS.storeMetadata}`,
+    );
+  }
   assertRepositoryId(value.id, "Store ID");
   return { id: value.id, remote: value.remote };
 }

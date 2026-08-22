@@ -4,14 +4,16 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { resolveExecutionMode } from "../config/index.js";
+import { PROJECT_SETTINGS } from "../config/settings.js";
 import { runCommand } from "../shared/command.js";
 import { inspectOpenSpecCli } from "../shared/compatibility.js";
+import { createOpenSpecClient } from "../shared/openspec-client.js";
 import {
   assertOpenSpecRoot,
   assertOpenSpecStore,
+  parseOpenSpecJson,
   reportOpenSpecDiagnostic,
-  runOpenSpecJson,
-} from "../shared/openspec.js";
+} from "../shared/openspec-model.js";
 import { assertStoreDoctor, readStoreConfiguration } from "../shared/store.js";
 import { rememberWorkspace, resolveWorkspace } from "../shared/workspace.js";
 import { connectRepository } from "./repository.js";
@@ -36,35 +38,49 @@ export async function connectProject({
 } = {}) {
   onProgress("Проверка Store и OpenSpec...");
   const storeRoot = await fs.realpath(path.resolve(start));
-  const { metadata, config } = await readStoreConfiguration(storeRoot);
-  if (config.codeRepositories.length === 0) {
+  const { metadata, project } = await readStoreConfiguration(storeRoot);
+  if (project.codeRepositories.length === 0) {
     throw new Error("CONFIG_INVALID: для пилота нужен минимум один repository с roles: [code]");
   }
-  const executionMode = resolveExecutionMode(config.strict, noStrict);
+  const executionMode = resolveExecutionMode(project.strict, noStrict);
   await inspectOpenSpecCli(commandRunner, storeRoot);
-  const registration = await runOpenSpecJson(commandRunner, ["store", "register", storeRoot, "--id", metadata.id, "--yes", "--json"], storeRoot);
+  const openSpec = createOpenSpecClient(storeRoot, commandRunner);
+  const registrationArgs = ["store", "register", storeRoot, "--id", metadata.id, "--yes", "--json"];
+  const registration = parseOpenSpecJson(
+    await openSpec.execute(registrationArgs),
+    `openspec ${registrationArgs.join(" ")}`,
+  );
   assertOpenSpecStore(registration.store, { path: storeRoot, storeId: metadata.id }, "openspec store register");
-  const storeDoctor = await runOpenSpecJson(commandRunner, ["store", "doctor", metadata.id, "--json"], storeRoot);
+  const storeDoctorArgs = ["store", "doctor", metadata.id, "--json"];
+  const storeDoctor = parseOpenSpecJson(
+    await openSpec.execute(storeDoctorArgs),
+    `openspec ${storeDoctorArgs.join(" ")}`,
+  );
   assertStoreDoctor(storeDoctor, metadata.id, storeRoot);
-  const doctorOutput = await commandRunner("openspec", ["doctor", "--store", metadata.id], {
-    cwd: storeRoot,
+  const doctorOutput = await openSpec.execute(["doctor", "--store", metadata.id], {
     environment: { NODE_NO_WARNINGS: "1" },
     onStderr: (message) => reportOpenSpecDiagnostic(onProgress, message),
   });
   if (doctorOutput) onProgress(doctorOutput, "info");
-  const context = await runOpenSpecJson(commandRunner, ["context", "--store", metadata.id, "--json"], storeRoot);
-  assertOpenSpecRoot(context.root, { path: storeRoot, storeId: metadata.id, source: "store" }, `openspec context --store ${metadata.id} --json`);
+  const contextArgs = ["context", "--store", metadata.id, "--json"];
+  const contextCommand = `openspec ${contextArgs.join(" ")}`;
+  const context = parseOpenSpecJson(await openSpec.execute(contextArgs), contextCommand);
+  assertOpenSpecRoot(
+    context.root,
+    { path: storeRoot, storeId: metadata.id, source: "store" },
+    contextCommand,
+  );
   const workspace = await resolveWorkspace(
     storeRoot,
     metadata.id,
     requestedWorkspace,
     executionMode === "strict",
   );
-  const sourceRoot = path.join(workspace, "src");
+  const sourceRoot = path.join(workspace, PROJECT_SETTINGS.workspace.repositoriesDirectory);
   await fs.mkdir(sourceRoot, { recursive: true });
   const repositories = [];
-  for (const [index, repository] of config.codeRepositories.entries()) {
-    const prefix = `[${index + 1}/${config.codeRepositories.length}] ${repository.id}`;
+  for (const [index, repository] of project.codeRepositories.entries()) {
+    const prefix = `[${index + 1}/${project.codeRepositories.length}] ${repository.id}`;
     const connected = await connectRepository({
       repository,
       sourceRoot,

@@ -2,29 +2,41 @@
 
 import * as z from "zod";
 
+import {
+  CONTRACT_PATTERNS,
+  CONTRACT_VERSIONS,
+  IDENTIFIER_PREFIXES,
+  SERVICE_PATHS,
+} from "../config/constants.js";
 import { isGitRevision, isRepositoryId } from "../shared/schema.js";
 import { computeSnapshotId } from "../snapshot/identity.js";
 
 const UUID_V4_SCHEMA = z.uuidv4();
 const CYCLE_ID_SCHEMA = z.string().refine(
-  (value) => value.startsWith("cycle-") && UUID_V4_SCHEMA.safeParse(value.slice("cycle-".length)).success,
+  (value) => value.startsWith(IDENTIFIER_PREFIXES.cycle) &&
+    UUID_V4_SCHEMA.safeParse(value.slice(IDENTIFIER_PREFIXES.cycle.length)).success,
   "должен быть в формате cycle-<uuid-v4>",
 );
 const RESULT_ID_SCHEMA = z.string().refine(
-  (value) => value.startsWith("result-") && UUID_V4_SCHEMA.safeParse(value.slice("result-".length)).success,
+  (value) => value.startsWith(IDENTIFIER_PREFIXES.result) &&
+    UUID_V4_SCHEMA.safeParse(value.slice(IDENTIFIER_PREFIXES.result.length)).success,
   "должен быть в формате result-<uuid-v4>",
 );
 const VERIFICATION_ID_SCHEMA = z.string().refine(
-  (value) => value.startsWith("verification-") && UUID_V4_SCHEMA.safeParse(value.slice("verification-".length)).success,
+  (value) => value.startsWith(IDENTIFIER_PREFIXES.verification) &&
+    UUID_V4_SCHEMA.safeParse(value.slice(IDENTIFIER_PREFIXES.verification.length)).success,
   "должен быть в формате verification-<uuid-v4>",
 );
-const SNAPSHOT_ID_SCHEMA = z.string().regex(/^snap-v1-[0-9a-f]{64}$/, "должен быть snap-v1-<sha256>");
+const SNAPSHOT_ID_SCHEMA = z.string().regex(
+  CONTRACT_PATTERNS.snapshotId,
+  `должен быть ${IDENTIFIER_PREFIXES.snapshot}<sha256>`,
+);
 const REVISION_SCHEMA = z.string().refine(isGitRevision, "должна быть полной lowercase SHA-1 ревизией");
 const REPOSITORY_ID_SCHEMA = z.string().refine(isRepositoryId, "должен быть в lowercase kebab-case");
 const SOURCE_SCHEMA = z.enum(["human", "agent", "ci"]);
 
 export const RESULT_RECEIPT_SCHEMA = z.strictObject({
-  contract_version: z.literal(1),
+  contract_version: z.literal(CONTRACT_VERSIONS.resultReceipt),
   receipt_id: RESULT_ID_SCHEMA,
   cycle_id: CYCLE_ID_SCHEMA,
   repository_id: REPOSITORY_ID_SCHEMA,
@@ -36,7 +48,7 @@ export const RESULT_RECEIPT_SCHEMA = z.strictObject({
 });
 
 export const SNAPSHOT_SCHEMA = z.strictObject({
-  contract_version: z.literal(1),
+  contract_version: z.literal(CONTRACT_VERSIONS.snapshot),
   snapshot_id: SNAPSHOT_ID_SCHEMA,
   cycle_id: CYCLE_ID_SCHEMA,
   implementations: z.record(REPOSITORY_ID_SCHEMA, REVISION_SCHEMA)
@@ -56,7 +68,7 @@ export const SNAPSHOT_SCHEMA = z.strictObject({
 });
 
 export const VERIFICATION_RECEIPT_SCHEMA = z.strictObject({
-  contract_version: z.literal(1),
+  contract_version: z.literal(CONTRACT_VERSIONS.verificationReceipt),
   receipt_id: VERIFICATION_ID_SCHEMA,
   cycle_id: CYCLE_ID_SCHEMA,
   snapshot_id: SNAPSHOT_ID_SCHEMA,
@@ -67,7 +79,7 @@ export const VERIFICATION_RECEIPT_SCHEMA = z.strictObject({
 });
 
 const STATE_SCHEMA = z.strictObject({
-  contract_version: z.literal(1),
+  contract_version: z.literal(CONTRACT_VERSIONS.state),
   workspace: z.string().nullable().default(null),
   result_receipts: z.array(RESULT_RECEIPT_SCHEMA).default([]),
   result_receipt_history: z.array(RESULT_RECEIPT_SCHEMA).default([]),
@@ -100,7 +112,9 @@ const STATE_SCHEMA = z.strictObject({
 export function parseStateSchema(value) {
   const result = STATE_SCHEMA.safeParse(value);
   if (!result.success) {
-    throw new Error(`STATE_CORRUPTED: Некорректный .openspec-orch/state.json: ${z.prettifyError(result.error)}`);
+    throw new Error(
+      `STATE_CORRUPTED: Некорректный ${SERVICE_PATHS.state}: ${z.prettifyError(result.error)}`,
+    );
   }
   return result.data;
 }

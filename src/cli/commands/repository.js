@@ -2,6 +2,7 @@
 
 import process from "node:process";
 
+import { SERVICE_PATHS } from "../../internal/config/constants.js";
 import { readRepositoryStatus } from "../../internal/repository/index.js";
 import { findSpecRoot } from "../../internal/shared/store.js";
 
@@ -16,7 +17,10 @@ function printRepositoryStatus(status) {
   if (status.path) console.log(`  path: ${status.path}`);
   if (status.connected) {
     console.log(`  branch: ${status.branch}${status.branchMatches ? "" : " (не совпадает с default_branch)"}`);
-    console.log(`  remote: ${status.remoteMatches ? "совпадает" : "не совпадает с openspec-orch.yaml"}`);
+    const remoteState = status.remoteMatches
+      ? "совпадает"
+      : `не совпадает с ${SERVICE_PATHS.orchestratorConfig}`;
+    console.log(`  remote: ${remoteState}`);
     console.log(`  clean: ${status.clean ? "да" : "нет"}`);
   }
 }

@@ -3,24 +3,16 @@
 /** @fileoverview Точка входа OpenSpec Orchestrator CLI. */
 
 import process from "node:process";
+import { assertNodeVersion } from "../internal/shared/runtime.js";
 
-const MINIMUM_NODE = Object.freeze({ major: 20, minor: 19, patch: 0 });
-const currentNode = process.versions.node.split(".").map(Number);
-const supported = currentNode[0] > MINIMUM_NODE.major || (
-  currentNode[0] === MINIMUM_NODE.major &&
-  (
-    currentNode[1] > MINIMUM_NODE.minor ||
-    (currentNode[1] === MINIMUM_NODE.minor && currentNode[2] >= MINIMUM_NODE.patch)
-  )
-);
-
-if (!supported) {
-  console.error(
-    `OpenSpec Orchestrator требует Node.js 20.19.0 или новее; ` +
-      `текущая версия: ${process.versions.node}`,
-  );
+try {
+  assertNodeVersion();
+} catch (error) {
+  console.error(error.message);
   process.exitCode = 1;
-} else {
+}
+
+if (process.exitCode !== 1) {
   const { runCli } = await import("../cli/index.js");
   await runCli();
 }

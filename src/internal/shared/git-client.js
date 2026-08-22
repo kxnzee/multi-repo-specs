@@ -2,6 +2,8 @@
 
 import path from "node:path";
 
+import { CONTRACT_PATTERNS } from "../config/constants.js";
+
 /**
  * Разбирает пути из `git status --porcelain=v1 -z`.
  *
@@ -18,7 +20,7 @@ function parseStatusPaths(output) {
     }
     const state = record.slice(0, 2);
     paths.push(record.slice(3));
-    if (/[RC]/.test(state)) {
+    if (CONTRACT_PATTERNS.gitRenameOrCopyState.test(state)) {
       index += 1;
       if (!records[index]) throw new Error("Git вернул неполный rename/copy status");
       paths.push(records[index]);
@@ -34,7 +36,7 @@ function parseStatusPaths(output) {
  * @returns {Set<string>} Уникальные значения.
  */
 function parseLineSet(output) {
-  return new Set(output.split(/\r?\n/).filter(Boolean));
+  return new Set(output.split(CONTRACT_PATTERNS.lineBreak).filter(Boolean));
 }
 
 /**
@@ -45,7 +47,7 @@ function parseLineSet(output) {
  */
 function parseWorktreePaths(output) {
   return new Set(
-    output.split(/\r?\n/)
+    output.split(CONTRACT_PATTERNS.lineBreak)
       .filter((line) => line.startsWith("worktree "))
       .map((line) => path.resolve(line.slice("worktree ".length))),
   );
@@ -282,7 +284,7 @@ class GitClient {
   async divergence(local, remote) {
     const values = (await this.#run(["rev-list", "--left-right", "--count", `${local}...${remote}`]))
       .trim()
-      .split(/\s+/)
+      .split(CONTRACT_PATTERNS.whitespace)
       .map(Number);
     if (values.length !== 2 || values.some((value) => !Number.isInteger(value) || value < 0)) {
       throw new Error("Git вернул некорректный статус upstream");

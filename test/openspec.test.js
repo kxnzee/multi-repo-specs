@@ -3,12 +3,13 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
+import { createOpenSpecClient } from "../src/internal/shared/openspec-client.js";
 import {
   assertOpenSpecRoot,
   assertOpenSpecStore,
   parseOpenSpecRoot,
   parseOpenSpecJson,
-} from "../src/internal/shared/openspec.js";
+} from "../src/internal/shared/openspec-model.js";
 import { assertStoreDoctor } from "../src/internal/shared/store.js";
 import {
   assertRepositoryId,
@@ -29,6 +30,25 @@ test("parseOpenSpecJson rejects invalid JSON", () => {
   assert.throws(
     () => parseOpenSpecJson('{"status":[{"severity":42}]}', "openspec doctor"),
   );
+});
+
+test("OpenSpecClient only executes OpenSpec in its bound cwd", async () => {
+  const calls = [];
+  const runner = async (command, args, options) => {
+    calls.push({ command, args, options });
+    return "ok";
+  };
+  const client = createOpenSpecClient("/workspace/specs", runner);
+
+  assert.equal(await client.execute(["doctor"], { environment: { NODE_NO_WARNINGS: "1" } }), "ok");
+  assert.deepEqual(calls, [{
+    command: "openspec",
+    args: ["doctor"],
+    options: {
+      environment: { NODE_NO_WARNINGS: "1" },
+      cwd: "/workspace/specs",
+    },
+  }]);
 });
 
 test("shared schema validates OpenSpec responses and full Git revisions", () => {

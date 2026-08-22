@@ -2,18 +2,23 @@
 
 import * as z from "zod";
 
+import { CONTRACT_PATTERNS, CONTRACT_VERSIONS, IDENTIFIER_PREFIXES } from "../config/constants.js";
 import { isChangeId, isRepositoryId } from "../shared/schema.js";
 
 const UUID_V4_SCHEMA = z.uuidv4();
 
 const CYCLE_RECORD_SCHEMA = z.strictObject({
-  contract_version: z.literal(1),
+  contract_version: z.literal(CONTRACT_VERSIONS.cycleRecord),
   cycle_id: z.string().refine(
-    (value) => value.startsWith("cycle-") && UUID_V4_SCHEMA.safeParse(value.slice("cycle-".length)).success,
+    (value) => value.startsWith(IDENTIFIER_PREFIXES.cycle) &&
+      UUID_V4_SCHEMA.safeParse(value.slice(IDENTIFIER_PREFIXES.cycle.length)).success,
     "должен быть в формате cycle-<uuid-v4>",
   ),
   change_id: z.string().refine(isChangeId, "должен быть в lowercase kebab-case"),
-  planning_revision: z.string().regex(/^[0-9a-f]{40}$/, "должна быть полной lowercase SHA-1 ревизией"),
+  planning_revision: z.string().regex(
+    CONTRACT_PATTERNS.gitRevision,
+    "должна быть полной lowercase SHA-1 ревизией",
+  ),
   repositories: z.array(z.string().refine(isRepositoryId, "repository-id должен быть в lowercase kebab-case")).min(1),
   created_at: z.iso.datetime({ offset: false }),
 });

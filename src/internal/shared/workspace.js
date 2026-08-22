@@ -3,6 +3,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { SERVICE_PATHS } from "../config/constants.js";
+import { PROJECT_SETTINGS } from "../config/settings.js";
 import { lstatOrNull } from "./files.js";
 import { readState, withStateLock, writeState } from "../state/index.js";
 
@@ -31,7 +33,7 @@ export function inferStandardWorkspace(storeRoot, storeId) {
   const workspace = path.dirname(storeRoot);
   return (
     path.basename(storeRoot) === storeId &&
-    path.basename(workspace) !== "openspec" &&
+    path.basename(workspace) !== SERVICE_PATHS.openSpecDirectory &&
     path.dirname(workspace) !== workspace
   ) ? workspace : null;
 }
@@ -88,8 +90,11 @@ export async function resolveWorkspace(
  */
 export async function resolveCodeWorkspace(repositoryRoot) {
   const sourceRoot = path.dirname(repositoryRoot);
-  if (path.basename(sourceRoot) !== "src") {
-    throw new Error(`Code Repository должен находиться в <workspace>/src/: ${repositoryRoot}`);
+  const repositoriesDirectory = PROJECT_SETTINGS.workspace.repositoriesDirectory;
+  if (path.basename(sourceRoot) !== repositoriesDirectory) {
+    throw new Error(
+      `Code Repository должен находиться в <workspace>/${repositoriesDirectory}/: ${repositoryRoot}`,
+    );
   }
   const workspace = path.dirname(sourceRoot);
   const stat = await lstatOrNull(workspace);
