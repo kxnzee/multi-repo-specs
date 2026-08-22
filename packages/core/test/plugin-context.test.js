@@ -33,6 +33,7 @@ async function contextScenario(t, { storePlugin = false } = {}) {
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const storeRoot = path.join(root, "specs");
   const frontendRoot = path.join(root, "src/frontend");
+  const backendRoot = path.join(root, "src/backend");
   await fs.mkdir(storeRoot);
   await fs.mkdir(frontendRoot, { recursive: true });
   const project = createProject({
@@ -71,7 +72,7 @@ async function contextScenario(t, { storePlugin = false } = {}) {
     packageRoot: SAMPLE_ROOT,
     pluginId: "sample",
   });
-  return { frontendRoot, loadedPlugin, storeProject };
+  return { backendRoot, frontendRoot, loadedPlugin, storeProject };
 }
 
 /** Создаёт context factory с одним проверяемым process boundary. */
@@ -163,6 +164,30 @@ test("PluginContextFactory rejects bindings before resolving an unavailable chec
       repositoryId: "backend",
     }),
     /PLUGIN_NOT_CONNECTED: sample не подключён к backend/,
+  );
+  await assert.rejects(
+    factory.forRepositorySetup({
+      loadedPlugin: scenario.loadedPlugin,
+      storeProject: scenario.storeProject,
+      repositoryId: "backend",
+    }),
+    /REPOSITORY_CHECKOUT_UNAVAILABLE/,
+  );
+
+  await fs.mkdir(scenario.backendRoot);
+  const setup = await factory.forRepositorySetup({
+    loadedPlugin: scenario.loadedPlugin,
+    storeProject: scenario.storeProject,
+    repositoryId: "backend",
+  });
+  assert.deepEqual(setup.repository, { id: "backend", role: "code" });
+  await assert.rejects(
+    factory.forRepository({
+      loadedPlugin: scenario.loadedPlugin,
+      storeProject: scenario.storeProject,
+      repositoryId: "backend",
+    }),
+    /PLUGIN_NOT_CONNECTED/,
   );
 });
 

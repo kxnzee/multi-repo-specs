@@ -219,6 +219,14 @@ export class PluginContextFactory {
   }
 
   async forRepository({ loadedPlugin, storeProject, repositoryId } = {}) {
+    return this.#create({ loadedPlugin, storeProject, repositoryId, requireBinding: true });
+  }
+
+  async forRepositorySetup({ loadedPlugin, storeProject, repositoryId } = {}) {
+    return this.#create({ loadedPlugin, storeProject, repositoryId, requireBinding: false });
+  }
+
+  async #create({ loadedPlugin, storeProject, repositoryId, requireBinding }) {
     if (!(loadedPlugin instanceof LoadedPlugin) || !(storeProject instanceof StoreProject)) {
       throw new Error("PLUGIN_CONTEXT_INVALID: требуются LoadedPlugin и StoreProject");
     }
@@ -232,8 +240,14 @@ export class PluginContextFactory {
       throw new Error("PLUGIN_CONTEXT_INVALID: Project должен содержать ровно одного Agent");
     }
     const repositories = new PluginRepositoryRegistry(project, plugin);
-    const [repository] = repositories.requireConnected([repositoryId]);
-    const repositoryModel = project.requireRepository(repository.id);
+    const repositoryModel = project.requireRepository(repositoryId);
+    let repository;
+    if (requireBinding) {
+      [repository] = repositories.requireConnected([repositoryId]);
+    } else {
+      plugin.assertSupports(repositoryModel);
+      repository = repositories.require(repositoryId);
+    }
     const checkout = await this.#resolveCheckout(storeProject, repositoryModel);
     const agent = Object.freeze({ id: project.agents[0] });
     const projectSnapshot = deepFreeze({
