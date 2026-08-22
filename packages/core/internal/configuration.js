@@ -85,10 +85,11 @@ function assertProjectContract(plugins, repositories) {
         "ровно одну запись roles: [store]",
     );
   }
-  if (new Set(plugins).size !== plugins.length) {
+  const pluginIds = plugins.map(({ id }) => id);
+  if (new Set(pluginIds).size !== pluginIds.length) {
     throw new Error("CONFIG_INVALID: plugins содержит повторяющийся plugin-id");
   }
-  const knownPlugins = new Set(plugins);
+  const knownPlugins = new Set(pluginIds);
   for (const repository of repositories) {
     if (new Set(repository.plugins).size !== repository.plugins.length) {
       throw new Error(
@@ -129,28 +130,20 @@ export class CoreConfiguration {
       parseYaml(source, `Некорректный ${CORE_FILES.orchestratorConfig}`),
     );
     const repositories = value.repositories.map(normalizeRepository);
-    const current = value.version === CORE_CONTRACT_VERSIONS.project;
-    const plugins = current ? value.plugins : [];
-    assertProjectContract(plugins, repositories);
+    assertProjectContract(value.plugins, repositories);
     return new Project({
       version: value.version,
       strict: value.strict,
-      agents: current ? value.agents : [],
-      plugins,
-      extensions: current ? {} : value.extensions,
+      agents: value.agents,
+      plugins: value.plugins,
       repositories,
     });
   }
 
   serializeProject(project) {
     const config = project.toConfig();
-    if (Object.keys(config.extensions).length > 0) {
-      throw new Error(
-        "CONFIG_MIGRATION_REQUIRED: непустой extensions из version: 1 нельзя удалить автоматически",
-      );
-    }
     const source = stringify({
-      version: CORE_CONTRACT_VERSIONS.project,
+      version: config.version,
       strict: config.strict,
       agents: config.agents,
       plugins: config.plugins,

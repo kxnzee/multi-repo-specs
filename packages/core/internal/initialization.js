@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { atomicWriter } from "./atomic-writer.js";
 import { configuration } from "./configuration.js";
-import { CORE_FILES, CORE_PATTERNS } from "./constants.js";
+import { CORE_CONTRACT_VERSIONS, CORE_FILES, CORE_PATTERNS } from "./constants.js";
 import { git } from "./git.js";
 import { openspec } from "./openspec.js";
 import { Project } from "./project.js";
@@ -172,11 +172,10 @@ export class InitializationService {
     const unchangedPreExisting = await templatePlan.inspectPreExistingFiles();
     const gitIdentity = await this.#inspectGit(storeTarget);
     const project = new Project({
-      version: 2,
+      version: CORE_CONTRACT_VERSIONS.project,
       strict,
       agents: [agentId],
       plugins: [],
-      extensions: {},
       repositories: [
         new Repository({
           id: storeTarget.id,

@@ -17,28 +17,21 @@ const REPOSITORY_FIELDS = {
   remote: z.string().min(1),
   default_branch: z.string().min(1),
 };
-const LEGACY_REPOSITORY_SCHEMA = z.strictObject(REPOSITORY_FIELDS);
 const REPOSITORY_SCHEMA = z.strictObject({
   ...REPOSITORY_FIELDS,
   plugins: ID_LIST_SCHEMA,
 });
-const LEGACY_PROJECT_SCHEMA = z.strictObject({
-  version: z.literal(CORE_CONTRACT_VERSIONS.legacyProject),
-  strict: z.boolean().default(true),
-  repositories: z.array(LEGACY_REPOSITORY_SCHEMA).default([]),
-  extensions: z.record(z.string(), z.unknown()).default({}),
+const PLUGIN_DECLARATION_SCHEMA = z.strictObject({
+  id: ID_SCHEMA,
+  source: z.string().min(1),
 });
-const PROJECT_SCHEMA = z.strictObject({
+const PROJECT_CONFIG_SCHEMA = z.strictObject({
   version: z.literal(CORE_CONTRACT_VERSIONS.project),
   strict: z.boolean().default(true),
   agents: UNIQUE_AGENT_IDS_SCHEMA,
-  plugins: ID_LIST_SCHEMA,
+  plugins: z.array(PLUGIN_DECLARATION_SCHEMA).default([]),
   repositories: z.array(REPOSITORY_SCHEMA).default([]),
 });
-const PROJECT_CONFIG_SCHEMA = z.discriminatedUnion("version", [
-  LEGACY_PROJECT_SCHEMA,
-  PROJECT_SCHEMA,
-]);
 const STORE_METADATA_SCHEMA = z.strictObject({
   version: z.number().int(),
   id: ID_SCHEMA,

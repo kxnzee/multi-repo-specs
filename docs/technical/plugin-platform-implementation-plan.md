@@ -56,23 +56,26 @@ Plugins доверенные и загружаются в процесс Orchest
 5. В Store выбран один Agent. Публичный `init --agent <id>` сохраняется. Переход от
    текущего массива `agents` к скалярному `agent` допускается только с версией
    project config и отдельной миграцией.
-6. Plugin API v1 использует целое `apiVersion: 1` и строгое равенство. Диапазоны
+6. Новый Core принимает только целевой project config `version: 3`. Поддержка и
+   автоматическая миграция `version: 1/2` не входят в доменную модель; принадлежащие
+   проекту конфиги обновляются явно до cutover.
+7. Plugin API v1 использует целое `apiVersion: 1` и строгое равенство. Диапазоны
    semver для API и зависимостей Plugin-to-Plugin не входят в первую версию.
-7. Event hooks, `provide/use`, DI-container, общий `Plan/Step/rollback`, permissions,
+8. Event hooks, `provide/use`, DI-container, общий `Plan/Step/rollback`, permissions,
    marketplace и выполнение недоверенного кода не входят в эту миграцию.
-8. Cycle, Receipts и Snapshots принадлежат `plugin-change-tracking`. Core
+9. Cycle, Receipts и Snapshots принадлежат `plugin-change-tracking`. Core
    предоставляет только универсальное атомарное namespaced storage.
-9. MCP-конфиг и инструкции устанавливает общий Agent Service. CodeGraph Plugin
+10. MCP-конфиг и инструкции устанавливает общий Agent Service. CodeGraph Plugin
    объявляет требуемый MCP server и текст инструкций, но не переносит форматы
    Codex/Qwen/Claude/GigaCode в Core-команды или Template.
-10. `pacote` удаляется только одновременно с переходом на npm-backed Installer и
+11. `pacote` удаляется только одновременно с переходом на npm-backed Installer и
     после интеграционного теста реальной установки зависимостей.
-11. Multi-repository topology является Core-функциональностью. Core владеет полным
+12. Multi-repository topology является Core-функциональностью. Core владеет полным
     реестром Store и Code Repositories из `openspec-orch.yaml`, workspace,
     repository bindings и безопасным доступом к checkout. Change Tracking Plugin
     использует этот реестр для ведения конкретного Change, но не создаёт собственную
     модель мультирепозитория.
-12. Порядок загрузки Plugins не является частью публичного контракта. Plugin не
+13. Порядок загрузки Plugins не является частью публичного контракта. Plugin не
     должен зависеть от того, что другой Plugin уже загружен или зарегистрирован
     раньше. Пока Plugins независимы, Loader не строит dependency graph и не выполняет
     топологическую сортировку.
@@ -505,8 +508,8 @@ dependencies. Поэтому проблема не в полном отсутс�
 - Git/directory fetch имеет prepare-семантику `pacote`;
 - тест проверяет аргументы подменённого installer, но не реальное разрешение
   транзитивной зависимости;
-- source identity и полный resolved dependency tree не зафиксированы как переносимый
-  project lock.
+- source identity фиксируется в project config, а resolved dependency tree — в
+  installation receipt конкретного локального runtime.
 
 ### 8.2. Источники Plugin
 
@@ -538,10 +541,14 @@ repositories:
     plugins: [codegraph]
 ```
 
-Переход от текущего `plugins: [id]` выполняется только через новую версию config.
-Generated `openspec-orch.plugins-lock.json` фиксирует resolved artifact, integrity и
-dependency tree и коммитится вместе с `openspec-orch.yaml`. Абсолютные локальные пути
-в оба файла не записываются.
+Новый Core не читает текущий `plugins: [id]`: принадлежащие проекту конфиги явно
+переводятся на `version: 3` и `{ id, source }` до переключения entrypoint. Legacy
+состояния не попадают в доменную модель и не создают постоянных ветвлений.
+Отдельный project-level Plugin lock в первой версии не создаётся. Точный source
+фиксируется в `openspec-orch.yaml`, а локальный runtime содержит собственные
+`package-lock.json` и `installation.json`. Если появится подтверждённое требование
+побитовой воспроизводимости dependency tree между машинами, переносимый lock будет
+добавлен отдельным контрактом; до этого он не усложняет Core.
 
 Development override хранится только локально в gitignored
 `.openspec-orch/local-plugins.json` и создаётся существующей командой
@@ -569,7 +576,7 @@ Development override хранится только локально в gitignore
    materialize package, а не оставил внешний symlink;
 6. найти установленный package, запретить symlink entrypoint и импортировать его;
 7. проверить package identity, `apiVersion`, Plugin ID, supports и command conflicts;
-8. записать installation receipt и lock projection;
+8. записать installation receipt;
 9. атомарно активировать каталог rename-операцией;
 10. только после успешной активации обновить project config;
 11. при любой ошибке удалить temp и оставить предыдущую установку/config без
@@ -774,7 +781,7 @@ legacy; новые packages не импортируют `src/internal`.
 ### 11.7. Этап 5. npm-backed Installer
 
 - реализовать временный runtime, npm install и atomic activation;
-- добавить portable source declaration и generated Plugin lock;
+- добавить portable source declaration и локальный installation receipt;
 - реализовать local development override через текущий `plugin init --from`;
 - переключить candidate `plugin init/remove/status` на новый installation record;
 - проверить npm, tarball, Git commit, bundled и local source;
@@ -831,7 +838,8 @@ Agent получает рабочий MCP.
 
 ### 11.11. Этап 9. Parity и isolated E2E двух entrypoints
 
-Для одинаковых входных fixtures отдельно запустить legacy и candidate:
+Для семантически эквивалентных входных fixtures отдельно запустить legacy и candidate;
+project config при этом использует нативную версию каждого entrypoint:
 
 ```text
 legacy    -> temp/legacy-store + temp/legacy-workspace
@@ -970,8 +978,8 @@ package artifact.
    npm dependencies.
 5. MCP и инструкции установлены для единственного Agent, выбранного при `init`.
 6. `pacote`, `plugin.yaml` и старый argv runtime полностью удалены.
-7. Project config и Plugin lock воспроизводят одну и ту же версию Plugin на другой
-   машине и в CI.
+7. Project config хранит точный переносимый Plugin source, а локальный installation
+   receipt соответствует активированному runtime.
 8. State migration идемпотентна и не теряет workspace, Receipts или Snapshots.
 9. `npm run check`, coverage, package dry-runs и реальный isolated E2E зелёные.
 10. `git diff --check` чист, а итоговый diff не меняет предметную реализацию Cycle,

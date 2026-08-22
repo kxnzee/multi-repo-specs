@@ -11,10 +11,12 @@ import {
   Store,
 } from "@openspec-orch/core";
 
-const CURRENT_CONFIG = `version: 2
+const CURRENT_CONFIG = `version: 3
 strict: true
 agents: [codex]
-plugins: [dependency-audit]
+plugins:
+  - id: dependency-audit
+    source: "@test/plugin-dependency-audit@1.0.0"
 repositories:
   - id: specs
     roles: [store]
@@ -28,7 +30,7 @@ repositories:
     plugins: [dependency-audit]
 `;
 
-test("configuration parses current YAML directly into the public domain model", () => {
+test("configuration parses version 3 YAML directly into the public domain model", () => {
   assert.equal(configuration instanceof CoreConfiguration, true);
   const project = configuration.parseProject(CURRENT_CONFIG);
 
@@ -40,25 +42,7 @@ test("configuration parses current YAML directly into the public domain model", 
   assert.equal(project.isPluginConnected("dependency-audit", "frontend"), true);
 });
 
-test("configuration retains legacy extensions and blocks lossy serialization", () => {
-  const project = configuration.parseProject(`version: 1
-strict: false
-extensions:
-  team: payments
-repositories:
-  - id: specs
-    roles: [store]
-    remote: https://example.test/specs.git
-    default_branch: main
-`);
-
-  assert.equal(project.version, 1);
-  assert.equal(project.strict, false);
-  assert.deepEqual(project.agents, []);
-  assert.throws(() => configuration.serializeProject(project), /CONFIG_MIGRATION_REQUIRED/);
-});
-
-test("configuration serializes current Project and verifies its own output", () => {
+test("configuration serializes Project and verifies its own output", () => {
   const project = configuration.parseProject(CURRENT_CONFIG);
   const source = configuration.serializeProject(project);
   const restored = configuration.parseProject(source);
@@ -66,6 +50,29 @@ test("configuration serializes current Project and verifies its own output", () 
   assert.deepEqual(restored.toConfig(), project.toConfig());
   assert.match(source, /default_branch: main/);
   assert.doesNotMatch(source, /storeRepository|codeRepositories/);
+});
+
+test("configuration requires exact portable Plugin sources", () => {
+  const project = configuration.parseProject(CURRENT_CONFIG);
+
+  assert.deepEqual(project.plugins, ["dependency-audit"]);
+  assert.equal(project.pluginDeclaration("dependency-audit").source, "@test/plugin-dependency-audit@1.0.0");
+  assert.deepEqual(configuration.parseProject(configuration.serializeProject(project)).toConfig(), project.toConfig());
+  assert.throws(
+    () => configuration.parseProject(CURRENT_CONFIG.replace("@1.0.0", "@latest")),
+    /PLUGIN_DECLARATION_INVALID/,
+  );
+  assert.throws(
+    () => configuration.parseProject(CURRENT_CONFIG.replace(
+      `plugins:\n  - id: dependency-audit\n    source: "@test/plugin-dependency-audit@1.0.0"`,
+      "plugins: [dependency-audit]",
+    )),
+    /CONFIG_INVALID/,
+  );
+  assert.throws(
+    () => configuration.parseProject(CURRENT_CONFIG.replace("version: 3", "version: 2")),
+    /CONFIG_INVALID/,
+  );
 });
 
 test("configuration rejects invalid repository and Plugin bindings before domain creation", () => {
@@ -78,7 +85,7 @@ test("configuration rejects invalid repository and Plugin bindings before domain
   );
   assert.throws(
     () => configuration.parseProject(CURRENT_CONFIG.replace(
-      "plugins: [dependency-audit]\nrepositories:",
+      `plugins:\n  - id: dependency-audit\n    source: "@test/plugin-dependency-audit@1.0.0"\nrepositories:`,
       "plugins: []\nrepositories:",
     )),
     /необъявленный plugin-id/,

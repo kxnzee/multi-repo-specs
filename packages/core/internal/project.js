@@ -1,8 +1,9 @@
 /** @fileoverview Доменный агрегат Project поверх нормализованного config. */
 
-import { CORE_FILES, CORE_PATTERNS } from "./constants.js";
+import { CORE_CONTRACT_VERSIONS, CORE_FILES, CORE_PATTERNS } from "./constants.js";
+import { PluginDeclaration } from "./plugin-declaration.js";
 import { Repository } from "./repository.js";
-import { deepFreeze, ownValue } from "./value.js";
+import { deepFreeze } from "./value.js";
 
 /** Project владеет Repository registry и Plugin bindings. */
 export class Project {
@@ -10,15 +11,15 @@ export class Project {
   #strict;
   #agents;
   #plugins;
-  #extensions;
   #repositories;
 
   constructor(config) {
     this.#version = config.version;
     this.#strict = config.strict;
     this.#agents = Object.freeze([...(config.agents ?? [])]);
-    this.#plugins = Object.freeze([...(config.plugins ?? [])]);
-    this.#extensions = ownValue(config.extensions ?? {});
+    this.#plugins = Object.freeze((config.plugins ?? []).map((plugin) => (
+      plugin instanceof PluginDeclaration ? plugin : new PluginDeclaration(plugin)
+    )));
     this.#repositories = Object.freeze(config.repositories.map((repository) => (
       repository instanceof Repository ? repository : new Repository(repository)
     )));
@@ -39,6 +40,10 @@ export class Project {
   }
 
   get plugins() {
+    return Object.freeze(this.#plugins.map(({ id }) => id));
+  }
+
+  get pluginDeclarations() {
     return this.#plugins;
   }
 
@@ -60,8 +65,7 @@ export class Project {
       version: this.#version,
       strict: this.#strict,
       agents: [...this.#agents],
-      plugins: [...this.#plugins],
-      extensions: globalThis.structuredClone(this.#extensions),
+      plugins: this.#plugins.map((plugin) => plugin.toConfig()),
       repositories,
       storeRepository: this.storeRepository.toConfig(),
       codeRepositories: this.codeRepositories.map((repository) => repository.toConfig()),
@@ -90,7 +94,11 @@ export class Project {
   }
 
   hasPlugin(pluginId) {
-    return this.#plugins.includes(pluginId);
+    return this.#plugins.some(({ id }) => id === pluginId);
+  }
+
+  pluginDeclaration(pluginId) {
+    return this.#plugins.find(({ id }) => id === pluginId);
   }
 
   registerAgent(agentId) {
@@ -114,16 +122,16 @@ export class Project {
     return pluginId;
   }
 
-  registerPlugins(pluginIds) {
-    this.#plugins = Object.freeze([...new Set([...this.#plugins, ...pluginIds])].sort());
-  }
-
-  assertPluginInitializationAllowed() {
-    if (Object.keys(this.#extensions).length > 0) {
-      throw new Error(
-        "CONFIG_MIGRATION_REQUIRED: перенесите данные из legacy extensions перед инициализацией Plugins",
-      );
-    }
+  declarePlugin(pluginId, source) {
+    const declaration = new PluginDeclaration({ id: pluginId, source });
+    const next = [
+      ...this.#plugins.filter(({ id }) => id !== pluginId),
+      declaration,
+    ].sort((left, right) => left.id.localeCompare(right.id));
+    const current = this.pluginDeclaration(pluginId);
+    const changed = current?.source !== source;
+    this.#plugins = Object.freeze(next);
+    return changed;
   }
 
   isPluginConnected(pluginId, repositoryId) {
@@ -153,7 +161,7 @@ export class Project {
       throw new Error(`PLUGIN_CONNECTED: сначала отключите ${pluginId} от всех repositories`);
     }
     if (!this.hasPlugin(pluginId)) return false;
-    this.#plugins = Object.freeze(this.#plugins.filter((id) => id !== pluginId));
+    this.#plugins = Object.freeze(this.#plugins.filter(({ id }) => id !== pluginId));
     return true;
   }
 
@@ -169,13 +177,21 @@ export class Project {
   }
 
   #assertRegistry() {
+    if (this.#version !== CORE_CONTRACT_VERSIONS.project) {
+      throw new Error(
+        `PROJECT_INVALID: поддерживается только version ${CORE_CONTRACT_VERSIONS.project}`,
+      );
+    }
     if (new Set(this.#repositories.map(({ id }) => id)).size !== this.#repositories.length) {
       throw new Error("PROJECT_INVALID: repositories содержит повторяющийся ID");
+    }
+    if (new Set(this.#plugins.map(({ id }) => id)).size !== this.#plugins.length) {
+      throw new Error("PROJECT_INVALID: plugins содержит повторяющийся ID");
     }
     if (this.#repositories.filter((repository) => repository.isStore()).length !== 1) {
       throw new Error("PROJECT_INVALID: Project должен содержать ровно один Store Repository");
     }
-    const registered = new Set(this.#plugins);
+    const registered = new Set(this.#plugins.map(({ id }) => id));
     for (const repository of this.#repositories) {
       for (const pluginId of repository.plugins) {
         if (!registered.has(pluginId)) {

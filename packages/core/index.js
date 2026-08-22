@@ -13,7 +13,9 @@ export { OpenSpecService, RepositoryOpenSpec, openspec } from "./internal/opensp
 export { OpenSpecPointerService, pointers } from "./internal/pointer.js";
 export { FailClosedLock, locks } from "./internal/lock.js";
 export { PluginContext, PluginContextFactory, pluginContexts } from "./internal/plugin-context.js";
+export { PluginDeclaration } from "./internal/plugin-declaration.js";
 export { PluginBindingChange, PluginBindingService, pluginBindings } from "./internal/plugin-binding.js";
+export { PluginApplicationResult, PluginApplicationService, pluginApplications } from "./internal/plugin-application.js";
 export { PluginLifecycleCommands } from "./internal/plugin-cli.js";
 export { PluginCommandBuilder, PluginCommandMounter, PluginCommandRegistry } from "./internal/plugin-commands.js";
 export { PluginHost, PluginRegistry } from "./internal/plugin-host.js";
@@ -21,7 +23,6 @@ export { PluginConnectionResult, PluginLifecycleService, PluginStatusResult } fr
 export { LoadedPlugin, PluginLoader, pluginLoader } from "./internal/plugin-loader.js";
 export { PluginInstallationRecord } from "./internal/plugin-installation-record.js";
 export { PluginInstallation, PluginInstallerService, StorePluginInstaller, pluginInstallers } from "./internal/plugin-installer.js";
-export { PluginLock, PluginLockService, PluginLockStore, pluginLocks } from "./internal/plugin-lock.js";
 export { NpmPackageInstaller, NpmPackageInstallResult, npmPackageInstaller } from "./internal/npm-package-installer.js";
 export { PluginPlatform } from "./internal/plugin-platform.js";
 export { PluginSource } from "./internal/plugin-source.js";

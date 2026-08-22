@@ -37,11 +37,10 @@ async function contextScenario(t, { storePlugin = false } = {}) {
   await fs.mkdir(storeRoot);
   await fs.mkdir(frontendRoot, { recursive: true });
   const project = createProject({
-    version: 2,
+    version: 3,
     strict: true,
     agents: ["codex"],
-    plugins: ["sample"],
-    extensions: {},
+    plugins: [{ id: "sample", source: "@test/plugin-sample@1.0.0" }],
     repositories: [
       {
         id: "specs",
