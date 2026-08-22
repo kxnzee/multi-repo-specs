@@ -12,6 +12,12 @@ export { InitializationService, initialization } from "./internal/initialization
 export { OpenSpecService, RepositoryOpenSpec, openspec } from "./internal/openspec.js";
 export { OpenSpecPointerService, pointers } from "./internal/pointer.js";
 export { FailClosedLock, locks } from "./internal/lock.js";
+export {
+  LocalPluginOverrides,
+  LocalPluginOverrideService,
+  LocalPluginOverrideStore,
+  localPluginOverrides,
+} from "./internal/local-plugin-overrides.js";
 export { PluginContext, PluginContextFactory, pluginContexts } from "./internal/plugin-context.js";
 export { PluginDeclaration } from "./internal/plugin-declaration.js";
 export { PluginBindingChange, PluginBindingService, pluginBindings } from "./internal/plugin-binding.js";

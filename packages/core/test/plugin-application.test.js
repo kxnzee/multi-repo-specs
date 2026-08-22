@@ -21,6 +21,7 @@ async function storeFixture(t) {
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   await fs.mkdir(path.join(root, ".openspec-store"));
   await fs.mkdir(path.join(root, "openspec"));
+  await fs.mkdir(path.join(root, "local-plugin"));
   await fs.writeFile(
     path.join(root, ".openspec-store/store.yaml"),
     "version: 1\nid: specs\nremote: https://example.test/specs.git\n",
@@ -89,6 +90,10 @@ test("PluginApplicationService publishes config only after installation", async 
   const projectSource = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
   assert.match(projectSource, /version: 3/);
   assert.match(projectSource, /id: sample\n\s+source: local/);
+  const overrides = JSON.parse(
+    await fs.readFile(path.join(root, ".openspec-orch/cache/local-plugins.json"), "utf8"),
+  );
+  assert.equal(overrides.plugins.sample, path.join(root, "local-plugin"));
 });
 
 test("PluginApplicationService rejects an inconsistent installation before config publication", async (t) => {
@@ -110,6 +115,10 @@ test("PluginApplicationService rejects an inconsistent installation before confi
 
   assert.equal(calls.length, 1);
   assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), original);
+  await assert.rejects(
+    fs.access(path.join(root, ".openspec-orch/cache/local-plugins.json")),
+    /ENOENT/,
+  );
 });
 
 test("PluginApplicationService leaves config unchanged when publication fails", async (t) => {
@@ -134,4 +143,8 @@ test("PluginApplicationService leaves config unchanged when publication fails", 
   );
 
   assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), originalProject);
+  const override = JSON.parse(
+    await fs.readFile(path.join(root, ".openspec-orch/cache/local-plugins.json"), "utf8"),
+  );
+  assert.equal(override.plugins.sample, path.join(root, "local-plugin"));
 });

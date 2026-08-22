@@ -6,6 +6,7 @@ import path from "node:path";
 import { configuration } from "./configuration.js";
 import { CORE_FILES, CORE_SERVICE_PATHS } from "./constants.js";
 import { files } from "./files.js";
+import { localPluginOverrides } from "./local-plugin-overrides.js";
 import { locks } from "./lock.js";
 import { pluginInstallers } from "./plugin-installer.js";
 import { PluginSource } from "./plugin-source.js";
@@ -74,6 +75,7 @@ export class PluginApplicationService {
   #configuration;
   #files;
   #installers;
+  #localOverrides;
   #lock;
   #storeProjects;
 
@@ -81,6 +83,7 @@ export class PluginApplicationService {
     configurationService = configuration,
     fileService = files,
     installerService = pluginInstallers,
+    localOverrideService = localPluginOverrides,
     lock = locks,
     storeProjectService = storeProjects,
   } = {}) {
@@ -93,6 +96,9 @@ export class PluginApplicationService {
     if (typeof installerService?.forStore !== "function") {
       invalid("installerService должен предоставлять forStore");
     }
+    if (typeof localOverrideService?.forStore !== "function") {
+      invalid("localOverrideService должен предоставлять forStore");
+    }
     if (typeof lock?.run !== "function") invalid("lock должен предоставлять run");
     if (typeof storeProjectService?.load !== "function") {
       invalid("storeProjectService должен предоставлять load");
@@ -100,6 +106,7 @@ export class PluginApplicationService {
     this.#configuration = configurationService;
     this.#files = fileService;
     this.#installers = installerService;
+    this.#localOverrides = localOverrideService;
     this.#lock = lock;
     this.#storeProjects = storeProjectService;
     Object.freeze(this);
@@ -130,6 +137,9 @@ export class PluginApplicationService {
       installation.record.source.spec !== source.declaration
     ) {
       invalid("Installer вернул несогласованный installation record");
+    }
+    if (source.developmentOnly) {
+      await this.#localOverrides.forStore(current.checkout).set(pluginId, source);
     }
     await this.#files.forRepository(current.checkout).write(
       CORE_FILES.orchestratorConfig,

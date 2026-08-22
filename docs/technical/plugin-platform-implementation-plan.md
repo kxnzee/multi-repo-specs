@@ -551,7 +551,7 @@ repositories:
 добавлен отдельным контрактом; до этого он не усложняет Core.
 
 Development override хранится только локально в gitignored
-`.openspec-orch/local-plugins.json` и создаётся существующей командой
+`.openspec-orch/cache/local-plugins.json` и создаётся существующей командой
 `plugin init --from <path> --plugin <id>`. В portable project config такой Plugin
 фиксируется с `source: local`, без абсолютного пути; на другой машине он честно имеет
 статус `unavailable`, пока пользователь явно не передаст локальный package source.
