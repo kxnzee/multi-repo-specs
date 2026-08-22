@@ -6,10 +6,13 @@ import { checkbox } from "@inquirer/prompts";
 import { Command, Option } from "commander";
 
 import { collectValues, singleValue } from "./cli-values.js";
+import { pluginApplications } from "./plugin-application.js";
+import { PluginSource } from "./plugin-source.js";
 import { storeProjects } from "./store-project.js";
 
-/** Монтирует неизменную CLI-грамматику `plugin connect/status/sync`. */
+/** Монтирует CLI-грамматику `plugin init/connect/status/sync`. */
 export class PluginLifecycleCommands {
+  #applications;
   #checkbox;
   #lifecycle;
   #output;
@@ -18,6 +21,7 @@ export class PluginLifecycleCommands {
   #storeProjects;
 
   constructor({
+    applicationService = pluginApplications,
     checkboxPrompt = checkbox,
     lifecycleService,
     output = console,
@@ -25,6 +29,9 @@ export class PluginLifecycleCommands {
     stdout = process.stdout,
     storeProjectService = storeProjects,
   } = {}) {
+    if (!applicationService || typeof applicationService.install !== "function") {
+      throw new Error("PLUGIN_CLI_INVALID: требуется PluginApplicationService");
+    }
     if (
       !lifecycleService ||
       typeof lifecycleService.connectMany !== "function" ||
@@ -39,6 +46,7 @@ export class PluginLifecycleCommands {
     if (!storeProjectService || typeof storeProjectService.find !== "function") {
       throw new Error("PLUGIN_CLI_INVALID: требуется StoreProjectService");
     }
+    this.#applications = applicationService;
     this.#checkbox = checkboxPrompt;
     this.#lifecycle = lifecycleService;
     this.#output = output;
@@ -57,6 +65,18 @@ export class PluginLifecycleCommands {
     }
     const plugin = program.command("plugin")
       .description("инициализация, подключение и состояние CLI Plugins");
+    plugin.command("init")
+      .description("выбрать Plugins из встроенного или пользовательского каталога")
+      .addOption(new Option("--plugin <plugin-id>", "выбрать plugin-id без prompt")
+        .argParser(collectValues))
+      .addOption(new Option("--from <source>", "добавить Package, каталог, .tgz или Git URL")
+        .argParser(collectValues))
+      .option("--all", "выбрать все обнаруженные Plugins")
+      .action((options) => this.#initialize({
+        all: Boolean(options.all),
+        pluginIds: options.plugin ?? [],
+        sources: options.from ?? [],
+      }));
     plugin.command("connect <plugin-id>")
       .description("связать Plugin с одним или несколькими repositories")
       .addOption(new Option("--repo <repository-id>", "repository-id без prompt")
@@ -80,6 +100,22 @@ export class PluginLifecycleCommands {
         .argParser(singleValue).makeOptionMandatory())
       .action((pluginId, options) => this.#sync(pluginId, options.repo));
     return plugin;
+  }
+
+  async #initialize({ all, pluginIds, sources }) {
+    if (all || pluginIds.length !== 1 || sources.length !== 1) {
+      throw new Error(
+        "PLUGIN_INIT_SELECTION_REQUIRED: используйте один --plugin и один --from; " +
+          "checkbox и --all будут подключены через Plugin discovery",
+      );
+    }
+    const storeProject = await this.#storeProjects.find();
+    const source = PluginSource.parse(sources[0], { cwd: process.cwd() });
+    const result = await this.#applications.install(storeProject, pluginIds[0], source);
+    this.#output.log(
+      `${pluginIds[0]}: ${result.installation.reused ? "already_initialized" : "initialized"}`,
+    );
+    this.#output.log("Далее: openspec-orch plugin connect <plugin-id>");
   }
 
   async #connect(pluginId, requestedRepositoryIds) {

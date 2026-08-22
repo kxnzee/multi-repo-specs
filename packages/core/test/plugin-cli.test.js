@@ -7,6 +7,7 @@ import {
   CandidateCli,
   createProject,
   PluginLifecycleCommands,
+  PluginSource,
 } from "@openspec-orch/core";
 
 /** Создаёт output boundary без подмены global console. */
@@ -42,8 +43,17 @@ function promptProject() {
 }
 
 /** Собирает Candidate CLI с тестовыми lifecycle boundaries. */
-function candidate({ checkboxPrompt, lifecycleService, output, stdin, stdout, storeProjectService }) {
+function candidate({
+  applicationService,
+  checkboxPrompt,
+  lifecycleService,
+  output,
+  stdin,
+  stdout,
+  storeProjectService,
+}) {
   const pluginLifecycleCommands = new PluginLifecycleCommands({
+    applicationService,
     checkboxPrompt,
     lifecycleService,
     output,
@@ -53,6 +63,68 @@ function candidate({ checkboxPrompt, lifecycleService, output, stdin, stdout, st
   });
   return new CandidateCli({ pluginLifecycleCommands }).createProgram();
 }
+
+test("plugin init preserves --plugin/--from grammar and delegates to application facade", async () => {
+  const calls = [];
+  const captured = outputCollector();
+  const storeProject = Object.freeze({ root: "/store" });
+  const program = candidate({
+    applicationService: {
+      async install(current, pluginId, source) {
+        calls.push({ current, pluginId, source });
+        return { installation: { reused: false } };
+      },
+    },
+    lifecycleService: {
+      async connectMany() { return []; },
+      async statuses() { return []; },
+      async sync() {},
+    },
+    output: captured.output,
+    storeProjectService: { async find() { return storeProject; } },
+  });
+
+  await program.parseAsync([
+    "node",
+    "openspec-orch",
+    "plugin",
+    "init",
+    "--plugin",
+    "sample",
+    "--from",
+    "../sample-plugin",
+  ]);
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].current, storeProject);
+  assert.equal(calls[0].pluginId, "sample");
+  assert.equal(calls[0].source instanceof PluginSource, true);
+  assert.equal(calls[0].source.declaration, "local");
+  assert.deepEqual(captured.lines, [
+    "sample: initialized",
+    "Далее: openspec-orch plugin connect <plugin-id>",
+  ]);
+});
+
+test("plugin init rejects ambiguous selection before Store lookup", async () => {
+  let finds = 0;
+  const program = candidate({
+    applicationService: { async install() {} },
+    lifecycleService: {
+      async connectMany() { return []; },
+      async statuses() { return []; },
+      async sync() {},
+    },
+    output: outputCollector().output,
+    storeProjectService: { async find() { finds += 1; } },
+  });
+
+  await assert.rejects(
+    program.parseAsync(["node", "openspec-orch", "plugin", "init", "--all"]),
+    /PLUGIN_INIT_SELECTION_REQUIRED/,
+  );
+  assert.equal(finds, 0);
+});
 
 test("plugin connect preserves repeated --repo grammar and current output", async () => {
   const calls = [];
