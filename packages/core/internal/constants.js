@@ -8,6 +8,7 @@ export const CORE_FILES = Object.freeze({
   openSpecConfig: "openspec/config.yaml",
   openSpecProfileConfig: "openspec/config.json",
   openSpecSpecsDirectory: "openspec/specs",
+  pluginLock: "openspec-orch.plugins-lock.json",
   storeMetadata: ".openspec-store/store.yaml",
   templateDescriptor: "template.yaml",
 });
@@ -19,6 +20,8 @@ export const CORE_SERVICE_PATHS = Object.freeze({
   directory: ".openspec-orch",
   lockDirectory: ".openspec-orch/cache/locks",
   pluginInstallerLock: ".openspec-orch/cache/locks/plugin-installer.lock",
+  pluginLockLock: ".openspec-orch/cache/locks/plugin-lock.lock",
+  pluginRuntimeRecord: "installation.json",
   pluginRuntimeDirectory: ".openspec-orch/cache/plugin-runtimes",
   projectConfigLock: ".openspec-orch/cache/locks/project-config.lock",
   pluginStateFile: "state.json",
@@ -39,6 +42,8 @@ export const CORE_CLI_COMMANDS = Object.freeze({
 
 export const CORE_CONTRACT_VERSIONS = Object.freeze({
   coreState: 1,
+  pluginInstallation: 1,
+  pluginLock: 1,
   pluginStorage: 1,
   project: 2,
   legacyProject: 1,
@@ -47,6 +52,7 @@ export const CORE_CONTRACT_VERSIONS = Object.freeze({
 
 export const CORE_PATTERNS = Object.freeze({
   commandDefinitionName: /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?=$|\s)/,
+  exactSemanticVersion: /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/,
   gitRevision: /^[0-9a-f]{40}$/,
   gitRenameOrCopyState: /[RC]/,
   id: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,

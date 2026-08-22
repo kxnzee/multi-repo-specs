@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { CORE_PACKAGES, CORE_PACKAGE_VERSIONS, CORE_PATTERNS, CORE_SERVICE_PATHS } from "./constants.js";
 import { locks } from "./lock.js";
+import { PluginInstallationRecord } from "./plugin-installation-record.js";
 import { pluginLoader } from "./plugin-loader.js";
 import { npmPackageInstaller } from "./npm-package-installer.js";
 import { isContainedPath } from "./path.js";
@@ -137,18 +138,42 @@ async function writeRuntimeManifest(runtimeRoot) {
   );
 }
 
+/** Читает JSON ordinary file внутри runtime и оборачивает ошибку Installer contract. */
+async function readRuntimeJson(runtimeRoot, fileName) {
+  const target = path.join(runtimeRoot, fileName);
+  const stat = await lstatOrNull(target);
+  if (!stat?.isFile() || stat.isSymbolicLink()) {
+    invalid(`${fileName} должен быть обычным файлом Plugin runtime`);
+  }
+  try {
+    return JSON.parse(await fs.readFile(target, "utf8"));
+  } catch (error) {
+    invalid(`${fileName} содержит некорректный JSON: ${error.message}`, { cause: error });
+  }
+}
+
+/** Читает и проверяет installation receipt активного runtime. */
+async function readRuntimeRecord(runtimeRoot) {
+  return PluginInstallationRecord.parse(
+    await readRuntimeJson(runtimeRoot, CORE_SERVICE_PATHS.pluginRuntimeRecord),
+  );
+}
+
 /** Immutable успешно активированная Plugin installation. */
 export class PluginInstallation {
   #loadedPlugin;
+  #record;
   #reused;
   #runtimeRoot;
   #source;
 
-  constructor({ loadedPlugin, reused, runtimeRoot, source } = {}, token) {
+  constructor({ loadedPlugin, record, reused, runtimeRoot, source } = {}, token) {
     if (
       token !== INSTALLATION_CONSTRUCTION ||
       !loadedPlugin ||
       typeof loadedPlugin.id !== "string" ||
+      !(record instanceof PluginInstallationRecord) ||
+      record.pluginId !== loadedPlugin.id ||
       typeof reused !== "boolean" ||
       typeof runtimeRoot !== "string" ||
       !path.isAbsolute(runtimeRoot) ||
@@ -157,6 +182,7 @@ export class PluginInstallation {
       invalid("используйте StorePluginInstaller.install");
     }
     this.#loadedPlugin = loadedPlugin;
+    this.#record = record;
     this.#reused = reused;
     this.#runtimeRoot = runtimeRoot;
     this.#source = source;
@@ -166,6 +192,7 @@ export class PluginInstallation {
   get id() { return this.#loadedPlugin.id; }
   get version() { return this.#loadedPlugin.package.version; }
   get loadedPlugin() { return this.#loadedPlugin; }
+  get record() { return this.#record; }
   get reused() { return this.#reused; }
   get runtimeRoot() { return this.#runtimeRoot; }
   get source() { return this.#source; }
@@ -227,6 +254,17 @@ export class StorePluginInstaller {
       if (candidate.package.name !== packageName) {
         invalid(`ожидался package ${packageName}, установлен ${candidate.package.name}`);
       }
+      const record = PluginInstallationRecord.create({
+        pluginId,
+        loadedPlugin: candidate,
+        source,
+        packageLock: await readRuntimeJson(temporary, "package-lock.json"),
+      });
+      await fs.writeFile(
+        path.join(temporary, CORE_SERVICE_PATHS.pluginRuntimeRecord),
+        `${JSON.stringify(record.toJSON(), null, 2)}\n`,
+        { encoding: "utf8", flag: "wx", mode: 0o600 },
+      );
       const target = path.join(pluginDirectory, candidate.package.version);
       const existing = await lstatOrNull(target);
       if (existing) {
@@ -244,8 +282,13 @@ export class StorePluginInstaller {
         ) {
           invalid(`активный runtime ${pluginId}@${candidate.package.version} имеет другую identity`);
         }
+        const activeRecord = await readRuntimeRecord(target);
+        if (!activeRecord.equals(record)) {
+          invalid(`активный runtime ${pluginId}@${candidate.package.version} имеет другой receipt`);
+        }
         return new PluginInstallation({
           loadedPlugin: active,
+          record: activeRecord,
           reused: true,
           runtimeRoot: target,
           source,
@@ -266,6 +309,7 @@ export class StorePluginInstaller {
         }
         return new PluginInstallation({
           loadedPlugin: active,
+          record,
           reused: false,
           runtimeRoot: target,
           source,

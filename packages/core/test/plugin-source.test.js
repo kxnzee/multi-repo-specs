@@ -21,6 +21,10 @@ test("PluginSource accepts exact npm, tarball, Git commit, local and bundled sou
   assert.equal(tarball.installSpec, path.join(CWD, "plugin.tgz"));
   assert.equal(tarball.declaration, "file:plugin.tgz");
 
+  const absoluteTarball = PluginSource.parse(path.join(CWD, "plugin.tgz"), { cwd: CWD });
+  assert.equal(absoluteTarball.declaration, "local");
+  assert.equal(absoluteTarball.developmentOnly, true);
+
   const remote = PluginSource.parse("https://packages.example.test/plugin.tgz", { cwd: CWD });
   assert.equal(remote.kind, "tarball");
   assert.equal(remote.installSpec, "https://packages.example.test/plugin.tgz");
@@ -49,6 +53,7 @@ test("PluginSource rejects floating and credential-bearing sources", () => {
     "plugin@^1.0.0",
     "git+https://example.test/plugin.git#main",
     "git+https://example.test/plugin.git",
+    `git+file:///tmp/plugin.git#${COMMIT}`,
   ]) {
     assert.throws(() => PluginSource.parse(specifier, { cwd: CWD }), /PLUGIN_SOURCE_INVALID/);
   }

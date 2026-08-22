@@ -60,6 +60,23 @@ function materializer({ sourceRoot = SAMPLE_ROOT, version = "1.0.0" } = {}) {
         path.join(pluginTarget, "package.json"),
         `${JSON.stringify(pluginManifest, null, 2)}\n`,
       );
+      await fs.writeFile(path.join(runtimeRoot, "package-lock.json"), `${JSON.stringify({
+        lockfileVersion: 3,
+        requires: true,
+        packages: {
+          "": { dependencies: manifest.dependencies },
+          "node_modules/@openspec-orch/plugin-sdk": {
+            name: "@openspec-orch/plugin-sdk",
+            version: SDK_VERSION,
+          },
+          "node_modules/@test/openspec-orch-plugin-sample": {
+            name: pluginManifest.name,
+            version: pluginManifest.version,
+            resolved: `file:${sourceRoot}`,
+            peerDependencies: pluginManifest.peerDependencies,
+          },
+        },
+      }, null, 2)}\n`);
     },
   };
 }
@@ -77,6 +94,12 @@ test("PluginInstaller atomically activates a validated immutable version runtime
   assert.equal(installed.id, "sample");
   assert.equal(installed.version, "1.0.0");
   assert.equal(installed.reused, false);
+  assert.equal(installed.record.pluginId, "sample");
+  assert.equal(installed.record.source.kind, "local");
+  assert.equal(installed.record.source.spec, "local");
+  assert.equal(installed.record.dependencies.find(
+    (dependency) => dependency.name === "@test/openspec-orch-plugin-sample",
+  ).resolved, "local");
   assert.equal(installed.runtimeRoot, path.join(
     root,
     ".openspec-orch/cache/plugin-runtimes/sample/1.0.0",
@@ -95,6 +118,8 @@ test("PluginInstaller atomically activates a validated immutable version runtime
   assert.equal((await fs.readdir(path.dirname(installed.runtimeRoot))).some(
     (name) => name.startsWith(".install-"),
   ), false);
+  const receipt = await fs.readFile(path.join(installed.runtimeRoot, "installation.json"), "utf8");
+  assert.equal(receipt.includes(SAMPLE_ROOT), false);
 });
 
 test("PluginInstaller reuses the same valid version without replacing its runtime", async (t) => {

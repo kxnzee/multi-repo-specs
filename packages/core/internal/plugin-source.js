@@ -6,6 +6,7 @@ import process from "node:process";
 import parsePackageArgument from "npm-package-arg";
 
 import { CORE_PATTERNS } from "./constants.js";
+import { isPortableRelativePath } from "./path.js";
 
 const SOURCE_CONSTRUCTION = Symbol("PluginSource construction");
 
@@ -40,6 +41,13 @@ function exactPackage(specifier, cwd) {
   }
   if (parsed.type === "git") {
     assertNoWebCredentials(parsed.fetchSpec ?? parsed.rawSpec);
+    try {
+      if (new URL(parsed.fetchSpec).protocol === "file:") {
+        invalid("Git source должен быть remote URL, а не локальным путём");
+      }
+    } catch (error) {
+      if (error.message.startsWith("PLUGIN_SOURCE_INVALID:")) throw error;
+    }
     if (
       parsed.gitRange ||
       !CORE_PATTERNS.gitRevision.test((parsed.gitCommittish ?? "").toLowerCase())
@@ -108,11 +116,16 @@ export class PluginSource {
       }, SOURCE_CONSTRUCTION);
     }
     if (parsed.type === "file") {
+      const relative = parsed.saveSpec.startsWith("file:")
+        ? parsed.saveSpec.slice("file:".length)
+        : parsed.saveSpec;
+      const portable = isPortableRelativePath(relative, { allowDot: false });
       return new PluginSource({
         kind: "tarball",
         packageName: parsed.name ?? null,
         installSpec: parsed.fetchSpec,
-        declaration: parsed.saveSpec,
+        declaration: portable ? parsed.saveSpec : "local",
+        developmentOnly: !portable,
       }, SOURCE_CONSTRUCTION);
     }
     if (parsed.type === "directory") {
