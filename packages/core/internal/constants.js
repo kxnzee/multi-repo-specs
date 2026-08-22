@@ -14,6 +14,8 @@ export const CORE_FILES = Object.freeze({
 
 export const CORE_SERVICE_PATHS = Object.freeze({
   cacheDirectory: ".openspec-orch/cache",
+  coreState: ".openspec-orch/state.json",
+  coreStateLock: ".openspec-orch/cache/locks/core-state.lock",
   directory: ".openspec-orch",
   lockDirectory: ".openspec-orch/cache/locks",
   pluginStateFile: "state.json",
@@ -21,6 +23,7 @@ export const CORE_SERVICE_PATHS = Object.freeze({
 });
 
 export const CORE_CONTRACT_VERSIONS = Object.freeze({
+  coreState: 1,
   pluginStorage: 1,
   project: 2,
   legacyProject: 1,
@@ -28,6 +31,7 @@ export const CORE_CONTRACT_VERSIONS = Object.freeze({
 });
 
 export const CORE_PATTERNS = Object.freeze({
+  gitRevision: /^[0-9a-f]{40}$/,
   gitRenameOrCopyState: /[RC]/,
   id: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
   lineBreak: /\r?\n/,

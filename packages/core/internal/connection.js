@@ -1,0 +1,277 @@
+/** @fileoverview Доменный сценарий подключения Store и multi-repo Workspace. */
+
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import process from "node:process";
+
+import { configuration } from "./configuration.js";
+import { CORE_FILES, CORE_PATTERNS } from "./constants.js";
+import { coreState } from "./core-state.js";
+import { RepositoryCheckout } from "./checkout.js";
+import { git } from "./git.js";
+import { openspec } from "./openspec.js";
+import { pointers } from "./pointer.js";
+import { workspace } from "./workspace.js";
+
+/** Возвращает lstat или null для отсутствующего path. */
+async function lstatOrNull(target) {
+  try {
+    return await fs.lstat(target);
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+/** Безопасно читает обычный project file без symlink в parent chain. */
+async function readProjectFile(root, relativePath) {
+  let current = root;
+  for (const [index, segment] of relativePath.split("/").entries()) {
+    current = path.join(current, segment);
+    const stat = await lstatOrNull(current);
+    if (!stat) throw new Error(`Отсутствует обычный файл ${relativePath}`);
+    if (stat.isSymbolicLink()) throw new Error(`Путь ${relativePath} содержит symlink`);
+    const final = index === relativePath.split("/").length - 1;
+    if (!final && !stat.isDirectory()) throw new Error(`Путь ${relativePath} проходит через файл`);
+    if (final && !stat.isFile()) throw new Error(`${relativePath} должна быть обычным файлом`);
+  }
+  return fs.readFile(current, "utf8");
+}
+
+/** Сравнивает Git remotes без завершающих slash. */
+function sameRemote(left, right) {
+  const normalize = (value) => value.trim().replace(CORE_PATTERNS.trailingSlashes, "");
+  return normalize(left) === normalize(right);
+}
+
+/** Immutable результат подключения одного Code Repository. */
+export class RepositoryConnection {
+  #value;
+
+  constructor(value) {
+    this.#value = Object.freeze({ ...value });
+    Object.freeze(this);
+  }
+
+  get id() { return this.#value.id; }
+  get path() { return this.#value.path; }
+  get branch() { return this.#value.branch; }
+  get revision() { return this.#value.revision; }
+  get cloned() { return this.#value.cloned; }
+  get pointerCreated() { return this.#value.pointerCreated; }
+  get pointerPending() { return this.#value.pointerPending; }
+  get status() { return this.#value.status; }
+}
+
+/** Immutable результат полного Core connect. */
+export class ConnectionResult {
+  #storeId;
+  #storeRoot;
+  #workspace;
+  #executionMode;
+  #repositories;
+
+  constructor({ storeId, storeRoot, workspace: workspaceRoot, executionMode, repositories }) {
+    this.#storeId = storeId;
+    this.#storeRoot = storeRoot;
+    this.#workspace = workspaceRoot;
+    this.#executionMode = executionMode;
+    this.#repositories = Object.freeze([...repositories]);
+    Object.freeze(this);
+  }
+
+  get storeId() { return this.#storeId; }
+  get storeRoot() { return this.#storeRoot; }
+  get workspace() { return this.#workspace; }
+  get executionMode() { return this.#executionMode; }
+  get repositories() { return this.#repositories; }
+  get status() {
+    return this.#repositories.some(({ pointerPending }) => pointerPending)
+      ? "needs_setup_pr"
+      : "ready";
+  }
+}
+
+/** Подключает текущую машину через Core domain и scoped infrastructure facades. */
+export class ConnectionService {
+  #configuration;
+  #git;
+  #openspec;
+  #pointers;
+  #state;
+  #workspace;
+
+  constructor({
+    configurationService = configuration,
+    gitService = git,
+    openSpecService = openspec,
+    pointerService = pointers,
+    stateService = coreState,
+    workspaceService = workspace,
+  } = {}) {
+    this.#configuration = configurationService;
+    this.#git = gitService;
+    this.#openspec = openSpecService;
+    this.#pointers = pointerService;
+    this.#state = stateService;
+    this.#workspace = workspaceService;
+    Object.freeze(this);
+  }
+
+  async connect({
+    start = process.cwd(),
+    workspace: requestedWorkspace,
+    onProgress = () => {},
+    noStrict = false,
+  } = {}) {
+    onProgress("Проверка Store и OpenSpec...");
+    const storeRoot = await this.#resolveStoreRoot(start);
+    const [metadata, project] = await Promise.all([
+      readProjectFile(storeRoot, CORE_FILES.storeMetadata)
+        .then((source) => this.#configuration.parseStore(source)),
+      readProjectFile(storeRoot, CORE_FILES.orchestratorConfig)
+        .then((source) => this.#configuration.parseProject(source)),
+    ]);
+    if (project.storeRepository.id !== metadata.id) {
+      throw new Error(`Store ID в ${CORE_FILES.orchestratorConfig} не совпадает с Store metadata`);
+    }
+    if (!metadata.remote || !sameRemote(project.storeRepository.remote, metadata.remote)) {
+      throw new Error("URL role: store не совпадает с Store metadata");
+    }
+    if (project.codeRepositories.length === 0) {
+      throw new Error("CONFIG_INVALID: для пилота нужен минимум один repository с roles: [code]");
+    }
+    const executionMode = noStrict || !project.strict ? "relaxed" : "strict";
+    const storeCheckout = new RepositoryCheckout(project.storeRepository, storeRoot);
+    const storeOpenSpec = this.#openspec.forRepository(storeCheckout);
+    await storeOpenSpec.version();
+    await storeOpenSpec.registerStore();
+    await storeOpenSpec.assertStoreHealthy();
+    const doctorOutput = await storeOpenSpec.doctor(
+      ["doctor", "--store", metadata.id],
+      (message, severity) => onProgress(
+        `${severity === "info" ? "Информация" : "Предупреждение"} OpenSpec:\n${message}`,
+        severity,
+      ),
+    );
+    if (doctorOutput) onProgress(doctorOutput, "info");
+    await storeOpenSpec.assertContext({
+      storeId: metadata.id,
+      storeRoot,
+      source: "store",
+      storeOption: true,
+    });
+    const stateStore = this.#state.forStore(storeCheckout);
+    const storedWorkspace = executionMode === "strict" ? (await stateStore.read()).workspace : null;
+    const workspaceModel = await this.#workspace.resolve({
+      storeRoot,
+      storeId: metadata.id,
+      requestedWorkspace,
+      storedWorkspace,
+    });
+    await workspaceModel.ensureRepositoriesRoot();
+    const repositories = [];
+    for (const [index, repository] of project.codeRepositories.entries()) {
+      const prefix = `[${index + 1}/${project.codeRepositories.length}] ${repository.id}`;
+      const connected = await this.#connectRepository({
+        repository,
+        workspaceModel,
+        storeId: metadata.id,
+        storeRoot,
+        executionMode,
+        onProgress: (message, status) => onProgress(`${prefix}: ${message}`, status),
+      });
+      repositories.push(connected);
+      onProgress(`${prefix}: готово`, "success");
+    }
+    if (requestedWorkspace && executionMode === "strict") {
+      await stateStore.update((current) => current.rememberWorkspace(workspaceModel.root));
+    }
+    return new ConnectionResult({
+      storeId: metadata.id,
+      storeRoot,
+      workspace: workspaceModel.root,
+      executionMode,
+      repositories,
+    });
+  }
+
+  async #connectRepository({
+    repository,
+    workspaceModel,
+    storeId,
+    storeRoot,
+    executionMode,
+    onProgress,
+  }) {
+    const repositoryRoot = workspaceModel.checkoutPath(repository);
+    const existing = await lstatOrNull(repositoryRoot);
+    let cloned = false;
+    if (!existing) {
+      if (executionMode === "relaxed") {
+        throw new Error(
+          `${repository.id}: relaxed mode требует существующий локальный каталог ${repositoryRoot}`,
+        );
+      }
+      onProgress("клонирование...");
+      await this.#git.forWorkspace(workspaceModel).clone(repository);
+      cloned = true;
+    } else if (!existing.isDirectory() || existing.isSymbolicLink()) {
+      throw new Error(`${repository.id}: checkout должен быть обычным каталогом`);
+    } else onProgress("проверка существующего checkout...");
+    const checkout = await this.#workspace.resolveCheckout(workspaceModel, repository);
+    const repositoryGit = this.#git.forRepository(checkout);
+    let branch = "unpinned";
+    let revision = "unpinned";
+    if (executionMode === "strict") {
+      await repositoryGit.assertIdentity();
+      branch = await repositoryGit.currentBranch();
+      if (branch !== repository.defaultBranch) {
+        throw new Error(`${repository.id}: ожидается ветка ${repository.defaultBranch}`);
+      }
+      const changedPaths = await repositoryGit.statusPaths();
+      if (changedPaths.some((filePath) => filePath !== CORE_FILES.openSpecConfig)) {
+        throw new Error(`${repository.id}: рабочее дерево должно быть чистым`);
+      }
+      revision = await repositoryGit.revision();
+      if (!CORE_PATTERNS.gitRevision.test(revision)) {
+        throw new Error(`${repository.id}: Git вернул некорректную ревизию`);
+      }
+    }
+    const pointerCreated = await this.#pointers.connect(checkout, storeId);
+    const pointerPending = executionMode === "strict" &&
+      !await repositoryGit.isClean([CORE_FILES.openSpecConfig]);
+    onProgress("проверка OpenSpec pointer...");
+    const repositoryOpenSpec = this.#openspec.forRepository(checkout);
+    const doctorOutput = await repositoryOpenSpec.doctor(["doctor"], (message, severity) => (
+      onProgress(
+        `${severity === "info" ? "Информация" : "Предупреждение"} OpenSpec:\n${message}`,
+        severity,
+      )
+    ));
+    if (doctorOutput) onProgress(doctorOutput, "info");
+    await repositoryOpenSpec.assertContext({ storeId, storeRoot, source: "declared" });
+    return new RepositoryConnection({
+      id: repository.id,
+      path: checkout.root,
+      branch,
+      revision,
+      cloned,
+      pointerCreated,
+      pointerPending,
+      status: pointerPending ? "needs_setup_pr" : "ready",
+    });
+  }
+
+  async #resolveStoreRoot(start) {
+    const candidate = path.resolve(start);
+    const stat = await lstatOrNull(candidate);
+    if (!stat?.isDirectory() || stat.isSymbolicLink()) {
+      throw new Error(`Store должен быть существующим обычным каталогом: ${candidate}`);
+    }
+    return fs.realpath(candidate);
+  }
+}
+
+/** Общий Connection Service нового Core. */
+export const connection = Object.freeze(new ConnectionService());

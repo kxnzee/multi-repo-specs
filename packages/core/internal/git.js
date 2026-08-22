@@ -25,11 +25,22 @@ function parseStatusPaths(output) {
   return paths;
 }
 
+/** Сравнивает Git remotes без завершающих slash. */
+function sameRemote(left, right) {
+  const normalize = (value) => value.trim().replace(CORE_PATTERNS.trailingSlashes, "");
+  return normalize(left) === normalize(right);
+}
+
 /** Git API одного проверенного RepositoryCheckout. */
 export class RepositoryGit {
+  #scope;
   #process;
 
-  constructor(scopedProcess) {
+  constructor(scope, scopedProcess) {
+    if (!scope || typeof scope.root !== "string" || scopedProcess?.cwd !== scope.root) {
+      throw new Error("GIT_SCOPE_INVALID: scope и process должны иметь один canonical root");
+    }
+    this.#scope = scope;
     this.#process = scopedProcess;
     Object.freeze(this);
   }
@@ -62,6 +73,20 @@ export class RepositoryGit {
 
   gitPath(marker) {
     return this.#run(["rev-parse", "--git-path", marker]);
+  }
+
+  async assertIdentity() {
+    const root = await this.repositoryRoot();
+    if (root !== this.#scope.root) {
+      throw new Error(`${this.#scope.id}: каталог не является корнем Git-репозитория`);
+    }
+    const remote = await this.originUrl();
+    if (typeof this.#scope.repository?.remote !== "string") {
+      throw new Error("GIT_SCOPE_INVALID: identity требует RepositoryCheckout");
+    }
+    if (!sameRemote(remote, this.#scope.repository.remote)) {
+      throw new Error(`${this.#scope.id}: origin не совпадает с openspec-orch.yaml`);
+    }
   }
 
   #run(args, options = {}) {
@@ -110,11 +135,11 @@ export class GitService {
   }
 
   forRepository(checkout) {
-    return new RepositoryGit(this.#processService.forRepository(checkout));
+    return new RepositoryGit(checkout, this.#processService.forRepository(checkout));
   }
 
   forStoreTarget(target) {
-    return new RepositoryGit(this.#processService.forStoreTarget(target));
+    return new RepositoryGit(target, this.#processService.forStoreTarget(target));
   }
 
   forWorkspace(workspace) {

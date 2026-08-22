@@ -36,6 +36,33 @@ export class Workspace {
     }
     return path.join(this.repositoriesRoot, repository.id);
   }
+
+  async ensureRepositoriesRoot() {
+    const existing = await this.#lstatOrNull(this.repositoriesRoot);
+    if (!existing) {
+      try {
+        await fs.mkdir(this.repositoriesRoot);
+      } catch (error) {
+        if (error.code !== "EEXIST") throw error;
+      }
+    }
+    const stat = await fs.lstat(this.repositoriesRoot);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      throw new Error(
+        `WORKSPACE_INVALID: ${this.repositoriesRoot} должен быть обычным каталогом`,
+      );
+    }
+    return this.repositoriesRoot;
+  }
+
+  async #lstatOrNull(target) {
+    try {
+      return await fs.lstat(target);
+    } catch (error) {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    }
+  }
 }
 
 /** Read-only API разрешения Workspace и существующих checkout paths. */

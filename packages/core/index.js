@@ -2,12 +2,15 @@
 
 export { AtomicWriter, atomicWriter } from "./internal/atomic-writer.js";
 export { CandidateCli } from "./internal/cli.js";
+export { ConnectionResult, ConnectionService, RepositoryConnection, connection } from "./internal/connection.js";
 export { RepositoryCheckout, createRepositoryCheckout } from "./internal/checkout.js";
 export { CoreConfiguration, configuration } from "./internal/configuration.js";
+export { CoreState, CoreStateService, CoreStateStore, coreState } from "./internal/core-state.js";
 export { FileService, RepositoryFiles, files } from "./internal/files.js";
 export { GitService, RepositoryGit, WorkspaceGit, git } from "./internal/git.js";
 export { InitializationService, initialization } from "./internal/initialization.js";
 export { OpenSpecService, RepositoryOpenSpec, openspec } from "./internal/openspec.js";
+export { OpenSpecPointerService, pointers } from "./internal/pointer.js";
 export { FailClosedLock, locks } from "./internal/lock.js";
 export { PluginStorage, PluginStorageService, pluginStorage } from "./internal/plugin-storage.js";
 export { ProcessService, ScopedProcess, processes } from "./internal/process.js";

@@ -5,6 +5,8 @@ import path from "node:path";
 import { Command, InvalidArgumentError, Option } from "commander";
 
 import { configuration } from "./configuration.js";
+import { CORE_FILES } from "./constants.js";
+import { connection } from "./connection.js";
 import { initialization } from "./initialization.js";
 import { workspace } from "./workspace.js";
 
@@ -37,10 +39,16 @@ function buildConnectHint(storeRoot, storeId) {
 
 /** Собирает candidate CLI из публичных Core application services. */
 export class CandidateCli {
+  #connection;
   #initialization;
   #templateRoot;
 
-  constructor({ initializationService = initialization, templateRoot } = {}) {
+  constructor({
+    connectionService = connection,
+    initializationService = initialization,
+    templateRoot,
+  } = {}) {
+    this.#connection = connectionService;
     this.#initialization = initializationService;
     this.#templateRoot = templateRoot;
     Object.freeze(this);
@@ -80,6 +88,38 @@ export class CandidateCli {
         printPaths("Создано", result.created);
         if (result.updated.length > 0) printPaths("Дополнено", result.updated);
         console.log(buildConnectHint(result.target, result.storeId));
+      });
+    program.command("connect")
+      .description("подключить рабочую машину и Code Repositories")
+      .addOption(new Option("--workspace <path>", "явный workspace").argParser(singleValue))
+      .option("--no-strict", "отключить Git pinning и automation для текущего вызова")
+      .action(async (options) => {
+        const result = await this.#connection.connect({
+          workspace: options.workspace,
+          noStrict: options.strict === false,
+        });
+        console.log(`Store: ${result.storeId} (${result.storeRoot})`);
+        console.log(`Workspace: ${result.workspace}`);
+        console.log(`Execution mode: ${result.executionMode}`);
+        if (options.workspace && result.executionMode === "strict") {
+          console.log("Workspace сохранён локально для следующих команд OpenSpec Orchestrator.");
+        } else if (options.workspace) {
+          console.log("Workspace использован только для текущего relaxed-вызова и не сохранён локально.");
+        }
+        console.log("Локальная регистрация Store проверена OpenSpec.");
+        for (const repository of result.repositories) {
+          console.log(
+            `${repository.id}: ${repository.status}${repository.cloned ? ", cloned" : ", existing"}`,
+          );
+          console.log(`  ${repository.path}`);
+          if (repository.pointerCreated) {
+            console.log(`  создан ${CORE_FILES.openSpecConfig}; требуется setup PR`);
+          } else if (repository.pointerPending) {
+            console.log(`  ${CORE_FILES.openSpecConfig} ещё не принят; требуется setup PR`);
+          }
+        }
+        console.log(`connect_status: ${result.status}`);
+        if (result.status === "ready") console.log("Локальное подключение готово.");
       });
     return program;
   }

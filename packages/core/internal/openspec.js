@@ -59,6 +59,22 @@ function parseOpenSpecJson(source, command) {
   return value;
 }
 
+/** Проверяет Store identity в JSON response. */
+function assertStoreIdentity(store, expected, command) {
+  if (!store || typeof store.id !== "string" || typeof store.root !== "string") {
+    throw new Error(
+      `OpenSpec Orchestrator не может обработать ответ ${command}: ` +
+        "не передана обязательная identity Store (id, root)",
+    );
+  }
+  if (store.id !== expected.id || path.resolve(store.root) !== expected.root) {
+    throw new Error(
+      `OpenSpec Orchestrator ожидал Store ${expected.id} по пути ${expected.root}, ` +
+        `но ответ ${command} указал ${store.id} по пути ${store.root}`,
+    );
+  }
+}
+
 /** OpenSpec CLI, привязанный к одному Repository checkout. */
 export class RepositoryOpenSpec {
   #scope;
@@ -86,6 +102,116 @@ export class RepositoryOpenSpec {
       );
     }
     return version;
+  }
+
+  async registerStore() {
+    this.#assertStoreScope();
+    const args = [
+      "store",
+      "register",
+      this.#scope.root,
+      "--id",
+      this.#scope.id,
+      "--yes",
+      "--json",
+    ];
+    const command = `openspec ${args.join(" ")}`;
+    const result = parseOpenSpecJson(await this.execute(args), command);
+    assertStoreIdentity(result.store, this.#scope, command);
+  }
+
+  async assertStoreHealthy() {
+    this.#assertStoreScope();
+    const args = ["store", "doctor", this.#scope.id, "--json"];
+    const command = `openspec ${args.join(" ")}`;
+    const result = parseOpenSpecJson(await this.execute(args), command);
+    if (!Array.isArray(result.stores)) {
+      throw new Error(`OpenSpec Orchestrator не может обработать ответ ${command}: отсутствует stores[]`);
+    }
+    const matching = result.stores.filter((store) => (
+      store && typeof store === "object" && store.id === this.#scope.id
+    ));
+    if (matching.length !== 1) {
+      throw new Error(
+        `OpenSpec Orchestrator ожидал в ответе ${command} ровно один Store ` +
+          `${this.#scope.id}, получено: ${matching.length}`,
+      );
+    }
+    const [store] = matching;
+    if (typeof store.root !== "string") {
+      throw new Error(`OpenSpec Orchestrator не может обработать ответ ${command}: несовместимый Store`);
+    }
+    if (path.resolve(store.root) !== this.#scope.root) {
+      throw new Error(
+        `OpenSpec Orchestrator ожидал Store ${this.#scope.id} по пути ${this.#scope.root}, ` +
+          `но ответ ${command} указал ${store.root}`,
+      );
+    }
+    if (
+      !store.metadata ||
+      store.metadata.present !== true ||
+      store.metadata.valid !== true ||
+      !store.openspec_root ||
+      store.openspec_root.healthy !== true
+    ) {
+      throw new Error(`Store ${this.#scope.id} не прошёл проверку здоровья ${command}`);
+    }
+    if (store.metadata.id !== undefined && store.metadata.id !== this.#scope.id) {
+      throw new Error(
+        `OpenSpec Orchestrator ожидал metadata.id ${this.#scope.id}, ` +
+          `но ответ ${command} указал ${store.metadata.id}`,
+      );
+    }
+  }
+
+  async doctor(args = ["doctor"], onDiagnostic = () => {}) {
+    const output = await this.execute(args, {
+      environment: { NODE_NO_WARNINGS: "1" },
+      onStderr: (message) => {
+        const firstLine = message.split("\n")[0].trim();
+        const severity = firstLine.startsWith("Using OpenSpec root:") ? "info" : "warning";
+        onDiagnostic(message, severity);
+      },
+    });
+    return output;
+  }
+
+  async assertContext({ storeId, storeRoot, source, storeOption = false }) {
+    const args = storeOption
+      ? ["context", "--store", storeId, "--json"]
+      : ["context", "--json"];
+    const command = `openspec ${args.join(" ")}`;
+    const result = parseOpenSpecJson(await this.execute(args), command);
+    const root = result.root;
+    if (
+      !root ||
+      typeof root !== "object" ||
+      typeof root.path !== "string" ||
+      typeof root.source !== "string"
+    ) {
+      throw new Error(
+        `OpenSpec Orchestrator не может обработать ответ ${command}: ` +
+          "не передана обязательная identity OpenSpec root",
+      );
+    }
+    if (path.resolve(root.path) !== storeRoot) {
+      throw new Error(
+        `OpenSpec Orchestrator ожидал root.path ${storeRoot}, ` +
+          `но ответ ${command} указал ${root.path}`,
+      );
+    }
+    if (root.source !== source) {
+      throw new Error(
+        `OpenSpec Orchestrator ожидал root.source ${source}, ` +
+          `но ответ ${command} указал ${root.source}`,
+      );
+    }
+    if (root.store_id !== storeId) {
+      throw new Error(
+        `OpenSpec Orchestrator ожидал root.store_id ${storeId}, ` +
+          `но ответ ${command} указал ${root.store_id ?? "не указан"}`,
+      );
+    }
   }
 
   async assertStorePathAvailable() {
@@ -162,19 +288,11 @@ export class RepositoryOpenSpec {
       await this.execute(args, { sensitiveValues: [remote] }),
       `openspec store setup ${this.#scope.id}`,
     );
-    const store = result.store;
-    if (!store || typeof store.id !== "string" || typeof store.root !== "string") {
-      throw new Error(
-        `OpenSpec Orchestrator не может обработать ответ openspec store setup ${this.#scope.id}: ` +
-          "не передана обязательная identity Store (id, root)",
-      );
-    }
-    if (store.id !== this.#scope.id || path.resolve(store.root) !== this.#scope.root) {
-      throw new Error(
-        `OpenSpec Orchestrator ожидал Store ${this.#scope.id} по пути ${this.#scope.root}, ` +
-          `но ответ openspec store setup ${this.#scope.id} указал ${store.id} по пути ${store.root}`,
-      );
-    }
+    assertStoreIdentity(
+      result.store,
+      this.#scope,
+      `openspec store setup ${this.#scope.id}`,
+    );
   }
 
   #assertStoreScope() {
