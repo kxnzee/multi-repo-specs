@@ -18,9 +18,19 @@ export const CORE_SERVICE_PATHS = Object.freeze({
   coreStateLock: ".openspec-orch/cache/locks/core-state.lock",
   directory: ".openspec-orch",
   lockDirectory: ".openspec-orch/cache/locks",
+  pluginInstallerLock: ".openspec-orch/cache/locks/plugin-installer.lock",
+  pluginRuntimeDirectory: ".openspec-orch/cache/plugin-runtimes",
   projectConfigLock: ".openspec-orch/cache/locks/project-config.lock",
   pluginStateFile: "state.json",
   pluginsDirectory: ".openspec-orch/plugins",
+});
+
+export const CORE_PACKAGES = Object.freeze({
+  pluginSdk: "@openspec-orch/plugin-sdk",
+});
+
+export const CORE_PACKAGE_VERSIONS = Object.freeze({
+  pluginSdk: "0.1.0",
 });
 
 export const CORE_CLI_COMMANDS = Object.freeze({

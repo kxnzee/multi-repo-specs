@@ -19,6 +19,7 @@ export { PluginCommandBuilder, PluginCommandMounter, PluginCommandRegistry } fro
 export { PluginHost, PluginRegistry } from "./internal/plugin-host.js";
 export { PluginConnectionResult, PluginLifecycleService, PluginStatusResult } from "./internal/plugin-lifecycle.js";
 export { LoadedPlugin, PluginLoader, pluginLoader } from "./internal/plugin-loader.js";
+export { PluginInstallation, PluginInstallerService, StorePluginInstaller, pluginInstallers } from "./internal/plugin-installer.js";
 export { NpmPackageInstaller, NpmPackageInstallResult, npmPackageInstaller } from "./internal/npm-package-installer.js";
 export { PluginPlatform } from "./internal/plugin-platform.js";
 export { PluginSource } from "./internal/plugin-source.js";
