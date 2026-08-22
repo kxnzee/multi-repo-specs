@@ -1,0 +1,15 @@
+{
+  "name": "@openspec-orch/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.js"
+  },
+  "dependencies": {
+    "commander": "14.0.3"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
