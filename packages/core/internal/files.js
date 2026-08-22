@@ -1,10 +1,9 @@
 /** @fileoverview Безопасные files, привязанные к RepositoryCheckout. */
 
-import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import process from "node:process";
 
+import { atomicWriter } from "./atomic-writer.js";
 import { isPortableRelativePath } from "./path.js";
 
 /** Возвращает lstat или null для отсутствующего path. */
@@ -20,9 +19,11 @@ async function lstatOrNull(target) {
 /** Files API внутри одного canonical Repository root. */
 export class RepositoryFiles {
   #root;
+  #writer;
 
-  constructor(checkout) {
+  constructor(checkout, writer = atomicWriter) {
     this.#root = checkout.root;
+    this.#writer = writer;
     Object.freeze(this);
   }
 
@@ -46,22 +47,7 @@ export class RepositoryFiles {
     if (parent !== path.dirname(target)) {
       throw new Error(`Путь ${relativePath} выходит за Repository root`);
     }
-    const temporary = path.join(
-      parent,
-      `.${path.basename(target)}-${process.pid}-${randomUUID()}.tmp`,
-    );
-    try {
-      await fs.writeFile(
-        temporary,
-        contents,
-        mode === undefined
-          ? { encoding: "utf8", flag: "wx" }
-          : { encoding: "utf8", flag: "wx", mode },
-      );
-      await fs.rename(temporary, target);
-    } finally {
-      await fs.rm(temporary, { force: true });
-    }
+    await this.#writer.write(target, contents, { mode });
   }
 
   async #resolveExisting(relativePath, kind, { allowDot = false } = {}) {
