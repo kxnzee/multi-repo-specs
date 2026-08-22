@@ -19,6 +19,7 @@ export { PluginCommandBuilder, PluginCommandMounter, PluginCommandRegistry } fro
 export { PluginHost, PluginRegistry } from "./internal/plugin-host.js";
 export { PluginConnectionResult, PluginLifecycleService, PluginStatusResult } from "./internal/plugin-lifecycle.js";
 export { LoadedPlugin, PluginLoader, pluginLoader } from "./internal/plugin-loader.js";
+export { PluginPlatform } from "./internal/plugin-platform.js";
 export { PluginStorage, PluginStorageService, pluginStorage } from "./internal/plugin-storage.js";
 export { ProcessService, ScopedProcess, processes } from "./internal/process.js";
 export { Project, createProject } from "./internal/project.js";
@@ -36,9 +37,20 @@ export {
 } from "./internal/template.js";
 export { Workspace, WorkspaceResolver, workspace } from "./internal/workspace.js";
 
-import { CandidateCli } from "./internal/cli.js";
+import { PluginPlatform } from "./internal/plugin-platform.js";
 
 /** Создаёт candidate CLI с уже перенесёнными Core operations. */
-export function createCandidateProgram(options) {
-  return new CandidateCli(options).createProgram();
+export function createCandidateProgram({
+  loadedPlugins,
+  pluginCliOptions,
+  pluginContextFactory,
+  rootCommands,
+  ...options
+} = {}) {
+  return new PluginPlatform({
+    contextFactory: pluginContextFactory,
+    loadedPlugins,
+    pluginCliOptions,
+    rootCommands,
+  }).createProgram(options);
 }
