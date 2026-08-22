@@ -131,7 +131,7 @@ test("contract test kit validates command registration without running actions",
         supports: [],
         registerCommands(commands) {
           commands.command("hello");
-          commands.command("hello");
+          commands.command("hello <target>");
         },
       }),
       packageManifest: SAMPLE_MANIFEST,

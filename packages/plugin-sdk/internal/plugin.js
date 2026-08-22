@@ -64,6 +64,7 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
 
 /**
  * @typedef {object} CommandBuilder
+ * Action получает позиционные аргументы и immutable options без Commander instance.
  * @property {(description: string) => CommandBuilder} description
  * @property {(handler: (...args: unknown[]) => unknown) => CommandBuilder} action
  */

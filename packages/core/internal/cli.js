@@ -63,17 +63,23 @@ function buildConnectHint(storeRoot, storeId) {
 export class CandidateCli {
   #connection;
   #initialization;
+  #pluginCommands;
   #repositoryStatuses;
   #templateRoot;
 
   constructor({
     connectionService = connection,
     initializationService = initialization,
+    pluginCommandMounter,
     repositoryStatusService = repositoryStatuses,
     templateRoot,
   } = {}) {
     this.#connection = connectionService;
     this.#initialization = initializationService;
+    if (pluginCommandMounter && typeof pluginCommandMounter.mount !== "function") {
+      throw new Error("CLI_INVALID: pluginCommandMounter должен предоставлять mount");
+    }
+    this.#pluginCommands = pluginCommandMounter;
     this.#repositoryStatuses = repositoryStatusService;
     this.#templateRoot = templateRoot;
     Object.freeze(this);
@@ -158,6 +164,7 @@ export class CandidateCli {
         });
         for (const status of statuses) printRepositoryStatus(status);
       });
+    this.#pluginCommands?.mount(program);
     return program;
   }
 }

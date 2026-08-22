@@ -50,6 +50,9 @@ namespace текущего Plugin.
 только package identity и ESM entrypoint. Тестовый `PluginContract` связывает обе
 модели и проверяет регистрацию команд, не выполняя их actions.
 
+Command action получает позиционные аргументы и последним параметром immutable
+snapshot опций. Внутренний Commander `Command` и весь CLI tree Plugin не передаются.
+
 ## Contract test
 
 ```js

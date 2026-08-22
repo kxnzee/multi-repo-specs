@@ -23,6 +23,10 @@ export const CORE_SERVICE_PATHS = Object.freeze({
   pluginsDirectory: ".openspec-orch/plugins",
 });
 
+export const CORE_CLI_COMMANDS = Object.freeze({
+  implicit: Object.freeze(["help"]),
+});
+
 export const CORE_CONTRACT_VERSIONS = Object.freeze({
   coreState: 1,
   pluginStorage: 1,
@@ -32,6 +36,7 @@ export const CORE_CONTRACT_VERSIONS = Object.freeze({
 });
 
 export const CORE_PATTERNS = Object.freeze({
+  commandDefinitionName: /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?=$|\s)/,
   gitRevision: /^[0-9a-f]{40}$/,
   gitRenameOrCopyState: /[RC]/,
   id: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,

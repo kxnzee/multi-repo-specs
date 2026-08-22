@@ -5,6 +5,7 @@ import test from "node:test";
 
 import { PluginPackage } from "./index.js";
 
+const COMMAND_NAME_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?=$|\s)/;
 const PLUGIN_API_METHODS = Object.freeze([
   "supportsRole",
   "assertSupports",
@@ -69,9 +70,12 @@ class ContractCommandRegistry {
       invalid("Command definition должна быть непустой строкой");
     }
     const normalized = definition.trim();
-    if (this.#commands.has(normalized)) invalid(`повторяющаяся Command '${normalized}'`);
+    const match = normalized.match(COMMAND_NAME_PATTERN);
+    if (!match) invalid(`Command '${normalized}' должна начинаться с kebab-case name`);
+    const name = match[0].trim();
+    if (this.#commands.has(name)) invalid(`повторяющаяся Command path '${name}'`);
     const command = new ContractCommand(normalized);
-    this.#commands.set(normalized, command);
+    this.#commands.set(name, command);
     return command;
   }
 
