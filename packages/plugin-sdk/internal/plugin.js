@@ -33,6 +33,7 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
  * @property {(pathspec?: readonly string[]) => Promise<readonly string[]>} statusPaths
  * @property {(pathspec?: readonly string[]) => Promise<boolean>} isClean
  * @property {() => Promise<string>} revision
+ * @property {() => Promise<void>} assertNoOperation
  */
 
 /** @typedef {{version: () => Promise<string>}} OpenSpecFacade */

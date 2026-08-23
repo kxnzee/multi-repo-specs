@@ -48,3 +48,15 @@ export function parseCycleRecordDocument(value) {
   }
   return Object.freeze(result.data);
 }
+
+/** Validates a public Change ID before any repository access. */
+export function assertChangeId(value) {
+  if (typeof value !== "string" || !IDENTIFIER_PATTERN.test(value)) {
+    throw new Error("change-id должен быть в lowercase kebab-case");
+  }
+}
+
+/** Returns whether Git produced a full lowercase SHA-1 revision. */
+export function isGitRevision(value) {
+  return typeof value === "string" && GIT_REVISION_PATTERN.test(value);
+}

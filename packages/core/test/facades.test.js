@@ -80,6 +80,8 @@ test("GitService exposes domain operations without accepting arbitrary cwd", asy
     calls.push({ executable, args, options });
     const stdout = args[0] === "status"
       ? " M file.js\0R  renamed.js\0old.js\0"
+      : args[0] === "rev-parse" && args[1] === "--git-path"
+        ? `.git/${args[2]}`
       : args.includes("--show-toplevel") ? root : "main";
     return { failed: false, stderr: "", stdout };
   });
@@ -90,6 +92,10 @@ test("GitService exposes domain operations without accepting arbitrary cwd", asy
   assert.equal(await repositoryGit.currentBranch(), "main");
   assert.deepEqual(await repositoryGit.statusPaths(), ["file.js", "renamed.js", "old.js"]);
   assert.equal(await repositoryGit.isClean(["README.md"]), false);
+  await repositoryGit.assertNoOperation();
+  await fs.mkdir(path.join(root, ".git"));
+  await fs.writeFile(path.join(root, ".git", "MERGE_HEAD"), "revision\n", "utf8");
+  await assert.rejects(repositoryGit.assertNoOperation(), /Git-операция \(MERGE_HEAD\)/);
   assert.equal(calls.every(({ executable }) => executable === "git"), true);
   assert.equal(calls.every(({ options }) => options.cwd === root), true);
 

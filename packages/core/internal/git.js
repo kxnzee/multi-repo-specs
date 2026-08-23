@@ -1,9 +1,29 @@
 /** @fileoverview Git facade, привязанный к RepositoryCheckout или Workspace. */
 
+import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { CORE_PATTERNS } from "./constants.js";
 import { processes } from "./process.js";
+
+const GIT_OPERATION_MARKERS = Object.freeze([
+  "MERGE_HEAD",
+  "CHERRY_PICK_HEAD",
+  "REVERT_HEAD",
+  "BISECT_LOG",
+  "rebase-merge",
+  "rebase-apply",
+]);
+
+/** Возвращает lstat либо null для отсутствующего Git marker. */
+async function lstatOrNull(target) {
+  try {
+    return await fs.lstat(target);
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+}
 
 /** Разбирает пути из git status --porcelain=v1 -z. */
 function parseStatusPaths(output) {
@@ -67,6 +87,18 @@ export class RepositoryGit {
 
   gitPath(marker) {
     return this.#run(["rev-parse", "--git-path", marker]);
+  }
+
+  async assertNoOperation() {
+    for (const marker of GIT_OPERATION_MARKERS) {
+      const gitPath = await this.gitPath(marker);
+      const target = path.resolve(this.#scope.root, gitPath);
+      if (await lstatOrNull(target)) {
+        throw new Error(
+          `${this.#scope.root}: обнаружена незавершённая Git-операция (${marker})`,
+        );
+      }
+    }
   }
 
   async assertIdentity() {

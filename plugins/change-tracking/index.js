@@ -4,6 +4,7 @@ import { definePlugin } from "@openspec-orch/plugin-sdk";
 
 export { CycleRecord } from "./lib/cycle-record.js";
 export { CycleRecordRepository } from "./lib/cycle-record-repository.js";
+export { CycleAssignmentService } from "./lib/cycle-assignment.js";
 export { SnapshotIdentity, canonicalImplementations } from "./lib/snapshot-identity.js";
 
 /** Repository lifecycle used when Change Tracking is bound to a Store or Code Repository. */

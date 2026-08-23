@@ -5,7 +5,12 @@ import test from "node:test";
 
 import { testPluginContract } from "@openspec-orch/plugin-sdk/testing";
 
-import plugin, { CycleRecord, CycleRecordRepository, SnapshotIdentity } from "../index.js";
+import plugin, {
+  CycleAssignmentService,
+  CycleRecord,
+  CycleRecordRepository,
+  SnapshotIdentity,
+} from "../index.js";
 import packageManifest from "../package.json" with { type: "json" };
 
 testPluginContract({ plugin, packageManifest });
@@ -93,6 +98,137 @@ test("CycleRecordRepository preserves corruption errors", async () => {
   await assert.rejects(
     repository.read("checkout-flow"),
     /STATE_CORRUPTED: Cycle Record повреждён/,
+  );
+});
+
+/** Creates an in-memory Store PluginContext for assign tests. */
+function assignmentContext({ changedPaths = [], connected = ["frontend", "backend"] } = {}) {
+  const values = new Map();
+  const repositories = new Map([
+    ["specs", Object.freeze({ id: "specs", role: "store" })],
+    ["frontend", Object.freeze({ id: "frontend", role: "code" })],
+    ["backend", Object.freeze({ id: "backend", role: "code" })],
+  ]);
+  return Object.freeze({
+    repository: repositories.get("specs"),
+    repositories: Object.freeze({
+      require(repositoryId) {
+        const repository = repositories.get(repositoryId);
+        if (!repository) throw new Error(`REPO_UNKNOWN: ${repositoryId}`);
+        return repository;
+      },
+      requireConnected(repositoryIds) {
+        for (const repositoryId of repositoryIds) {
+          if (!connected.includes(repositoryId)) {
+            throw new Error(`PLUGIN_NOT_CONNECTED: change-tracking не подключён к ${repositoryId}`);
+          }
+        }
+        return Object.freeze(repositoryIds.map((repositoryId) => repositories.get(repositoryId)));
+      },
+    }),
+    git: Object.freeze({
+      async assertNoOperation() {},
+      async statusPaths() { return changedPaths; },
+      async revision() { return "a".repeat(40); },
+    }),
+    files: Object.freeze({
+      async read(relativePath, { optional } = {}) {
+        if (values.has(relativePath)) return values.get(relativePath);
+        if (optional) return null;
+        throw new Error(`missing ${relativePath}`);
+      },
+      async write(relativePath, contents) { values.set(relativePath, contents); },
+    }),
+  });
+}
+
+test("CycleAssignmentService creates and then preserves an unchanged Cycle", async () => {
+  const service = new CycleAssignmentService(assignmentContext());
+  const previews = [];
+  const input = {
+    changeId: "checkout-flow",
+    repositoryIds: ["frontend", "backend"],
+    confirm: async (preview) => {
+      previews.push(preview);
+      return true;
+    },
+  };
+
+  const created = await service.assign(input);
+  const unchanged = await service.assign(input);
+
+  assert.equal(created.status, "created");
+  assert.equal(unchanged.status, "unchanged");
+  assert.equal(unchanged.cycle.cycleId, created.cycle.cycleId);
+  assert.equal(created.path, ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json");
+  assert.equal(previews.length, 1);
+  assert.deepEqual(previews[0].repositories, ["frontend", "backend"]);
+});
+
+test("CycleAssignmentService preserves preview cancellation without writing", async () => {
+  const service = new CycleAssignmentService(assignmentContext());
+  const result = await service.assign({
+    changeId: "checkout-flow",
+    repositoryIds: ["frontend"],
+    confirm: async () => false,
+  });
+
+  assert.deepEqual(result, {
+    status: "cancelled",
+    path: ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json",
+  });
+});
+
+test("CycleAssignmentService rejects invalid scope and dirty Store before preview", async () => {
+  const dirty = new CycleAssignmentService(assignmentContext({ changedPaths: ["README.md"] }));
+  await assert.rejects(
+    dirty.assign({
+      changeId: "checkout-flow",
+      repositoryIds: ["frontend"],
+      confirm: async () => true,
+    }),
+    /STORE_DIRTY/,
+  );
+  await assert.rejects(
+    new CycleAssignmentService(assignmentContext()).assign({
+      changeId: "checkout-flow",
+      repositoryIds: ["specs"],
+      confirm: async () => true,
+    }),
+    /Cycle принимает только roles: \[code\]/,
+  );
+  await assert.rejects(
+    new CycleAssignmentService(assignmentContext({ connected: [] })).assign({
+      changeId: "checkout-flow",
+      repositoryIds: ["frontend"],
+      confirm: async () => true,
+    }),
+    /PLUGIN_NOT_CONNECTED/,
+  );
+});
+
+test("CycleAssignmentService reports an unknown persisted repository as corrupted state", async () => {
+  const context = assignmentContext();
+  await context.files.write(
+    ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json",
+    `${JSON.stringify({
+      contract_version: 1,
+      cycle_id: "cycle-550e8400-e29b-41d4-a716-446655440000",
+      change_id: "checkout-flow",
+      planning_revision: "a".repeat(40),
+      repositories: ["removed-repository"],
+      created_at: "2026-08-23T10:00:00.000Z",
+    })}\n`,
+  );
+  const service = new CycleAssignmentService(context);
+
+  await assert.rejects(
+    service.assign({
+      changeId: "checkout-flow",
+      repositoryIds: ["frontend"],
+      confirm: async () => true,
+    }),
+    /STATE_CORRUPTED: Cycle Record содержит неизвестный Code Repository 'removed-repository'/,
   );
 });
 

@@ -78,6 +78,7 @@ class PluginGitFacade {
   statusPaths(pathspec) { return this.#git.statusPaths(pathspec); }
   isClean(pathspec) { return this.#git.isClean(pathspec); }
   revision() { return this.#git.revision(); }
+  assertNoOperation() { return this.#git.assertNoOperation(); }
 }
 
 /** OpenSpec API, пока ограниченный реально проверяемой версией CLI. */
