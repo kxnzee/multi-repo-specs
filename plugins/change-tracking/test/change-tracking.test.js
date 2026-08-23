@@ -347,6 +347,103 @@ test("ChangeTrackingService blocks Result Receipt without committed Cycle or com
   );
 });
 
+test("ChangeTrackingService verifies, records verification and reports current status", async () => {
+  const context = assignmentContext();
+  const service = new ChangeTrackingService(context);
+  await service.assign({
+    changeId: "checkout-flow",
+    repositoryIds: ["frontend"],
+    confirm: async () => true,
+  });
+
+  const missing = await service.status("checkout-flow");
+  assert.equal(missing.repositories[0].state, "missing");
+  assert.equal(missing.nextAction, "записать результаты для репозиториев: frontend");
+
+  await service.recordAssignment({
+    changeId: "checkout-flow",
+    repositoryId: "frontend",
+    implementationRevision: "a".repeat(40),
+    status: "completed",
+    source: "agent",
+    confirm: async () => true,
+  });
+  const createdSnapshot = await service.verify("checkout-flow");
+  const unchangedSnapshot = await service.verify("checkout-flow");
+  const createdVerification = await service.recordVerification({
+    changeId: "checkout-flow",
+    result: "pass",
+    source: "human",
+    confirm: async () => true,
+  });
+  const ready = await service.status("checkout-flow");
+
+  assert.equal(createdSnapshot.status, "created");
+  assert.equal(unchangedSnapshot.status, "unchanged");
+  assert.equal(createdVerification.status, "created");
+  assert.equal(ready.snapshot.current, true);
+  assert.equal(ready.verification.current, true);
+  assert.equal(ready.nextAction, "готово");
+
+  await service.recordAssignment({
+    changeId: "checkout-flow",
+    repositoryId: "frontend",
+    implementationRevision: "b".repeat(40),
+    status: "completed",
+    source: "agent",
+    confirm: async () => true,
+  });
+  const stale = await service.status("checkout-flow");
+  assert.equal(stale.snapshot.current, false);
+  assert.equal(stale.verification.current, false);
+  assert.equal(stale.nextAction, "вызвать verify");
+  await assert.rejects(
+    service.recordVerification({
+      changeId: "checkout-flow",
+      result: "fail",
+      source: "human",
+      confirm: async () => true,
+    }),
+    /SNAPSHOT_MISMATCH: сначала вызовите verify/,
+  );
+
+  const replacementSnapshot = await service.verify("checkout-flow");
+  const replacedVerification = await service.recordVerification({
+    changeId: "checkout-flow",
+    result: "fail",
+    source: "human",
+    confirm: async () => true,
+  });
+  const state = await context.storage.read();
+
+  assert.equal(replacementSnapshot.status, "created");
+  assert.equal(replacedVerification.status, "replaced");
+  assert.equal(replacedVerification.replaced.receipt_id, createdVerification.receipt.receipt_id);
+  assert.deepEqual(state.verification_receipt_history, [createdVerification.receipt]);
+});
+
+test("ChangeTrackingService verify requires completed results for the whole Cycle", async () => {
+  const service = new ChangeTrackingService(assignmentContext());
+  await service.assign({
+    changeId: "checkout-flow",
+    repositoryIds: ["frontend", "backend"],
+    confirm: async () => true,
+  });
+  await service.recordAssignment({
+    changeId: "checkout-flow",
+    repositoryId: "frontend",
+    implementationRevision: "a".repeat(40),
+    status: "completed",
+    source: "ci",
+    confirm: async () => true,
+  });
+
+  await assert.rejects(
+    service.verify("checkout-flow"),
+    /CYCLE_MISMATCH: для repository-id 'backend' нужен текущий Result Receipt completed/,
+  );
+});
+
 test("SnapshotIdentity follows the frozen canonical v1 projection", () => {
   const identity = new SnapshotIdentity("cycle-550e8400-e29b-41d4-a716-446655440000", [
     { repository_id: "frontend", implementation_revision: "a".repeat(40) },
