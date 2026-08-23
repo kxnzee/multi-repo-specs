@@ -53,6 +53,19 @@ test("Package owns its CodeGraph dependency and descriptor", async () => {
     id: "codegraph",
     commands: [],
   });
+  const calls = [];
+  const integration = plugin.integrateAgent(Object.freeze({
+    agent: Object.freeze({ id: "codex" }),
+    process: Object.freeze({
+      run(executable, args) { calls.push([executable, args]); },
+    }),
+  }));
+  await integration.install();
+  await integration.remove();
+  assert.deepEqual(calls, [
+    [process.execPath, [launcher, "agent", "install", "--agent", "codex"]],
+    [process.execPath, [launcher, "agent", "remove", "--agent", "codex"]],
+  ]);
 });
 
 test("Native repository lifecycle delegates to the package launcher", async () => {

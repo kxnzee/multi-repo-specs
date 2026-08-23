@@ -1,5 +1,6 @@
 /** @fileoverview Публичная граница нового Orchestrator Core. */
 
+export { AgentIntegration, AgentService, agentIntegrations } from "./internal/agent.js";
 export { AtomicWriter, atomicWriter } from "./internal/atomic-writer.js";
 export {
   BundledPluginPackage,

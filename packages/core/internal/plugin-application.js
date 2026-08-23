@@ -3,6 +3,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { agentIntegrations } from "./agent.js";
 import { configuration } from "./configuration.js";
 import { CORE_FILES, CORE_SERVICE_PATHS } from "./constants.js";
 import { files } from "./files.js";
@@ -92,6 +93,7 @@ export class PluginBindingChange {
 
 /** Application service безопасного изменения Plugin project state. */
 export class PluginApplicationService {
+  #agents;
   #configuration;
   #files;
   #managers;
@@ -99,12 +101,20 @@ export class PluginApplicationService {
   #storeProjects;
 
   constructor({
+    agentService = agentIntegrations,
     configurationService = configuration,
     fileService = files,
     managerService = pluginManagers,
     lock = locks,
     storeProjectService = storeProjects,
   } = {}) {
+    if (
+      typeof agentService?.resolve !== "function" ||
+      typeof agentService?.install !== "function" ||
+      typeof agentService?.remove !== "function"
+    ) {
+      invalid("agentService должен предоставлять resolve, install и remove");
+    }
     if (typeof configurationService?.serializeProject !== "function") {
       invalid("configurationService должен предоставлять serializeProject");
     }
@@ -118,6 +128,7 @@ export class PluginApplicationService {
     if (typeof storeProjectService?.load !== "function") {
       invalid("storeProjectService должен предоставлять load");
     }
+    this.#agents = agentService;
     this.#configuration = configurationService;
     this.#files = fileService;
     this.#managers = managerService;
@@ -206,6 +217,7 @@ export class PluginApplicationService {
 
   async #installUnlocked(root, pluginId, source) {
     const current = await this.#storeProjects.load(root);
+    const previousProjectSource = this.#configuration.serializeProject(current.project);
     let result;
     await this.#managers.forStore(current.checkout).install(
       pluginId,
@@ -220,7 +232,14 @@ export class PluginApplicationService {
           invalid("Plugin Manager вернул несогласованный installation");
         }
         const initialized = current.project.declarePlugin(pluginId, installation.declaration);
+        const integration = await this.#agents.resolve(current, installation.loadedPlugin);
         await this.#writeProject(current);
+        try {
+          if (integration) await this.#agents.install(current, integration);
+        } catch (error) {
+          await this.#writeProjectSource(current, previousProjectSource);
+          throw error;
+        }
         result = new PluginApplicationResult({ initialized });
       },
     );
@@ -232,15 +251,24 @@ export class PluginApplicationService {
 
   async #removeUnlocked(root, pluginId) {
     const current = await this.#storeProjects.load(root);
-    const removed = current.project.removePlugin(pluginId);
-    if (!removed) {
-      return new PluginRemovalResult({
-        removed: false,
-      });
-    }
-    await this.#managers.forStore(current.checkout).remove(
+    const declaration = current.project.pluginDeclaration(pluginId);
+    if (!declaration) return new PluginRemovalResult({ removed: false });
+    const manager = this.#managers.forStore(current.checkout);
+    const installation = await manager.resolve(declaration);
+    const integration = await this.#agents.resolve(current, installation.loadedPlugin);
+    const previousProjectSource = this.#configuration.serializeProject(current.project);
+    current.project.removePlugin(pluginId);
+    await manager.remove(
       pluginId,
-      () => this.#writeProject(current),
+      async () => {
+        await this.#writeProject(current);
+        try {
+          if (integration) await this.#agents.remove(current, integration);
+        } catch (error) {
+          await this.#writeProjectSource(current, previousProjectSource);
+          throw error;
+        }
+      },
     );
     return new PluginRemovalResult({
       removed: true,
@@ -248,9 +276,16 @@ export class PluginApplicationService {
   }
 
   async #writeProject(storeProject) {
+    await this.#writeProjectSource(
+      storeProject,
+      this.#configuration.serializeProject(storeProject.project),
+    );
+  }
+
+  async #writeProjectSource(storeProject, source) {
     await this.#files.forRepository(storeProject.checkout).write(
       CORE_FILES.orchestratorConfig,
-      this.#configuration.serializeProject(storeProject.project),
+      source,
     );
   }
 }

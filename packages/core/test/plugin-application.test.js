@@ -44,6 +44,13 @@ repositories:
 
 /** Возвращает Plugin Manager service с наблюдаемым fake результатом. */
 function managerFixture(calls, { installedId = "sample", packageName = "@test/plugin-sample" } = {}) {
+  const loadedPlugin = {
+    plugin: {
+      id: installedId,
+      hasAgentContribution() { return false; },
+      integrateAgent() { throw new Error("Agent contribution отсутствует"); },
+    },
+  };
   return {
     forStore() {
       return {
@@ -52,10 +59,14 @@ function managerFixture(calls, { installedId = "sample", packageName = "@test/pl
           const installation = {
             id: installedId,
             declaration: `${packageName}@1.0.0`,
+            loadedPlugin,
             source,
           };
           await publish(installation);
           return installation;
+        },
+        async resolve() {
+          return { loadedPlugin };
         },
         async remove(pluginId, publish) {
           calls.push({ operation: "remove", pluginId });
@@ -109,6 +120,29 @@ test("PluginApplicationService rejects an inconsistent installation before confi
   );
 
   assert.equal(calls.length, 1);
+  assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), original);
+});
+
+test("PluginApplicationService does not register a Plugin when Agent resolution fails", async (t) => {
+  const { root, storeProject } = await storeFixture(t);
+  const original = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
+  const service = new PluginApplicationService({
+    agentService: {
+      async resolve() { throw new Error("AGENT_UNSUPPORTED"); },
+      async install() {},
+      async remove() {},
+    },
+    managerService: managerFixture([]),
+  });
+
+  await assert.rejects(
+    service.install(
+      storeProject,
+      "sample",
+      PluginSource.parse(path.join(root, "local-plugin"), { cwd: root }),
+    ),
+    /AGENT_UNSUPPORTED/,
+  );
   assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), original);
 });
 

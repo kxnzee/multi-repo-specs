@@ -62,8 +62,29 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   );
 
   assert.deepEqual(configured.plugins, ["change-tracking", "codegraph"]);
+  assert.match(
+    await fs.readFile(path.join(storeRoot, ".codex/config.toml"), "utf8"),
+    /\[mcp_servers\."openspec-orch-codegraph"\]/,
+  );
+  assert.match(await fs.readFile(path.join(storeRoot, "AGENTS.md"), "utf8"), /codegraph_explore/);
   for (const command of ["assign", "status", "record", "verify"]) {
     assert.match(stdout, new RegExp(`\\b${command}\\b`));
   }
   assert.doesNotMatch(stdout, /change-tracking\s+Команды Plugin/);
+
+  await execa(process.execPath, [
+    CLI_PATH,
+    "plugin",
+    "remove",
+    "codegraph",
+  ], { cwd: storeRoot });
+  const removed = configuration.parseProject(
+    await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
+  );
+  assert.deepEqual(removed.plugins, ["change-tracking"]);
+  assert.doesNotMatch(
+    await fs.readFile(path.join(storeRoot, ".codex/config.toml"), "utf8"),
+    /openspec-orch-codegraph/,
+  );
+  assert.doesNotMatch(await fs.readFile(path.join(storeRoot, "AGENTS.md"), "utf8"), /codegraph_explore/);
 });
