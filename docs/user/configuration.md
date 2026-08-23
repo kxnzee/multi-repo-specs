@@ -61,7 +61,7 @@ repositories:
 | `init` | Создаёт проект с `strict: true`. | `--no-strict` сохраняет `strict: false` как project default. Сам `init` всё равно читает Git URL и текущую default branch центрального репозитория для обязательной конфигурации Store. |
 | `connect` | Клонирует отсутствующие Code Repositories и проверяет их Git-состояние. | Использует только уже существующие `<workspace>/src/<repository-id>` и не вызывает Git для их проверки. |
 
-Рекомендуемая и проверенная версия — OpenSpec `1.7.0`. Это рекомендация документации, а не exact pin: Core проверяет semantic version CLI, фактически вызываемые команды и обязательные поля их JSON-ответов.
+Рекомендуемая и проверенная версия — OpenSpec `1.10.0`. Это рекомендация документации, а не exact pin: Core проверяет semantic version CLI, фактически вызываемые команды и обязательные поля их JSON-ответов.
 
 ## `agents`
 

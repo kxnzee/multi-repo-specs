@@ -76,7 +76,7 @@ checkout и не выполняет `git add`, `commit`, `push`, `merge` или 
 - Node.js `20.19.0+`;
 - npm (для установки dependencies пользовательских Plugin Packages);
 - Git;
-- OpenSpec CLI `1.7.0` для `init` и `connect`.
+- OpenSpec CLI `1.10.0` для `init` и `connect`.
 
 Пакеты стандартной поставки устанавливаются как dependencies Orchestrator и владеют
 собственными runtime dependencies. Их исходники и документация находятся в
