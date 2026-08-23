@@ -3,6 +3,10 @@
 .openspec-orch/state.json
 .openspec-orch/cache/
 .openspec-orch/logs/
+.openspec-orch/plugins/
 
 # Local credentials
 .openspec-orch/credentials/
+
+# Agent-local approvals
+.claude/settings.local.json

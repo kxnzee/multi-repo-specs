@@ -131,6 +131,9 @@ test("InitializationService creates Store through domain and public facade contr
   assert.deepEqual(project.codeRepositories.map(({ id }) => id), ["frontend"]);
   assert.equal((await fs.stat(path.join(root, "CLAUDE.md"))).isFile(), true);
   assert.equal((await fs.stat(path.join(root, ".claude/commands/opsx"))).isDirectory(), true);
+  const gitignore = await fs.readFile(path.join(root, ".gitignore"), "utf8");
+  assert.match(gitignore, /^\.openspec-orch\/plugins\/$/m);
+  assert.match(gitignore, /^\.claude\/settings\.local\.json$/m);
   assert.equal(fake.calls.some((args) => args[0] === "init"), true);
   assert.equal(fake.calls.some((args) => args[0] === "store" && args[1] === "setup"), true);
 

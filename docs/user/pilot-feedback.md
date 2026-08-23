@@ -159,6 +159,35 @@
 
 ## Подтверждённые наблюдения до пилота
 
+### 2026-08-23 — Plugin Storage оставлял Store dirty
+
+- Шаг runbook: полный изолированный цикл встроенного Change Tracking Plugin после
+  `plugin init`, `plugin connect`, `assign` и `record assignment`.
+- Наблюдаемый факт: Plugin записал локальные Result Receipts в
+  `.openspec-orch/plugins/change-tracking/state.json`, но базовый Template не
+  игнорировал `.openspec-orch/plugins/`; после успешной команды `git status`
+  показывал untracked state.
+- Нарушает ли факт текущий контракт: да — Result Receipts и Plugin Storage являются
+  локальным состоянием машины и не должны попадать в Git.
+- Блокирует ли факт продолжение пилота: да для strict-команд, требующих чистый Store.
+- Решение в Template: игнорировать общий `.openspec-orch/plugins/`, сохранив
+  `.openspec-orch/changes/` отслеживаемым; регрессионный init-тест проверяет
+  сгенерированный `.gitignore`.
+
+### 2026-08-23 — Claude MCP approval оставлял Store dirty
+
+- Шаг runbook: `init --agent claude`, `plugin init`, запуск Claude Code и
+  одобрение project-local MCP перед `assign`.
+- Наблюдаемый факт: Claude Code создал `.claude/settings.local.json`; базовый
+  Template не игнорировал этот machine-local файл, и Change Tracking корректно
+  остановил `assign` с `STORE_DIRTY`.
+- Нарушает ли факт текущий контракт: да — локальные approvals Claude не являются
+  проектным артефактом и не должны попадать в Git.
+- Блокирует ли факт продолжение пилота: да для strict-команд, требующих чистый
+  Store.
+- Решение в Template: игнорировать только `.claude/settings.local.json`, не весь
+  `.claude/`; регрессионный init-тест проверяет сгенерированный `.gitignore`.
+
 ### 2026-08-18 — runtime Orchestrator был ниже требования OpenSpec
 
 - Шаг runbook: подготовка комплекта для переноса в закрытый контур.
