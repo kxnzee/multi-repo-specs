@@ -8,7 +8,6 @@ import path from "node:path";
 import process from "node:process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { parse } from "yaml";
 
 import { assertPluginContract } from "@openspec-orch/plugin-sdk/testing";
 
@@ -37,18 +36,17 @@ function runAgentLifecycle(root, operation, agentId) {
   );
 }
 
-test("Package owns its CodeGraph dependency and descriptor", async () => {
+test("Package owns its CodeGraph dependency and native Plugin entrypoint", async () => {
   const packageManifest = JSON.parse(await fs.readFile(
     path.join(packageRoot, "package.json"),
     "utf8",
   ));
-  const descriptor = parse(await fs.readFile(path.join(packageRoot, "plugin.yaml"), "utf8"));
-
   assert.equal(packageManifest.name, "@openspec-orch/plugin-codegraph");
   assert.equal(packageManifest.dependencies["@colbymchenry/codegraph"], "1.5.0");
-  assert.equal(packageManifest.openspecOrchestrator.entrypoint, "bin/codegraph.js");
-  assert.equal(descriptor.id, "codegraph");
-  assert.equal(descriptor.version, packageManifest.version);
+  assert.deepEqual(packageManifest.openspecOrchestrator, {
+    apiVersion: 1,
+    plugin: "./index.js",
+  });
   assert.deepEqual(assertPluginContract({ plugin, packageManifest }), {
     id: "codegraph",
     commands: [],

@@ -11,13 +11,11 @@
     "bin",
     "index.js",
     "instructions.md",
-    "lib",
-    "plugin.yaml"
+    "lib"
   ],
   "openspecOrchestrator": {
     "apiVersion": 1,
-    "manifest": "plugin.yaml",
-    "entrypoint": "bin/codegraph.js"
+    "plugin": "./index.js"
   },
   "peerDependencies": {
     "@openspec-orch/plugin-sdk": "0.1.0"

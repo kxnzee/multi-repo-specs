@@ -60,15 +60,11 @@ export class PluginPackage {
     const metadataKeys = Object.keys(metadata);
     const nativeMetadata = metadataKeys.length === 2 && metadataKeys.includes("apiVersion") &&
       metadataKeys.includes("plugin");
-    const legacyMetadata = metadataKeys.length === 3 && metadataKeys.includes("apiVersion") &&
-      metadataKeys.includes("manifest") && metadataKeys.includes("entrypoint");
-    if (!nativeMetadata && !legacyMetadata) {
-      invalid("openspecOrchestrator должен содержать native или legacy Plugin metadata");
-    }
+    if (!nativeMetadata) invalid("openspecOrchestrator должен содержать apiVersion и plugin");
     if (metadata.apiVersion !== PLUGIN_API_VERSION) {
       invalid(`поддерживается только apiVersion=${PLUGIN_API_VERSION}`);
     }
-    const entrypoint = metadata.plugin ?? resolveRootExport(manifest.exports);
+    const entrypoint = metadata.plugin;
     assertPluginPath(entrypoint);
     if (resolveRootExport(manifest.exports) !== entrypoint) {
       invalid("package root export должен совпадать с openspecOrchestrator.plugin");
