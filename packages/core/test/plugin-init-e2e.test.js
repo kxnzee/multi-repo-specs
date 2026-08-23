@@ -16,7 +16,6 @@ import {
 
 import {
   createPluginMaterializer,
-  SAMPLE_PLUGIN_ROOT,
 } from "./helpers/plugin-materializer.js";
 
 /** Создаёт стандартный Workspace со Store и Code Repository для candidate Core v3. */
@@ -63,15 +62,25 @@ async function storeFixture(t) {
 
 test("candidate Plugin survives restarts through its complete project lifecycle", async (t) => {
   const storeRoot = await storeFixture(t);
+  const sourceRoot = path.join(path.dirname(storeRoot), "sample-plugin");
   const output = [];
   let installedSource;
+  const pluginCommandOptions = {
+    output: { log: (value) => output.push(value) },
+  };
+  await (await createCandidateProgram({ loadedPlugins: [], pluginCommandOptions })).parseAsync([
+    "node",
+    "openspec-orch",
+    "plugin",
+    "register",
+    "sample",
+    sourceRoot,
+  ]);
   const managerService = new PluginManagerService({
-    npmInstaller: createPluginMaterializer(),
+    npmInstaller: createPluginMaterializer({ sourceRoot }),
   });
   const createProgram = () => createCandidateProgram({
-    pluginCommandOptions: {
-      output: { log: (value) => output.push(value) },
-    },
+    pluginCommandOptions,
     pluginManagerService: managerService,
   });
   const previousCwd = process.cwd();
@@ -85,7 +94,7 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
       "--plugin",
       "sample",
       "--from",
-      SAMPLE_PLUGIN_ROOT,
+      sourceRoot,
     ];
     await (await createProgram()).parseAsync(args);
     const afterInit = await createProgram();
@@ -109,6 +118,12 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
       "--repo",
       "frontend",
       "--json",
+    ]);
+    await (await createProgram()).parseAsync([
+      "node",
+      "openspec-orch",
+      "sample",
+      "inspect",
     ]);
     await (await createProgram()).parseAsync(args);
     installedSource = configuration.parseProject(
@@ -148,7 +163,7 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
   );
   assert.deepEqual(project.plugins, []);
   assert.deepEqual(project.requireRepository("frontend").plugins, []);
-  assert.equal(installedSource, "@test/openspec-orch-plugin-sample@1.0.0");
+  assert.equal(installedSource, "openspec-orch-plugin-sample@1.0.0");
   assert.equal(project.pluginDeclaration("sample"), undefined);
   const runtimeRoot = path.join(
     storeRoot,
@@ -156,6 +171,9 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
   );
   assert.equal(await fs.lstat(runtimeRoot).catch((error) => error.code), "ENOENT");
   assert.deepEqual(output, [
+    `sample: registered at ${sourceRoot}`,
+    `Entrypoint: ${path.join(sourceRoot, "index.js")}`,
+    `После реализации: openspec-orch plugin init --from ${sourceRoot} --plugin sample`,
     "sample: initialized",
     "Далее: openspec-orch plugin connect <plugin-id>",
     "sample -> frontend: connected",

@@ -51,6 +51,7 @@ function candidate({
   checkboxPrompt,
   lifecycleService,
   output,
+  scaffoldService,
   stdin,
   stdout,
   storeProjectService,
@@ -61,12 +62,61 @@ function candidate({
     checkboxPrompt,
     lifecycleService,
     output,
+    scaffoldService,
     stdin,
     stdout,
     storeProjectService,
   });
   return new CandidateCli({ pluginLifecycleCommands }).createProgram();
 }
+
+test("plugin register preserves grammar and delegates native scaffold creation", async () => {
+  const calls = [];
+  const captured = outputCollector();
+  const program = candidate({
+    applicationService: { async install() {}, async remove() {} },
+    lifecycleService: {
+      async connectMany() { return []; },
+      async disconnect() {},
+      async statuses() { return []; },
+      async sync() {},
+    },
+    output: captured.output,
+    scaffoldService: {
+      async register(options) {
+        calls.push(options);
+        return { root: "/plugins/sample", entrypoint: "/plugins/sample/index.js" };
+      },
+    },
+  });
+
+  await program.parseAsync([
+    "node",
+    "openspec-orch",
+    "plugin",
+    "register",
+    "sample",
+    "../sample-plugin",
+    "--name",
+    "Sample Plugin",
+    "--support",
+    "store",
+    "--support",
+    "code",
+  ]);
+
+  assert.deepEqual(calls, [{
+    pluginId: "sample",
+    targetRoot: "../sample-plugin",
+    name: "Sample Plugin",
+    supports: ["store", "code"],
+  }]);
+  assert.deepEqual(captured.lines, [
+    "sample: registered at /plugins/sample",
+    "Entrypoint: /plugins/sample/index.js",
+    "После реализации: openspec-orch plugin init --from /plugins/sample --plugin sample",
+  ]);
+});
 
 test("plugin init preserves --plugin/--from grammar and delegates to application facade", async () => {
   const calls = [];

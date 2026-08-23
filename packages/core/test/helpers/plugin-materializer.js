@@ -50,12 +50,7 @@ export function createPluginMaterializer({
       pluginManifest.version = version;
       manifest.dependencies[pluginManifest.name] = `file:${sourceRoot}`;
       await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-      const pluginTarget = path.join(
-        runtimeRoot,
-        "node_modules",
-        "@test",
-        "openspec-orch-plugin-sample",
-      );
+      const pluginTarget = path.join(runtimeRoot, "node_modules", ...pluginManifest.name.split("/"));
       const sdkTarget = path.join(
         runtimeRoot,
         "node_modules",
@@ -79,7 +74,7 @@ export function createPluginMaterializer({
             name: "@openspec-orch/plugin-sdk",
             version: PLUGIN_SDK_VERSION,
           },
-          "node_modules/@test/openspec-orch-plugin-sample": {
+          [`node_modules/${pluginManifest.name}`]: {
             name: pluginManifest.name,
             version: pluginManifest.version,
             resolved: `file:${sourceRoot}`,

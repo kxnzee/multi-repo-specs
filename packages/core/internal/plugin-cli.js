@@ -1,5 +1,6 @@
 /** @fileoverview Commander adapter Core Plugin lifecycle application service. */
 
+import path from "node:path";
 import process from "node:process";
 
 import { checkbox } from "@inquirer/prompts";
@@ -8,6 +9,7 @@ import { Command, Option } from "commander";
 import { collectValues, singleValue } from "./cli-values.js";
 import { pluginApplications } from "./plugin-application.js";
 import { PluginCatalog, pluginCatalog } from "./plugin-catalog.js";
+import { pluginScaffolds } from "./plugin-scaffold.js";
 import { PluginSource } from "./plugin-source.js";
 import { storeProjects } from "./store-project.js";
 
@@ -18,6 +20,7 @@ export class PluginLifecycleCommands {
   #checkbox;
   #lifecycle;
   #output;
+  #scaffolds;
   #stdin;
   #stdout;
   #storeProjects;
@@ -28,6 +31,7 @@ export class PluginLifecycleCommands {
     checkboxPrompt = checkbox,
     lifecycleService,
     output = console,
+    scaffoldService = pluginScaffolds,
     stdin = process.stdin,
     stdout = process.stdout,
     storeProjectService = storeProjects,
@@ -57,11 +61,15 @@ export class PluginLifecycleCommands {
     if (!storeProjectService || typeof storeProjectService.find !== "function") {
       throw new Error("PLUGIN_CLI_INVALID: требуется StoreProjectService");
     }
+    if (!scaffoldService || typeof scaffoldService.register !== "function") {
+      throw new Error("PLUGIN_CLI_INVALID: требуется PluginScaffoldService");
+    }
     this.#applications = applicationService;
     this.#catalog = catalog;
     this.#checkbox = checkboxPrompt;
     this.#lifecycle = lifecycleService;
     this.#output = output;
+    this.#scaffolds = scaffoldService;
     this.#stdin = stdin;
     this.#stdout = stdout;
     this.#storeProjects = storeProjectService;
@@ -77,6 +85,13 @@ export class PluginLifecycleCommands {
     }
     const plugin = program.command("plugin")
       .description("инициализация, подключение и состояние CLI Plugins");
+    plugin.command("register <plugin-id> [path]")
+      .description("создать самостоятельный Plugin Package с готовым entrypoint")
+      .addOption(new Option("--name <display-name>", "читаемое имя Plugin")
+        .argParser(singleValue))
+      .addOption(new Option("--support <role>", "роль Repository: store или code")
+        .argParser(collectValues))
+      .action((pluginId, target, options) => this.#register(pluginId, target, options));
     plugin.command("init")
       .description("выбрать Plugins из встроенного или пользовательского каталога")
       .addOption(new Option("--plugin <plugin-id>", "выбрать plugin-id без prompt")
@@ -120,6 +135,21 @@ export class PluginLifecycleCommands {
       .description("удалить неиспользуемый Plugin из проекта")
       .action((pluginId) => this.#remove(pluginId));
     return plugin;
+  }
+
+  async #register(pluginId, target, { name, support }) {
+    const targetRoot = target ?? path.join(process.cwd(), "plugins", pluginId);
+    const result = await this.#scaffolds.register({
+      pluginId,
+      targetRoot,
+      name,
+      supports: support?.length ? support : undefined,
+    });
+    this.#output.log(`${pluginId}: registered at ${result.root}`);
+    this.#output.log(`Entrypoint: ${result.entrypoint}`);
+    this.#output.log(
+      `После реализации: openspec-orch plugin init --from ${result.root} --plugin ${pluginId}`,
+    );
   }
 
   async #initialize({ all, pluginIds, sources }) {
