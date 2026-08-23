@@ -178,7 +178,10 @@ test("Package installs and removes MCP for Claude and GigaCode Agents", async (t
     const result = runAgentLifecycle(root, "remove", agentId);
     assert.equal(result.status, 0, result.stderr);
   }
-  assert.doesNotMatch(await fs.readFile(path.join(root, ".mcp.json"), "utf8"), /codegraph/);
+  assert.deepEqual(
+    JSON.parse(await fs.readFile(path.join(root, ".mcp.json"), "utf8")),
+    { mcpServers: {} },
+  );
   assert.doesNotMatch(
     await fs.readFile(path.join(root, ".gigacode", "settings.json"), "utf8"),
     /codegraph/,

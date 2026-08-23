@@ -162,9 +162,7 @@ function removeJsonServer(source) {
   }
   const servers = { ...value.mcpServers };
   delete servers[SERVER_NAME];
-  const next = { ...value };
-  if (Object.keys(servers).length === 0) delete next.mcpServers;
-  else next.mcpServers = servers;
+  const next = { ...value, mcpServers: servers };
   return `${JSON.stringify(next, null, 2)}\n`;
 }
 
