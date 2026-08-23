@@ -116,6 +116,20 @@ test("PluginManager removes one runtime idempotently", async (t) => {
   }).forStore(checkout);
   await manager.install("sample", PluginSource.parse(SAMPLE_PLUGIN_ROOT, { cwd: root }));
 
+  await assert.rejects(
+    manager.remove("sample", async () => { throw new Error("publish failed"); }),
+    /publish failed/,
+  );
+  assert.equal(await fs.lstat(path.join(
+    root,
+    ".openspec-orch/cache/plugin-runtimes/sample",
+  )).then((stat) => stat.isDirectory()), true);
+  assert.deepEqual(
+    (await fs.readdir(path.join(root, ".openspec-orch/cache/plugin-runtimes")))
+      .filter((name) => name.includes(".removing-")),
+    [],
+  );
+
   assert.equal(await manager.remove("sample"), true);
   assert.equal(await manager.remove("sample"), false);
 });

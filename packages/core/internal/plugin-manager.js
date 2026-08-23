@@ -228,10 +228,11 @@ export class StorePluginManager {
     return installation;
   }
 
-  async remove(pluginId) {
+  async remove(pluginId, publish = async () => {}) {
     if (typeof pluginId !== "string" || !CORE_PATTERNS.pluginId.test(pluginId)) {
       invalid(`некорректный plugin-id '${pluginId ?? ""}'`);
     }
+    if (typeof publish !== "function") invalid("publish должен быть function");
     await ensureDirectories(this.#checkout.root, CORE_SERVICE_PATHS.lockDirectory);
     return this.#lock.run(
       path.join(this.#checkout.root, CORE_SERVICE_PATHS.pluginInstallerLock),
@@ -241,14 +242,28 @@ export class StorePluginManager {
           CORE_SERVICE_PATHS.pluginRuntimeDirectory,
           { optional: true },
         );
-        if (!runtimeDirectory) return false;
+        if (!runtimeDirectory) {
+          await publish();
+          return false;
+        }
         const target = path.join(runtimeDirectory, pluginId);
         const stat = await lstatOrNull(target);
-        if (!stat) return false;
+        if (!stat) {
+          await publish();
+          return false;
+        }
         if (!stat.isDirectory() || stat.isSymbolicLink()) {
           invalid(`${pluginId}: runtime должен быть безопасным каталогом`);
         }
-        await fs.rm(target, { recursive: true });
+        const backup = `${target}.removing-${randomUUID()}`;
+        await fs.rename(target, backup);
+        try {
+          await publish();
+        } catch (error) {
+          await fs.rename(backup, target);
+          throw error;
+        }
+        await fs.rm(backup, { recursive: true });
         return true;
       },
       { busyCode: "PLUGIN_INSTALL_BUSY" },

@@ -57,8 +57,9 @@ function managerFixture(calls, { installedId = "sample", packageName = "@test/pl
           await publish(installation);
           return installation;
         },
-        async remove(pluginId) {
+        async remove(pluginId, publish) {
           calls.push({ operation: "remove", pluginId });
+          await publish();
           return true;
         },
       };
@@ -153,6 +154,27 @@ test("PluginApplicationService removes an unbound Plugin and its runtime", async
   assert.deepEqual(calls.map(({ operation }) => operation ?? "install"), ["install", "remove"]);
   const project = await storeProjects.load(root);
   assert.equal(project.project.hasPlugin("sample"), false);
+});
+
+test("PluginApplicationService keeps declaration when removal publication fails", async (t) => {
+  const { root, storeProject } = await storeFixture(t);
+  const source = PluginSource.parse(path.join(root, "local-plugin"), { cwd: root });
+  await new PluginApplicationService({
+    managerService: managerFixture([]),
+  }).install(storeProject, "sample", source);
+  const service = new PluginApplicationService({
+    fileService: {
+      forRepository() {
+        return { async write() { throw new Error("config write failed"); } };
+      },
+    },
+    managerService: managerFixture([]),
+  });
+
+  await assert.rejects(service.remove(storeProject, "sample"), /config write failed/);
+
+  const project = await storeProjects.load(root);
+  assert.equal(project.project.hasPlugin("sample"), true);
 });
 
 test("PluginApplicationService rejects removal while a Repository remains connected", async (t) => {

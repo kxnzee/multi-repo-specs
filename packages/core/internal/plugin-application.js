@@ -238,8 +238,10 @@ export class PluginApplicationService {
         removed: false,
       });
     }
-    await this.#managers.forStore(current.checkout).remove(pluginId);
-    await this.#writeProject(current);
+    await this.#managers.forStore(current.checkout).remove(
+      pluginId,
+      () => this.#writeProject(current),
+    );
     return new PluginRemovalResult({
       removed: true,
     });
