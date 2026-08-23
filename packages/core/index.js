@@ -20,8 +20,8 @@ export { OpenSpecPointerService, pointers } from "./internal/pointer.js";
 export { FailClosedLock, locks } from "./internal/lock.js";
 export { PluginContext, PluginContextFactory, pluginContexts } from "./internal/plugin-context.js";
 export { PluginDeclaration } from "./internal/plugin-declaration.js";
-export { PluginBindingChange, PluginBindingService, pluginBindings } from "./internal/plugin-binding.js";
 export {
+  PluginBindingChange,
   PluginApplicationResult,
   PluginApplicationService,
   PluginRemovalResult,

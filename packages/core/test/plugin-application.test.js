@@ -76,9 +76,10 @@ test("PluginApplicationService publishes config only after installation", async 
 
   assert.equal(result instanceof PluginApplicationResult, true);
   assert.equal(result.initialized, true);
-  assert.equal(result.storeProject.project.version, 3);
+  const current = await storeProjects.load(root);
+  assert.equal(current.project.version, 3);
   assert.equal(
-    result.storeProject.project.pluginDeclaration("sample").source,
+    current.project.pluginDeclaration("sample").source,
     "@test/plugin-sample@1.0.0",
   );
   assert.equal(calls.length, 1);
@@ -145,11 +146,8 @@ test("PluginApplicationService removes an unbound Plugin and its runtime", async
   const repeated = await service.remove(storeProject, "sample");
 
   assert.equal(result instanceof PluginRemovalResult, true);
-  assert.equal(result.pluginId, "sample");
   assert.equal(result.removed, true);
-  assert.equal(result.runtimeRemoved, true);
   assert.equal(repeated.removed, false);
-  assert.equal(repeated.runtimeRemoved, false);
   assert.deepEqual(calls.map(({ operation }) => operation ?? "install"), ["install", "remove"]);
   const project = await storeProjects.load(root);
   assert.equal(project.project.hasPlugin("sample"), false);

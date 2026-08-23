@@ -32,7 +32,11 @@ export class PluginPlatform {
     }
     this.#registry = new PluginRegistry(loadedPlugins);
     this.#host = new PluginHost({ contextFactory, registry: this.#registry });
-    this.#lifecycle = new PluginLifecycleService({ host: this.#host });
+    const applicationService = pluginCliOptions.applicationService;
+    this.#lifecycle = new PluginLifecycleService({
+      ...(applicationService === undefined ? {} : { applicationService }),
+      host: this.#host,
+    });
     this.#commands = new PluginCommandMounter({
       registry: this.#registry,
       rootCommands,

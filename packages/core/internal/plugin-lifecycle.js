@@ -2,7 +2,7 @@
 
 import process from "node:process";
 
-import { pluginBindings } from "./plugin-binding.js";
+import { pluginApplications } from "./plugin-application.js";
 import { PluginHost } from "./plugin-host.js";
 import { repositoryRunner } from "./repository-operations.js";
 import { storeProjects } from "./store-project.js";
@@ -119,13 +119,13 @@ function errorMessage(error) {
 
 /** Координирует Store lookup, Plugin Host и запись binding. */
 export class PluginLifecycleService {
-  #bindings;
+  #applications;
   #host;
   #runner;
   #storeProjects;
 
   constructor({
-    bindingService = pluginBindings,
+    applicationService = pluginApplications,
     host,
     repositoryRunnerService = repositoryRunner,
     storeProjectService = storeProjects,
@@ -133,8 +133,12 @@ export class PluginLifecycleService {
     if (!(host instanceof PluginHost)) {
       throw new Error("PLUGIN_LIFECYCLE_INVALID: требуется PluginHost");
     }
-    if (!bindingService || typeof bindingService.connectMany !== "function") {
-      throw new Error("PLUGIN_LIFECYCLE_INVALID: требуется PluginBindingService");
+    if (
+      !applicationService ||
+      typeof applicationService.connectMany !== "function" ||
+      typeof applicationService.disconnect !== "function"
+    ) {
+      throw new Error("PLUGIN_LIFECYCLE_INVALID: требуется PluginApplicationService");
     }
     if (!repositoryRunnerService || typeof repositoryRunnerService.run !== "function") {
       throw new Error("PLUGIN_LIFECYCLE_INVALID: требуется RepositoryRunner");
@@ -142,7 +146,7 @@ export class PluginLifecycleService {
     if (!storeProjectService || typeof storeProjectService.find !== "function") {
       throw new Error("PLUGIN_LIFECYCLE_INVALID: требуется StoreProjectService");
     }
-    this.#bindings = bindingService;
+    this.#applications = applicationService;
     this.#host = host;
     this.#runner = repositoryRunnerService;
     this.#storeProjects = storeProjectService;
@@ -161,7 +165,7 @@ export class PluginLifecycleService {
   async connectMany({ start = process.cwd(), pluginId, repositoryIds } = {}) {
     const storeProject = await this.#storeProjects.find(start);
     this.#host.assertLoaded(pluginId);
-    const changes = await this.#bindings.connectMany(
+    const changes = await this.#applications.connectMany(
       storeProject,
       pluginId,
       repositoryIds,
@@ -182,7 +186,7 @@ export class PluginLifecycleService {
 
   async disconnect({ start = process.cwd(), pluginId, repositoryId } = {}) {
     const storeProject = await this.#storeProjects.find(start);
-    const change = await this.#bindings.disconnect(storeProject, pluginId, repositoryId);
+    const change = await this.#applications.disconnect(storeProject, pluginId, repositoryId);
     return new PluginDisconnectionResult({
       disconnected: change.changed,
       pluginId,

@@ -27,7 +27,7 @@ async function lstatOrNull(target) {
 }
 
 /** Создаёт безопасный общий Core lock directory. */
-async function ensureLockDirectory(root) {
+async function ensureLockDirectory(root, corruptionCode = "PLUGIN_APPLICATION_INVALID") {
   let current = root;
   for (const segment of CORE_SERVICE_PATHS.lockDirectory.split("/")) {
     current = path.join(current, segment);
@@ -41,7 +41,9 @@ async function ensureLockDirectory(root) {
     }
     const stat = await fs.lstat(current);
     if (!stat.isDirectory() || stat.isSymbolicLink()) {
-      invalid(`${CORE_SERVICE_PATHS.lockDirectory} содержит небезопасный segment`);
+      throw new Error(
+        `${corruptionCode}: ${CORE_SERVICE_PATHS.lockDirectory} содержит небезопасный segment`,
+      );
     }
   }
 }
@@ -49,59 +51,43 @@ async function ensureLockDirectory(root) {
 /** Immutable результат успешной установки и регистрации Plugin. */
 export class PluginApplicationResult {
   #initialized;
-  #installation;
-  #storeProject;
 
-  constructor({ initialized, installation, storeProject }) {
-    if (
-      !installation ||
-      typeof installation.id !== "string" ||
-      !(installation.source instanceof PluginSource) ||
-      typeof initialized !== "boolean" ||
-      !(storeProject instanceof StoreProject) ||
-      !storeProject.project.hasPlugin(installation.id)
-    ) {
-      invalid("результат installation не согласован со StoreProject");
-    }
-    this.#installation = installation;
+  constructor({ initialized }) {
+    if (typeof initialized !== "boolean") invalid("initialized должен быть boolean");
     this.#initialized = initialized;
-    this.#storeProject = storeProject;
     Object.freeze(this);
   }
 
-  get installation() { return this.#installation; }
   get initialized() { return this.#initialized; }
-  get storeProject() { return this.#storeProject; }
 }
 
-/** Immutable результат удаления Plugin declaration и Store-local runtime. */
+/** Immutable результат удаления Plugin declaration. */
 export class PluginRemovalResult {
-  #pluginId;
   #removed;
-  #runtimeRemoved;
-  #storeProject;
 
-  constructor({ pluginId, removed, runtimeRemoved, storeProject }) {
-    if (
-      typeof pluginId !== "string" ||
-      typeof removed !== "boolean" ||
-      typeof runtimeRemoved !== "boolean" ||
-      !(storeProject instanceof StoreProject) ||
-      (removed && storeProject.project.hasPlugin(pluginId))
-    ) {
-      invalid("результат removal не согласован со StoreProject");
-    }
-    this.#pluginId = pluginId;
+  constructor({ removed }) {
+    if (typeof removed !== "boolean") invalid("removed должен быть boolean");
     this.#removed = removed;
-    this.#runtimeRemoved = runtimeRemoved;
-    this.#storeProject = storeProject;
     Object.freeze(this);
   }
 
-  get pluginId() { return this.#pluginId; }
   get removed() { return this.#removed; }
-  get runtimeRemoved() { return this.#runtimeRemoved; }
-  get storeProject() { return this.#storeProject; }
+}
+
+/** Immutable результат изменения одного Repository binding. */
+export class PluginBindingChange {
+  #changed;
+  #output;
+
+  constructor({ changed, output }) {
+    if (typeof changed !== "boolean") invalid("binding change требует changed");
+    this.#changed = changed;
+    this.#output = output;
+    Object.freeze(this);
+  }
+
+  get changed() { return this.#changed; }
+  get output() { return this.#output; }
 }
 
 /** Application service безопасного изменения Plugin project state. */
@@ -165,6 +151,59 @@ export class PluginApplicationService {
     );
   }
 
+  /** Выполняет Plugin setup и публикует bindings одной project mutation. */
+  async connectMany(storeProject, pluginId, repositoryIds, operation) {
+    if (!(storeProject instanceof StoreProject)) invalid("требуется StoreProject");
+    if (!Array.isArray(repositoryIds) || repositoryIds.length === 0) {
+      invalid("repositoryIds должен быть непустым массивом");
+    }
+    if (typeof operation !== "function") invalid("требуется connect operation");
+    const selectedIds = [...new Set(repositoryIds)];
+    await ensureLockDirectory(storeProject.root, "PLUGIN_BINDING_CORRUPTED");
+    return this.#lock.run(
+      path.join(storeProject.root, CORE_SERVICE_PATHS.projectConfigLock),
+      async () => {
+        const current = await this.#storeProjects.load(storeProject.root);
+        current.project.requirePlugin(pluginId);
+        for (const repositoryId of selectedIds) current.project.requireRepository(repositoryId);
+        const changes = [];
+        const connectedIds = [];
+        for (const repositoryId of selectedIds) {
+          if (current.project.isPluginConnected(pluginId, repositoryId)) {
+            changes.push(new PluginBindingChange({ changed: false, output: "" }));
+            continue;
+          }
+          const output = await operation(current, repositoryId);
+          connectedIds.push(repositoryId);
+          changes.push(new PluginBindingChange({ changed: true, output }));
+        }
+        if (connectedIds.length > 0) {
+          current.project.connectPlugin(pluginId, connectedIds);
+          await this.#writeProject(current);
+        }
+        return Object.freeze(changes);
+      },
+      { busyCode: "PLUGIN_BINDING_BUSY" },
+    );
+  }
+
+  /** Удаляет один Repository binding без вызова Plugin cleanup. */
+  async disconnect(storeProject, pluginId, repositoryId) {
+    if (!(storeProject instanceof StoreProject)) invalid("требуется StoreProject");
+    await ensureLockDirectory(storeProject.root, "PLUGIN_BINDING_CORRUPTED");
+    return this.#lock.run(
+      path.join(storeProject.root, CORE_SERVICE_PATHS.projectConfigLock),
+      async () => {
+        const current = await this.#storeProjects.load(storeProject.root);
+        current.project.requirePlugin(pluginId);
+        const changed = current.project.disconnectPlugin(pluginId, repositoryId);
+        if (changed) await this.#writeProject(current);
+        return new PluginBindingChange({ changed, output: "" });
+      },
+      { busyCode: "PLUGIN_BINDING_BUSY" },
+    );
+  }
+
   async #installUnlocked(root, pluginId, source) {
     const current = await this.#storeProjects.load(root);
     const installation = await this.#managers.forStore(current.checkout).install(pluginId, source);
@@ -177,12 +216,8 @@ export class PluginApplicationService {
       invalid("Plugin Manager вернул несогласованный installation");
     }
     const initialized = current.project.declarePlugin(pluginId, installation.declaration);
-    const projectSource = this.#configuration.serializeProject(current.project);
-    await this.#files.forRepository(current.checkout).write(
-      CORE_FILES.orchestratorConfig,
-      projectSource,
-    );
-    return new PluginApplicationResult({ initialized, installation, storeProject: current });
+    await this.#writeProject(current);
+    return new PluginApplicationResult({ initialized });
   }
 
   async #removeUnlocked(root, pluginId) {
@@ -190,23 +225,21 @@ export class PluginApplicationService {
     const removed = current.project.removePlugin(pluginId);
     if (!removed) {
       return new PluginRemovalResult({
-        pluginId,
         removed: false,
-        runtimeRemoved: false,
-        storeProject: current,
       });
     }
-    const runtimeRemoved = await this.#managers.forStore(current.checkout).remove(pluginId);
-    await this.#files.forRepository(current.checkout).write(
-      CORE_FILES.orchestratorConfig,
-      this.#configuration.serializeProject(current.project),
-    );
+    await this.#managers.forStore(current.checkout).remove(pluginId);
+    await this.#writeProject(current);
     return new PluginRemovalResult({
-      pluginId,
       removed: true,
-      runtimeRemoved,
-      storeProject: current,
     });
+  }
+
+  async #writeProject(storeProject) {
+    await this.#files.forRepository(storeProject.checkout).write(
+      CORE_FILES.orchestratorConfig,
+      this.#configuration.serializeProject(storeProject.project),
+    );
   }
 }
 
