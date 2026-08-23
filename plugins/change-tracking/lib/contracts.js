@@ -4,10 +4,15 @@ import * as z from "zod";
 
 export const CHANGE_TRACKING_CONTRACT = Object.freeze({
   cycleRecordVersion: 1,
+  stateVersion: 1,
+  resultReceiptVersion: 1,
   snapshotVersion: 1,
+  verificationReceiptVersion: 1,
   snapshotHashVersion: 1,
   cyclePrefix: "cycle-",
+  resultPrefix: "result-",
   snapshotPrefix: "snap-v1-",
+  verificationPrefix: "verification-",
   cycleRecordsDirectory: ".openspec-orch/changes",
 });
 
