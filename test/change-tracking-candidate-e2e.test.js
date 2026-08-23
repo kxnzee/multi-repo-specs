@@ -15,10 +15,10 @@ import {
 } from "@openspec-orch/core";
 
 import { ChangeTrackingService } from "../plugins/change-tracking/index.js";
-import { runCommand } from "../src/internal/shared/command.js";
 import {
   commitFiles,
   createCheckoutWithRemote,
+  runCommand,
   temporaryDirectory,
   writeFiles,
 } from "../test-fixtures/workspace.js";

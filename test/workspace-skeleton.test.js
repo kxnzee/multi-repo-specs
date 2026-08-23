@@ -44,21 +44,14 @@ test("Core and Plugin SDK are independently publishable packages", async () => {
   assert.equal(sdk.dependencies, undefined);
 });
 
-test("legacy rollback and public entrypoints run independently", () => {
-  const legacy = spawnSync(process.execPath, ["src/bin/openspec-orch.js", "--help"], {
-    cwd: path.resolve("."),
-    encoding: "utf8",
-  });
+test("public entrypoint exposes the supported CLI", () => {
   const candidate = spawnSync(process.execPath, ["bin/openspec-orch.js", "--help"], {
     cwd: path.resolve("."),
     encoding: "utf8",
   });
 
-  assert.equal(legacy.status, 0, legacy.stderr);
   assert.equal(candidate.status, 0, candidate.stderr);
-  assert.match(legacy.stdout, /Cycle и Snapshot для multi-repo Change/);
   assert.match(candidate.stdout, /init \[options\] \[path\]/);
-  assert.notEqual(candidate.stdout, legacy.stdout);
 });
 
 test("public entrypoint preserves the Node guard and CLI exit codes", () => {

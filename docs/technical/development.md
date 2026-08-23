@@ -11,7 +11,6 @@
 - `plugins/change-tracking/` — команды и домен истории изменений;
 - `plugins/codegraph/` — CodeGraph lifecycle, launcher, MCP и Agent instructions;
 - `templates/base/` — Project Template, используемый только при `init`;
-- `src/` — временная rollback-копия прежней реализации; в npm package не входит;
 - `test/` — unit- и интеграционные проверки на временных Git-репозиториях.
 
 Пользовательская поверхность — CLI `openspec-orch`. Для авторов Plugin публичным

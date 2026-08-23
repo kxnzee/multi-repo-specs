@@ -4,7 +4,13 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { runCommand } from "../src/internal/shared/command.js";
+import { execa } from "execa";
+
+/** Запускает fixture-команду без shell и возвращает stdout. */
+export async function runCommand(command, args) {
+  const { stdout } = await execa(command, args);
+  return stdout;
+}
 
 /**
  * Создаёт канонический временный каталог и регистрирует его удаление.

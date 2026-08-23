@@ -35,7 +35,7 @@ export default [
     rules: {
       "no-restricted-imports": ["error", {
         patterns: [{
-          group: ["**/packages/core/**", "**/src/internal/**", "@openspec-orch/core", "@openspec-orch/core/**"],
+          group: ["**/packages/core/**", "@openspec-orch/core", "@openspec-orch/core/**"],
           message: "Plugin должен использовать только публичный Plugin SDK и Core facades.",
         }],
       }],
@@ -66,7 +66,6 @@ export default [
           group: [
             "**/packages/core/**",
             "**/plugins/**",
-            "**/src/internal/**",
             "**/core/**",
             "@openspec-orch/core",
             "@openspec-orch/core/**",
