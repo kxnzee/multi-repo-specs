@@ -1,4 +1,4 @@
-/** @fileoverview Application service for assigning Code Repositories to a Change Cycle. */
+/** @fileoverview One application facade for all Change Tracking operations. */
 
 import { assertChangeId, isGitRevision } from "./contracts.js";
 import { CycleRecord } from "./cycle-record.js";
@@ -11,7 +11,7 @@ function sameRepositorySet(left, right) {
   return right.every((repositoryId) => values.has(repositoryId));
 }
 
-/** Validates the Store-scoped part of PluginContext used by assign. */
+/** Validates the Store-scoped public PluginContext used by Change Tracking. */
 function assertContext(context) {
   if (
     !context ||
@@ -22,7 +22,7 @@ function assertContext(context) {
     typeof context.git?.revision !== "function" ||
     typeof context.git?.assertNoOperation !== "function"
   ) {
-    throw new Error("CHANGE_TRACKING_CONTEXT_INVALID: assign требует Store PluginContext");
+    throw new Error("CHANGE_TRACKING_CONTEXT_INVALID: требуется Store PluginContext");
   }
 }
 
@@ -61,8 +61,8 @@ function assertCycleRepositories(context, cycle) {
   context.repositories.requireConnected(cycle.repositories);
 }
 
-/** Store-scoped assign use case built only on the public PluginContext contract. */
-export class CycleAssignmentService {
+/** Store-scoped Change Tracking facade built only on the public PluginContext contract. */
+export class ChangeTrackingService {
   #context;
   #records;
 
@@ -72,6 +72,27 @@ export class CycleAssignmentService {
     this.#context = context;
     this.#records = new CycleRecordRepository(context.files);
     Object.freeze(this);
+  }
+
+  /**
+   * Reads the current Cycle and determines whether its Git-tracked record is committed.
+   *
+   * @param {string} changeId Change ID.
+   * @returns {Promise<object>} Current Cycle context with a Store-relative path.
+   */
+  async currentCycle(changeId) {
+    assertChangeId(changeId);
+    const path = this.#records.pathFor(changeId);
+    const cycle = await this.#records.read(changeId);
+    if (!cycle) {
+      throw new Error(
+        `CYCLE_NOT_FOUND: нет Cycle Record для change-id '${changeId}' ` +
+          "в рабочей копии Store",
+      );
+    }
+    assertCycleRepositories(this.#context, cycle);
+    const committed = (await this.#context.git.statusPaths([path])).length === 0;
+    return Object.freeze({ cycle, committed, path });
   }
 
   /**

@@ -6,7 +6,7 @@ import test from "node:test";
 import { testPluginContract } from "@openspec-orch/plugin-sdk/testing";
 
 import plugin, {
-  CycleAssignmentService,
+  ChangeTrackingService,
   CycleRecord,
   CycleRecordRepository,
   SnapshotIdentity,
@@ -142,8 +142,8 @@ function assignmentContext({ changedPaths = [], connected = ["frontend", "backen
   });
 }
 
-test("CycleAssignmentService creates and then preserves an unchanged Cycle", async () => {
-  const service = new CycleAssignmentService(assignmentContext());
+test("ChangeTrackingService creates and then preserves an unchanged Cycle", async () => {
+  const service = new ChangeTrackingService(assignmentContext());
   const previews = [];
   const input = {
     changeId: "checkout-flow",
@@ -156,17 +156,35 @@ test("CycleAssignmentService creates and then preserves an unchanged Cycle", asy
 
   const created = await service.assign(input);
   const unchanged = await service.assign(input);
+  const current = await service.currentCycle("checkout-flow");
 
   assert.equal(created.status, "created");
   assert.equal(unchanged.status, "unchanged");
   assert.equal(unchanged.cycle.cycleId, created.cycle.cycleId);
+  assert.equal(current.cycle.cycleId, created.cycle.cycleId);
+  assert.equal(current.committed, true);
   assert.equal(created.path, ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json");
   assert.equal(previews.length, 1);
   assert.deepEqual(previews[0].repositories, ["frontend", "backend"]);
 });
 
-test("CycleAssignmentService preserves preview cancellation without writing", async () => {
-  const service = new CycleAssignmentService(assignmentContext());
+test("ChangeTrackingService reports missing and uncommitted Cycle records", async () => {
+  const path = ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json";
+  const service = new ChangeTrackingService(assignmentContext({ changedPaths: [path] }));
+  await assert.rejects(service.currentCycle("checkout-flow"), /CYCLE_NOT_FOUND/);
+
+  await service.assign({
+    changeId: "checkout-flow",
+    repositoryIds: ["frontend"],
+    confirm: async () => true,
+  });
+  const current = await service.currentCycle("checkout-flow");
+  assert.equal(current.committed, false);
+  assert.equal(current.path, path);
+});
+
+test("ChangeTrackingService preserves preview cancellation without writing", async () => {
+  const service = new ChangeTrackingService(assignmentContext());
   const result = await service.assign({
     changeId: "checkout-flow",
     repositoryIds: ["frontend"],
@@ -179,8 +197,8 @@ test("CycleAssignmentService preserves preview cancellation without writing", as
   });
 });
 
-test("CycleAssignmentService rejects invalid scope and dirty Store before preview", async () => {
-  const dirty = new CycleAssignmentService(assignmentContext({ changedPaths: ["README.md"] }));
+test("ChangeTrackingService rejects invalid scope and dirty Store before preview", async () => {
+  const dirty = new ChangeTrackingService(assignmentContext({ changedPaths: ["README.md"] }));
   await assert.rejects(
     dirty.assign({
       changeId: "checkout-flow",
@@ -190,7 +208,7 @@ test("CycleAssignmentService rejects invalid scope and dirty Store before previe
     /STORE_DIRTY/,
   );
   await assert.rejects(
-    new CycleAssignmentService(assignmentContext()).assign({
+    new ChangeTrackingService(assignmentContext()).assign({
       changeId: "checkout-flow",
       repositoryIds: ["specs"],
       confirm: async () => true,
@@ -198,7 +216,7 @@ test("CycleAssignmentService rejects invalid scope and dirty Store before previe
     /Cycle принимает только roles: \[code\]/,
   );
   await assert.rejects(
-    new CycleAssignmentService(assignmentContext({ connected: [] })).assign({
+    new ChangeTrackingService(assignmentContext({ connected: [] })).assign({
       changeId: "checkout-flow",
       repositoryIds: ["frontend"],
       confirm: async () => true,
@@ -207,7 +225,7 @@ test("CycleAssignmentService rejects invalid scope and dirty Store before previe
   );
 });
 
-test("CycleAssignmentService reports an unknown persisted repository as corrupted state", async () => {
+test("ChangeTrackingService reports an unknown persisted repository as corrupted state", async () => {
   const context = assignmentContext();
   await context.files.write(
     ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json",
@@ -220,7 +238,7 @@ test("CycleAssignmentService reports an unknown persisted repository as corrupte
       created_at: "2026-08-23T10:00:00.000Z",
     })}\n`,
   );
-  const service = new CycleAssignmentService(context);
+  const service = new ChangeTrackingService(context);
 
   await assert.rejects(
     service.assign({
