@@ -1,9 +1,13 @@
 # Plugins
 
-Plugin — отдельный CLI-адаптер, который Orchestrator подключает к выбранным
-Repository. Его Package не входит в Project Template и устанавливается в отдельный
-Store-local cache; необязательными Agent hooks он может управлять только собственными
-project-local MCP entries и инструкциями.
+Plugin — самостоятельный npm package, который расширяет Orchestrator через публичный
+`@openspec-orch/plugin-sdk`. Plugin может предоставить:
+
+- lifecycle для выбранных Store или Code Repositories;
+- собственные команды внутри namespace `openspec-orch <plugin-id>`;
+- установку и удаление принадлежащих ему MCP entries и Agent instructions.
+
+Plugins не входят в Project Template и не требуют изменений Core.
 
 ## Основной lifecycle
 
@@ -15,49 +19,66 @@ openspec-orch plugin connect <plugin-id>
 openspec-orch plugin status
 ```
 
-`plugin init` показывает checkbox пакетов стандартной поставки. В том же интерфейсе
-можно добавить Plugin Package из каталога, `.tgz`, Git URL или npm registry. `connect`
-показывает repositories, с которыми нужно связать выбранный Plugin.
-
-Если Plugin объявляет Agent integration, `plugin init` дополнительно вызывает её для
-каждого Agent ID, сохранённого командой `openspec-orch init`. Сам Plugin владеет
-форматом MCP-конфига и инструкций конкретного агента; Core только запускает объявленный
-hook. После изменения MCP-конфига перезапустите агент.
-
-Для CI и скриптов те же действия доступны без prompt:
+Без аргументов `plugin init` показывает checkbox пакетов стандартной поставки, а
+`plugin connect` — подходящие repositories. Для CI и скриптов используйте явные
+аргументы:
 
 ```bash
-openspec-orch plugin init --from ../team-plugins --plugin dependency-audit
-openspec-orch plugin init --from @company/openspec-plugin-jira@1.2.0 --plugin jira
-openspec-orch plugin init --from ./dependency-audit-2.0.0.tgz --plugin dependency-audit
-openspec-orch plugin connect dependency-audit --repo frontend --repo backend
-openspec-orch plugin status --plugin dependency-audit --json
-openspec-orch plugin sync dependency-audit --repo frontend
-openspec-orch plugin disconnect dependency-audit --repo frontend
-openspec-orch plugin remove dependency-audit
+openspec-orch plugin init --plugin codegraph
+openspec-orch plugin connect codegraph --repo frontend --repo backend
+openspec-orch plugin status --plugin codegraph --json
+openspec-orch plugin sync codegraph --repo frontend
+openspec-orch plugin disconnect codegraph --repo frontend
+openspec-orch plugin remove codegraph
 ```
 
-`remove` разрешён только после отключения Plugin от всех repositories. `disconnect`
-удаляет связь из project config, но намеренно не удаляет данные, созданные инструментом
-в Repository. Общий `plugin status` проверяет связи параллельно, но запускает не более
-четырёх внешних Plugin-процессов одновременно.
+`disconnect` удаляет только binding из `openspec-orch.yaml` и не удаляет данные,
+созданные инструментом внутри Repository. `remove` разрешён после отключения Plugin
+от всех repositories.
 
-## Нативная команда
+Если Plugin предоставляет Agent integration, `plugin init` устанавливает её для
+Agent, зарегистрированного командой `openspec-orch init`. После изменения MCP-конфига
+перезапустите агент. Core не знает provider-specific форматы: Plugin сам владеет
+своими MCP entries, инструкциями и симметричным удалением.
 
-После `connect` Plugin доступен как namespace основного CLI:
+## Установка внешнего Package
+
+`--from` принимает локальный каталог, `.tgz`, Git URL или npm install spec. Для одного
+вызова укажите ровно один source и один Plugin ID:
 
 ```bash
-openspec-orch dependency-audit --repository frontend scan
+openspec-orch plugin init --plugin dependency-audit --from ../team-plugins/dependency-audit
+openspec-orch plugin init --plugin jira --from @company/openspec-plugin-jira@1.2.0
+openspec-orch plugin init --plugin dependency-audit --from ./dependency-audit-2.0.0.tgz
 ```
 
-Orchestrator проверяет project config и запускает Plugin с `cwd` точно в выбранном
-Repository. Package entrypoint разрешается из конкретной установки Plugin, поэтому
-он не зависит от глобального `PATH`. Дополнительная JSON-обёртка `--input` не нужна:
-оставшиеся аргументы передаются нативному CLI без shell.
+Production dependencies внешнего Package устанавливаются без lifecycle scripts в
+`.openspec-orch/cache/plugin-runtimes/<plugin-id>/`. Пакеты стандартной поставки уже
+являются dependencies Orchestrator и загружаются из его установки без копирования в
+Store-local runtime.
 
-## Пользовательский Plugin
+Package и его launcher должны разрешать собственные зависимости относительно своей
+точки входа. Наличие executable в глобальном `PATH` или `node_modules` подключённого
+Code Repository не предполагается.
 
-Новый Plugin Package создаётся одной командой, которую можно выполнить вне Store:
+## Команды Plugin
+
+Plugin регистрирует точную CLI grammar через SDK. По умолчанию команды монтируются в
+его namespace:
+
+```bash
+openspec-orch dependency-audit inspect
+openspec-orch dependency-audit scan --help
+```
+
+Core не передаёт произвольные «native args» внешнему executable. Позиционные
+аргументы, options и Repository context объявляет сам Plugin через публичный command
+builder. Фактическую grammar установленного Plugin показывает
+`openspec-orch <plugin-id> --help`.
+
+## Создание пользовательского Plugin
+
+Новый Package можно создать вне Store:
 
 ```bash
 openspec-orch plugin register dependency-audit
@@ -65,69 +86,74 @@ openspec-orch plugin register dependency-audit ../team-plugins/dependency-audit 
   --name "Dependency Audit" --support store --support code
 ```
 
-Без явного пути создаётся `./plugins/dependency-audit/`. Внутри уже находятся
-`package.json`, `plugin.yaml`, `README.md` и исполняемый
-`bin/dependency-audit.js`. После регистрации автор меняет только содержимое этого
-Package, добавляет его локальные dependencies и устанавливает готовую версию через
-`plugin init --from`; правки Core не нужны.
+Без явного пути создаётся `./plugins/dependency-audit/`:
 
-Plugin Package содержит обычный npm `package.json` и отдельный доменный
-`plugin.yaml`. `package.json` владеет dependencies и необязательным entrypoint:
+```text
+dependency-audit/
+├── package.json
+├── index.js
+├── README.md
+└── test/
+    └── plugin.test.js
+```
+
+`plugin.yaml` и отдельный обязательный executable не используются. Единственная
+точка входа объявляется в `package.json`:
 
 ```json
 {
-  "name": "@company/openspec-plugin-dependency-audit",
+  "name": "openspec-orch-plugin-dependency-audit",
   "version": "1.0.0",
+  "type": "module",
+  "exports": "./index.js",
   "openspecOrchestrator": {
     "apiVersion": 1,
-    "manifest": "plugin.yaml",
-    "entrypoint": "bin/dependency-audit.js"
+    "plugin": "./index.js"
   },
-  "dependencies": {
-    "dependency-audit": "4.2.0"
+  "peerDependencies": {
+    "@openspec-orch/plugin-sdk": "^0.1.0"
   }
 }
 ```
 
-`plugin.yaml` остаётся простым и не содержит package/runtime details. Операции
-`connect` и `status` обязательны; `sync` можно не объявлять:
+Минимальный entrypoint использует только публичный SDK:
 
-```yaml
-id: dependency-audit
-name: Dependency Audit
-version: 1.0.0
-type: cli
-command: dependency-audit
-args: []
-supports: [code]
-lifecycle:
-  connect: [init, .]
-  status: [status, .]
-  sync: [sync, .]
+```js
+import { definePlugin } from "@openspec-orch/plugin-sdk";
+
+export default definePlugin({
+  id: "dependency-audit",
+  supports: ["code"],
+  repository: {
+    async connect(context) {},
+    async status(context) {
+      return { state: "ready" };
+    },
+  },
+  registerCommands(commands) {
+    commands.command("inspect")
+      .description("Проверить Plugin")
+      .action(() => console.log("dependency-audit: ready"));
+  },
+});
 ```
 
-Plugin, которому нужно настроить окружение агента, может добавить два симметричных
-hook. Core передаёт им `--agent <agent-id>` и запускает entrypoint из корня Store:
+`repository.connect` и `repository.status` обязательны только для Repository
+contribution; `repository.sync`, Agent integration и команды необязательны. Хотя бы
+один contribution должен присутствовать.
 
-```yaml
-agent:
-  install: [agent, install]
-  remove: [agent, remove]
+После реализации сначала проверьте Package, затем установите его из корня Store:
+
+```bash
+cd ../team-plugins/dependency-audit
+npm install
+npm test
+
+cd <абсолютный путь до Store>
+openspec-orch plugin init --plugin dependency-audit \
+  --from <абсолютный путь до dependency-audit>
 ```
 
-Эта секция необязательна. Реализация hook, перечень поддерживаемых агентов, MCP server
-и project-local инструкции находятся только внутри Plugin Package. `plugin remove`
-вызывает `agent.remove` до удаления локального пакета и не трогает чужие записи в
-конфигах агента.
-
-При `plugin init` пакет атомарно materialize в
-`.openspec-orch/cache/plugins/<plugin-id>/` один раз на Store и затем может быть
-подключён к любому числу repositories. Production dependencies устанавливаются
-внутри этого Package с отключёнными lifecycle scripts. Symlink и специальные файлы
-запрещены.
-
-Если Package объявляет `entrypoint`, Core запускает его текущим Node.js. Без
-`entrypoint` поле `command` остаётся именем внешнего executable из `PATH`. Core не
-импортирует Plugin JavaScript в свой процесс и не содержит ветвлений по Plugin ID.
-
-Event hooks, permissions, secrets, marketplace и Plugin SDK в текущий контракт не входят.
+Публичный API, `PluginContext` и contract test kit описаны в
+[Plugin SDK](../../packages/plugin-sdk/README.md). Plugin не импортирует Core internals
+и не зависит от порядка загрузки других Plugins.
