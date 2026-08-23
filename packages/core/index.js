@@ -21,7 +21,12 @@ export {
 export { PluginContext, PluginContextFactory, pluginContexts } from "./internal/plugin-context.js";
 export { PluginDeclaration } from "./internal/plugin-declaration.js";
 export { PluginBindingChange, PluginBindingService, pluginBindings } from "./internal/plugin-binding.js";
-export { PluginApplicationResult, PluginApplicationService, pluginApplications } from "./internal/plugin-application.js";
+export {
+  PluginApplicationResult,
+  PluginApplicationService,
+  PluginRemovalResult,
+  pluginApplications,
+} from "./internal/plugin-application.js";
 export { PluginLifecycleCommands } from "./internal/plugin-cli.js";
 export { PluginCommandBuilder, PluginCommandMounter, PluginCommandRegistry } from "./internal/plugin-commands.js";
 export { PluginHost, PluginRegistry } from "./internal/plugin-host.js";

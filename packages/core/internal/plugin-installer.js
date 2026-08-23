@@ -239,6 +239,40 @@ export class StorePluginInstaller {
     );
   }
 
+  /** Удаляет все Store-local runtime versions одного отключённого Plugin. */
+  async remove(pluginId) {
+    if (typeof pluginId !== "string" || !CORE_PATTERNS.pluginId.test(pluginId)) {
+      invalid(`некорректный plugin-id '${pluginId ?? ""}'`);
+    }
+    await ensureDirectories(this.#checkout.root, CORE_SERVICE_PATHS.lockDirectory);
+    const storeRoot = await fs.realpath(this.#checkout.root);
+    return this.#lock.run(
+      path.join(storeRoot, CORE_SERVICE_PATHS.pluginInstallerLock),
+      () => this.#removeUnlocked(storeRoot, pluginId),
+      { busyCode: "PLUGIN_INSTALL_BUSY" },
+    );
+  }
+
+  async #removeUnlocked(storeRoot, pluginId) {
+    let current = storeRoot;
+    for (const segment of CORE_SERVICE_PATHS.pluginRuntimeDirectory.split("/")) {
+      current = path.join(current, segment);
+      const stat = await lstatOrNull(current);
+      if (!stat) return false;
+      if (!stat.isDirectory() || stat.isSymbolicLink()) {
+        invalid(`${CORE_SERVICE_PATHS.pluginRuntimeDirectory} содержит небезопасный segment`);
+      }
+    }
+    const pluginDirectory = path.join(current, pluginId);
+    const stat = await lstatOrNull(pluginDirectory);
+    if (!stat) return false;
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      invalid(`runtime ${pluginId} должен быть безопасным каталогом`);
+    }
+    await fs.rm(pluginDirectory, { recursive: true });
+    return true;
+  }
+
   async #installUnlocked(storeRoot, pluginId, source) {
     const pluginDirectory = await ensureDirectories(
       storeRoot,

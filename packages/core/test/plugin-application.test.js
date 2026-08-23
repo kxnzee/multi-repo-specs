@@ -7,9 +7,11 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  configuration,
   PluginApplicationResult,
   PluginApplicationService,
   PluginInstallationRecord,
+  PluginRemovalResult,
   PluginSource,
   storeProjects,
 } from "@openspec-orch/core";
@@ -65,6 +67,10 @@ function installerFixture(record, calls) {
         async install(pluginId, source) {
           calls.push({ pluginId, source });
           return { record };
+        },
+        async remove(pluginId) {
+          calls.push({ operation: "remove", pluginId });
+          return true;
         },
       };
     },
@@ -147,4 +153,74 @@ test("PluginApplicationService leaves config unchanged when publication fails", 
     await fs.readFile(path.join(root, ".openspec-orch/cache/local-plugins.json"), "utf8"),
   );
   assert.equal(override.plugins.sample, path.join(root, "local-plugin"));
+});
+
+test("PluginApplicationService removes an unbound Plugin and its local override", async (t) => {
+  const { root, storeProject } = await storeFixture(t);
+  const calls = [];
+  const service = new PluginApplicationService({
+    installerService: installerFixture(recordFixture(), calls),
+  });
+  const source = PluginSource.parse(path.join(root, "local-plugin"), { cwd: root });
+  await service.install(storeProject, "sample", source);
+
+  const result = await service.remove(storeProject, "sample");
+  const repeated = await service.remove(storeProject, "sample");
+
+  assert.equal(result instanceof PluginRemovalResult, true);
+  assert.equal(result.pluginId, "sample");
+  assert.equal(result.removed, true);
+  assert.equal(result.runtimeRemoved, true);
+  assert.equal(repeated.removed, false);
+  assert.equal(repeated.runtimeRemoved, false);
+  assert.deepEqual(calls.map(({ operation }) => operation ?? "install"), ["install", "remove"]);
+  const project = await storeProjects.load(root);
+  assert.equal(project.project.hasPlugin("sample"), false);
+  const overrides = JSON.parse(
+    await fs.readFile(path.join(root, ".openspec-orch/cache/local-plugins.json"), "utf8"),
+  );
+  assert.deepEqual(overrides.plugins, {});
+});
+
+test("PluginApplicationService rejects removal while a Repository remains connected", async (t) => {
+  const { root, storeProject } = await storeFixture(t);
+  const calls = [];
+  const service = new PluginApplicationService({
+    installerService: installerFixture(recordFixture(), calls),
+  });
+  const source = PluginSource.parse(path.join(root, "local-plugin"), { cwd: root });
+  await service.install(storeProject, "sample", source);
+  const current = await storeProjects.load(root);
+  current.project.connectPlugin("sample", ["specs"]);
+  await fs.writeFile(
+    path.join(root, "openspec-orch.yaml"),
+    configuration.serializeProject(current.project),
+  );
+  const before = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
+
+  await assert.rejects(service.remove(storeProject, "sample"), /PLUGIN_CONNECTED/);
+
+  assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), before);
+  assert.deepEqual(calls.map(({ operation }) => operation ?? "install"), ["install"]);
+});
+
+test("PluginApplicationService validates local state before removing runtime", async (t) => {
+  const { root, storeProject } = await storeFixture(t);
+  const calls = [];
+  const service = new PluginApplicationService({
+    installerService: installerFixture(recordFixture(), calls),
+  });
+  const source = PluginSource.parse(path.join(root, "local-plugin"), { cwd: root });
+  await service.install(storeProject, "sample", source);
+  await fs.writeFile(
+    path.join(root, ".openspec-orch/cache/local-plugins.json"),
+    "{broken",
+    "utf8",
+  );
+  const before = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
+
+  await assert.rejects(service.remove(storeProject, "sample"), /LOCAL_PLUGIN_OVERRIDE_INVALID/);
+
+  assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), before);
+  assert.deepEqual(calls.map(({ operation }) => operation ?? "install"), ["install"]);
 });

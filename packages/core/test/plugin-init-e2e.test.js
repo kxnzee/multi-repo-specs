@@ -62,9 +62,12 @@ async function storeFixture(t) {
   return storeRoot;
 }
 
-test("candidate Plugin survives CLI restarts across init, connect and status", async (t) => {
+test("candidate Plugin survives restarts through its complete project lifecycle", async (t) => {
   const storeRoot = await storeFixture(t);
   const output = [];
+  let installedOverride;
+  let installedReceipt;
+  let installedSource;
   const applicationService = new PluginApplicationService({
     installerService: new PluginInstallerService({
       npmInstaller: createPluginMaterializer(),
@@ -113,6 +116,42 @@ test("candidate Plugin survives CLI restarts across init, connect and status", a
       "--json",
     ]);
     await (await createProgram()).parseAsync(args);
+    installedSource = configuration.parseProject(
+      await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
+    ).pluginDeclaration("sample").source;
+    installedOverride = JSON.parse(await fs.readFile(
+      path.join(storeRoot, ".openspec-orch/cache/local-plugins.json"),
+      "utf8",
+    ));
+    installedReceipt = await fs.readFile(path.join(
+      storeRoot,
+      ".openspec-orch/cache/plugin-runtimes/sample/1.0.0/installation.json",
+    ), "utf8");
+    await (await createProgram()).parseAsync([
+      "node",
+      "openspec-orch",
+      "plugin",
+      "disconnect",
+      "sample",
+      "--repo",
+      "frontend",
+    ]);
+    await (await createProgram()).parseAsync([
+      "node",
+      "openspec-orch",
+      "plugin",
+      "remove",
+      "sample",
+    ]);
+    const afterRemove = await createProgram();
+    assert.equal(afterRemove.commands.some((command) => command.name() === "sample"), false);
+    await afterRemove.parseAsync([
+      "node",
+      "openspec-orch",
+      "plugin",
+      "remove",
+      "sample",
+    ]);
   } finally {
     process.chdir(previousCwd);
   }
@@ -120,20 +159,22 @@ test("candidate Plugin survives CLI restarts across init, connect and status", a
   const project = configuration.parseProject(
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
   );
-  assert.deepEqual(project.plugins, ["sample"]);
-  assert.deepEqual(project.requireRepository("frontend").plugins, ["sample"]);
-  assert.equal(project.pluginDeclaration("sample").source, "local");
+  assert.deepEqual(project.plugins, []);
+  assert.deepEqual(project.requireRepository("frontend").plugins, []);
+  assert.equal(installedSource, "local");
+  assert.equal(project.pluginDeclaration("sample"), undefined);
   const override = JSON.parse(await fs.readFile(
     path.join(storeRoot, ".openspec-orch/cache/local-plugins.json"),
     "utf8",
   ));
-  assert.equal(override.plugins.sample, SAMPLE_PLUGIN_ROOT);
+  assert.equal(installedOverride.plugins.sample, SAMPLE_PLUGIN_ROOT);
+  assert.deepEqual(override.plugins, {});
   const runtimeRoot = path.join(
     storeRoot,
     ".openspec-orch/cache/plugin-runtimes/sample/1.0.0",
   );
-  const receipt = await fs.readFile(path.join(runtimeRoot, "installation.json"), "utf8");
-  assert.equal(receipt.includes(SAMPLE_PLUGIN_ROOT), false);
+  assert.equal(installedReceipt.includes(SAMPLE_PLUGIN_ROOT), false);
+  assert.equal(await fs.lstat(runtimeRoot).catch((error) => error.code), "ENOENT");
   assert.deepEqual(output, [
     "sample: initialized",
     "Далее: openspec-orch plugin connect <plugin-id>",
@@ -148,5 +189,8 @@ test("candidate Plugin survives CLI restarts across init, connect and status", a
     }, null, 2),
     "sample: already_initialized",
     "Далее: openspec-orch plugin connect <plugin-id>",
+    "sample -> frontend: disconnected",
+    "sample: removed",
+    "sample: not_initialized",
   ]);
 });

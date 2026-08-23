@@ -70,6 +70,36 @@ export class PluginApplicationResult {
   get storeProject() { return this.#storeProject; }
 }
 
+/** Immutable результат удаления Plugin declaration и Store-local runtime. */
+export class PluginRemovalResult {
+  #pluginId;
+  #removed;
+  #runtimeRemoved;
+  #storeProject;
+
+  constructor({ pluginId, removed, runtimeRemoved, storeProject }) {
+    if (
+      typeof pluginId !== "string" ||
+      typeof removed !== "boolean" ||
+      typeof runtimeRemoved !== "boolean" ||
+      !(storeProject instanceof StoreProject) ||
+      (removed && storeProject.project.hasPlugin(pluginId))
+    ) {
+      invalid("результат removal не согласован со StoreProject");
+    }
+    this.#pluginId = pluginId;
+    this.#removed = removed;
+    this.#runtimeRemoved = runtimeRemoved;
+    this.#storeProject = storeProject;
+    Object.freeze(this);
+  }
+
+  get pluginId() { return this.#pluginId; }
+  get removed() { return this.#removed; }
+  get runtimeRemoved() { return this.#runtimeRemoved; }
+  get storeProject() { return this.#storeProject; }
+}
+
 /** Application service безопасного изменения Plugin project state. */
 export class PluginApplicationService {
   #configuration;
@@ -126,6 +156,17 @@ export class PluginApplicationService {
     );
   }
 
+  /** Удаляет только Plugin без Repository bindings и принадлежащий ему runtime. */
+  async remove(storeProject, pluginId) {
+    if (!(storeProject instanceof StoreProject)) invalid("требуется StoreProject");
+    await ensureLockDirectory(storeProject.root);
+    return this.#lock.run(
+      path.join(storeProject.root, CORE_SERVICE_PATHS.projectConfigLock),
+      () => this.#removeUnlocked(storeProject.root, pluginId),
+      { busyCode: "PLUGIN_APPLICATION_BUSY" },
+    );
+  }
+
   async #installUnlocked(root, pluginId, source) {
     const current = await this.#storeProjects.load(root);
     current.project.declarePlugin(pluginId, source.declaration);
@@ -146,6 +187,36 @@ export class PluginApplicationService {
       projectSource,
     );
     return new PluginApplicationResult({ installation, storeProject: current });
+  }
+
+  async #removeUnlocked(root, pluginId) {
+    const current = await this.#storeProjects.load(root);
+    const declaration = current.project.pluginDeclaration(pluginId);
+    const removed = current.project.removePlugin(pluginId);
+    if (!removed) {
+      return new PluginRemovalResult({
+        pluginId,
+        removed: false,
+        runtimeRemoved: false,
+        storeProject: current,
+      });
+    }
+    const overrideStore = declaration.source === "local"
+      ? this.#localOverrides.forStore(current.checkout)
+      : null;
+    if (overrideStore) await overrideStore.read();
+    const runtimeRemoved = await this.#installers.forStore(current.checkout).remove(pluginId);
+    if (overrideStore) await overrideStore.remove(pluginId);
+    await this.#files.forRepository(current.checkout).write(
+      CORE_FILES.orchestratorConfig,
+      this.#configuration.serializeProject(current.project),
+    );
+    return new PluginRemovalResult({
+      pluginId,
+      removed: true,
+      runtimeRemoved,
+      storeProject: current,
+    });
   }
 }
 

@@ -29,7 +29,11 @@ export class PluginLifecycleCommands {
     stdout = process.stdout,
     storeProjectService = storeProjects,
   } = {}) {
-    if (!applicationService || typeof applicationService.install !== "function") {
+    if (
+      !applicationService ||
+      typeof applicationService.install !== "function" ||
+      typeof applicationService.remove !== "function"
+    ) {
       throw new Error("PLUGIN_CLI_INVALID: требуется PluginApplicationService");
     }
     if (
@@ -105,6 +109,9 @@ export class PluginLifecycleCommands {
       .addOption(new Option("--repo <repository-id>", "repository-id")
         .argParser(singleValue).makeOptionMandatory())
       .action((pluginId, options) => this.#disconnect(pluginId, options.repo));
+    plugin.command("remove <plugin-id>")
+      .description("удалить неиспользуемый Plugin из проекта")
+      .action((pluginId) => this.#remove(pluginId));
     return plugin;
   }
 
@@ -181,5 +188,11 @@ export class PluginLifecycleCommands {
     this.#output.log(
       `${pluginId} -> ${repositoryId}: ${result.disconnected ? "disconnected" : "not_connected"}`,
     );
+  }
+
+  async #remove(pluginId) {
+    const storeProject = await this.#storeProjects.find();
+    const result = await this.#applications.remove(storeProject, pluginId);
+    this.#output.log(`${pluginId}: ${result.removed ? "removed" : "not_initialized"}`);
   }
 }

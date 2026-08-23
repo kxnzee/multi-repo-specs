@@ -74,6 +74,7 @@ test("plugin init preserves --plugin/--from grammar and delegates to application
         calls.push({ current, pluginId, source });
         return { installation: { reused: false } };
       },
+      async remove() {},
     },
     lifecycleService: {
       async connectMany() { return []; },
@@ -110,7 +111,7 @@ test("plugin init preserves --plugin/--from grammar and delegates to application
 test("plugin init rejects ambiguous selection before Store lookup", async () => {
   let finds = 0;
   const program = candidate({
-    applicationService: { async install() {} },
+    applicationService: { async install() {}, async remove() {} },
     lifecycleService: {
       async connectMany() { return []; },
       async disconnect() {},
@@ -340,4 +341,43 @@ test("plugin disconnect preserves mandatory --repo grammar and current output", 
     "sample -> frontend: disconnected",
     "sample -> frontend: not_connected",
   ]);
+});
+
+test("plugin remove delegates to application facade and preserves current output", async () => {
+  const calls = [];
+  const captured = outputCollector();
+  const storeProject = Object.freeze({ root: "/store" });
+  const applicationService = {
+    async install() {},
+    async remove(current, pluginId) {
+      calls.push({ current, pluginId });
+      return { removed: calls.length === 1 };
+    },
+  };
+  const lifecycleService = {
+    async connectMany() { return []; },
+    async disconnect() {},
+    async statuses() { return []; },
+    async sync() {},
+  };
+  const storeProjectService = { async find() { return storeProject; } };
+
+  await candidate({
+    applicationService,
+    lifecycleService,
+    output: captured.output,
+    storeProjectService,
+  }).parseAsync(["node", "openspec-orch", "plugin", "remove", "sample"]);
+  await candidate({
+    applicationService,
+    lifecycleService,
+    output: captured.output,
+    storeProjectService,
+  }).parseAsync(["node", "openspec-orch", "plugin", "remove", "sample"]);
+
+  assert.deepEqual(calls, [
+    { current: storeProject, pluginId: "sample" },
+    { current: storeProject, pluginId: "sample" },
+  ]);
+  assert.deepEqual(captured.lines, ["sample: removed", "sample: not_initialized"]);
 });

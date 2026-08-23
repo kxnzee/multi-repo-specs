@@ -95,6 +95,22 @@ test("PluginInstaller reuses the same valid version without replacing its runtim
   assert.equal(await fs.readFile(marker, "utf8"), "original");
 });
 
+test("PluginInstaller removes all runtime versions idempotently", async (t) => {
+  const { root, checkout } = await storeFixture(t);
+  const source = PluginSource.parse(SAMPLE_PLUGIN_ROOT, { cwd: root });
+  const installer = new PluginInstallerService({
+    npmInstaller: createPluginMaterializer(),
+  }).forStore(checkout);
+  await installer.install("sample", source);
+
+  assert.equal(await installer.remove("sample"), true);
+  assert.equal(await fs.lstat(path.join(
+    root,
+    ".openspec-orch/cache/plugin-runtimes/sample",
+  )).catch((error) => error.code), "ENOENT");
+  assert.equal(await installer.remove("sample"), false);
+});
+
 test("PluginInstaller leaves previous version active and cleans temp after validation failure", async (t) => {
   const { root, checkout } = await storeFixture(t);
   const source = PluginSource.parse(SAMPLE_PLUGIN_ROOT, { cwd: root });
@@ -151,6 +167,7 @@ test("PluginInstaller fails closed for a busy lock and symlinked runtime cache",
   await fs.mkdir(lockPath, { recursive: true });
 
   await assert.rejects(installer.install("sample", source), /PLUGIN_INSTALL_BUSY/);
+  await assert.rejects(installer.remove("sample"), /PLUGIN_INSTALL_BUSY/);
   assert.equal(installs, 0);
 
   await fs.rmdir(lockPath);
@@ -159,5 +176,7 @@ test("PluginInstaller fails closed for a busy lock and symlinked runtime cache",
   const runtimeDirectory = path.join(root, ".openspec-orch/cache/plugin-runtimes");
   await fs.symlink(outside, runtimeDirectory);
   await assert.rejects(installer.install("sample", source), /небезопасный directory segment/);
+  await assert.rejects(installer.remove("sample"), /небезопасный segment/);
   assert.equal(installs, 0);
+  assert.deepEqual(await fs.readdir(outside), []);
 });
