@@ -136,6 +136,30 @@ export class PluginBindingService {
       { busyCode: "PLUGIN_BINDING_BUSY" },
     );
   }
+
+  async disconnect(storeProject, pluginId, repositoryId) {
+    if (!(storeProject instanceof StoreProject)) {
+      throw new Error("PLUGIN_BINDING_INVALID: требуется StoreProject");
+    }
+    await ensureLockDirectory(storeProject.root);
+    return this.#lock.run(
+      path.join(storeProject.root, CORE_SERVICE_PATHS.projectConfigLock),
+      async () => {
+        const current = await this.#storeProjects.load(storeProject.root);
+        current.project.requirePlugin(pluginId);
+        const changed = current.project.disconnectPlugin(pluginId, repositoryId);
+        if (changed) {
+          const source = this.#configuration.serializeProject(current.project);
+          await this.#files.forRepository(current.checkout).write(
+            CORE_FILES.orchestratorConfig,
+            source,
+          );
+        }
+        return new PluginBindingChange({ changed, output: "", storeProject: current });
+      },
+      { busyCode: "PLUGIN_BINDING_BUSY" },
+    );
+  }
 }
 
 /** Общий Core facade Repository bindings. */

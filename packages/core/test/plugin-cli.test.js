@@ -77,6 +77,7 @@ test("plugin init preserves --plugin/--from grammar and delegates to application
     },
     lifecycleService: {
       async connectMany() { return []; },
+      async disconnect() {},
       async statuses() { return []; },
       async sync() {},
     },
@@ -112,6 +113,7 @@ test("plugin init rejects ambiguous selection before Store lookup", async () => 
     applicationService: { async install() {} },
     lifecycleService: {
       async connectMany() { return []; },
+      async disconnect() {},
       async statuses() { return []; },
       async sync() {},
     },
@@ -138,6 +140,7 @@ test("plugin connect preserves repeated --repo grammar and current output", asyn
           { repositoryId: "backend", connected: false, output: "" },
         ];
       },
+      async disconnect() {},
       async statuses() { return []; },
       async sync() {},
     },
@@ -177,6 +180,7 @@ test("plugin connect keeps checkbox UX and rejects implicit selection without TT
       calls.push(options);
       return [{ repositoryId: "frontend", connected: true, output: "" }];
     },
+    async disconnect() {},
     async statuses() { return []; },
     async sync() {},
   };
@@ -229,6 +233,7 @@ test("plugin status preserves filters, JSON shape and unavailable rows", async (
   const program = candidate({
     lifecycleService: {
       async connectMany() { return []; },
+      async disconnect() {},
       async statuses(options) {
         calls.push(options);
         return statuses;
@@ -259,6 +264,7 @@ test("plugin human status and sync preserve current output", async () => {
   const captured = outputCollector();
   const lifecycleService = {
     async connectMany() { return []; },
+    async disconnect() {},
     async statuses() {
       return [{
         pluginId: "sample",
@@ -291,5 +297,47 @@ test("plugin human status and sync preserve current output", async () => {
     "  line one\n  line two",
     "sample -> frontend: synced",
     "synced output",
+  ]);
+});
+
+test("plugin disconnect preserves mandatory --repo grammar and current output", async () => {
+  const calls = [];
+  const captured = outputCollector();
+  const lifecycleService = {
+    async connectMany() { return []; },
+    async disconnect(options) {
+      calls.push(options);
+      return { disconnected: calls.length === 1 };
+    },
+    async statuses() { return []; },
+    async sync() {},
+  };
+
+  await candidate({ lifecycleService, output: captured.output }).parseAsync([
+    "node",
+    "openspec-orch",
+    "plugin",
+    "disconnect",
+    "sample",
+    "--repo",
+    "frontend",
+  ]);
+  await candidate({ lifecycleService, output: captured.output }).parseAsync([
+    "node",
+    "openspec-orch",
+    "plugin",
+    "disconnect",
+    "sample",
+    "--repo",
+    "frontend",
+  ]);
+
+  assert.deepEqual(calls, [
+    { pluginId: "sample", repositoryId: "frontend" },
+    { pluginId: "sample", repositoryId: "frontend" },
+  ]);
+  assert.deepEqual(captured.lines, [
+    "sample -> frontend: disconnected",
+    "sample -> frontend: not_connected",
   ]);
 });

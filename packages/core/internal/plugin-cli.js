@@ -10,7 +10,7 @@ import { pluginApplications } from "./plugin-application.js";
 import { PluginSource } from "./plugin-source.js";
 import { storeProjects } from "./store-project.js";
 
-/** Монтирует CLI-грамматику `plugin init/connect/status/sync`. */
+/** Монтирует CLI-грамматику `plugin init/connect/status/sync/disconnect`. */
 export class PluginLifecycleCommands {
   #applications;
   #checkbox;
@@ -35,6 +35,7 @@ export class PluginLifecycleCommands {
     if (
       !lifecycleService ||
       typeof lifecycleService.connectMany !== "function" ||
+      typeof lifecycleService.disconnect !== "function" ||
       typeof lifecycleService.statuses !== "function" ||
       typeof lifecycleService.sync !== "function"
     ) {
@@ -99,6 +100,11 @@ export class PluginLifecycleCommands {
       .addOption(new Option("--repo <repository-id>", "repository-id")
         .argParser(singleValue).makeOptionMandatory())
       .action((pluginId, options) => this.#sync(pluginId, options.repo));
+    plugin.command("disconnect <plugin-id>")
+      .description("удалить связь Plugin без очистки repository data")
+      .addOption(new Option("--repo <repository-id>", "repository-id")
+        .argParser(singleValue).makeOptionMandatory())
+      .action((pluginId, options) => this.#disconnect(pluginId, options.repo));
     return plugin;
   }
 
@@ -168,5 +174,12 @@ export class PluginLifecycleCommands {
     const output = await this.#lifecycle.sync({ pluginId, repositoryId });
     this.#output.log(`${pluginId} -> ${repositoryId}: synced`);
     if (output) this.#output.log(output);
+  }
+
+  async #disconnect(pluginId, repositoryId) {
+    const result = await this.#lifecycle.disconnect({ pluginId, repositoryId });
+    this.#output.log(
+      `${pluginId} -> ${repositoryId}: ${result.disconnected ? "disconnected" : "not_connected"}`,
+    );
   }
 }

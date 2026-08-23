@@ -35,6 +35,31 @@ export class PluginConnectionResult {
   get repositoryId() { return this.#repositoryId; }
 }
 
+/** Immutable результат `plugin disconnect` для одного Repository. */
+export class PluginDisconnectionResult {
+  #disconnected;
+  #pluginId;
+  #repositoryId;
+
+  constructor({ disconnected, pluginId, repositoryId }) {
+    if (
+      typeof disconnected !== "boolean" ||
+      typeof pluginId !== "string" ||
+      typeof repositoryId !== "string"
+    ) {
+      throw new Error("PLUGIN_DISCONNECTION_RESULT_INVALID: некорректный lifecycle result");
+    }
+    this.#disconnected = disconnected;
+    this.#pluginId = pluginId;
+    this.#repositoryId = repositoryId;
+    Object.freeze(this);
+  }
+
+  get disconnected() { return this.#disconnected; }
+  get pluginId() { return this.#pluginId; }
+  get repositoryId() { return this.#repositoryId; }
+}
+
 /** Immutable нормализованный status одного Plugin binding. */
 export class PluginStatusResult {
   #output;
@@ -153,6 +178,16 @@ export class PluginLifecycleService {
       pluginId,
       repositoryId: selectedIds[index],
     })));
+  }
+
+  async disconnect({ start = process.cwd(), pluginId, repositoryId } = {}) {
+    const storeProject = await this.#storeProjects.find(start);
+    const change = await this.#bindings.disconnect(storeProject, pluginId, repositoryId);
+    return new PluginDisconnectionResult({
+      disconnected: change.changed,
+      pluginId,
+      repositoryId,
+    });
   }
 
   async status({ start = process.cwd(), pluginId, repositoryId } = {}) {

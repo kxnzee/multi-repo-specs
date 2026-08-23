@@ -198,12 +198,37 @@ test("empty composition still exposes Core plugin lifecycle without Plugin-speci
 
 test("automatic composition skips unavailable runtime but rejects corrupted cache", async (t) => {
   const storeRoot = await storeFixture(t);
+  const project = configuration.parseProject(
+    await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
+  );
+  project.connectPlugin("sample", ["frontend"]);
+  await fs.writeFile(
+    path.join(storeRoot, "openspec-orch.yaml"),
+    configuration.serializeProject(project),
+  );
+  const output = [];
   const previousCwd = process.cwd();
   process.chdir(storeRoot);
   try {
-    const repairable = await createCandidateProgram();
+    const repairable = await createCandidateProgram({
+      pluginCliOptions: { output: { log: (value) => output.push(value) } },
+    });
     assert.equal(repairable.commands.some((command) => command.name() === "plugin"), true);
     assert.equal(repairable.commands.some((command) => command.name() === "sample"), false);
+    await repairable.parseAsync([
+      "node",
+      "openspec-orch",
+      "plugin",
+      "disconnect",
+      "sample",
+      "--repo",
+      "frontend",
+    ]);
+    const disconnected = configuration.parseProject(
+      await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
+    );
+    assert.equal(disconnected.isPluginConnected("sample", "frontend"), false);
+    assert.deepEqual(output, ["sample -> frontend: disconnected"]);
 
     const runtimeDirectory = path.join(
       storeRoot,

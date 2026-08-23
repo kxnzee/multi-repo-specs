@@ -10,6 +10,7 @@ import {
   configuration,
   createProject,
   PluginConnectionResult,
+  PluginDisconnectionResult,
   PluginHost,
   PluginLifecycleService,
   PluginLoader,
@@ -202,6 +203,30 @@ test("PluginLifecycleService keeps connect idempotent without repeating callback
 
   assert.equal(result.connected, false);
   assert.equal(result.output, "");
+  assert.deepEqual(contextCalls, []);
+  assert.deepEqual(calls, []);
+});
+
+test("PluginLifecycleService disconnects idempotently without Plugin callback", async (t) => {
+  const fixture = await createStoreFixture(t, { connected: true });
+  const calls = [];
+  const { contextCalls, service } = await lifecycle(t, calls);
+  const request = {
+    start: fixture.storeRoot,
+    pluginId: "sample",
+    repositoryId: "frontend",
+  };
+
+  const disconnected = await service.disconnect(request);
+  const repeated = await service.disconnect(request);
+
+  assert.equal(disconnected instanceof PluginDisconnectionResult, true);
+  assert.equal(disconnected.disconnected, true);
+  assert.equal(disconnected.pluginId, "sample");
+  assert.equal(disconnected.repositoryId, "frontend");
+  assert.equal(repeated.disconnected, false);
+  const persisted = configuration.parseProject(await fs.readFile(fixture.configPath, "utf8"));
+  assert.equal(persisted.isPluginConnected("sample", "frontend"), false);
   assert.deepEqual(contextCalls, []);
   assert.deepEqual(calls, []);
 });

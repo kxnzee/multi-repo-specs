@@ -25,7 +25,12 @@ export { PluginApplicationResult, PluginApplicationService, pluginApplications }
 export { PluginLifecycleCommands } from "./internal/plugin-cli.js";
 export { PluginCommandBuilder, PluginCommandMounter, PluginCommandRegistry } from "./internal/plugin-commands.js";
 export { PluginHost, PluginRegistry } from "./internal/plugin-host.js";
-export { PluginConnectionResult, PluginLifecycleService, PluginStatusResult } from "./internal/plugin-lifecycle.js";
+export {
+  PluginConnectionResult,
+  PluginDisconnectionResult,
+  PluginLifecycleService,
+  PluginStatusResult,
+} from "./internal/plugin-lifecycle.js";
 export { LoadedPlugin, PluginLoader, pluginLoader } from "./internal/plugin-loader.js";
 export { PluginInstallationRecord } from "./internal/plugin-installation-record.js";
 export { PluginInstallation, PluginInstallerService, StorePluginInstaller, pluginInstallers } from "./internal/plugin-installer.js";
