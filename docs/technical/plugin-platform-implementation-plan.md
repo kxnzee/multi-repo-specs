@@ -65,9 +65,9 @@ Plugins доверенные и загружаются в процесс Orchest
    marketplace и выполнение недоверенного кода не входят в эту миграцию.
 9. Cycle, Receipts и Snapshots принадлежат `plugin-change-tracking`. Core
    предоставляет только универсальное атомарное namespaced storage.
-10. MCP-конфиг и инструкции устанавливает общий Agent Service. CodeGraph Plugin
-   объявляет требуемый MCP server и текст инструкций, но не переносит форматы
-   Codex/Qwen/Claude/GigaCode в Core-команды или Template.
+10. Общий Agent Service запускает Agent contribution в безопасном Store-scoped
+    `PluginContext`. CodeGraph Plugin владеет MCP-конфигом, инструкциями и adapters
+    Codex/Qwen/Claude/GigaCode; Core не знает их форматы и Plugin ID.
 11. `pacote` удаляется при переходе на единый npm-backed Plugin Manager. Core не
     классифицирует npm/Git/tarball sources и не строит собственный dependency lock.
 12. Multi-repository topology является Core-функциональностью. Core владеет полным
@@ -109,7 +109,7 @@ Plugins доверенные и загружаются в процесс Orchest
 - безопасный запуск процессов с заданным Core `cwd`, timeout и без shell;
 - Plugin package installation, loading и command mounting;
 - строгая проверка `apiVersion`, identity, entrypoint и конфликтов команд;
-- один Agent Service с provider adapters;
+- один Agent Service, координирующий Plugin-owned Agent lifecycle;
 - атомарное, блокируемое и namespaced локальное Plugin storage;
 - логирование и единый перевод ошибок в CLI exit codes.
 
@@ -459,20 +459,20 @@ repositories самостоятельно.
 
 ## 7. Agent Service и MCP
 
-В проекте активен один Agent. Provider adapter Core знает, где и как обновить
-конфигурацию выбранного Agent; Plugin объявляет только интеграцию:
+В проекте активен один Agent. Core передаёт Plugin безопасный Store-scoped context и
+координирует установку и удаление интеграции. Форматы конфигов и provider adapters
+остаются внутри Plugin и выполняются через ограниченный `context.process`:
 
 ```js
 agent: {
   integration(context) {
+    const invoke = (operation) => context.process.run(
+      process.execPath,
+      [launcher, "agent", operation, "--agent", context.agent.id]
+    );
     return {
-      mcpServers: {
-        codegraph: {
-          command: process.execPath,
-          args: [context.plugin.resolve("bin/codegraph.js"), "serve", "--mcp"]
-        }
-      },
-      instructions: "..."
+      install() { return invoke("install"); },
+      remove() { return invoke("remove"); }
     };
   }
 }
@@ -786,7 +786,8 @@ legacy; новые packages не импортируют `src/internal`.
 - сохранить CodeGraph dependency и launcher внутри Plugin package;
 - представить `init/status/sync` как repository lifecycle;
 - представить MCP и instructions как Agent contribution;
-- реализовать общий Core Agent Service для единственного выбранного Agent;
+- реализовать общий Core Agent Service для lifecycle единственного выбранного Agent;
+- оставить provider adapters и форматы Agent config внутри CodeGraph Plugin;
 - сохранить чужие MCP entries, инструкции и форматирование конфигов;
 - проверить Store и все связанные Code Repositories;
 - не удалять legacy CodeGraph runtime до общего cutover.
