@@ -101,7 +101,7 @@ class PluginFilesFacade {
     Object.freeze(this);
   }
 
-  read(relativePath) { return this.#files.read(relativePath); }
+  read(relativePath, options) { return this.#files.read(relativePath, options); }
   write(relativePath, contents, options) {
     return this.#files.write(relativePath, contents, options);
   }

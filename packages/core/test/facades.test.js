@@ -142,7 +142,14 @@ test("FileService reads and atomically writes only inside Repository checkout", 
   assert.equal(await service.read("config/project.txt"), "after");
   await service.write("config/new.txt", "new");
   assert.equal(await service.read("config/new.txt"), "new");
+  assert.equal(await service.read("config/missing.txt", { optional: true }), null);
+  await service.write("generated/nested/file.txt", "nested");
+  assert.equal(await service.read("generated/nested/file.txt"), "nested");
   await assert.rejects(service.read("../outside.txt"), /Некорректный относительный путь/);
+  await assert.rejects(
+    service.read("config/missing.txt", { optional: "yes" }),
+    /optional должен быть boolean/,
+  );
 
   const outside = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-core-outside-"));
   t.after(() => fs.rm(outside, { recursive: true, force: true }));

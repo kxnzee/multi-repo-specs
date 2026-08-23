@@ -8,6 +8,7 @@ export const CHANGE_TRACKING_CONTRACT = Object.freeze({
   snapshotHashVersion: 1,
   cyclePrefix: "cycle-",
   snapshotPrefix: "snap-v1-",
+  cycleRecordsDirectory: ".openspec-orch/changes",
 });
 
 const IDENTIFIER_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

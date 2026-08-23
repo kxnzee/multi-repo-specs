@@ -5,7 +5,7 @@ import test from "node:test";
 
 import { testPluginContract } from "@openspec-orch/plugin-sdk/testing";
 
-import plugin, { CycleRecord, SnapshotIdentity } from "../index.js";
+import plugin, { CycleRecord, CycleRecordRepository, SnapshotIdentity } from "../index.js";
 import packageManifest from "../package.json" with { type: "json" };
 
 testPluginContract({ plugin, packageManifest });
@@ -50,6 +50,49 @@ test("CycleRecord rejects malformed and mismatched persisted records", () => {
   assert.throws(
     () => new CycleRecord(document, { expectedChangeId: "another-change" }),
     /STATE_CORRUPTED: Cycle Record содержит change_id 'checkout-flow'/,
+  );
+});
+
+test("CycleRecordRepository persists the legacy Store path through Files facade", async () => {
+  const values = new Map();
+  const files = Object.freeze({
+    async read(relativePath, { optional } = {}) {
+      if (values.has(relativePath)) return values.get(relativePath);
+      if (optional) return null;
+      throw new Error(`missing ${relativePath}`);
+    },
+    async write(relativePath, contents) {
+      values.set(relativePath, contents);
+    },
+  });
+  const repository = new CycleRecordRepository(files);
+  const record = CycleRecord.create({
+    changeId: "checkout-flow",
+    planningRevision: "a".repeat(40),
+    repositories: ["frontend"],
+  });
+
+  assert.equal(await repository.read("checkout-flow"), null);
+  assert.equal(
+    await repository.write(record),
+    ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json",
+  );
+  assert.deepEqual(
+    (await repository.read("checkout-flow")).toDocument(),
+    record.toDocument(),
+  );
+});
+
+test("CycleRecordRepository preserves corruption errors", async () => {
+  const files = Object.freeze({
+    async read() { return "{"; },
+    async write() {},
+  });
+  const repository = new CycleRecordRepository(files);
+
+  await assert.rejects(
+    repository.read("checkout-flow"),
+    /STATE_CORRUPTED: Cycle Record повреждён/,
   );
 });
 

@@ -45,7 +45,7 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
 
 /**
  * @typedef {object} FilesFacade
- * @property {(relativePath: string) => Promise<string>} read
+ * @property {(relativePath: string, options?: {optional?: boolean}) => Promise<string | null>} read
  * @property {(relativePath: string, contents: string, options?: object) => Promise<void>} write
  */
 
