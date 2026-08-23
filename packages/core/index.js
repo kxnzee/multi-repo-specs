@@ -69,8 +69,9 @@ import { PluginPlatform } from "./internal/plugin-platform.js";
 export async function createCandidateProgram({
   bundledProvider,
   loadedPlugins,
-  pluginCliOptions,
+  pluginCommandOptions,
   pluginContextFactory,
+  pluginManagerService,
   rootCommands,
   start,
   ...options
@@ -79,7 +80,8 @@ export async function createCandidateProgram({
     bundledProvider,
     contextFactory: pluginContextFactory,
     loadedPlugins,
-    pluginCliOptions,
+    managerService: pluginManagerService,
+    pluginCommandOptions,
     rootCommands,
     start,
   });

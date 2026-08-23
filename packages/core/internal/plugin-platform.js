@@ -5,6 +5,7 @@ import process from "node:process";
 import { BundledPluginProvider } from "./bundled-plugin.js";
 import { CandidateCli } from "./cli.js";
 import { PluginApplicationService } from "./plugin-application.js";
+import { pluginCatalog } from "./plugin-catalog.js";
 import { pluginContexts } from "./plugin-context.js";
 import { PluginLifecycleCommands } from "./plugin-cli.js";
 import { PluginCommandMounter } from "./plugin-commands.js";
@@ -19,19 +20,29 @@ export class PluginPlatform {
   #lifecycleCommands;
 
   constructor({
+    applicationService,
+    catalog,
     contextFactory = pluginContexts,
     loadedPlugins = [],
-    pluginCliOptions = {},
+    pluginCommandOptions = {},
     rootCommands = new Map(),
   } = {}) {
-    if (!pluginCliOptions || typeof pluginCliOptions !== "object" || Array.isArray(pluginCliOptions)) {
-      throw new Error("PLUGIN_PLATFORM_INVALID: pluginCliOptions должен быть object");
+    if (
+      !pluginCommandOptions ||
+      typeof pluginCommandOptions !== "object" ||
+      Array.isArray(pluginCommandOptions)
+    ) {
+      throw new Error("PLUGIN_PLATFORM_INVALID: pluginCommandOptions должен быть object");
+    }
+    for (const key of ["applicationService", "catalog", "lifecycleService"]) {
+      if (Object.hasOwn(pluginCommandOptions, key)) {
+        throw new Error(`PLUGIN_PLATFORM_INVALID: ${key} управляется PluginPlatform`);
+      }
     }
     const registry = new PluginRegistry(loadedPlugins);
     const host = new PluginHost({ contextFactory, registry });
-    const applicationService = pluginCliOptions.applicationService;
     const lifecycle = new PluginLifecycleService({
-      ...(applicationService === undefined ? {} : { applicationService }),
+      applicationService,
       host,
     });
     this.#commands = new PluginCommandMounter({
@@ -39,7 +50,9 @@ export class PluginPlatform {
       rootCommands,
     });
     this.#lifecycleCommands = new PluginLifecycleCommands({
-      ...pluginCliOptions,
+      ...pluginCommandOptions,
+      applicationService,
+      catalog,
       lifecycleService: lifecycle,
     });
     Object.freeze(this);
@@ -49,30 +62,39 @@ export class PluginPlatform {
   static async create({
     bundledProvider,
     loadedPlugins,
-    pluginCliOptions = {},
+    managerService,
+    pluginCommandOptions = {},
     start = process.cwd(),
     ...options
   } = {}) {
-    let managerService = pluginManagers;
-    let resolvedPluginCliOptions = pluginCliOptions;
+    if (managerService !== undefined && typeof managerService?.forStore !== "function") {
+      throw new Error("PLUGIN_PLATFORM_INVALID: managerService должен предоставлять forStore");
+    }
+    if (bundledProvider !== undefined && managerService !== undefined) {
+      throw new Error("PLUGIN_PLATFORM_INVALID: выберите bundledProvider или managerService");
+    }
+    let resolvedManagerService = managerService ?? pluginManagers;
+    let catalog = pluginCatalog;
     if (bundledProvider !== undefined) {
       if (!(bundledProvider instanceof BundledPluginProvider)) {
         throw new Error("PLUGIN_PLATFORM_INVALID: bundledProvider должен быть BundledPluginProvider");
       }
-      managerService = new PluginManagerService({ bundledProvider });
-      resolvedPluginCliOptions = {
-        applicationService: new PluginApplicationService({
-          managerService,
-        }),
-        catalog: bundledProvider.catalog,
-        ...pluginCliOptions,
-      };
+      resolvedManagerService = new PluginManagerService({ bundledProvider });
+      catalog = bundledProvider.catalog;
     }
-    const resolved = loadedPlugins ?? await PluginPlatform.#loadInstalled(start, managerService);
+    const applicationService = new PluginApplicationService({
+      managerService: resolvedManagerService,
+    });
+    const resolved = loadedPlugins ?? await PluginPlatform.#loadInstalled(
+      start,
+      resolvedManagerService,
+    );
     return new PluginPlatform({
       ...options,
+      applicationService,
+      catalog,
       loadedPlugins: resolved,
-      pluginCliOptions: resolvedPluginCliOptions,
+      pluginCommandOptions,
     });
   }
 

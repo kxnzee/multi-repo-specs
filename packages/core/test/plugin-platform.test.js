@@ -106,7 +106,7 @@ test("PluginPlatform wires sample lifecycle and namespaced command into candidat
   const output = [];
   const options = {
     loadedPlugins: [loadedPlugin],
-    pluginCliOptions: { output: { log: (value) => output.push(value) } },
+    pluginCommandOptions: { output: { log: (value) => output.push(value) } },
     pluginContextFactory: {
       async forRepositorySetup({ repositoryId }) {
         return Object.freeze({ repositoryId });
@@ -185,6 +185,13 @@ test("empty composition still exposes Core plugin lifecycle without Plugin-speci
   const program = await createCandidateProgram({ loadedPlugins: [] });
   assert.equal(program.commands.some((command) => command.name() === "plugin"), true);
   assert.equal(program.commands.some((command) => command.name() === "sample"), false);
+  await assert.rejects(
+    createCandidateProgram({
+      loadedPlugins: [],
+      pluginCommandOptions: { applicationService: {} },
+    }),
+    /applicationService управляется PluginPlatform/,
+  );
 });
 
 test("bundled provider initializes and restores a Plugin without Store runtime", async (t) => {
@@ -199,7 +206,7 @@ test("bundled provider initializes and restores a Plugin without Store runtime",
   })]);
   const options = {
     bundledProvider,
-    pluginCliOptions: { output: { log: (value) => output.push(value) } },
+    pluginCommandOptions: { output: { log: (value) => output.push(value) } },
   };
   const previousCwd = process.cwd();
   process.chdir(storeRoot);
@@ -260,7 +267,7 @@ test("automatic composition skips unavailable runtime but rejects corrupted cach
   process.chdir(storeRoot);
   try {
     const repairable = await createCandidateProgram({
-      pluginCliOptions: { output: { log: (value) => output.push(value) } },
+      pluginCommandOptions: { output: { log: (value) => output.push(value) } },
     });
     assert.equal(repairable.commands.some((command) => command.name() === "plugin"), true);
     assert.equal(repairable.commands.some((command) => command.name() === "sample"), false);

@@ -11,7 +11,6 @@ import {
   configuration,
   createCandidateProgram,
   createProject,
-  PluginApplicationService,
   PluginManagerService,
 } from "@openspec-orch/core";
 
@@ -66,16 +65,14 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
   const storeRoot = await storeFixture(t);
   const output = [];
   let installedSource;
-  const applicationService = new PluginApplicationService({
-    managerService: new PluginManagerService({
-      npmInstaller: createPluginMaterializer(),
-    }),
+  const managerService = new PluginManagerService({
+    npmInstaller: createPluginMaterializer(),
   });
   const createProgram = () => createCandidateProgram({
-    pluginCliOptions: {
-      applicationService,
+    pluginCommandOptions: {
       output: { log: (value) => output.push(value) },
     },
+    pluginManagerService: managerService,
   });
   const previousCwd = process.cwd();
   process.chdir(storeRoot);
