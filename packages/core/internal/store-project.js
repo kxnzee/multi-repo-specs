@@ -7,6 +7,7 @@ import process from "node:process";
 import { RepositoryCheckout } from "./checkout.js";
 import { configuration } from "./configuration.js";
 import { CORE_FILES } from "./constants.js";
+import { pointers } from "./pointer.js";
 
 const REQUIRED_ROOT_FILES = Object.freeze([
   CORE_FILES.storeMetadata,
@@ -86,9 +87,11 @@ export class StoreProject {
 /** Загружает Project из известного Store либо находит Store среди parent directories. */
 export class StoreProjectService {
   #configuration;
+  #pointers;
 
-  constructor(configurationService = configuration) {
+  constructor(configurationService = configuration, pointerService = pointers) {
     this.#configuration = configurationService;
+    this.#pointers = pointerService;
     Object.freeze(this);
   }
 
@@ -123,6 +126,24 @@ export class StoreProjectService {
       new Error("Не удалось найти Spec Root среди родителей текущего каталога"),
       { code: "STORE_ROOT_NOT_FOUND" },
     );
+  }
+
+  /** Разрешает Store как parent root либо через pointer текущего Code Repository. */
+  async resolve(start = process.cwd()) {
+    try {
+      return await this.find(start);
+    } catch (error) {
+      if (error.code !== "STORE_ROOT_NOT_FOUND") throw error;
+    }
+    const resolution = await this.#pointers.resolve(start);
+    const storeProject = await this.load(resolution.storeRoot);
+    if (storeProject.store.id !== resolution.storeId) {
+      throw new Error(
+        `OpenSpec pointer указывает Store ${resolution.storeId}, ` +
+          `но metadata содержит ${storeProject.store.id}`,
+      );
+    }
+    return storeProject;
   }
 
   async #hasRequiredRoot(candidate) {

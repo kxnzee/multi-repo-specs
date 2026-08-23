@@ -11,6 +11,7 @@ export { ConnectionResult, ConnectionService, RepositoryConnection, connection }
 export { RepositoryCheckout, createRepositoryCheckout } from "./internal/checkout.js";
 export { CoreConfiguration, configuration } from "./internal/configuration.js";
 export { CoreState, CoreStateService, CoreStateStore, coreState } from "./internal/core-state.js";
+export { CurrentRepositoryService, currentRepositories } from "./internal/current-repository.js";
 export { FileService, RepositoryFiles, files } from "./internal/files.js";
 export { GitService, RepositoryGit, WorkspaceGit, git } from "./internal/git.js";
 export { InitializationService, initialization } from "./internal/initialization.js";
@@ -68,22 +69,26 @@ import { PluginPlatform } from "./internal/plugin-platform.js";
 /** Создаёт candidate CLI с уже перенесёнными Core operations. */
 export async function createCandidateProgram({
   bundledProvider,
+  currentRepositoryService,
   loadedPlugins,
   pluginCommandOptions,
   pluginContextFactory,
   pluginManagerService,
   rootCommands,
   start,
+  storeProjectService,
   ...options
 } = {}) {
   const platform = await PluginPlatform.create({
     bundledProvider,
     contextFactory: pluginContextFactory,
+    currentRepositoryService,
     loadedPlugins,
     managerService: pluginManagerService,
     pluginCommandOptions,
     rootCommands,
     start,
+    storeProjectService,
   });
   return platform.createProgram(options);
 }

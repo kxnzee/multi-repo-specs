@@ -1,5 +1,7 @@
 /** @fileoverview Immutable repository-scoped PluginContext поверх Core facades. */
 
+import path from "node:path";
+
 import { LoadedPlugin } from "./plugin-loader.js";
 import { files } from "./files.js";
 import { git } from "./git.js";
@@ -50,6 +52,11 @@ class PluginRepositoryRegistry {
   require(repositoryId) {
     const repository = this.#project.requireRepository(repositoryId);
     return this.#handles.get(repository.id);
+  }
+
+  isConnected(repositoryId) {
+    const repository = this.#project.requireRepository(repositoryId);
+    return repository.hasPlugin(this.#plugin.id) && this.#plugin.supportsRole(repository.role);
   }
 
   requireConnected(repositoryIds) {
@@ -187,6 +194,13 @@ export class PluginContext {
     ))) {
       throw new Error("PLUGIN_CONTEXT_INVALID: все Core facades должны быть immutable objects");
     }
+    if (
+      value.invocation !== undefined &&
+      value.invocation !== null &&
+      (typeof value.invocation !== "object" || !Object.isFrozen(value.invocation))
+    ) {
+      throw new Error("PLUGIN_CONTEXT_INVALID: invocation должен быть immutable object или null");
+    }
     this.#value = Object.freeze({ ...value });
     Object.freeze(this);
   }
@@ -194,6 +208,7 @@ export class PluginContext {
   get project() { return this.#value.project; }
   get repositories() { return this.#value.repositories; }
   get repository() { return this.#value.repository; }
+  get invocation() { return this.#value.invocation ?? null; }
   get git() { return this.#value.git; }
   get openspec() { return this.#value.openspec; }
   get files() { return this.#value.files; }
@@ -235,15 +250,21 @@ export class PluginContextFactory {
     Object.freeze(this);
   }
 
-  async forRepository({ loadedPlugin, storeProject, repositoryId } = {}) {
-    return this.#create({ loadedPlugin, storeProject, repositoryId, requireBinding: true });
+  async forRepository({ loadedPlugin, storeProject, repositoryId, invocation } = {}) {
+    return this.#create({
+      loadedPlugin,
+      storeProject,
+      repositoryId,
+      invocation,
+      requireBinding: true,
+    });
   }
 
   async forRepositorySetup({ loadedPlugin, storeProject, repositoryId } = {}) {
     return this.#create({ loadedPlugin, storeProject, repositoryId, requireBinding: false });
   }
 
-  async #create({ loadedPlugin, storeProject, repositoryId, requireBinding }) {
+  async #create({ loadedPlugin, storeProject, repositoryId, invocation, requireBinding }) {
     if (!(loadedPlugin instanceof LoadedPlugin) || !(storeProject instanceof StoreProject)) {
       throw new Error("PLUGIN_CONTEXT_INVALID: требуются LoadedPlugin и StoreProject");
     }
@@ -269,6 +290,22 @@ export class PluginContextFactory {
       repository = repositories.require(repositoryId);
     }
     const checkout = await this.#resolveCheckout(storeProject, repositoryModel);
+    let invocationHandle = null;
+    if (invocation !== undefined && invocation !== null) {
+      const invocationRepository = project.requireRepository(invocation.id);
+      if (
+        invocationRepository.role !== invocation.role ||
+        typeof invocation.path !== "string" ||
+        !path.isAbsolute(invocation.path)
+      ) {
+        throw new Error("PLUGIN_CONTEXT_INVALID: invocation Repository некорректен");
+      }
+      invocationHandle = Object.freeze({
+        id: invocationRepository.id,
+        role: invocationRepository.role,
+        path: path.normalize(invocation.path),
+      });
+    }
     const agent = Object.freeze({ id: project.agents[0] });
     const projectSnapshot = deepFreeze({
       id: storeProject.store.id,
@@ -281,6 +318,7 @@ export class PluginContextFactory {
       project: projectSnapshot,
       repositories,
       repository,
+      invocation: invocationHandle,
       git: new PluginGitFacade(this.#git.forRepository(checkout)),
       openspec: new PluginOpenSpecFacade(this.#openspec.forRepository(checkout)),
       files: new PluginFilesFacade(this.#files.forRepository(checkout)),

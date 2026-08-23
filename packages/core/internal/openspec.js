@@ -9,7 +9,7 @@ import { processes } from "./process.js";
 import { CORE_SETTINGS } from "./settings.js";
 
 /** Проверяет базовую JSON response и diagnostic errors OpenSpec. */
-function parseOpenSpecJson(source, command) {
+export function parseOpenSpecJson(source, command) {
   let value;
   try {
     value = JSON.parse(source);

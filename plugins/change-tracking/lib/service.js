@@ -25,6 +25,7 @@ function assertContext(context) {
     !context ||
     context.repository?.role !== "store" ||
     typeof context.repositories?.require !== "function" ||
+    typeof context.repositories?.isConnected !== "function" ||
     typeof context.repositories?.requireConnected !== "function" ||
     typeof context.repositories?.git !== "function" ||
     typeof context.git?.statusPaths !== "function" ||
@@ -50,7 +51,7 @@ function requireCodeRepository(context, repositoryId) {
 }
 
 /** Validates repositories referenced by an already persisted Cycle. */
-function assertCycleRepositories(context, cycle) {
+function assertCycleRepositories(context, cycle, { requireConnected = true } = {}) {
   if (new Set(cycle.repositories).size !== cycle.repositories.length) {
     throw new Error("STATE_CORRUPTED: Cycle Record содержит повторяющийся repository-id");
   }
@@ -69,7 +70,7 @@ function assertCycleRepositories(context, cycle) {
       );
     }
   }
-  context.repositories.requireConnected(cycle.repositories);
+  if (requireConnected) context.repositories.requireConnected(cycle.repositories);
 }
 
 /** Returns the completed implementation set required by one Snapshot. */
@@ -115,7 +116,7 @@ export class ChangeTrackingService {
    * @param {string} changeId Change ID.
    * @returns {Promise<object>} Current Cycle context with a Store-relative path.
    */
-  async currentCycle(changeId) {
+  async currentCycle(changeId, { requireConnected = true } = {}) {
     assertChangeId(changeId);
     const path = this.#records.pathFor(changeId);
     const cycle = await this.#records.read(changeId);
@@ -125,7 +126,7 @@ export class ChangeTrackingService {
           "в рабочей копии Store",
       );
     }
-    assertCycleRepositories(this.#context, cycle);
+    assertCycleRepositories(this.#context, cycle, { requireConnected });
     const committed = (await this.#context.git.statusPaths([path])).length === 0;
     return Object.freeze({ cycle, committed, path });
   }
@@ -363,11 +364,21 @@ export class ChangeTrackingService {
    * @returns {Promise<object>} Current Change Tracking status.
    */
   async status(changeId) {
-    const current = await this.currentCycle(changeId);
+    const current = await this.currentCycle(changeId, { requireConnected: false });
     const state = await this.#state.read();
     const repositories = Object.freeze(await Promise.all(
       current.cycle.repositories.map(async (repositoryId) => {
         const receipt = state.result(current.cycle.cycleId, repositoryId);
+        if (!this.#context.repositories.isConnected(repositoryId)) {
+          return Object.freeze({
+            repositoryId,
+            state: "disconnected",
+            receipt: receipt ?? null,
+            commitAvailable: null,
+            head: null,
+            headMatches: null,
+          });
+        }
         if (!receipt) {
           return Object.freeze({
             repositoryId,

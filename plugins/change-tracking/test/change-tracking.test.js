@@ -3,7 +3,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { testPluginContract } from "@openspec-orch/plugin-sdk/testing";
+import {
+  assertPluginContract,
+  testPluginContract,
+} from "@openspec-orch/plugin-sdk/testing";
 
 import plugin, {
   ChangeTrackingService,
@@ -14,6 +17,13 @@ import plugin, {
 import packageManifest from "../package.json" with { type: "json" };
 
 testPluginContract({ plugin, packageManifest });
+
+test("change-tracking contributes only the preserved root command set", () => {
+  assert.deepEqual(
+    assertPluginContract({ plugin, packageManifest }).commands,
+    ["assign", "status", "record", "verify"],
+  );
+});
 
 test("CycleRecord creates and serializes the frozen v1 contract", () => {
   const record = CycleRecord.create({
@@ -122,6 +132,9 @@ function assignmentContext({
         const repository = repositories.get(repositoryId);
         if (!repository) throw new Error(`REPO_UNKNOWN: ${repositoryId}`);
         return repository;
+      },
+      isConnected(repositoryId) {
+        return connected.includes(repositoryId);
       },
       requireConnected(repositoryIds) {
         for (const repositoryId of repositoryIds) {
@@ -420,6 +433,41 @@ test("ChangeTrackingService verifies, records verification and reports current s
   assert.equal(replacedVerification.status, "replaced");
   assert.equal(replacedVerification.replaced.receipt_id, createdVerification.receipt.receipt_id);
   assert.deepEqual(state.verification_receipt_history, [createdVerification.receipt]);
+});
+
+test("ChangeTrackingService keeps read-only history after repository disconnect", async () => {
+  const connected = ["frontend"];
+  const context = assignmentContext({ connected });
+  const service = new ChangeTrackingService(context);
+  await service.assign({
+    changeId: "checkout-flow",
+    repositoryIds: ["frontend"],
+    confirm: async () => true,
+  });
+  await service.recordAssignment({
+    changeId: "checkout-flow",
+    repositoryId: "frontend",
+    implementationRevision: "a".repeat(40),
+    status: "completed",
+    source: "agent",
+    confirm: async () => true,
+  });
+
+  connected.length = 0;
+  const status = await service.status("checkout-flow");
+  assert.equal(status.repositories[0].state, "disconnected");
+  assert.equal(status.repositories[0].receipt.implementation_revision, "a".repeat(40));
+  await assert.rejects(
+    service.recordAssignment({
+      changeId: "checkout-flow",
+      repositoryId: "frontend",
+      implementationRevision: "a".repeat(40),
+      status: "completed",
+      source: "agent",
+      confirm: async () => true,
+    }),
+    /PLUGIN_NOT_CONNECTED/,
+  );
 });
 
 test("ChangeTrackingService verify requires completed results for the whole Cycle", async () => {

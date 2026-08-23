@@ -4,6 +4,7 @@ import process from "node:process";
 
 import { BundledPluginProvider } from "./bundled-plugin.js";
 import { CandidateCli } from "./cli.js";
+import { currentRepositories } from "./current-repository.js";
 import { PluginApplicationService } from "./plugin-application.js";
 import { pluginCatalog } from "./plugin-catalog.js";
 import { pluginContexts } from "./plugin-context.js";
@@ -23,9 +24,12 @@ export class PluginPlatform {
     applicationService,
     catalog,
     contextFactory = pluginContexts,
+    currentRepositoryService = currentRepositories,
     loadedPlugins = [],
     pluginCommandOptions = {},
     rootCommands = new Map(),
+    start = process.cwd(),
+    storeProjectService = storeProjects,
   } = {}) {
     if (
       !pluginCommandOptions ||
@@ -45,9 +49,33 @@ export class PluginPlatform {
       applicationService,
       host,
     });
+    const loadedIds = new Set(registry.list().map(({ id }) => id));
+    const activeRootCommands = new Map(
+      [...rootCommands].filter(([pluginId]) => loadedIds.has(pluginId)),
+    );
+    let invocationPromise;
+    const resolveInvocation = () => {
+      invocationPromise ??= storeProjectService.resolve(start).then(async (storeProject) => ({
+        storeProject,
+        invocation: await currentRepositoryService.resolve({ start, storeProject }),
+      }));
+      return invocationPromise;
+    };
     this.#commands = new PluginCommandMounter({
       registry,
-      rootCommands,
+      resolveContext: async (pluginId, scope) => {
+        const { storeProject, invocation } = await resolveInvocation();
+        if (scope === "current" && !invocation) {
+          throw new Error("PLUGIN_COMMAND_CONTEXT_UNAVAILABLE: текущий Repository не определён");
+        }
+        return contextFactory.forRepository({
+          loadedPlugin: registry.require(pluginId),
+          storeProject,
+          repositoryId: scope === "store" ? storeProject.store.id : invocation.id,
+          invocation,
+        });
+      },
+      rootCommands: activeRootCommands,
     });
     this.#lifecycleCommands = new PluginLifecycleCommands({
       ...pluginCommandOptions,
@@ -95,6 +123,7 @@ export class PluginPlatform {
       catalog,
       loadedPlugins: resolved,
       pluginCommandOptions,
+      start,
     });
   }
 
@@ -109,7 +138,7 @@ export class PluginPlatform {
   static async #loadInstalled(start, managerService) {
     let storeProject;
     try {
-      storeProject = await storeProjects.find(start);
+      storeProject = await storeProjects.resolve(start);
     } catch (error) {
       if (error.code === "STORE_ROOT_NOT_FOUND") return Object.freeze([]);
       throw error;

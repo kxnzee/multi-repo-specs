@@ -2,6 +2,8 @@
 
 import { definePlugin } from "@openspec-orch/plugin-sdk";
 
+import { registerChangeTrackingCommands } from "./lib/commands.js";
+
 export { CycleRecord } from "./lib/cycle-record.js";
 export { CycleRecordRepository } from "./lib/cycle-record-repository.js";
 export { ChangeTrackingService } from "./lib/service.js";
@@ -20,6 +22,7 @@ const plugin = definePlugin({
       return Object.freeze({ state: "ready" });
     },
   },
+  registerCommands: registerChangeTrackingCommands,
 });
 
 export default plugin;

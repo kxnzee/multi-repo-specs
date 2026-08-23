@@ -40,9 +40,13 @@ function commandPlugin(id, registration) {
 }
 
 /** Собирает Candidate CLI с переданным registry и root policy. */
-function candidate(registry, rootCommands = new Map()) {
+function candidate(
+  registry,
+  rootCommands = new Map(),
+  resolveContext = async () => undefined,
+) {
   return new CandidateCli({
-    pluginCommandMounter: new PluginCommandMounter({ registry, rootCommands }),
+    pluginCommandMounter: new PluginCommandMounter({ registry, resolveContext, rootCommands }),
   });
 }
 
@@ -71,7 +75,47 @@ test("CandidateCli mounts user Plugin commands only inside plugin-id namespace",
   assert.equal(Object.isFrozen(boundaries[0].builder), true);
   assert.equal("parent" in boundaries[0].commands, false);
   assert.equal("addCommand" in boundaries[0].commands, false);
-  assert.equal("option" in boundaries[0].builder, false);
+  assert.equal("option" in boundaries[0].builder, true);
+  assert.equal("addOption" in boundaries[0].builder, false);
+});
+
+test("Plugin command can declare nested options and request invocation context", async (t) => {
+  const actions = [];
+  const context = Object.freeze({ repository: Object.freeze({ id: "specs", role: "store" }) });
+  const sample = await loadPlugin(t, commandPlugin("sample", (commands) => {
+    commands.command("record")
+      .description("Record")
+      .command("assignment <change-id>")
+      .description("Record assignment")
+      .option("--status <status>", "Result status", {
+        choices: ["completed", "failed"],
+        required: true,
+      })
+      .actionWithContext((received, changeId, options) => {
+        actions.push({ received, changeId, options });
+      });
+  }));
+  const program = candidate(
+    new PluginRegistry([sample]),
+    new Map(),
+    async () => context,
+  ).createProgram();
+
+  await program.parseAsync([
+    "node",
+    "openspec-orch",
+    "sample",
+    "record",
+    "assignment",
+    "checkout-flow",
+    "--status",
+    "completed",
+  ]);
+
+  assert.equal(actions[0].received, context);
+  assert.equal(actions[0].changeId, "checkout-flow");
+  assert.deepEqual(actions[0].options, { status: "completed" });
+  assert.equal(Object.isFrozen(actions[0].options), true);
 });
 
 test("explicit composition policy can mount trusted Plugin commands at root", async (t) => {
@@ -196,6 +240,7 @@ test("PluginCommandMounter validates root policy and command contribution result
   assert.throws(
     () => new PluginCommandMounter({
       registry,
+      resolveContext: async () => undefined,
       rootCommands: new Map([["missing", ["run"]]]),
     }),
     /root Plugin 'missing' не загружен/,

@@ -194,6 +194,66 @@ test("empty composition still exposes Core plugin lifecycle without Plugin-speci
   );
 });
 
+test("command context preserves start and selects current or Store scope explicitly", async (t) => {
+  const calls = [];
+  const loadedPlugin = await samplePlugin(t, []);
+  const start = "/virtual/workspace/repositories/frontend";
+  const commandPlugin = definePlugin({
+    id: "sample",
+    supports: ["store", "code"],
+    repository: {
+      connect() {},
+      status() { return { state: "ready" }; },
+    },
+    registerCommands(commands) {
+      commands.command("current-scope").description("Current")
+        .actionWithContext((context) => calls.push(context));
+      commands.command("store-scope").description("Store")
+        .actionWithContext((context) => calls.push(context), { scope: "store" });
+    },
+  });
+  const scopedPlugin = await new PluginLoader(async () => ({ default: commandPlugin })).load({
+    packageRoot: loadedPlugin.root,
+    pluginId: "sample",
+  });
+  const storeProject = { store: { id: "specs" } };
+  const invocation = Object.freeze({ id: "frontend", role: "code", path: start });
+  const storeStarts = [];
+  const program = await createCandidateProgram({
+    currentRepositoryService: {
+      async resolve(input) {
+        assert.equal(input.start, start);
+        return invocation;
+      },
+    },
+    loadedPlugins: [scopedPlugin],
+    pluginContextFactory: {
+      async forRepository(input) {
+        return Object.freeze({
+          invocation: input.invocation,
+          repositoryId: input.repositoryId,
+        });
+      },
+      async forRepositorySetup(input) {
+        return this.forRepository(input);
+      },
+    },
+    start,
+    storeProjectService: {
+      async resolve(received) {
+        storeStarts.push(received);
+        return storeProject;
+      },
+    },
+  });
+
+  await program.parseAsync(["node", "openspec-orch", "sample", "current-scope"]);
+  await program.parseAsync(["node", "openspec-orch", "sample", "store-scope"]);
+  assert.deepEqual(storeStarts, [start]);
+  assert.deepEqual(calls.map(({ repositoryId }) => repositoryId), ["frontend", "specs"]);
+  assert.equal(calls.every((context) => context.invocation === invocation), true);
+});
+
 test("bundled provider initializes and restores a Plugin without Store runtime", async (t) => {
   const storeRoot = await storeFixture(t, { declared: false });
   const output = [];

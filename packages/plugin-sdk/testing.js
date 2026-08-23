@@ -6,6 +6,7 @@ import test from "node:test";
 import { PluginPackage } from "./index.js";
 
 const COMMAND_NAME_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?=$|\s)/;
+const OPTION_FLAGS_PATTERN = /^(?:-[a-zA-Z],\s*)?--[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\s+(?:<[^>]+>|\[[^\]]+\]))?$/;
 const PLUGIN_API_METHODS = Object.freeze([
   "supportsRole",
   "assertSupports",
@@ -40,7 +41,11 @@ function assertPluginApi(plugin) {
 
 /** Command contribution, проверенный без выполнения action. */
 class ContractCommand {
+  #action = false;
+  #commands = new Map();
+  #described = false;
   #definition;
+  #options = new Set();
 
   constructor(definition) {
     this.#definition = definition;
@@ -50,6 +55,7 @@ class ContractCommand {
     if (typeof value !== "string" || value.trim().length === 0) {
       invalid(`Command '${this.#definition}' имеет неверное description`);
     }
+    this.#described = true;
     return this;
   }
 
@@ -57,7 +63,68 @@ class ContractCommand {
     if (typeof handler !== "function") {
       invalid(`Command '${this.#definition}' имеет неверный action`);
     }
+    if (this.#action) invalid(`Command '${this.#definition}' повторно объявила action`);
+    this.#action = true;
     return this;
+  }
+
+  actionWithContext(handler, config = {}) {
+    if (
+      !config ||
+      typeof config !== "object" ||
+      Array.isArray(config) ||
+      Object.keys(config).some((key) => key !== "scope") ||
+      (config.scope !== undefined && !["current", "store"].includes(config.scope))
+    ) {
+      invalid(`Command '${this.#definition}' имеет неверный context scope`);
+    }
+    return this.action(handler);
+  }
+
+  command(definition) {
+    if (typeof definition !== "string" || definition.trim().length === 0) {
+      invalid(`Command '${this.#definition}' передала пустую вложенную command`);
+    }
+    const name = definition.trim().match(COMMAND_NAME_PATTERN)?.[0]?.trim();
+    if (!name) invalid(`Command '${definition}' должна начинаться с kebab-case name`);
+    if (this.#commands.has(name)) invalid(`повторяющаяся Command path '${name}'`);
+    const command = new ContractCommand(definition.trim());
+    this.#commands.set(name, command);
+    return command;
+  }
+
+  option(flags, description, config = {}) {
+    if (
+      typeof flags !== "string" ||
+      !OPTION_FLAGS_PATTERN.test(flags) ||
+      typeof description !== "string" || description.trim().length === 0 ||
+      !config ||
+      typeof config !== "object" ||
+      Array.isArray(config) ||
+      Object.keys(config).some((key) => !["choices", "parser", "required"].includes(key)) ||
+      (config.choices !== undefined && (
+        !Array.isArray(config.choices) ||
+        config.choices.length === 0 ||
+        config.choices.some((choice) => typeof choice !== "string" || choice.length === 0) ||
+        new Set(config.choices).size !== config.choices.length
+      )) ||
+      (config.parser !== undefined && typeof config.parser !== "function") ||
+      (config.required !== undefined && typeof config.required !== "boolean")
+    ) {
+      invalid(`Command '${this.#definition}' имеет неверную option`);
+    }
+    const name = flags.match(/--[a-z][a-z0-9-]*/)?.[0];
+    if (this.#options.has(name)) invalid(`Command '${this.#definition}' повторяет option '${name}'`);
+    this.#options.add(name);
+    return this;
+  }
+
+  verify(path) {
+    if (!this.#described) invalid(`Command path '${path}' не имеет description`);
+    if (!this.#action && this.#commands.size === 0) {
+      invalid(`Command path '${path}' не имеет action`);
+    }
+    for (const [name, command] of this.#commands) command.verify(`${path} ${name}`);
   }
 }
 
@@ -80,6 +147,7 @@ class ContractCommandRegistry {
   }
 
   verify() {
+    for (const [name, command] of this.#commands) command.verify(name);
     return Object.freeze([...this.#commands.keys()]);
   }
 }

@@ -140,6 +140,39 @@ test("contract test kit validates command registration without running actions",
   );
 });
 
+test("contract test kit rejects invalid nested command actions and option metadata", () => {
+  const contract = (registerCommands) => assertPluginContract({
+    plugin: definePlugin({ id: "invalid-commands", supports: [], registerCommands }),
+    packageManifest: SAMPLE_MANIFEST,
+  });
+
+  assert.throws(
+    () => contract((commands) => commands.command("missing-action").description("Missing")),
+    /не имеет action/,
+  );
+  assert.throws(
+    () => contract((commands) => commands.command("parent").description("Parent")
+      .command("child").description("Child")),
+    /parent child.*не имеет action/,
+  );
+  assert.throws(
+    () => contract((commands) => commands.command("bad-option").description("Bad")
+      .option("json", "Bad flags").action(() => {})),
+    /неверную option/,
+  );
+  assert.throws(
+    () => contract((commands) => commands.command("bad-config").description("Bad")
+      .option("--state <state>", "State", { choices: [], required: "yes" })
+      .action(() => {})),
+    /неверную option/,
+  );
+  assert.throws(
+    () => contract((commands) => commands.command("bad-scope").description("Bad")
+      .actionWithContext(() => {}, { scope: "project" })),
+    /неверный context scope/,
+  );
+});
+
 test("contract validation uses the public Plugin API instead of instanceof", () => {
   const plugin = SAMPLE_PLUGIN;
   const externalPlugin = Object.freeze({

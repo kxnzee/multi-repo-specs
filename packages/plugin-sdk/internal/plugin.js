@@ -15,6 +15,7 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
  * @typedef {object} RepositoryRegistry
  * @property {() => readonly RepositoryHandle[]} list
  * @property {(id: string) => RepositoryHandle} require
+ * @property {(id: string) => boolean} isConnected
  * @property {(ids: readonly string[]) => readonly RepositoryHandle[]} requireConnected
  * @property {(id: string) => Promise<GitFacade | null>} git
  */
@@ -75,7 +76,15 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
  * @typedef {object} CommandBuilder
  * Action получает позиционные аргументы и immutable options без Commander instance.
  * @property {(description: string) => CommandBuilder} description
+ * @property {(definition: string) => CommandBuilder} command
+ * @property {(flags: string, description: string, config?: {
+ *   choices?: readonly string[],
+ *   parser?: Function,
+ *   required?: boolean
+ * }) => CommandBuilder} option
  * @property {(handler: (...args: unknown[]) => unknown) => CommandBuilder} action
+ * @property {(handler: (context: PluginContext, ...args: unknown[]) => unknown,
+ *   config?: {scope?: "current" | "store"}) => CommandBuilder} actionWithContext
  */
 
 /**
@@ -88,6 +97,8 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
  * @property {Readonly<ProjectHandle>} project
  * @property {RepositoryRegistry} repositories
  * @property {RepositoryHandle} [repository]
+ * @property {{readonly id: string, readonly role: RepositoryRole, readonly path: string} | null}
+ *   invocation
  * @property {GitFacade} git
  * @property {OpenSpecFacade} openspec
  * @property {FilesFacade} files
