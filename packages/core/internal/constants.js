@@ -2,7 +2,6 @@
 
 export const CORE_FILES = Object.freeze({
   alternateOpenSpecConfig: "openspec/config.yml",
-  localPluginOverrides: ".openspec-orch/cache/local-plugins.json",
   orchestratorConfig: "openspec-orch.yaml",
   openSpecDirectory: "openspec",
   openSpecArchiveDirectory: "openspec/changes/archive",
@@ -19,9 +18,7 @@ export const CORE_SERVICE_PATHS = Object.freeze({
   coreStateLock: ".openspec-orch/cache/locks/core-state.lock",
   directory: ".openspec-orch",
   lockDirectory: ".openspec-orch/cache/locks",
-  localPluginOverridesLock: ".openspec-orch/cache/locks/local-plugin-overrides.lock",
   pluginInstallerLock: ".openspec-orch/cache/locks/plugin-installer.lock",
-  pluginRuntimeRecord: "installation.json",
   pluginRuntimeDirectory: ".openspec-orch/cache/plugin-runtimes",
   projectConfigLock: ".openspec-orch/cache/locks/project-config.lock",
   pluginStateFile: "state.json",
@@ -42,8 +39,6 @@ export const CORE_CLI_COMMANDS = Object.freeze({
 
 export const CORE_CONTRACT_VERSIONS = Object.freeze({
   coreState: 1,
-  localPluginOverrides: 1,
-  pluginInstallation: 1,
   pluginStorage: 1,
   project: 3,
   store: 1,

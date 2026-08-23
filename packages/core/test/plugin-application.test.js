@@ -10,7 +10,6 @@ import {
   configuration,
   PluginApplicationResult,
   PluginApplicationService,
-  PluginInstallationRecord,
   PluginRemovalResult,
   PluginSource,
   storeProjects,
@@ -43,30 +42,18 @@ repositories:
   return { root, storeProject: await storeProjects.load(root) };
 }
 
-/** Создаёт portable installation record для fake Installer. */
-function recordFixture(pluginId = "sample", packageName = "@test/plugin-sample") {
-  return PluginInstallationRecord.parse({
-    record_version: 1,
-    plugin_id: pluginId,
-    source: { kind: "local", spec: "local" },
-    package: { name: packageName, version: "1.0.0", plugin: "./index.js" },
-    dependencies: [{
-      path: `node_modules/${packageName}`,
-      name: packageName,
-      version: "1.0.0",
-      resolved: "local",
-    }],
-  });
-}
-
-/** Возвращает Installer service с наблюдаемым fake результатом. */
-function installerFixture(record, calls) {
+/** Возвращает Plugin Manager service с наблюдаемым fake результатом. */
+function managerFixture(calls, { installedId = "sample", packageName = "@test/plugin-sample" } = {}) {
   return {
     forStore() {
       return {
         async install(pluginId, source) {
           calls.push({ pluginId, source });
-          return { id: record.pluginId, record, source };
+          return {
+            id: installedId,
+            declaration: `${packageName}@1.0.0`,
+            source,
+          };
         },
         async remove(pluginId) {
           calls.push({ operation: "remove", pluginId });
@@ -80,27 +67,24 @@ function installerFixture(record, calls) {
 test("PluginApplicationService publishes config only after installation", async (t) => {
   const { root, storeProject } = await storeFixture(t);
   const source = PluginSource.parse(path.join(root, "local-plugin"), { cwd: root });
-  const record = recordFixture();
   const calls = [];
   const service = new PluginApplicationService({
-    installerService: installerFixture(record, calls),
+    managerService: managerFixture(calls),
   });
 
   const result = await service.install(storeProject, "sample", source);
 
   assert.equal(result instanceof PluginApplicationResult, true);
   assert.equal(result.initialized, true);
-  assert.equal(result.installation.record, record);
   assert.equal(result.storeProject.project.version, 3);
-  assert.equal(result.storeProject.project.pluginDeclaration("sample").source, "local");
+  assert.equal(
+    result.storeProject.project.pluginDeclaration("sample").source,
+    "@test/plugin-sample@1.0.0",
+  );
   assert.equal(calls.length, 1);
   const projectSource = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
   assert.match(projectSource, /version: 3/);
-  assert.match(projectSource, /id: sample\n\s+source: local/);
-  const overrides = JSON.parse(
-    await fs.readFile(path.join(root, ".openspec-orch/cache/local-plugins.json"), "utf8"),
-  );
-  assert.equal(overrides.plugins.sample, path.join(root, "local-plugin"));
+  assert.match(projectSource, /id: sample\n\s+source: "@test\/plugin-sample@1.0.0"/);
 });
 
 test("PluginApplicationService rejects an inconsistent installation before config publication", async (t) => {
@@ -108,7 +92,7 @@ test("PluginApplicationService rejects an inconsistent installation before confi
   const original = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
   const calls = [];
   const service = new PluginApplicationService({
-    installerService: installerFixture(recordFixture("another"), calls),
+    managerService: managerFixture(calls, { installedId: "another" }),
   });
 
   await assert.rejects(
@@ -122,10 +106,6 @@ test("PluginApplicationService rejects an inconsistent installation before confi
 
   assert.equal(calls.length, 1);
   assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), original);
-  await assert.rejects(
-    fs.access(path.join(root, ".openspec-orch/cache/local-plugins.json")),
-    /ENOENT/,
-  );
 });
 
 test("PluginApplicationService leaves config unchanged when publication fails", async (t) => {
@@ -137,7 +117,7 @@ test("PluginApplicationService leaves config unchanged when publication fails", 
         return { async write() { throw new Error("config write failed"); } };
       },
     },
-    installerService: installerFixture(recordFixture(), []),
+    managerService: managerFixture([]),
   });
 
   await assert.rejects(
@@ -150,17 +130,13 @@ test("PluginApplicationService leaves config unchanged when publication fails", 
   );
 
   assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), originalProject);
-  const override = JSON.parse(
-    await fs.readFile(path.join(root, ".openspec-orch/cache/local-plugins.json"), "utf8"),
-  );
-  assert.equal(override.plugins.sample, path.join(root, "local-plugin"));
 });
 
-test("PluginApplicationService removes an unbound Plugin and its local override", async (t) => {
+test("PluginApplicationService removes an unbound Plugin and its runtime", async (t) => {
   const { root, storeProject } = await storeFixture(t);
   const calls = [];
   const service = new PluginApplicationService({
-    installerService: installerFixture(recordFixture(), calls),
+    managerService: managerFixture(calls),
   });
   const source = PluginSource.parse(path.join(root, "local-plugin"), { cwd: root });
   await service.install(storeProject, "sample", source);
@@ -177,17 +153,13 @@ test("PluginApplicationService removes an unbound Plugin and its local override"
   assert.deepEqual(calls.map(({ operation }) => operation ?? "install"), ["install", "remove"]);
   const project = await storeProjects.load(root);
   assert.equal(project.project.hasPlugin("sample"), false);
-  const overrides = JSON.parse(
-    await fs.readFile(path.join(root, ".openspec-orch/cache/local-plugins.json"), "utf8"),
-  );
-  assert.deepEqual(overrides.plugins, {});
 });
 
 test("PluginApplicationService rejects removal while a Repository remains connected", async (t) => {
   const { root, storeProject } = await storeFixture(t);
   const calls = [];
   const service = new PluginApplicationService({
-    installerService: installerFixture(recordFixture(), calls),
+    managerService: managerFixture(calls),
   });
   const source = PluginSource.parse(path.join(root, "local-plugin"), { cwd: root });
   await service.install(storeProject, "sample", source);
@@ -200,27 +172,6 @@ test("PluginApplicationService rejects removal while a Repository remains connec
   const before = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
 
   await assert.rejects(service.remove(storeProject, "sample"), /PLUGIN_CONNECTED/);
-
-  assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), before);
-  assert.deepEqual(calls.map(({ operation }) => operation ?? "install"), ["install"]);
-});
-
-test("PluginApplicationService validates local state before removing runtime", async (t) => {
-  const { root, storeProject } = await storeFixture(t);
-  const calls = [];
-  const service = new PluginApplicationService({
-    installerService: installerFixture(recordFixture(), calls),
-  });
-  const source = PluginSource.parse(path.join(root, "local-plugin"), { cwd: root });
-  await service.install(storeProject, "sample", source);
-  await fs.writeFile(
-    path.join(root, ".openspec-orch/cache/local-plugins.json"),
-    "{broken",
-    "utf8",
-  );
-  const before = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
-
-  await assert.rejects(service.remove(storeProject, "sample"), /LOCAL_PLUGIN_OVERRIDE_INVALID/);
 
   assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), before);
   assert.deepEqual(calls.map(({ operation }) => operation ?? "install"), ["install"]);

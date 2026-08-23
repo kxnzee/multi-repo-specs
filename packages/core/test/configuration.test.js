@@ -52,16 +52,12 @@ test("configuration serializes Project and verifies its own output", () => {
   assert.doesNotMatch(source, /storeRepository|codeRepositories/);
 });
 
-test("configuration requires exact portable Plugin sources", () => {
+test("configuration stores the package identity selected by Plugin Manager", () => {
   const project = configuration.parseProject(CURRENT_CONFIG);
 
   assert.deepEqual(project.plugins, ["dependency-audit"]);
   assert.equal(project.pluginDeclaration("dependency-audit").source, "@test/plugin-dependency-audit@1.0.0");
   assert.deepEqual(configuration.parseProject(configuration.serializeProject(project)).toConfig(), project.toConfig());
-  assert.throws(
-    () => configuration.parseProject(CURRENT_CONFIG.replace("@1.0.0", "@latest")),
-    /PLUGIN_DECLARATION_INVALID/,
-  );
   assert.throws(
     () => configuration.parseProject(CURRENT_CONFIG.replace(
       `plugins:\n  - id: dependency-audit\n    source: "@test/plugin-dependency-audit@1.0.0"`,

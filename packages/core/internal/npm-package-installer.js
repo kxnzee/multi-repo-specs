@@ -64,7 +64,7 @@ export class NpmPackageInstallResult {
   get stdout() { return this.#stdout; }
 }
 
-/** Выполняет только npm install; temp runtime и activation принадлежат PluginInstaller. */
+/** Выполняет только npm install; temp runtime и activation принадлежат Plugin Manager. */
 export class NpmPackageInstaller {
   #executor;
   #environment;
@@ -105,8 +105,8 @@ export class NpmPackageInstaller {
       "--ignore-scripts",
       "--no-audit",
       "--no-fund",
+      "--install-links",
     ];
-    if (source.requiresInstallLinks) args.push("--install-links");
     args.push("--", source.installSpec);
     let result;
     try {

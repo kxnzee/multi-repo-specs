@@ -298,7 +298,7 @@ test("automatic composition skips unavailable runtime but rejects corrupted cach
     );
     await fs.mkdir(runtimeDirectory, { recursive: true });
     await fs.writeFile(path.join(runtimeDirectory, "unexpected"), "corrupted");
-    await assert.rejects(createCandidateProgram(), /PLUGIN_RUNTIME_INVALID/);
+    await assert.rejects(createCandidateProgram(), /PLUGIN_MANAGER_INVALID/);
   } finally {
     process.chdir(previousCwd);
   }

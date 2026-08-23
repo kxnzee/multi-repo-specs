@@ -67,6 +67,7 @@ export class BundledPluginInstallation {
   }
 
   get id() { return this.#loadedPlugin.id; }
+  get declaration() { return this.#source.declaration; }
   get version() { return this.#loadedPlugin.package.version; }
   get loadedPlugin() { return this.#loadedPlugin; }
   get packageRoot() { return this.#loadedPlugin.root; }
@@ -120,7 +121,7 @@ export class BundledPluginProvider {
       pluginId,
     });
     if (
-      loadedPlugin.package.name !== source.packageName ||
+      `${loadedPlugin.package.name}@${loadedPlugin.package.version}` !== source.declaration ||
       loadedPlugin.package.version !== pluginPackage.version
     ) {
       invalid(`${pluginId}: package identity не совпадает с distribution declaration`);

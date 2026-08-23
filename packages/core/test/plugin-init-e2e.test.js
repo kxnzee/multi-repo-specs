@@ -12,7 +12,7 @@ import {
   createCandidateProgram,
   createProject,
   PluginApplicationService,
-  PluginInstallerService,
+  PluginManagerService,
 } from "@openspec-orch/core";
 
 import {
@@ -65,11 +65,9 @@ async function storeFixture(t) {
 test("candidate Plugin survives restarts through its complete project lifecycle", async (t) => {
   const storeRoot = await storeFixture(t);
   const output = [];
-  let installedOverride;
-  let installedReceipt;
   let installedSource;
   const applicationService = new PluginApplicationService({
-    installerService: new PluginInstallerService({
+    managerService: new PluginManagerService({
       npmInstaller: createPluginMaterializer(),
     }),
   });
@@ -119,14 +117,6 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
     installedSource = configuration.parseProject(
       await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
     ).pluginDeclaration("sample").source;
-    installedOverride = JSON.parse(await fs.readFile(
-      path.join(storeRoot, ".openspec-orch/cache/local-plugins.json"),
-      "utf8",
-    ));
-    installedReceipt = await fs.readFile(path.join(
-      storeRoot,
-      ".openspec-orch/cache/plugin-runtimes/sample/1.0.0/installation.json",
-    ), "utf8");
     await (await createProgram()).parseAsync([
       "node",
       "openspec-orch",
@@ -161,19 +151,12 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
   );
   assert.deepEqual(project.plugins, []);
   assert.deepEqual(project.requireRepository("frontend").plugins, []);
-  assert.equal(installedSource, "local");
+  assert.equal(installedSource, "@test/openspec-orch-plugin-sample@1.0.0");
   assert.equal(project.pluginDeclaration("sample"), undefined);
-  const override = JSON.parse(await fs.readFile(
-    path.join(storeRoot, ".openspec-orch/cache/local-plugins.json"),
-    "utf8",
-  ));
-  assert.equal(installedOverride.plugins.sample, SAMPLE_PLUGIN_ROOT);
-  assert.deepEqual(override.plugins, {});
   const runtimeRoot = path.join(
     storeRoot,
-    ".openspec-orch/cache/plugin-runtimes/sample/1.0.0",
+    ".openspec-orch/cache/plugin-runtimes/sample",
   );
-  assert.equal(installedReceipt.includes(SAMPLE_PLUGIN_ROOT), false);
   assert.equal(await fs.lstat(runtimeRoot).catch((error) => error.code), "ENOENT");
   assert.deepEqual(output, [
     "sample: initialized",

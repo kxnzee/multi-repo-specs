@@ -105,7 +105,7 @@ test("plugin init preserves --plugin/--from grammar and delegates to application
   assert.equal(calls[0].current, storeProject);
   assert.equal(calls[0].pluginId, "sample");
   assert.equal(calls[0].source instanceof PluginSource, true);
-  assert.equal(calls[0].source.declaration, "local");
+  assert.equal(calls[0].source.declaration, "../sample-plugin");
   assert.deepEqual(captured.lines, [
     "sample: initialized",
     "Далее: openspec-orch plugin connect <plugin-id>",
@@ -182,7 +182,7 @@ test("plugin init installs discovered catalog entries through --all", async () =
 
   assert.deepEqual(calls.map(({ pluginId }) => pluginId), ["alpha", "zeta"]);
   assert.equal(calls.every(({ current }) => current === storeProject), true);
-  assert.equal(calls.every(({ source }) => source.kind === "npm"), true);
+  assert.equal(calls.every(({ source }) => source.kind === "external"), true);
   assert.deepEqual(captured.lines, [
     "alpha: initialized",
     "zeta: already_initialized",

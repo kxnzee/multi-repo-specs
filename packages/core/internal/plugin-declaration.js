@@ -1,23 +1,6 @@
 /** @fileoverview Переносимая декларация Plugin в project config. */
 
-import path from "node:path";
-
 import { CORE_PATTERNS } from "./constants.js";
-import { PluginSource } from "./plugin-source.js";
-
-/** Проверяет переносимую строку source из project config. */
-function assertSource(source) {
-  if (source === "local") return;
-  let parsed;
-  try {
-    parsed = PluginSource.parse(source, { cwd: path.resolve("/") });
-  } catch (error) {
-    throw new Error(`PLUGIN_DECLARATION_INVALID: source: ${error.message}`, { cause: error });
-  }
-  if (parsed.declaration !== source || parsed.developmentOnly) {
-    throw new Error("PLUGIN_DECLARATION_INVALID: source должен быть переносимым");
-  }
-}
 
 /** Immutable Plugin ID и его переносимый package source. */
 export class PluginDeclaration {
@@ -31,7 +14,9 @@ export class PluginDeclaration {
     if (typeof source !== "string" || !source) {
       throw new Error("PLUGIN_DECLARATION_INVALID: source должен быть непустой строкой");
     }
-    assertSource(source);
+    if (/[\r\n\0]/.test(source)) {
+      throw new Error("PLUGIN_DECLARATION_INVALID: source должен быть однострочным");
+    }
     this.#id = id;
     this.#source = source;
     Object.freeze(this);

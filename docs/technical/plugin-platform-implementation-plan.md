@@ -10,8 +10,8 @@
 нему начинается отдельной явной задачей.
 
 План отвечает на практический вопрос: как сохранить существующий CLI, но разделить
-его на небольшое Core и самостоятельные in-process Plugins, чтобы третий Plugin
-добавлялся без изменений `packages/core` и Template.
+его на небольшое Core и самостоятельные in-process Plugins, чтобы пользовательский
+Plugin добавлялся без изменений `packages/core` и Template.
 
 ## 1. Результат миграции
 
@@ -68,8 +68,8 @@ Plugins доверенные и загружаются в процесс Orchest
 10. MCP-конфиг и инструкции устанавливает общий Agent Service. CodeGraph Plugin
    объявляет требуемый MCP server и текст инструкций, но не переносит форматы
    Codex/Qwen/Claude/GigaCode в Core-команды или Template.
-11. `pacote` удаляется только одновременно с переходом на npm-backed Installer и
-    после интеграционного теста реальной установки зависимостей.
+11. `pacote` удаляется при переходе на единый npm-backed Plugin Manager. Core не
+    классифицирует npm/Git/tarball sources и не строит собственный dependency lock.
 12. Multi-repository topology является Core-функциональностью. Core владеет полным
     реестром Store и Code Repositories из `openspec-orch.yaml`, workspace,
     repository bindings и безопасным доступом к checkout. Change Tracking Plugin
@@ -493,40 +493,20 @@ agent: {
 server. Пакет понадобится только если Orchestrator начнёт реализовывать собственный
 MCP server или proxy.
 
-## 8. npm-backed Plugin Installer и удаление pacote
+## 8. npm-backed Plugin Manager и удаление pacote
 
-### 8.1. Текущее фактическое поведение
+### 8.1. Граница ответственности
 
-Текущий `catalog.js` использует `pacote.extract` для discovery и materialization,
-а затем запускает `npm install --omit=dev --ignore-scripts` при наличии production
-dependencies. Поэтому проблема не в полном отсутствии установки dependencies.
+Core различает только два случая:
 
-Недостатки текущей схемы:
+- bundled package из root distribution загружается на месте;
+- значение `plugin init --from` без собственной классификации передаётся `npm install`.
 
-- один source может распаковываться дважды;
-- получение artifact и построение dependency tree разделены между двумя механизмами;
-- Git/directory fetch имеет prepare-семантику `pacote`;
-- тест проверяет аргументы подменённого installer, но не реальное разрешение
-  транзитивной зависимости;
-- source identity фиксируется в project config, а resolved dependency tree — в
-  installation receipt конкретного локального runtime.
+npm самостоятельно разрешает registry package, Git, tarball или локальный path и
+создаёт стандартный `package-lock.json`. Core не проецирует dependency tree в свой
+формат, не хранит второй lock и не поддерживает отдельную матрицу source kinds.
 
-### 8.2. Источники Plugin
-
-Installer поддерживает только явные источники:
-
-- bundled package из root distribution;
-- точный npm spec `name@version`;
-- `.tgz` или tarball URL с сохранённой integrity;
-- Git URL только с commit SHA;
-- локальный package directory только в development-режиме через существующий
-  `plugin init --from <path>`.
-
-Tags, плавающие ranges и Git default branch не записываются как воспроизводимая
-установка. Их можно принять как пользовательский ввод только если Installer сначала
-разрешит и сохранит точную версию/commit/integrity.
-
-### 8.3. Файлы установки
+### 8.2. Файлы установки
 
 Portable declaration хранится в версионированном project config, отдельно от
 repository bindings:
@@ -544,42 +524,35 @@ repositories:
 Новый Core не читает текущий `plugins: [id]`: принадлежащие проекту конфиги явно
 переводятся на `version: 3` и `{ id, source }` до переключения entrypoint. Legacy
 состояния не попадают в доменную модель и не создают постоянных ветвлений.
-Отдельный project-level Plugin lock в первой версии не создаётся. Точный source
-фиксируется в `openspec-orch.yaml`, а локальный runtime содержит собственные
-`package-lock.json` и `installation.json`. Если появится подтверждённое требование
-побитовой воспроизводимости dependency tree между машинами, переносимый lock будет
-добавлен отдельным контрактом; до этого он не усложняет Core.
+После установки Manager читает проверенные `name` и `version` package и записывает в
+`openspec-orch.yaml` только identity `name@version`. Один Store-local runtime живёт в
+`.openspec-orch/cache/plugin-runtimes/<plugin-id>/` и содержит стандартные npm
+`package.json`, `package-lock.json` и `node_modules`.
 
-Development override хранится только локально в gitignored
-`.openspec-orch/cache/local-plugins.json` и создаётся существующей командой
-`plugin init --from <path> --plugin <id>`. В portable project config такой Plugin
-фиксируется с `source: local`, без абсолютного пути; на другой машине он честно имеет
-статус `unavailable`, пока пользователь явно не передаст локальный package source.
-`plugin register` по-прежнему только создаёт исходный package и не подключает его
-неявно.
+Собственные `installation.json`, version scan и `local-plugins.json` отсутствуют.
+Исходный локальный path нужен только во время `plugin init --from`; package уже
+materialized в managed runtime и после перезапуска не зависит от исходной папки.
+`plugin register` по-прежнему только создаёт исходный package.
 
-### 8.4. Алгоритм установки
+### 8.3. Алгоритм установки
 
 Для внешнего package:
 
 1. захватить Store-local installer lock;
 2. создать временный каталог рядом с конечным cache target;
 3. создать минимальный runtime `package.json` с точной версией Plugin SDK;
-4. выполнить через `execa` без shell:
+4. передать source через `execa` без shell в npm:
 
    ```text
    npm install --prefix <temp-runtime> --save-exact --omit=dev
-     --ignore-scripts --no-audit --no-fund <exact-package-spec>
+     --ignore-scripts --no-audit --no-fund --install-links <source>
    ```
 
-5. для локального directory использовать явный `--install-links`, чтобы npm
-   materialize package, а не оставил внешний symlink;
-6. найти установленный package, запретить symlink entrypoint и импортировать его;
-7. проверить package identity, `apiVersion`, Plugin ID, supports и command conflicts;
-8. записать installation receipt;
-9. атомарно активировать каталог rename-операцией;
-10. только после успешной активации обновить project config;
-11. при любой ошибке удалить temp и оставить предыдущую установку/config без
+5. найти единственный Plugin package, запретить symlink entrypoint и импортировать его;
+6. проверить package identity, `apiVersion`, Plugin ID, supports и command conflicts;
+7. атомарно заменить единственный runtime каталожной rename-операцией;
+8. только после успешной активации обновить project config;
+9. при любой ошибке удалить temp и оставить предыдущую установку/config без
     изменений.
 
 Bundled Plugin не переустанавливается в Store: Loader разрешает его из dependency
@@ -589,12 +562,11 @@ Lifecycle scripts остаются запрещены. Plugin с зависим�
 postinstall, должен поставлять готовый artifact либо быть bundled и проходить сборку
 на этапе выпуска Orchestrator.
 
-### 8.5. Момент удаления pacote
+### 8.4. Момент удаления pacote
 
 `pacote` удаляется из imports, `package.json` и lockfile только когда одновременно:
 
-- npm-backed Installer покрывает все поддерживаемые source kinds;
-- реальный fixture Plugin импортирует собственную транзитивную dependency;
+- npm-backed Manager устанавливает локальный fixture и его dependency;
 - lifecycle-script fixture не создаёт sentinel file;
 - invalid entrypoint/package не меняет предыдущую установку и project config;
 - bundled CodeGraph проходит E2E;
@@ -778,16 +750,16 @@ legacy; новые packages не импортируют `src/internal`.
 Критерий выхода: sample Plugin выполняет repository lifecycle и namespaced command
 через candidate CLI; Core не содержит условия по его Plugin ID.
 
-### 11.7. Этап 5. npm-backed Installer
+### 11.7. Этап 5. npm-backed Plugin Manager
 
-- реализовать временный runtime, npm install и atomic activation;
-- добавить portable source declaration и локальный installation receipt;
-- реализовать local development override через текущий `plugin init --from`;
-- переключить candidate `plugin init/remove/status` на новый installation record;
-- проверить npm, tarball, Git commit, bundled и local source;
-- доказать реальную установку транзитивной dependency;
+- объединить materialization, resolution и removal в один Store-scoped facade;
+- оставить один deterministic runtime на Plugin ID;
+- передавать значение `--from` в npm без собственной source matrix;
+- хранить в project config только проверенную package identity;
+- не создавать installation receipt или local override registry;
 - доказать запрет lifecycle scripts;
-- удалить `pacote` из candidate dependencies только после критериев раздела 8.5;
+- проверить сохранение предыдущего runtime при ошибке замены;
+- удалить `pacote` из candidate dependencies после критериев раздела 8.4;
 - legacy runtime до cutover не менять ради этого удаления.
 
 Критерий выхода: внешний Plugin устанавливается и импортируется candidate CLI на
@@ -823,20 +795,20 @@ legacy; новые packages не импортируют `src/internal`.
 связывает его с repositories, запускает реальный binary, а выбранный при `init`
 Agent получает рабочий MCP.
 
-### 11.10. Этап 8. Scaffold и третий Plugin
+### 11.10. Этап 8. Scaffold пользовательского Plugin
 
 - обновить candidate `plugin register`: создавать `package.json`, `index.js`, README
   и contract test;
 - не создавать `plugin.yaml` и executable без необходимости;
 - пройти `register -> plugin init --from -> connect -> status -> command`;
-- создать третий fixture Plugin, отличный от Change Tracking и CodeGraph;
-- подтвердить отсутствие изменений `packages/core`, Template и Loader;
-- проверить ESLint, package exports и boundary tests на этом Plugin.
+- использовать компактный SDK fixture, а не создавать третий продуктовый Plugin;
+- подтвердить отсутствие изменений `packages/core`, Template и Loader при работе fixture;
+- проверить ESLint, package exports и boundary tests.
 
 Критерий выхода: сторонний Plugin полностью реализуется внутри созданного каталога и
 работает через публичный SDK.
 
-### 11.11. Этап 9. Parity и isolated E2E двух entrypoints
+### 11.11. Этап 9. Совместимость и isolated E2E
 
 Для семантически эквивалентных входных fixtures отдельно запустить legacy и candidate;
 project config при этом использует нативную версию каждого entrypoint:
@@ -846,23 +818,23 @@ legacy    -> temp/legacy-store + temp/legacy-workspace
 candidate -> temp/new-store    + temp/new-workspace
 ```
 
-Сравнить:
+Проверить только наблюдаемый пользовательский контракт:
 
-- command grammar, help, exit code, stdout и stderr;
-- generated YAML/JSON и project config migration;
+- command grammar и значимые exit codes;
+- generated project config;
 - Cycle Records, Receipts и Snapshot IDs;
 - repository bindings и Git state;
 - Plugin installation/status/remove;
 - CodeGraph repository lifecycle;
 - Agent MCP configs и instructions;
-- повторный запуск после restart;
-- отсутствие частичных записей после каждого негативного сценария.
+- повторный запуск после restart и отсутствие частичных project/runtime записей в
+  основных негативных сценариях.
 
 Mutating flows никогда не запускаются двумя реализациями над одним Store. Допустимы
 только независимые копии одних исходных Git fixtures.
 
-Критерий выхода: все допустимые различия перечислены и отдельно согласованы; скрытых
-расхождений поведения нет, полный candidate isolated E2E зелёный.
+Критерий выхода: два реальных Plugin flow и основной multi-repository pilot зелёные;
+побайтовое сравнение каждого внутреннего файла и исчерпывающая parity matrix не нужны.
 
 ### 11.12. Этап 10. Cutover публичного entrypoint
 
@@ -910,14 +882,14 @@ package artifact.
 
 ### Installer
 
-- bundled, exact npm, tarball, Git commit и local development source;
+- bundled package и один npm-compatible custom source;
 - транзитивная production dependency реально импортируется;
 - devDependency не устанавливается;
 - lifecycle scripts не выполняются;
 - local directory не оставляет symlink в materialized runtime;
-- identity/version/integrity mismatch блокирует активацию;
+- package identity mismatch блокирует активацию;
 - повторная установка идемпотентна;
-- ошибка обновления оставляет предыдущую версию рабочей;
+- ошибка обновления оставляет предыдущий runtime рабочим;
 - параллельные install/remove не повреждают cache или config.
 
 ### Project и Repository bindings
@@ -962,7 +934,7 @@ package artifact.
 - package exports не открывают приватные Core и Plugin modules;
 - один Plugin не импортирует другой Plugin и не зависит от порядка загрузки;
 - `templates/` не объявляет и не устанавливает Plugins;
-- новый fixture Plugin не требует изменения списка Core handlers или ветки по ID;
+- SDK fixture Plugin не требует изменения списка Core handlers или ветки по ID;
 - dependency graph packages не содержит циклов.
 
 ## 13. Definition of Done
@@ -972,14 +944,14 @@ package artifact.
 1. Все текущие пользовательские команды работают с прежней грамматикой.
 2. `plugin-change-tracking` и `plugin-codegraph` используют один публичный SDK и
    один Host.
-3. Третий Plugin создан `plugin register`, подключён и запущен без изменения
+3. Plugin, созданный `plugin register`, проходит SDK fixture flow без изменения
    `packages/core` и `templates/`.
 4. CodeGraph поставляется вместе с Orchestrator и не требует ручной установки своих
    npm dependencies.
 5. MCP и инструкции установлены для единственного Agent, выбранного при `init`.
 6. `pacote`, `plugin.yaml` и старый argv runtime полностью удалены.
-7. Project config хранит точный переносимый Plugin source, а локальный installation
-   receipt соответствует активированному runtime.
+7. Project config хранит проверенную package identity; npm runtime является
+   единственным локальным installation state.
 8. State migration идемпотентна и не теряет workspace, Receipts или Snapshots.
 9. `npm run check`, coverage, package dry-runs и реальный isolated E2E зелёные.
 10. `git diff --check` чист, а итоговый diff не меняет предметную реализацию Cycle,
@@ -999,11 +971,11 @@ package artifact.
 2. SDK package;
 3. механический перенос универсального Core;
 4. Loader, Host и PluginContext;
-5. npm-backed Installer для candidate runtime;
+5. npm-backed Plugin Manager для candidate runtime;
 6. `plugin-change-tracking` parity move;
 7. `plugin-codegraph` parity move и Agent Service;
-8. scaffold и третий Plugin;
-9. parity suite двух entrypoints;
+8. scaffold и SDK fixture Plugin;
+9. compatibility E2E двух entrypoints;
 10. cutover root `package.json#bin` без удаления legacy;
 11. отдельное удаление `src/`, legacy dependencies и финальный package E2E.
 

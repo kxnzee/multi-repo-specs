@@ -1,4 +1,4 @@
-/** @fileoverview Координация Plugin installation, project declaration и portable lock. */
+/** @fileoverview Координация Plugin Manager и project declaration. */
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -6,9 +6,8 @@ import path from "node:path";
 import { configuration } from "./configuration.js";
 import { CORE_FILES, CORE_SERVICE_PATHS } from "./constants.js";
 import { files } from "./files.js";
-import { localPluginOverrides } from "./local-plugin-overrides.js";
 import { locks } from "./lock.js";
-import { pluginInstallers } from "./plugin-installer.js";
+import { pluginManagers } from "./plugin-manager.js";
 import { PluginSource } from "./plugin-source.js";
 import { StoreProject, storeProjects } from "./store-project.js";
 
@@ -109,16 +108,14 @@ export class PluginRemovalResult {
 export class PluginApplicationService {
   #configuration;
   #files;
-  #installers;
-  #localOverrides;
+  #managers;
   #lock;
   #storeProjects;
 
   constructor({
     configurationService = configuration,
     fileService = files,
-    installerService = pluginInstallers,
-    localOverrideService = localPluginOverrides,
+    managerService = pluginManagers,
     lock = locks,
     storeProjectService = storeProjects,
   } = {}) {
@@ -128,11 +125,8 @@ export class PluginApplicationService {
     if (typeof fileService?.forRepository !== "function") {
       invalid("fileService должен предоставлять forRepository");
     }
-    if (typeof installerService?.forStore !== "function") {
-      invalid("installerService должен предоставлять forStore");
-    }
-    if (typeof localOverrideService?.forStore !== "function") {
-      invalid("localOverrideService должен предоставлять forStore");
+    if (typeof managerService?.forStore !== "function") {
+      invalid("managerService должен предоставлять forStore");
     }
     if (typeof lock?.run !== "function") invalid("lock должен предоставлять run");
     if (typeof storeProjectService?.load !== "function") {
@@ -140,8 +134,7 @@ export class PluginApplicationService {
     }
     this.#configuration = configurationService;
     this.#files = fileService;
-    this.#installers = installerService;
-    this.#localOverrides = localOverrideService;
+    this.#managers = managerService;
     this.#lock = lock;
     this.#storeProjects = storeProjectService;
     Object.freeze(this);
@@ -174,20 +167,17 @@ export class PluginApplicationService {
 
   async #installUnlocked(root, pluginId, source) {
     const current = await this.#storeProjects.load(root);
-    const initialized = current.project.declarePlugin(pluginId, source.declaration);
-    const projectSource = this.#configuration.serializeProject(current.project);
-    const installation = await this.#installers.forStore(current.checkout).install(pluginId, source);
+    const installation = await this.#managers.forStore(current.checkout).install(pluginId, source);
     if (
       !installation ||
       installation.id !== pluginId ||
       !(installation.source instanceof PluginSource) ||
-      installation.source.declaration !== source.declaration
+      typeof installation.declaration !== "string"
     ) {
-      invalid("Installer вернул несогласованный installation");
+      invalid("Plugin Manager вернул несогласованный installation");
     }
-    if (source.developmentOnly) {
-      await this.#localOverrides.forStore(current.checkout).set(pluginId, source);
-    }
+    const initialized = current.project.declarePlugin(pluginId, installation.declaration);
+    const projectSource = this.#configuration.serializeProject(current.project);
     await this.#files.forRepository(current.checkout).write(
       CORE_FILES.orchestratorConfig,
       projectSource,
@@ -197,7 +187,6 @@ export class PluginApplicationService {
 
   async #removeUnlocked(root, pluginId) {
     const current = await this.#storeProjects.load(root);
-    const declaration = current.project.pluginDeclaration(pluginId);
     const removed = current.project.removePlugin(pluginId);
     if (!removed) {
       return new PluginRemovalResult({
@@ -207,12 +196,7 @@ export class PluginApplicationService {
         storeProject: current,
       });
     }
-    const overrideStore = declaration.source === "local"
-      ? this.#localOverrides.forStore(current.checkout)
-      : null;
-    if (overrideStore) await overrideStore.read();
-    const runtimeRemoved = await this.#installers.forStore(current.checkout).remove(pluginId);
-    if (overrideStore) await overrideStore.remove(pluginId);
+    const runtimeRemoved = await this.#managers.forStore(current.checkout).remove(pluginId);
     await this.#files.forRepository(current.checkout).write(
       CORE_FILES.orchestratorConfig,
       this.#configuration.serializeProject(current.project),

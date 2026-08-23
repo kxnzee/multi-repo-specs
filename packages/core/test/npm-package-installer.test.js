@@ -46,6 +46,7 @@ test("NpmPackageInstaller builds a fixed shell-free npm invocation", async (t) =
     "--ignore-scripts",
     "--no-audit",
     "--no-fund",
+    "--install-links",
     "--", "@scope/plugin@1.2.3",
   ], {
     cwd: root,

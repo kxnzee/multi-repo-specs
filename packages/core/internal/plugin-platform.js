@@ -10,8 +10,7 @@ import { PluginLifecycleCommands } from "./plugin-cli.js";
 import { PluginCommandMounter } from "./plugin-commands.js";
 import { PluginHost, PluginRegistry } from "./plugin-host.js";
 import { PluginLifecycleService } from "./plugin-lifecycle.js";
-import { PluginInstallerService } from "./plugin-installer.js";
-import { PluginRuntimeService, pluginRuntimes } from "./plugin-runtime.js";
+import { PluginManagerService, pluginManagers } from "./plugin-manager.js";
 import { storeProjects } from "./store-project.js";
 
 /** Собирает Loader output, Host, lifecycle и CLI adapters без знания Plugin IDs. */
@@ -60,38 +59,38 @@ export class PluginPlatform {
 
 /** Асинхронно восстанавливает установленные Plugins и собирает Plugin Platform. */
 export class PluginPlatformService {
-  #runtimes;
+  #managers;
   #storeProjects;
 
-  constructor({ runtimeService = pluginRuntimes, storeProjectService = storeProjects } = {}) {
-    if (typeof runtimeService?.forStore !== "function") {
-      throw new Error("PLUGIN_PLATFORM_INVALID: runtimeService должен предоставлять forStore");
+  constructor({ managerService = pluginManagers, storeProjectService = storeProjects } = {}) {
+    if (typeof managerService?.forStore !== "function") {
+      throw new Error("PLUGIN_PLATFORM_INVALID: managerService должен предоставлять forStore");
     }
     if (typeof storeProjectService?.find !== "function") {
       throw new Error("PLUGIN_PLATFORM_INVALID: storeProjectService должен предоставлять find");
     }
-    this.#runtimes = runtimeService;
+    this.#managers = managerService;
     this.#storeProjects = storeProjectService;
     Object.freeze(this);
   }
 
   async create({ bundledProvider, loadedPlugins, pluginCliOptions = {}, start = process.cwd(), ...options } = {}) {
-    let runtimeService = this.#runtimes;
+    let managerService = this.#managers;
     let resolvedPluginCliOptions = pluginCliOptions;
     if (bundledProvider !== undefined) {
       if (!(bundledProvider instanceof BundledPluginProvider)) {
         throw new Error("PLUGIN_PLATFORM_INVALID: bundledProvider должен быть BundledPluginProvider");
       }
-      runtimeService = new PluginRuntimeService({ bundledProvider });
+      managerService = new PluginManagerService({ bundledProvider });
       resolvedPluginCliOptions = {
         applicationService: new PluginApplicationService({
-          installerService: new PluginInstallerService({ bundledProvider }),
+          managerService,
         }),
         catalog: bundledProvider.catalog,
         ...pluginCliOptions,
       };
     }
-    const resolved = loadedPlugins ?? await this.#loadInstalled(start, runtimeService);
+    const resolved = loadedPlugins ?? await this.#loadInstalled(start, managerService);
     return new PluginPlatform({
       ...options,
       loadedPlugins: resolved,
@@ -99,7 +98,7 @@ export class PluginPlatformService {
     });
   }
 
-  async #loadInstalled(start, runtimeService) {
+  async #loadInstalled(start, managerService) {
     let storeProject;
     try {
       storeProject = await this.#storeProjects.find(start);
@@ -107,11 +106,11 @@ export class PluginPlatformService {
       if (error.code === "STORE_ROOT_NOT_FOUND") return Object.freeze([]);
       throw error;
     }
-    const resolver = runtimeService.forStore(storeProject.checkout);
+    const manager = managerService.forStore(storeProject.checkout);
     const loadedPlugins = [];
     for (const declaration of storeProject.project.pluginDeclarations) {
       try {
-        loadedPlugins.push((await resolver.resolve(declaration)).loadedPlugin);
+        loadedPlugins.push((await manager.resolve(declaration)).loadedPlugin);
       } catch (error) {
         if (error.code !== "PLUGIN_RUNTIME_UNAVAILABLE") throw error;
       }
