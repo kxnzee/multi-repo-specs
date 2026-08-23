@@ -84,7 +84,8 @@ export class CandidateCli {
     const program = new Command()
       .name("openspec-orch")
       .description("OpenSpec Orchestrator: Cycle и Snapshot для multi-repo Change")
-      .showHelpAfterError();
+      .showHelpAfterError()
+      .exitOverride();
     program.command("init [path]")
       .description("создать OpenSpec Store и применить Project Template")
       .requiredOption("--store <store-id>", "Store ID", singleValue)

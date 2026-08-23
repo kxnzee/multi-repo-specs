@@ -1,8 +1,13 @@
 {
   "name": "@openspec-orch/plugin-sdk",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
+  "files": [
+    "README.md",
+    "index.js",
+    "internal",
+    "testing.js"
+  ],
   "exports": {
     ".": "./index.js",
     "./testing": "./testing.js"

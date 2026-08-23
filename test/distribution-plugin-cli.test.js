@@ -12,7 +12,8 @@ import { execa } from "execa";
 
 import { configuration, createProject } from "@openspec-orch/core";
 
-const CLI_PATH = fileURLToPath(new URL("../bin/openspec-orch.js", import.meta.url));
+const CLI_PATH = process.env.OPENSPEC_ORCH_TEST_CLI_PATH ??
+  fileURLToPath(new URL("../bin/openspec-orch.js", import.meta.url));
 
 /** Запускает candidate CLI в изолированном Store. */
 function runCli(cwd, ...args) {

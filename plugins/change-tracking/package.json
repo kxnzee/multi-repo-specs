@@ -3,7 +3,14 @@
   "version": "1.0.0",
   "description": "Cycle, Receipt and Snapshot domain for OpenSpec Orchestrator",
   "type": "module",
-  "exports": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "lib"
+  ],
   "openspecOrchestrator": {
     "apiVersion": 1,
     "plugin": "./index.js"

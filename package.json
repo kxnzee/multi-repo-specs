@@ -1,7 +1,6 @@
 {
   "name": "openspec-orchestrator",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "workspaces": [
     "packages/*",
@@ -13,24 +12,16 @@
     ]
   },
   "files": [
-    "src/bin",
-    "src/cli",
-    "src/internal",
+    "bin",
     "templates"
   ],
   "bin": {
-    "openspec-orch": "./src/bin/openspec-orch.js"
+    "openspec-orch": "./bin/openspec-orch.js"
   },
   "dependencies": {
-    "@inquirer/prompts": "7.10.1",
-    "@openspec-orch/plugin-codegraph": "1.0.0",
-    "commander": "14.0.3",
-    "execa": "9.6.0",
-    "ora": "8.2.0",
-    "p-map": "7.0.6",
-    "pacote": "21.5.1",
-    "yaml": "2.9.0",
-    "zod": "4.4.3"
+    "@openspec-orch/core": "0.1.0",
+    "@openspec-orch/plugin-change-tracking": "1.0.0",
+    "@openspec-orch/plugin-codegraph": "1.0.0"
   },
   "scripts": {
     "test": "node --test --test-concurrency=1",
@@ -42,8 +33,16 @@
     "node": ">=20.19.0"
   },
   "devDependencies": {
+    "@inquirer/prompts": "7.10.1",
     "@eslint/js": "^9.39.5",
+    "commander": "14.0.3",
     "eslint": "^9.39.5",
-    "eslint-plugin-jsdoc": "^50.8.0"
+    "eslint-plugin-jsdoc": "^50.8.0",
+    "execa": "9.6.0",
+    "ora": "8.2.0",
+    "p-map": "7.0.6",
+    "pacote": "21.5.1",
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
   }
 }

@@ -93,7 +93,7 @@ openspec-orch --help
 
 После смены активной версии Node.js через NVM выполните `npm link` повторно. Без
 регистрации в `PATH` CLI можно запустить как
-`node /absolute/path/to/multi-repo-specs/src/bin/openspec-orch.js`.
+`node /absolute/path/to/multi-repo-specs/bin/openspec-orch.js`.
 
 ## Публичный CLI
 

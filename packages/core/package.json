@@ -1,8 +1,11 @@
 {
   "name": "@openspec-orch/core",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
+  "files": [
+    "index.js",
+    "internal"
+  ],
   "exports": {
     ".": "./index.js"
   },
