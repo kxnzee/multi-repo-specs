@@ -102,8 +102,14 @@ test("CycleRecordRepository preserves corruption errors", async () => {
 });
 
 /** Creates an in-memory Store PluginContext for assign tests. */
-function assignmentContext({ changedPaths = [], connected = ["frontend", "backend"] } = {}) {
+function assignmentContext({
+  changedPaths = [],
+  connected = ["frontend", "backend"],
+  implementationAvailable = true,
+  implementationHead = "a".repeat(40),
+} = {}) {
   const values = new Map();
+  let stateDocument = null;
   const repositories = new Map([
     ["specs", Object.freeze({ id: "specs", role: "store" })],
     ["frontend", Object.freeze({ id: "frontend", role: "code" })],
@@ -125,6 +131,13 @@ function assignmentContext({ changedPaths = [], connected = ["frontend", "backen
         }
         return Object.freeze(repositoryIds.map((repositoryId) => repositories.get(repositoryId)));
       },
+      async git(repositoryId) {
+        this.requireConnected([repositoryId]);
+        return Object.freeze({
+          async revision() { return implementationHead; },
+          async hasCommit() { return implementationAvailable; },
+        });
+      },
     }),
     git: Object.freeze({
       async assertNoOperation() {},
@@ -138,6 +151,13 @@ function assignmentContext({ changedPaths = [], connected = ["frontend", "backen
         throw new Error(`missing ${relativePath}`);
       },
       async write(relativePath, contents) { values.set(relativePath, contents); },
+    }),
+    storage: Object.freeze({
+      async read() { return stateDocument; },
+      async update(operation) {
+        stateDocument = await operation(stateDocument);
+        return stateDocument;
+      },
     }),
   });
 }
@@ -247,6 +267,83 @@ test("ChangeTrackingService reports an unknown persisted repository as corrupted
       confirm: async () => true,
     }),
     /STATE_CORRUPTED: Cycle Record содержит неизвестный Code Repository 'removed-repository'/,
+  );
+});
+
+test("ChangeTrackingService records and replaces a Result Receipt with history", async () => {
+  const context = assignmentContext();
+  const service = new ChangeTrackingService(context);
+  await service.assign({
+    changeId: "checkout-flow",
+    repositoryIds: ["frontend"],
+    confirm: async () => true,
+  });
+  const base = {
+    changeId: "checkout-flow",
+    repositoryId: "frontend",
+    status: "completed",
+    source: "human",
+    confirm: async () => true,
+  };
+
+  const created = await service.recordAssignment({
+    ...base,
+    implementationRevision: "a".repeat(40),
+  });
+  const replaced = await service.recordAssignment({
+    ...base,
+    implementationRevision: "b".repeat(40),
+  });
+  const state = await context.storage.read();
+
+  assert.equal(created.status, "created");
+  assert.equal(created.headMatches, true);
+  assert.equal(replaced.status, "replaced");
+  assert.equal(replaced.headMatches, false);
+  assert.equal(replaced.replaced.receipt_id, created.receipt.receipt_id);
+  assert.deepEqual(state.result_receipt_history, [created.receipt]);
+});
+
+test("ChangeTrackingService blocks Result Receipt without committed Cycle or commit", async () => {
+  const path = ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json";
+  const uncommitted = new ChangeTrackingService(
+    assignmentContext({ changedPaths: [path] }),
+  );
+  await uncommitted.assign({
+    changeId: "checkout-flow",
+    repositoryIds: ["frontend"],
+    confirm: async () => true,
+  });
+  await assert.rejects(
+    uncommitted.recordAssignment({
+      changeId: "checkout-flow",
+      repositoryId: "frontend",
+      implementationRevision: "a".repeat(40),
+      status: "completed",
+      source: "human",
+      confirm: async () => true,
+    }),
+    /CYCLE_NOT_COMMITTED/,
+  );
+
+  const missing = new ChangeTrackingService(
+    assignmentContext({ implementationAvailable: false }),
+  );
+  await missing.assign({
+    changeId: "checkout-flow",
+    repositoryIds: ["frontend"],
+    confirm: async () => true,
+  });
+  await assert.rejects(
+    missing.recordAssignment({
+      changeId: "checkout-flow",
+      repositoryId: "frontend",
+      implementationRevision: "a".repeat(40),
+      status: "completed",
+      source: "human",
+      confirm: async () => true,
+    }),
+    /COMMIT_NOT_FOUND: commit/,
   );
 });
 

@@ -27,7 +27,7 @@ const SAMPLE_ROOT = await fs.realpath(fileURLToPath(
 ));
 
 /** Собирает Project с одним связанным и одним несвязанным Code Repository. */
-async function contextScenario(t, { storePlugin = false } = {}) {
+async function contextScenario(t, { backendPlugin = false, storePlugin = false } = {}) {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-plugin-context-"));
   const root = await fs.realpath(temporary);
   t.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -61,7 +61,7 @@ async function contextScenario(t, { storePlugin = false } = {}) {
         role: "code",
         remote: "https://example.test/backend.git",
         defaultBranch: "main",
-        plugins: [],
+        plugins: backendPlugin ? ["sample"] : [],
       },
     ],
   });
@@ -139,6 +139,10 @@ test("PluginContextFactory creates a new immutable scoped context without exposi
     () => context.repositories.requireConnected(["backend"]),
     /PLUGIN_NOT_CONNECTED/,
   );
+  const frontendGit = await context.repositories.git("frontend");
+  assert.equal(await frontendGit.revision(), "a".repeat(40));
+  assert.equal(await frontendGit.hasCommit("a".repeat(40)), true);
+  await assert.rejects(context.repositories.git("backend"), /PLUGIN_NOT_CONNECTED/);
 
   await context.files.write("plugin.txt", "safe\n");
   assert.equal(await context.files.read("plugin.txt"), "safe\n");
@@ -188,6 +192,18 @@ test("PluginContextFactory rejects bindings before resolving an unavailable chec
     }),
     /PLUGIN_NOT_CONNECTED/,
   );
+});
+
+test("Plugin repository Git returns null only for a connected missing checkout", async (t) => {
+  const scenario = await contextScenario(t, { backendPlugin: true });
+  const factory = contextFactory([], { info() {}, warn() {}, error() {} });
+  const context = await factory.forRepository({
+    loadedPlugin: scenario.loadedPlugin,
+    storeProject: scenario.storeProject,
+    repositoryId: "frontend",
+  });
+
+  assert.equal(await context.repositories.git("backend"), null);
 });
 
 test("PluginContextFactory rejects unsupported bound roles before Plugin callback", async (t) => {

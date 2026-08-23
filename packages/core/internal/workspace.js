@@ -123,7 +123,10 @@ export class WorkspaceResolver {
     const candidate = workspace.checkoutPath(repository);
     const stat = await this.#lstatOrNull(candidate);
     if (!stat?.isDirectory() || stat.isSymbolicLink()) {
-      throw new Error(`REPOSITORY_CHECKOUT_UNAVAILABLE: ${candidate}`);
+      throw Object.assign(
+        new Error(`REPOSITORY_CHECKOUT_UNAVAILABLE: ${candidate}`),
+        { code: "REPOSITORY_CHECKOUT_UNAVAILABLE" },
+      );
     }
     return new RepositoryCheckout(repository, await fs.realpath(candidate));
   }

@@ -25,13 +25,18 @@ function assertMessage(message) {
 
 /** Read-only registry с проверкой Plugin bindings. */
 class PluginRepositoryRegistry {
+  #gitFactory;
   #handles;
   #plugin;
   #project;
 
-  constructor(project, plugin) {
+  constructor(project, plugin, gitFactory) {
+    if (typeof gitFactory !== "function") {
+      throw new Error("PLUGIN_REPOSITORIES_INVALID: требуется Git facade factory");
+    }
     this.#project = project;
     this.#plugin = plugin;
+    this.#gitFactory = gitFactory;
     this.#handles = new Map(project.repositories.map((repository) => (
       [repository.id, repositoryHandle(repository)]
     )));
@@ -63,6 +68,16 @@ class PluginRepositoryRegistry {
     }
     return Object.freeze(selected.map((repository) => this.#handles.get(repository.id)));
   }
+
+  async git(repositoryId) {
+    this.requireConnected([repositoryId]);
+    try {
+      return await this.#gitFactory(this.#project.requireRepository(repositoryId));
+    } catch (error) {
+      if (error.code === "REPOSITORY_CHECKOUT_UNAVAILABLE") return null;
+      throw error;
+    }
+  }
 }
 
 /** Git API без раскрытия checkout root и mutation-команд. */
@@ -78,6 +93,7 @@ class PluginGitFacade {
   statusPaths(pathspec) { return this.#git.statusPaths(pathspec); }
   isClean(pathspec) { return this.#git.isClean(pathspec); }
   revision() { return this.#git.revision(); }
+  hasCommit(revision) { return this.#git.hasCommit(revision); }
   assertNoOperation() { return this.#git.assertNoOperation(); }
 }
 
@@ -240,7 +256,10 @@ export class PluginContextFactory {
     if (project.agents.length !== 1) {
       throw new Error("PLUGIN_CONTEXT_INVALID: Project должен содержать ровно одного Agent");
     }
-    const repositories = new PluginRepositoryRegistry(project, plugin);
+    const repositories = new PluginRepositoryRegistry(project, plugin, async (selected) => {
+      const selectedCheckout = await this.#resolveCheckout(storeProject, selected);
+      return new PluginGitFacade(this.#git.forRepository(selectedCheckout));
+    });
     const repositoryModel = project.requireRepository(repositoryId);
     let repository;
     if (requireBinding) {

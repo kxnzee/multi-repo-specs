@@ -92,6 +92,7 @@ test("GitService exposes domain operations without accepting arbitrary cwd", asy
   assert.equal(await repositoryGit.currentBranch(), "main");
   assert.deepEqual(await repositoryGit.statusPaths(), ["file.js", "renamed.js", "old.js"]);
   assert.equal(await repositoryGit.isClean(["README.md"]), false);
+  assert.equal(await repositoryGit.hasCommit("a".repeat(40)), true);
   await repositoryGit.assertNoOperation();
   await fs.mkdir(path.join(root, ".git"));
   await fs.writeFile(path.join(root, ".git", "MERGE_HEAD"), "revision\n", "utf8");

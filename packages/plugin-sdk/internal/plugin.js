@@ -16,6 +16,7 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
  * @property {() => readonly RepositoryHandle[]} list
  * @property {(id: string) => RepositoryHandle} require
  * @property {(ids: readonly string[]) => readonly RepositoryHandle[]} requireConnected
+ * @property {(id: string) => Promise<GitFacade | null>} git
  */
 
 /**
@@ -33,6 +34,7 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
  * @property {(pathspec?: readonly string[]) => Promise<readonly string[]>} statusPaths
  * @property {(pathspec?: readonly string[]) => Promise<boolean>} isClean
  * @property {() => Promise<string>} revision
+ * @property {(revision: string) => Promise<boolean>} hasCommit
  * @property {() => Promise<void>} assertNoOperation
  */
 

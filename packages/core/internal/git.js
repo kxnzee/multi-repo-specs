@@ -85,6 +85,15 @@ export class RepositoryGit {
     return this.#run(["rev-parse", ref]);
   }
 
+  async hasCommit(revision) {
+    try {
+      await this.#run(["cat-file", "-e", `${revision}^{commit}`]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   gitPath(marker) {
     return this.#run(["rev-parse", "--git-path", marker]);
   }
