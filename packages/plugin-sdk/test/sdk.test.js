@@ -94,10 +94,22 @@ test("Package manifest contract replaces plugin.yaml with one ESM entrypoint", (
   assert.throws(
     () => assertPluginPackageManifest({
       ...SAMPLE_MANIFEST,
-      openspecOrchestrator: { apiVersion: 1, manifest: "plugin.yaml", plugin: "./index.js" },
+      openspecOrchestrator: { apiVersion: 1, plugin: "./index.js", unexpected: true },
     }),
-    /только apiVersion и plugin/,
+    /native или legacy Plugin metadata/,
   );
+  assert.deepEqual(assertPluginPackageManifest({
+    ...SAMPLE_MANIFEST,
+    openspecOrchestrator: {
+      apiVersion: 1,
+      manifest: "plugin.yaml",
+      entrypoint: "bin/plugin.js",
+    },
+  }), {
+    name: "@test/openspec-orch-plugin-sample",
+    version: "1.0.0",
+    plugin: "./index.js",
+  });
   assert.throws(
     () => assertPluginPackageManifest({ ...SAMPLE_MANIFEST, peerDependencies: {} }),
     /должен объявить @openspec-orch\/plugin-sdk/,

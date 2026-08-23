@@ -3,8 +3,13 @@
   "version": "1.0.0",
   "description": "CodeGraph Plugin Package for OpenSpec Orchestrator",
   "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
   "files": [
     "bin",
+    "index.js",
     "instructions.md",
     "lib",
     "plugin.yaml"
@@ -13,6 +18,9 @@
     "apiVersion": 1,
     "manifest": "plugin.yaml",
     "entrypoint": "bin/codegraph.js"
+  },
+  "peerDependencies": {
+    "@openspec-orch/plugin-sdk": "0.1.0"
   },
   "dependencies": {
     "@colbymchenry/codegraph": "1.5.0"

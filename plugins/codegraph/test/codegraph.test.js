@@ -10,6 +10,10 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 
+import { assertPluginContract } from "@openspec-orch/plugin-sdk/testing";
+
+import plugin from "../index.js";
+
 const packageRoot = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const launcher = path.join(packageRoot, "bin", "codegraph.js");
 
@@ -45,6 +49,31 @@ test("Package owns its CodeGraph dependency and descriptor", async () => {
   assert.equal(packageManifest.openspecOrchestrator.entrypoint, "bin/codegraph.js");
   assert.equal(descriptor.id, "codegraph");
   assert.equal(descriptor.version, packageManifest.version);
+  assert.deepEqual(assertPluginContract({ plugin, packageManifest }), {
+    id: "codegraph",
+    commands: [],
+  });
+});
+
+test("Native repository lifecycle delegates to the package launcher", async () => {
+  const calls = [];
+  const context = Object.freeze({
+    process: Object.freeze({
+      run(executable, args) {
+        calls.push([executable, args]);
+        return Promise.resolve(args[1] === "status" ? "indexed" : "");
+      },
+    }),
+  });
+
+  await plugin.connect(context);
+  assert.deepEqual(await plugin.status(context), { state: "ready", details: "indexed" });
+  await plugin.sync(context);
+  assert.deepEqual(calls, [
+    [process.execPath, [launcher, "init", "."]],
+    [process.execPath, [launcher, "status", "."]],
+    [process.execPath, [launcher, "sync", "."]],
+  ]);
 });
 
 test("Package launcher runs without a global CodeGraph executable", () => {

@@ -58,18 +58,19 @@ export class PluginPackage {
     assertPlainObject(manifest.openspecOrchestrator, "openspecOrchestrator");
     const metadata = manifest.openspecOrchestrator;
     const metadataKeys = Object.keys(metadata);
-    if (
-      metadataKeys.length !== 2 ||
-      !metadataKeys.includes("apiVersion") ||
-      !metadataKeys.includes("plugin")
-    ) {
-      invalid("openspecOrchestrator содержит только apiVersion и plugin");
+    const nativeMetadata = metadataKeys.length === 2 && metadataKeys.includes("apiVersion") &&
+      metadataKeys.includes("plugin");
+    const legacyMetadata = metadataKeys.length === 3 && metadataKeys.includes("apiVersion") &&
+      metadataKeys.includes("manifest") && metadataKeys.includes("entrypoint");
+    if (!nativeMetadata && !legacyMetadata) {
+      invalid("openspecOrchestrator должен содержать native или legacy Plugin metadata");
     }
     if (metadata.apiVersion !== PLUGIN_API_VERSION) {
       invalid(`поддерживается только apiVersion=${PLUGIN_API_VERSION}`);
     }
-    assertPluginPath(metadata.plugin);
-    if (resolveRootExport(manifest.exports) !== metadata.plugin) {
+    const entrypoint = metadata.plugin ?? resolveRootExport(manifest.exports);
+    assertPluginPath(entrypoint);
+    if (resolveRootExport(manifest.exports) !== entrypoint) {
       invalid("package root export должен совпадать с openspecOrchestrator.plugin");
     }
     const sdkRange = manifest.peerDependencies?.["@openspec-orch/plugin-sdk"] ??
@@ -80,7 +81,7 @@ export class PluginPackage {
 
     this.#name = manifest.name;
     this.#version = manifest.version;
-    this.#entrypoint = metadata.plugin;
+    this.#entrypoint = entrypoint;
     Object.freeze(this);
   }
 
