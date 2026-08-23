@@ -7,12 +7,14 @@ import { Command, Option } from "commander";
 
 import { collectValues, singleValue } from "./cli-values.js";
 import { pluginApplications } from "./plugin-application.js";
+import { PluginCatalog, pluginCatalog } from "./plugin-catalog.js";
 import { PluginSource } from "./plugin-source.js";
 import { storeProjects } from "./store-project.js";
 
-/** Монтирует CLI-грамматику `plugin init/connect/status/sync/disconnect`. */
+/** Монтирует CLI-грамматику `plugin init/connect/status/sync/disconnect/remove`. */
 export class PluginLifecycleCommands {
   #applications;
+  #catalog;
   #checkbox;
   #lifecycle;
   #output;
@@ -22,6 +24,7 @@ export class PluginLifecycleCommands {
 
   constructor({
     applicationService = pluginApplications,
+    catalog = pluginCatalog,
     checkboxPrompt = checkbox,
     lifecycleService,
     output = console,
@@ -35,6 +38,9 @@ export class PluginLifecycleCommands {
       typeof applicationService.remove !== "function"
     ) {
       throw new Error("PLUGIN_CLI_INVALID: требуется PluginApplicationService");
+    }
+    if (!(catalog instanceof PluginCatalog)) {
+      throw new Error("PLUGIN_CLI_INVALID: требуется PluginCatalog");
     }
     if (
       !lifecycleService ||
@@ -52,6 +58,7 @@ export class PluginLifecycleCommands {
       throw new Error("PLUGIN_CLI_INVALID: требуется StoreProjectService");
     }
     this.#applications = applicationService;
+    this.#catalog = catalog;
     this.#checkbox = checkboxPrompt;
     this.#lifecycle = lifecycleService;
     this.#output = output;
@@ -116,18 +123,50 @@ export class PluginLifecycleCommands {
   }
 
   async #initialize({ all, pluginIds, sources }) {
-    if (all || pluginIds.length !== 1 || sources.length !== 1) {
-      throw new Error(
-        "PLUGIN_INIT_SELECTION_REQUIRED: используйте один --plugin и один --from; " +
-          "checkbox и --all будут подключены через Plugin discovery",
-      );
+    if (sources.length > 0) {
+      if (all || pluginIds.length !== 1 || sources.length !== 1) {
+        throw new Error(
+          "PLUGIN_INIT_SELECTION_REQUIRED: для --from используйте один --plugin и один source",
+        );
+      }
+      const storeProject = await this.#storeProjects.find();
+      const source = PluginSource.parse(sources[0], { cwd: process.cwd() });
+      await this.#installSelections(storeProject, [{ id: pluginIds[0], source }]);
+      return;
+    }
+    let selections;
+    if (all) {
+      selections = this.#catalog.entries;
+    } else if (pluginIds.length > 0) {
+      selections = this.#catalog.select(pluginIds);
+    } else {
+      if (!this.#stdin?.isTTY || !this.#stdout?.isTTY) {
+        throw new Error("Интерактивный выбор требует TTY; используйте --plugin, --all или --from");
+      }
+      const selectedIds = await this.#checkbox({
+        message: "Выберите Plugins",
+        choices: this.#catalog.entries.map(({ id, name }) => ({
+          name: `${name} (${id})`,
+          value: id,
+        })),
+      });
+      selections = this.#catalog.select(selectedIds);
+    }
+    if (selections.length === 0) {
+      this.#output.log("Plugins не выбраны.");
+      return;
     }
     const storeProject = await this.#storeProjects.find();
-    const source = PluginSource.parse(sources[0], { cwd: process.cwd() });
-    const result = await this.#applications.install(storeProject, pluginIds[0], source);
-    this.#output.log(
-      `${pluginIds[0]}: ${result.installation.reused ? "already_initialized" : "initialized"}`,
-    );
+    await this.#installSelections(storeProject, selections);
+  }
+
+  async #installSelections(storeProject, selections) {
+    for (const { id, source } of selections) {
+      const result = await this.#applications.install(storeProject, id, source);
+      this.#output.log(
+        `${id}: ${result.installation.reused ? "already_initialized" : "initialized"}`,
+      );
+    }
     this.#output.log("Далее: openspec-orch plugin connect <plugin-id>");
   }
 

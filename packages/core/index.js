@@ -28,6 +28,7 @@ export {
   pluginApplications,
 } from "./internal/plugin-application.js";
 export { PluginLifecycleCommands } from "./internal/plugin-cli.js";
+export { PluginCatalog, PluginCatalogEntry, pluginCatalog } from "./internal/plugin-catalog.js";
 export { PluginCommandBuilder, PluginCommandMounter, PluginCommandRegistry } from "./internal/plugin-commands.js";
 export { PluginHost, PluginRegistry } from "./internal/plugin-host.js";
 export {

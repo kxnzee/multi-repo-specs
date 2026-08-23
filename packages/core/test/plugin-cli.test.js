@@ -6,6 +6,8 @@ import test from "node:test";
 import {
   CandidateCli,
   createProject,
+  PluginCatalog,
+  PluginCatalogEntry,
   PluginLifecycleCommands,
   PluginSource,
 } from "@openspec-orch/core";
@@ -45,6 +47,7 @@ function promptProject() {
 /** Собирает Candidate CLI с тестовыми lifecycle boundaries. */
 function candidate({
   applicationService,
+  catalog,
   checkboxPrompt,
   lifecycleService,
   output,
@@ -54,6 +57,7 @@ function candidate({
 }) {
   const pluginLifecycleCommands = new PluginLifecycleCommands({
     applicationService,
+    catalog,
     checkboxPrompt,
     lifecycleService,
     output,
@@ -108,7 +112,7 @@ test("plugin init preserves --plugin/--from grammar and delegates to application
   ]);
 });
 
-test("plugin init rejects ambiguous selection before Store lookup", async () => {
+test("plugin init rejects ambiguous custom source selection before Store lookup", async () => {
   let finds = 0;
   const program = candidate({
     applicationService: { async install() {}, async remove() {} },
@@ -123,10 +127,127 @@ test("plugin init rejects ambiguous selection before Store lookup", async () => 
   });
 
   await assert.rejects(
-    program.parseAsync(["node", "openspec-orch", "plugin", "init", "--all"]),
+    program.parseAsync([
+      "node",
+      "openspec-orch",
+      "plugin",
+      "init",
+      "--all",
+      "--from",
+      "../sample-plugin",
+    ]),
     /PLUGIN_INIT_SELECTION_REQUIRED/,
   );
   assert.equal(finds, 0);
+});
+
+test("plugin init installs discovered catalog entries through --all", async () => {
+  const calls = [];
+  const captured = outputCollector();
+  const storeProject = Object.freeze({ root: "/store" });
+  const entries = [
+    new PluginCatalogEntry({
+      id: "zeta",
+      name: "Zeta",
+      source: PluginSource.parse("@test/plugin-zeta@1.0.0"),
+    }),
+    new PluginCatalogEntry({
+      id: "alpha",
+      name: "Alpha",
+      source: PluginSource.parse("@test/plugin-alpha@1.0.0"),
+    }),
+  ];
+  const applicationService = {
+    async install(current, pluginId, source) {
+      calls.push({ current, pluginId, source });
+      return { installation: { reused: pluginId === "zeta" } };
+    },
+    async remove() {},
+  };
+  const lifecycleService = {
+    async connectMany() { return []; },
+    async disconnect() {},
+    async statuses() { return []; },
+    async sync() {},
+  };
+  const program = candidate({
+    applicationService,
+    catalog: new PluginCatalog(entries),
+    lifecycleService,
+    output: captured.output,
+    storeProjectService: { async find() { return storeProject; } },
+  });
+
+  await program.parseAsync(["node", "openspec-orch", "plugin", "init", "--all"]);
+
+  assert.deepEqual(calls.map(({ pluginId }) => pluginId), ["alpha", "zeta"]);
+  assert.equal(calls.every(({ current }) => current === storeProject), true);
+  assert.equal(calls.every(({ source }) => source.kind === "npm"), true);
+  assert.deepEqual(captured.lines, [
+    "alpha: initialized",
+    "zeta: already_initialized",
+    "Далее: openspec-orch plugin connect <plugin-id>",
+  ]);
+});
+
+test("plugin init uses checkbox catalog selection and requires TTY", async () => {
+  const calls = [];
+  const prompts = [];
+  const captured = outputCollector();
+  const catalog = new PluginCatalog([new PluginCatalogEntry({
+    id: "sample",
+    name: "Sample Plugin",
+    source: PluginSource.parse("@test/plugin-sample@1.0.0"),
+  })]);
+  const applicationService = {
+    async install(_current, pluginId) {
+      calls.push(pluginId);
+      return { installation: { reused: false } };
+    },
+    async remove() {},
+  };
+  const lifecycleService = {
+    async connectMany() { return []; },
+    async disconnect() {},
+    async statuses() { return []; },
+    async sync() {},
+  };
+  const storeProjectService = { async find() { return Object.freeze({ root: "/store" }); } };
+  const interactive = candidate({
+    applicationService,
+    catalog,
+    checkboxPrompt: async (options) => {
+      prompts.push(options);
+      return ["sample"];
+    },
+    lifecycleService,
+    output: captured.output,
+    stdin: { isTTY: true },
+    stdout: { isTTY: true },
+    storeProjectService,
+  });
+
+  await interactive.parseAsync(["node", "openspec-orch", "plugin", "init"]);
+
+  assert.deepEqual(prompts, [{
+    message: "Выберите Plugins",
+    choices: [{ name: "Sample Plugin (sample)", value: "sample" }],
+  }]);
+  assert.deepEqual(calls, ["sample"]);
+
+  const nonInteractive = candidate({
+    applicationService,
+    catalog,
+    lifecycleService,
+    output: captured.output,
+    stdin: { isTTY: false },
+    stdout: { isTTY: false },
+    storeProjectService,
+  });
+  await assert.rejects(
+    nonInteractive.parseAsync(["node", "openspec-orch", "plugin", "init"]),
+    /Интерактивный выбор требует TTY/,
+  );
 });
 
 test("plugin connect preserves repeated --repo grammar and current output", async () => {
