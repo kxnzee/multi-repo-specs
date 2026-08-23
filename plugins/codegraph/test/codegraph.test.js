@@ -68,23 +68,55 @@ test("Package owns its CodeGraph dependency and native Plugin entrypoint", async
 
 test("Native repository lifecycle delegates to the package launcher", async () => {
   const calls = [];
+  const readyDetails = JSON.stringify({
+    initialized: true,
+    pendingChanges: { added: 0, modified: 0, removed: 0 },
+    worktreeMismatch: null,
+    index: { state: "complete", reindexRecommended: false },
+  });
   const context = Object.freeze({
     process: Object.freeze({
       run(executable, args) {
         calls.push([executable, args]);
-        return Promise.resolve(args[1] === "status" ? "indexed" : "");
+        return Promise.resolve(args[1] === "status" ? readyDetails : "");
       },
     }),
   });
 
   await plugin.connect(context);
-  assert.deepEqual(await plugin.status(context), { state: "ready", details: "indexed" });
+  assert.deepEqual(await plugin.status(context), { state: "ready", details: readyDetails });
   await plugin.sync(context);
   assert.deepEqual(calls, [
     [process.execPath, [launcher, "init", "."]],
-    [process.execPath, [launcher, "status", "."]],
+    [process.execPath, [launcher, "status", ".", "--json"]],
     [process.execPath, [launcher, "sync", "."]],
   ]);
+});
+
+test("Repository status maps native CodeGraph freshness without false ready", async () => {
+  const ready = {
+    initialized: true,
+    pendingChanges: { added: 0, modified: 0, removed: 0 },
+    worktreeMismatch: null,
+    index: { state: "complete", reindexRecommended: false },
+  };
+  const cases = [
+    [{ ...ready, pendingChanges: { ...ready.pendingChanges, modified: 1 } }, "stale"],
+    [{ initialized: false, lastIndexed: null }, "unavailable"],
+    [{ ...ready, worktreeMismatch: { head: "new-revision" } }, "stale"],
+    [{ ...ready, index: { ...ready.index, reindexRecommended: true } }, "stale"],
+    [{ ...ready, index: { ...ready.index, state: "partial" } }, "unavailable"],
+  ];
+
+  for (const [value, state] of cases) {
+    const details = JSON.stringify(value);
+    const context = Object.freeze({
+      process: Object.freeze({
+        run() { return Promise.resolve(details); },
+      }),
+    });
+    assert.deepEqual(await plugin.status(context), { state, details });
+  }
 });
 
 test("Package launcher runs without a global CodeGraph executable", () => {

@@ -48,3 +48,52 @@ export class CodeGraphRepository {
     await fs.appendFile(excludePath, `${separator}${INDEX_EXCLUDE}${newline}`, "utf8");
   }
 }
+
+/** Interprets the native CodeGraph status as a Plugin repository state. */
+export class CodeGraphRepositoryStatus {
+  #details;
+  #state;
+
+  constructor(details) {
+    if (typeof details !== "string") {
+      throw new Error("CODEGRAPH_STATUS_INVALID: expected JSON string");
+    }
+    let value;
+    try {
+      value = JSON.parse(details);
+    } catch (error) {
+      throw new Error(`CODEGRAPH_STATUS_INVALID: ${error.message}`, { cause: error });
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value) ||
+      typeof value.initialized !== "boolean") {
+      throw new Error("CODEGRAPH_STATUS_INVALID: initialized is missing");
+    }
+    this.#details = details;
+    if (!value.initialized) {
+      this.#state = "unavailable";
+      Object.freeze(this);
+      return;
+    }
+    const pending = value?.pendingChanges;
+    if (!pending || typeof pending !== "object" || Array.isArray(pending)) {
+      throw new Error("CODEGRAPH_STATUS_INVALID: pendingChanges is missing");
+    }
+    if (!value.index || typeof value.index !== "object" || Array.isArray(value.index)) {
+      throw new Error("CODEGRAPH_STATUS_INVALID: index is missing");
+    }
+    if (value.index.state !== "complete") {
+      this.#state = "unavailable";
+      Object.freeze(this);
+      return;
+    }
+    const changed = ["added", "modified", "removed"].some((key) => pending[key] > 0);
+    this.#state = changed || value.worktreeMismatch || value.index.reindexRecommended
+      ? "stale"
+      : "ready";
+    Object.freeze(this);
+  }
+
+  toPluginStatus() {
+    return Object.freeze({ state: this.#state, details: this.#details });
+  }
+}

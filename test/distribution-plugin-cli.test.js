@@ -111,7 +111,7 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     repositoryId,
     state,
   })), [
-    { pluginId: "codegraph", repositoryId: "specs", state: "ready" },
+    { pluginId: "codegraph", repositoryId: "specs", state: "stale" },
     { pluginId: "codegraph", repositoryId: "frontend", state: "ready" },
   ]);
   await runCli(storeRoot, "plugin", "sync", "codegraph", "--repo", "specs");

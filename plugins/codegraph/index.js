@@ -5,11 +5,13 @@ import { fileURLToPath } from "node:url";
 
 import { definePlugin } from "@openspec-orch/plugin-sdk";
 
+import { CodeGraphRepositoryStatus } from "./lib/repository.js";
+
 const launcher = fileURLToPath(new URL("./bin/codegraph.js", import.meta.url));
 
 /** Runs the package-owned CodeGraph binary in the current Repository checkout. */
-function run(context, operation) {
-  return context.process.run(process.execPath, [launcher, operation, "."]);
+function run(context, operation, ...args) {
+  return context.process.run(process.execPath, [launcher, operation, ".", ...args]);
 }
 
 const plugin = definePlugin({
@@ -32,10 +34,8 @@ const plugin = definePlugin({
       return run(context, "init");
     },
     async status(context) {
-      return Object.freeze({
-        state: "ready",
-        details: await run(context, "status"),
-      });
+      const details = await run(context, "status", "--json");
+      return new CodeGraphRepositoryStatus(details).toPluginStatus();
     },
     sync(context) {
       return run(context, "sync");
