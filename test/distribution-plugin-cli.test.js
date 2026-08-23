@@ -1,4 +1,4 @@
-/** @fileoverview Distribution composition smoke for bundled Change Tracking commands. */
+/** @fileoverview Distribution composition smoke for bundled Plugin packages. */
 
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
@@ -14,7 +14,7 @@ import { configuration, createProject } from "@openspec-orch/core";
 
 const CLI_PATH = fileURLToPath(new URL("../bin/openspec-orch.js", import.meta.url));
 
-test("candidate distribution initializes Change Tracking and mounts its root commands", async (t) => {
+test("candidate distribution initializes bundled Plugins and mounts trusted root commands", async (t) => {
   const storeRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-distribution-"));
   t.after(() => fs.rm(storeRoot, { recursive: true, force: true }));
   await fs.mkdir(path.join(storeRoot, ".openspec-store"));
@@ -49,8 +49,19 @@ test("candidate distribution initializes Change Tracking and mounts its root com
     "--plugin",
     "change-tracking",
   ], { cwd: storeRoot });
+  await execa(process.execPath, [
+    CLI_PATH,
+    "plugin",
+    "init",
+    "--plugin",
+    "codegraph",
+  ], { cwd: storeRoot });
   const { stdout } = await execa(process.execPath, [CLI_PATH, "--help"], { cwd: storeRoot });
+  const configured = configuration.parseProject(
+    await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
+  );
 
+  assert.deepEqual(configured.plugins, ["change-tracking", "codegraph"]);
   for (const command of ["assign", "status", "record", "verify"]) {
     assert.match(stdout, new RegExp(`\\b${command}\\b`));
   }
