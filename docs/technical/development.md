@@ -56,6 +56,8 @@ OpenSpec init. Их изменение считается изменением p
 
 ```bash
 npm run check
+npm pack --dry-run
+npm pack --workspaces --dry-run
 git diff --check
 node bin/openspec-orch.js --help
 ```

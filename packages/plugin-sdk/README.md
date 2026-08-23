@@ -42,9 +42,12 @@ registration, поддерживаемую role и локальный checkout, 
 только после успешного callback. Для остальных операций существующий
 `repositories[].plugins` binding обязателен. `repository`, `project.repositories` и
 `repositories.list()` содержат только immutable `{ id, role }` handles; filesystem
-root и изменяемая Project model в Plugin не передаются. `git`, `openspec`, `files`
-и `process` автоматически работают в проверенном checkout, а `storage` — только в
-namespace текущего Plugin.
+root этих handles и изменяемая Project model в Plugin не передаются. Для command
+action поле `invocation` отдельно сообщает `{ id, role, path }` Repository, из которого
+пользователь вызвал CLI; это read-only metadata, а операции с файлами и процессами всё
+равно доступны только через scoped facades. `git`, `openspec`, `files` и `process`
+автоматически работают в проверенном checkout, а `storage` — только в namespace
+текущего Plugin.
 
 `repository.status` возвращает `{ state: string, details?: string }`. Core добавляет
 Plugin и Repository identity, а ошибка одного status превращается в `unavailable`,
@@ -56,6 +59,24 @@ Plugin и Repository identity, а ошибка одного status превра�
 
 Command action получает позиционные аргументы и последним параметром immutable
 snapshot опций. Внутренний Commander `Command` и весь CLI tree Plugin не передаются.
+
+Вложенные команды, options и Repository context объявляются тем же builder:
+
+```js
+commands.command("inspect")
+  .description("Inspect repository")
+  .command("dependencies")
+  .description("Inspect dependencies")
+  .option("--format <format>", "Output format", { choices: ["text", "json"] })
+  .actionWithContext(async (context, options) => {
+    context.logger.info(`${context.repository.id}: ${options.format}`);
+  }, { scope: "current", requireBinding: true });
+```
+
+`scope: "current"` привязывает facades к Repository вызова, а `scope: "store"` — к
+Store. `requireBinding` по умолчанию равен `true`; значение `false` предназначено
+только для команды, которая должна работать до `plugin connect`. Plugin не должен
+искать checkout самостоятельно или использовать `invocation.path` как execution root.
 
 ## Contract test
 

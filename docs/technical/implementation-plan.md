@@ -38,9 +38,10 @@ openspec-orch verify <change-id>
 openspec-orch record verification <change-id> --result <pass|fail> --source <human|agent|ci> [--note <text>]
 ```
 
-`--agent` и `--template` у `init` нужны только для существующей bootstrap-установки
-проектных файлов. Core не хранит agent mapping в новой конфигурации и не
-использует handoff после `init`.
+`--template` у `init` нужен для bootstrap-установки проектных файлов. Agent mapping
+принадлежит Template, а Core хранит только один зарегистрированный Agent ID, чтобы
+Plugin мог установить принадлежащие ему MCP и инструкции. Handoff после `init` Core
+не выполняет.
 
 Команды записи работают интерактивно: сначала показывают будущую запись, затем
 запрашивают подтверждение. Неинтерактивные confirmation token и единый `--json`
@@ -63,7 +64,7 @@ preview без записи; `1` — ошибка проверки или вып
 | Форматы версионированы и неизвестные поля отклоняются | Строгие Zod-схемы, уже используемые в проекте |
 | Одинаковые входы дают одинаковый Snapshot | `snap-v1-<sha256>` от фиксированной UTF-8 JSON-проекции |
 | Диагностические данные не меняют идентичность | `created_at` в RFC 3339 UTC не входит в ID или хеш |
-| Ошибка записи не повреждает последнее корректное состояние | Временный файл в том же каталоге и atomic rename; mode `0600` для state |
+| Ошибка записи не повреждает последнее корректное состояние | Временный файл в том же каталоге и atomic rename; mode `0600` для Core и Plugin state |
 | Старое runtime-состояние нельзя выдавать за Cycle или Receipt | Автомиграции нет; pilot config переводится вручную по проверяемому diff |
 
 Для `snapshot_id` проекция имеет фиксированный порядок ключей `hash_version`,
@@ -88,7 +89,7 @@ preview без записи; `1` — ошибка проверки или вып
    старые `role/url/agent`, Git config для workspace, отсутствие Cycle/state и
    публичные `explore/change/load`.
 5. Выбрать переиспользуемые модули. Не проектировать новую модульную архитектуру.
-6. Записать точные форматы v1 для config, Cycle Record, state, Result Receipt,
+6. Записать точные форматы v1 для config, Cycle Record, Core/Plugin state, Result Receipt,
    Snapshot и Verification Receipt по разделу 3 продуктового контракта.
 
 Критерий выхода: есть проверенная база, список переиспользуемого кода и контрактные
@@ -100,8 +101,8 @@ fixtures; ни одна функция следующей версии не по
 
 Реализовать:
 
-1. Строгий `openspec-orch.yaml` v1: `version`, `strict`, `repositories`,
-   `extensions`; ровно один `store`, минимум один `code` для пилота.
+1. Строгий `openspec-orch.yaml` v3: `version`, `strict`, `agents`, декларации
+   `plugins`, `repositories`; ровно один `store`, минимум один `code` для пилота.
 2. Перенос локального workspace из Git config в `.openspec-orch/state.json`.
 3. Сохранение текущих безопасных свойств `init` и `connect`.
 4. Read-only `repository status`: наличие checkout, clean/dirty, remote и ветка;
@@ -133,8 +134,9 @@ fingerprints, `adopt`, `plan`, `implement`, Handoff и автоматическ�
 
 Реализовать:
 
-1. Версионированный `.openspec-orch/state.json` с атомарной записью и проверкой при
-   чтении; файл добавляется в `.gitignore`.
+1. Версионированный `.openspec-orch/plugins/change-tracking/state.json` через
+   Plugin storage facade с атомарной записью и проверкой при чтении; каталог добавлен
+   в `.gitignore`. `.openspec-orch/state.json` остаётся Core-owned workspace state.
 2. Result Receipt и `record assignment`.
 3. Проверки совпадения текущего `cycle_id`, принадлежности репозитория Cycle и
    существования коммита в локальном checkout.
@@ -167,7 +169,7 @@ fingerprints, `adopt`, `plan`, `implement`, Handoff и автоматическ�
    со статусом `completed`.
 2. Каноническую сортировку `repository_id + implementation_revision` и
    версионированный алгоритм `snapshot_id`.
-3. Сохранение Snapshot в локальном state и вывод таблицы точных коммитов.
+3. Сохранение Snapshot в локальном Change Tracking state и вывод таблицы точных коммитов.
 4. `record verification` со значениями `pass | fail`.
 5. Обязательное совпадение `cycle_id` и последнего `snapshot_id`.
 6. Snapshot, Verification Receipt и следующее действие в `status`.

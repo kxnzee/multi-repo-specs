@@ -1,23 +1,25 @@
 # Конфигурация `openspec-orch.yaml`
 
-Справочник описывает текущий формат `version: 2`. Конфигурация `version: 1`
-по-прежнему читается, а первая управляемая запись переводит её в v2. Секции
-`agent`/`handoffs` и поля `role`/`url` предыдущего прототипа отклоняются строгой схемой.
+Справочник описывает текущий формат `version: 3`. Другие версии не мигрируются
+автоматически и отклоняются строгой схемой вместе с секциями `agent`/`handoffs`,
+старым `extensions` и полями `role`/`url` предыдущего прототипа.
 
 `openspec-orch.yaml` находится в корне центрального Store Repository и описывает режим Core и репозитории проекта. Файл создаётся командой `openspec-orch init` и используется командами Core как машинная конфигурация. Версия OpenSpec здесь намеренно не закрепляется.
 
 ## Полный пример
 
 ```yaml
-version: 2
+version: 3
 strict: true
 
 agents:
   - qwen
 
 plugins:
-  - secret-scanner
-  - dependency-audit
+  - id: secret-scanner
+    source: "@company/openspec-plugin-secret-scanner@1.0.0"
+  - id: dependency-audit
+    source: "@company/openspec-plugin-dependency-audit@1.2.0"
 
 repositories:
   - id: sdd-specs
@@ -41,9 +43,8 @@ repositories:
 
 ## `version`
 
-Обязательное поле. Текущий формат записи — `version: 2`; `version: 1` поддерживается
-только для совместимого чтения. Любое другое значение или отсутствие поля — ошибка
-`CONFIG_INVALID`.
+Обязательное поле. Поддерживается только `version: 3`. Любое другое значение или
+отсутствие поля — ошибка `CONFIG_INVALID`; скрытой миграции прежних форматов нет.
 
 ## `strict`
 
@@ -70,11 +71,9 @@ repositories:
 фиксирует, для каких агентов Plugin с Agent integration должен установить свои MCP и
 инструкции.
 
-Обычный пользователь не редактирует список вручную. Старые конфигурации без поля
-читаются как `agents: []`. Для их безопасной миграции повторите исходный
-`openspec-orch init --agent <agent-id> --store <store-id> <store-path>`: после полной
-проверки Store команда запишет только Agent ID. До этой миграции Plugin, которому
-нужна Agent integration, завершит `plugin init` ошибкой
+Обычный пользователь не редактирует список вручную. `init` регистрирует один Agent ID;
+Plugin с Agent integration использует его для установки MCP и инструкций. Проект без
+зарегистрированного Agent завершит `plugin init` ошибкой
 `PLUGIN_AGENT_NOT_REGISTERED`, не создавая частичной установки.
 
 ## `repositories`
@@ -93,13 +92,15 @@ repositories:
 
 ## `plugins`
 
-Верхнеуровневый `plugins` — список Plugin, выбранных для проекта. Он не связывает
-Plugin с Repository сам по себе. Фактическая связь хранится в
+Верхнеуровневый `plugins` — список деклараций `{ id, source }` для Plugin, выбранных
+через `plugin init`. `source` содержит точную package identity, которую Core использует
+для последующей загрузки. Декларация не связывает Plugin с Repository сама по себе.
+Фактическая связь хранится в
 `repositories[].plugins`, поэтому один Plugin можно подключить к нескольким
 репозиториям, а к одному репозиторию — несколько Plugin.
 
-`extensions` остаётся допустимым только в старом `version: 1`; в v2 его заменяет
-явная модель Plugins. Template-данные здесь не хранятся: Project Template применяется
+`extensions` в текущем формате не допускается. Template-данные здесь не хранятся:
+Project Template применяется
 один раз во время `init`, а Plugins имеют отдельный каталог и lifecycle.
 
 ## Редактирование

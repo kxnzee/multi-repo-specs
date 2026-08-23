@@ -104,6 +104,9 @@ openspec-orch plugin init [--plugin <plugin-id>]... [--from <source>]...
 openspec-orch plugin connect <plugin-id> [--repo <repository-id>]...
 openspec-orch plugin status [--plugin <plugin-id>] [--repo <repository-id>] [--json]
 openspec-orch plugin sync <plugin-id> --repo <repository-id>
+openspec-orch plugin disconnect <plugin-id> --repo <repository-id>
+openspec-orch plugin remove <plugin-id>
+openspec-orch plugin register <plugin-id> [path]
 openspec-orch <plugin-id> <plugin-command> [args...]
 openspec-orch repository status [--repo <repository-id>]...
 openspec-orch assign <change-id> --repo <repository-id>...
@@ -113,15 +116,18 @@ openspec-orch verify <change-id>
 openspec-orch record verification <change-id> --result <pass|fail> --source <human|agent|ci> [--note <text>]
 ```
 
-`init` использует `--agent` и необязательный `--template` только для начальной
-установки проектных файлов. Core не хранит agent mapping или handoff в
-`openspec-orch.yaml` и не использует их после `init`.
+`init` использует необязательный `--template` для начальной установки проектных
+файлов. Agent mapping принадлежит Template; Core сохраняет в `openspec-orch.yaml`
+только зарегистрированный Agent ID, необходимый Plugin для установки MCP и
+инструкций. Handoff Core не хранит и не выполняет.
 Поддерживаемые значения `--agent` и их нативные пути перечислены в едином
 [справочнике агентов](docs/user/supported-agents.md).
 
 Команды `assign`, `record assignment` и `record verification` сначала показывают
 preview и требуют интерактивного подтверждения. Отказ пользователя ничего не
-записывает. JSON-вывод и неинтерактивные confirmation token в текущую версию не входят.
+записывает. Единая JSON-оболочка всех команд и неинтерактивные confirmation token в
+текущую версию не входят; read-only `status` и `plugin status` имеют собственный
+`--json`.
 
 Коды завершения: `0` — успех или отказ от preview, `1` — ошибка проверки или
 выполнения, `2` — неверный вызов CLI.
@@ -144,7 +150,7 @@ preview и требуют интерактивного подтверждени�
 Минимальная конфигурация пилота:
 
 ```yaml
-version: 2
+version: 3
 strict: true
 agents: [qwen]
 plugins: []
@@ -251,14 +257,16 @@ Snapshot, Verification Receipt и следующее действие `гото�
 |---|---|---|
 | Config | `openspec-orch.yaml` | да |
 | Cycle Records | `.openspec-orch/changes/<base64url-change-id>.json` | да |
-| Receipts, Snapshots, workspace | `.openspec-orch/state.json` | нет, mode `0600` |
+| Локальный workspace Core | `.openspec-orch/state.json` | нет, mode `0600` |
+| Receipts и Snapshots Change Tracking | `.openspec-orch/plugins/change-tracking/state.json` | нет, mode `0600` |
+| Runtime внешних Plugins | `.openspec-orch/cache/plugin-runtimes/<plugin-id>/` | нет |
 | Specs и Changes | `openspec/` | да, владелец — OpenSpec |
 
-`state.json` проверяется при каждом чтении и записывается атомарно. Изменяющие его
-команды используют локальный межпроцессный lock и безопасно отказывают при
-конкурирующей записи. Повреждённый или неподдерживаемый state не перезаписывается
-автоматически. Потеря state не уничтожает Cycle: `status` восстановит его из Git и
-честно покажет результаты как `missing`.
+Core state и Plugin state проверяются при каждом чтении и записываются атомарно.
+Изменяющие их команды используют локальные межпроцессные locks и безопасно отказывают
+при конкурирующей записи. Повреждённое или неподдерживаемое состояние не
+перезаписывается автоматически. Потеря Change Tracking state не уничтожает Cycle:
+`status` восстановит его из Git и честно покажет результаты как `missing`.
 
 Разработка и устройство Core описаны отдельно в
 [технической документации](docs/technical/development.md).

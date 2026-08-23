@@ -61,7 +61,10 @@ v1 предполагает **одного пользователя и одну 
 
 ### 2.2. Операции v1
 
-Замороженный набор — восемь операций, ни одной больше: `init`, `connect`, `repository status`, `assign`, `status`, `record assignment`, `verify`, `record verification`.
+Замороженный набор бизнес-операций Cycle — восемь операций, ни одной больше: `init`,
+`connect`, `repository status`, `assign`, `status`, `record assignment`, `verify`,
+`record verification`. Команды `plugin ...` являются lifecycle платформы расширений,
+а не новыми операциями Change Tracking.
 
 | Операция | Что делает | Чего не делает в текущей версии |
 |---|---|---|
@@ -108,6 +111,24 @@ v1 предполагает **одного пользователя и одну 
 После ревизии функция может попасть в отдельный Beta Plan только против записи в
 `docs/user/pilot-feedback.md` (раздел 7).
 
+### 2.5. Plugin Platform
+
+Core владеет только общим lifecycle `plugin register/init/connect/status/sync/disconnect/remove`,
+загрузкой Package, Repository bindings, scoped context и монтированием команд. Бизнес-
+логика Cycle/Receipts/Snapshot находится в bundled Plugin `change-tracking`; CodeGraph
+находится в отдельном bundled Plugin `codegraph`. Оба Package поставляются как
+dependencies Orchestrator, а внешний Plugin подключается как npm-compatible source.
+
+Plugin является самостоятельным ESM Package с одним entrypoint в `package.json` и
+использует только публичный `@openspec-orch/plugin-sdk`. Template и Plugin не зависят
+друг от друга. Core не содержит условий по Plugin ID; имена bundled Plugins и список
+разрешённых root-команд известны только distribution composition root. Порядок загрузки
+Plugins не специфицирован, и Plugin не должен зависеть от загрузки другого Plugin.
+
+Добавление следующего Plugin не требует изменения Core. Публичный контракт автора,
+scoped facades и contract test kit описаны в
+[`packages/plugin-sdk/README.md`](../../packages/plugin-sdk/README.md).
+
 ## 3. Модель данных
 
 Основные классы данных разделены по владельцу и сроку жизни:
@@ -116,17 +137,21 @@ v1 предполагает **одного пользователя и одну 
 |---|---|---|
 | `openspec-orch.yaml` | Git, Store | Пользователь |
 | `.openspec-orch/changes/<change-key>.json` (Cycle Records) | Git, Store | Core |
-| `.openspec-orch/state.json` (Receipts, Snapshots, локальные пути) | только локальная машина, в `.gitignore` | Core |
-| `.openspec-orch/cache/plugins/<plugin-id>/` | только локальная машина, в `.gitignore` | Plugin manager |
+| `.openspec-orch/state.json` (локальный workspace) | только локальная машина, в `.gitignore` | Core |
+| `.openspec-orch/plugins/change-tracking/state.json` (Receipts, Snapshots) | только локальная машина, в `.gitignore` | Change Tracking Plugin через Core storage |
+| `.openspec-orch/cache/plugin-runtimes/<plugin-id>/` | только локальная машина, в `.gitignore` | Plugin manager |
 | `openspec/…` | Git, Store | OpenSpec — Core не читает внутреннюю структуру и не пишет туда |
 
-Receipts и Snapshots **никогда** не попадают в Git в текущей версии. Cycle Record **никогда** не хранится только в state.json.
+Receipts и Snapshots **никогда** не попадают в Git в текущей версии. Cycle Record
+**никогда** не хранится только в локальном Plugin state.
 
 ### 3.1. Версионирование
 
 Файловые контракты содержат явные версии:
 
-1. **`version` или `contract_version`** в каждом файловом формате. Неподдерживаемая версия при чтении — ошибка, а не тихая интерпретация. `openspec-orch.yaml` v1 читается для миграции, но управляемые записи сохраняются как v2.
+1. **`version`, `contract_version` или `storage_version`** в каждом файловом формате.
+   Неподдерживаемая версия при чтении — ошибка, а не тихая интерпретация.
+   `openspec-orch.yaml` поддерживается только в текущем формате v3; скрытой миграции нет.
 2. **Версия алгоритма внутри вычисления `snapshot_id`**: версия входит в хешируемые данные, чтобы бета могла расширить проекцию (например, отпечатком договора проверки) без коллизий со старыми идентификаторами.
 
 Будущее расширение добавляет поля через инкремент версии соответствующего формата.
@@ -134,10 +159,12 @@ Receipts и Snapshots **никогда** не попадают в Git в тек�
 ### 3.2. `openspec-orch.yaml`
 
 ```yaml
-version: 2
+version: 3
 strict: true
 agents: [qwen]
-plugins: [dependency-audit]
+plugins:
+  - id: dependency-audit
+    source: "@company/openspec-plugin-dependency-audit@1.2.0"
 
 repositories:
   - id: specs
@@ -155,19 +182,21 @@ repositories:
 Правила:
 
 - обязательное поле `version`; неподдерживаемая версия — ошибка;
-- в v2 неизвестные поля вне `version`, `strict`, `agents`, `plugins`, `repositories` — ошибка; секции `agent`, `handoffs` и старый `extensions` не допускаются;
+- в v3 неизвестные поля вне `version`, `strict`, `agents`, `plugins`, `repositories` — ошибка; секции `agent`, `handoffs` и старый `extensions` не допускаются;
 - `agents` содержит уникальные Agent ID, зарегистрированные успешным `init`;
+- каждый элемент `plugins` содержит Plugin ID и точную package identity в `source`;
 - ровно один репозиторий с ролью `store`;
 - без секретов и локальных абсолютных путей;
 - каждый `repositories[].plugins` ссылается только на ID из верхнеуровневого `plugins`;
 - перечитывается при каждой операции.
 
-Plugin Package не является частью Template. `plugin init` materialize выбранный npm
-package и его production dependencies один раз в локальный cache Store, после чего
-объявляет ID в проекте. `plugin connect` выполняет setup в точном Repository и только
-после успеха сохраняет связь. Нативный вызов передаёт аргументы Package entrypoint
-без shell; Package без entrypoint использует executable из descriptor.
-`plugin register` создаёт самостоятельный исходный Package с manifest и entrypoint;
+Plugin Package не является частью Template. `plugin init` загружает bundled Package
+из установленного дистрибутива либо materialize внешний npm-compatible source и его
+production dependencies в локальный cache Store, после чего сохраняет ID и точную
+package identity в проекте. `plugin connect` выполняет setup в точном Repository и
+только после успеха сохраняет связь. Core импортирует обязательный ESM entrypoint,
+объявленный в `package.json`, без shell и без отдельного descriptor.
+`plugin register` создаёт самостоятельный исходный Package с `package.json` и entrypoint;
 он не меняет Store, Template или Plugin-specific код в Core.
 Необязательные Agent hooks позволяют Package установить и удалить собственные MCP и
 инструкции для каждого зарегистрированного агента; Core не знает их provider formats.
@@ -205,7 +234,7 @@ package и его production dependencies один раз в локальный 
 
 ### 3.4. Result Receipt
 
-Хранится в `state.json`:
+Хранится в payload `.openspec-orch/plugins/change-tracking/state.json`:
 
 ```json
 {
@@ -232,11 +261,15 @@ package и его production dependencies один раз в локальный 
 
 Незакоммиченные изменения, stash и diff версией реализации не являются.
 
-**Замена результата.** Новый Receipt для той же пары `cycle_id + repository_id` заменяет предыдущий; предыдущий сохраняется в истории state.json; пользователь получает предупреждение «результат заменён». Поля `supersedes` в v1 нет — пилот покажет, бывают ли замены и гонки вообще. Строгая цепочка может быть добавлена только отдельным решением после пилота.
+**Замена результата.** Новый Receipt для той же пары `cycle_id + repository_id`
+заменяет предыдущий; предыдущий сохраняется в истории Change Tracking state;
+пользователь получает предупреждение «результат заменён». Поля `supersedes` в v1
+нет — пилот покажет, бывают ли замены и гонки вообще. Строгая цепочка может быть
+добавлена только отдельным решением после пилота.
 
 ### 3.5. Snapshot
 
-Вычисляется `verify`, хранится в `state.json`:
+Вычисляется `verify`, хранится в Change Tracking state:
 
 ```json
 {
@@ -273,14 +306,19 @@ package и его production dependencies один раз в локальный 
 
 Результатов два: `pass | fail`. Замена — как у Result Receipt: с предупреждением, история сохраняется.
 
-### 3.7. `state.json`
+### 3.7. Локальное состояние
 
-- версионирован (`contract_version`);
+- Core хранит только workspace в `.openspec-orch/state.json`;
+- Change Tracking хранит Receipts и Snapshots в собственном
+  `.openspec-orch/plugins/change-tracking/state.json` внутри версионированного Core
+  storage envelope;
+- payload Change Tracking версионирован (`contract_version`);
 - пишется атомарно (запись во временный файл + rename);
 - валидируется при чтении; повреждённый файл — ошибка с предложением пересоздать, без тихой перезаписи;
-- содержит: локальные пути репозиториев, Result Receipts (текущие + история замен), Snapshots, Verification Receipts;
+- Plugin state содержит Result Receipts (текущие + история замен), Snapshots и Verification Receipts;
 - **не** содержит Cycle Records и не служит источником истины для Cycle;
-- полная потеря файла не ломает Cycle: `status` восстанавливает Cycle из Git и честно показывает Receipts как `missing`, а не «предположительно пройдено».
+- полная потеря Change Tracking state не ломает Cycle: `status` восстанавливает Cycle
+  из Git и честно показывает Receipts как `missing`, а не «предположительно пройдено».
 
 ## 4. Поведение команд
 
@@ -341,7 +379,8 @@ Change `checkout-flow`, репозитории `frontend` и `backend`, всё �
 6. **Проверка.** `verify(checkout-flow)` — Core печатает `snapshot_id` и таблицу `frontend → f111, backend → b222`. Инженер делает checkout на эти коммиты, выполняет проектные проверки. `record verification(checkout-flow) --result pass --source human`.
 7. **Итог.** `status(checkout-flow)` — Cycle, оба результата, Snapshot, `pass`, «готово».
 8. **Возврат через несколько дней.** Тот же `status(checkout-flow)` восстанавливает всю картину; `cycle_id` и коммиты вручную не вводятся.
-9. **Потеря state.json.** Cycle восстанавливается из Git; Receipts показываются как `missing` — инженер повторно записывает результаты, если может их подтвердить.
+9. **Потеря Change Tracking state.** Cycle восстанавливается из Git; Receipts
+   показываются как `missing` — инженер повторно записывает результаты, если может их подтвердить.
 
 ### 5.2. Команда: аналитик, фронтенд, бэкенд, тестировщик
 
@@ -424,14 +463,16 @@ verify → record verification → status
 - кодирование `change-id` в имя файла;
 - алгоритм генерации `cycle_id` и `receipt_id`;
 - алгоритм и версию хеша `snapshot_id`, каноникализацию пар;
-- атомарную запись Cycle Record и state.json;
+- атомарную запись Cycle Record, Core state и Plugin state;
 - судьбу существующего кода `init`/`connect`: что переиспользуется, что мигрирует;
 - минимальные тесты: контрактные на форматы, интеграционные на цепочку `assign → record → verify → record verification`, негативные на неснижаемый минимум раздела 2.3 и коды ошибок раздела 6.
 
 Порядок реализации (рекомендация, не контракт):
 
 - **MVP-0 — основа Cycle:** строгий конфиг, Cycle Record, `assign`, `status`. Доказывает: «по `change-id` восстанавливается, что происходит с Change».
-- **MVP-1 — учёт результатов:** `state.json`, Result Receipt, `record assignment` с проверками. После этого шага связка «Cycle + Receipts + status» отвечает на первый вопрос v1 и демонстрируема — это точка отсечения при нехватке времени.
+- **MVP-1 — учёт результатов:** Change Tracking state, Result Receipt,
+  `record assignment` с проверками. После этого шага связка «Cycle + Receipts + status»
+  отвечает на первый вопрос v1 и демонстрируема — это точка отсечения при нехватке времени.
 - **MVP-2 — проверка:** `verify`, Snapshot, `record verification`. Отвечает на второй вопрос v1.
 - **Далее — пилот.** Ничего не добавлять.
 
@@ -440,10 +481,10 @@ verify → record verification → status
 | Узел | Текущая версия | Возможное развитие после пилота | Что заложено для перехода |
 |---|---|---|---|
 | Активация Cycle | HEAD рабочей копии Store | нормативный путь в дереве основной ветки, `pending/committed_pending/active` | полный формат Cycle Record уже в v1 |
-| Замена Receipt | замена с предупреждением, история в state.json | строгий `supersedes` | инкремент `contract_version` формата Receipt |
+| Замена Receipt | замена с предупреждением, история в Change Tracking state | строгий `supersedes` | инкремент `contract_version` формата Receipt |
 | Snapshot | без worktree, только идентичность | развёртывание точных деревьев | `snapshot_id` не зависит от путей |
 | Отпечатки | нет | repo fingerprints, договор проверки | версия алгоритма внутри хеша `snapshot_id` |
 | Результаты проверки | `pass/fail` | + `error/inconclusive` | инкремент `contract_version` |
 | Handoff | нет | Envelope + Mapping, секции `agent/handoffs` конфига | инкремент `version` конфига |
 | Состояние Change | таблица + «следующее действие» | `phase/condition/reason_code` | стабильные коды ошибок |
-| Команда | ручной перенос SHA (сценарий 5.2) | перенос Receipts через Git | Receipts изолированы в state.json, Cycle — в Git |
+| Команда | ручной перенос SHA (сценарий 5.2) | перенос Receipts через Git | Receipts изолированы в Plugin state, Cycle — в Git |
