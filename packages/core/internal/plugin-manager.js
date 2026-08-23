@@ -177,9 +177,14 @@ export class StorePluginManager {
     Object.freeze(this);
   }
 
-  async install(pluginId, source) {
+  async install(pluginId, source, publish = async () => {}) {
     this.#assertInput(pluginId, source);
-    if (source.kind === "bundled") return this.#bundled.install(pluginId, source);
+    if (typeof publish !== "function") invalid("publish должен быть function");
+    if (source.kind === "bundled") {
+      const installation = await this.#bundled.install(pluginId, source);
+      await publish(installation);
+      return installation;
+    }
     await ensureDirectories(this.#checkout.root, CORE_SERVICE_PATHS.lockDirectory);
     return this.#lock.run(
       path.join(this.#checkout.root, CORE_SERVICE_PATHS.pluginInstallerLock),
@@ -188,7 +193,7 @@ export class StorePluginManager {
           this.#checkout.root,
           CORE_SERVICE_PATHS.pluginRuntimeDirectory,
         );
-        return this.#installExternal(runtimeDirectory, pluginId, source);
+        return this.#installExternal(runtimeDirectory, pluginId, source, publish);
       },
       { busyCode: "PLUGIN_INSTALL_BUSY" },
     );
@@ -257,7 +262,7 @@ export class StorePluginManager {
     if (!(source instanceof PluginSource)) invalid("требуется PluginSource");
   }
 
-  async #installExternal(runtimeDirectory, pluginId, source) {
+  async #installExternal(runtimeDirectory, pluginId, source, publish) {
     let temporary = await fs.mkdtemp(path.join(runtimeDirectory, `.install-${pluginId}-`));
     const target = path.join(runtimeDirectory, pluginId);
     let backup = null;
@@ -283,12 +288,14 @@ export class StorePluginManager {
         ) {
           invalid(`${pluginId}: package identity изменилась при активации`);
         }
-        if (backup) await fs.rm(backup, { recursive: true });
-        return createPluginInstallation({
+        const installation = createPluginInstallation({
           loadedPlugin,
           runtimeRoot: target,
           source,
         });
+        await publish(installation);
+        if (backup) await fs.rm(backup, { recursive: true });
+        return installation;
       } catch (error) {
         await fs.rm(target, { recursive: true, force: true });
         if (backup) await fs.rename(backup, target);

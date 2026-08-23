@@ -47,13 +47,15 @@ function managerFixture(calls, { installedId = "sample", packageName = "@test/pl
   return {
     forStore() {
       return {
-        async install(pluginId, source) {
+        async install(pluginId, source, publish) {
           calls.push({ pluginId, source });
-          return {
+          const installation = {
             id: installedId,
             declaration: `${packageName}@1.0.0`,
             source,
           };
+          await publish(installation);
+          return installation;
         },
         async remove(pluginId) {
           calls.push({ operation: "remove", pluginId });

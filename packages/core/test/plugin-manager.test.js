@@ -82,7 +82,7 @@ test("PluginManager installs and restores one deterministic runtime per Plugin",
   assert.throws(() => new PluginInstallation(), /используйте Plugin Manager/);
 });
 
-test("PluginManager preserves the previous runtime when replacement validation fails", async (t) => {
+test("PluginManager preserves the previous runtime when replacement validation or publication fails", async (t) => {
   const { root, checkout } = await storeFixture(t);
   const source = PluginSource.parse(SAMPLE_PLUGIN_ROOT, { cwd: root });
   const current = new PluginManagerService({
@@ -98,6 +98,13 @@ test("PluginManager preserves the previous runtime when replacement validation f
 
   await assert.rejects(invalid.install("sample", source), /Plugin export id|не предоставляет метод/);
 
+  assert.equal(await fs.readFile(marker, "utf8"), "original");
+  assert.deepEqual(await fs.readdir(path.dirname(previous.runtimeRoot)), ["sample"]);
+
+  await assert.rejects(
+    current.install("sample", source, async () => { throw new Error("publish failed"); }),
+    /publish failed/,
+  );
   assert.equal(await fs.readFile(marker, "utf8"), "original");
   assert.deepEqual(await fs.readdir(path.dirname(previous.runtimeRoot)), ["sample"]);
 });

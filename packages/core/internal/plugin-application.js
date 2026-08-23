@@ -206,18 +206,28 @@ export class PluginApplicationService {
 
   async #installUnlocked(root, pluginId, source) {
     const current = await this.#storeProjects.load(root);
-    const installation = await this.#managers.forStore(current.checkout).install(pluginId, source);
-    if (
-      !installation ||
-      installation.id !== pluginId ||
-      !(installation.source instanceof PluginSource) ||
-      typeof installation.declaration !== "string"
-    ) {
-      invalid("Plugin Manager вернул несогласованный installation");
+    let result;
+    await this.#managers.forStore(current.checkout).install(
+      pluginId,
+      source,
+      async (installation) => {
+        if (
+          !installation ||
+          installation.id !== pluginId ||
+          !(installation.source instanceof PluginSource) ||
+          typeof installation.declaration !== "string"
+        ) {
+          invalid("Plugin Manager вернул несогласованный installation");
+        }
+        const initialized = current.project.declarePlugin(pluginId, installation.declaration);
+        await this.#writeProject(current);
+        result = new PluginApplicationResult({ initialized });
+      },
+    );
+    if (!(result instanceof PluginApplicationResult)) {
+      invalid("Plugin Manager не опубликовал installation");
     }
-    const initialized = current.project.declarePlugin(pluginId, installation.declaration);
-    await this.#writeProject(current);
-    return new PluginApplicationResult({ initialized });
+    return result;
   }
 
   async #removeUnlocked(root, pluginId) {
