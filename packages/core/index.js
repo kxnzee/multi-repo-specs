@@ -29,6 +29,12 @@ export { PluginConnectionResult, PluginLifecycleService, PluginStatusResult } fr
 export { LoadedPlugin, PluginLoader, pluginLoader } from "./internal/plugin-loader.js";
 export { PluginInstallationRecord } from "./internal/plugin-installation-record.js";
 export { PluginInstallation, PluginInstallerService, StorePluginInstaller, pluginInstallers } from "./internal/plugin-installer.js";
+export {
+  PluginRuntimeService,
+  ResolvedPluginRuntime,
+  StorePluginRuntimeResolver,
+  pluginRuntimes,
+} from "./internal/plugin-runtime.js";
 export { NpmPackageInstaller, NpmPackageInstallResult, npmPackageInstaller } from "./internal/npm-package-installer.js";
 export { PluginPlatform } from "./internal/plugin-platform.js";
 export { PluginSource } from "./internal/plugin-source.js";
