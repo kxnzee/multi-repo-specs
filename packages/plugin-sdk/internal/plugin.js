@@ -84,7 +84,8 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
  * }) => CommandBuilder} option
  * @property {(handler: (...args: unknown[]) => unknown) => CommandBuilder} action
  * @property {(handler: (context: PluginContext, ...args: unknown[]) => unknown,
- *   config?: {scope?: "current" | "store"}) => CommandBuilder} actionWithContext
+ *   config?: {scope?: "current" | "store", requireBinding?: boolean}) => CommandBuilder}
+ *   actionWithContext
  */
 
 /**

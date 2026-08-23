@@ -73,8 +73,9 @@ class ContractCommand {
       !config ||
       typeof config !== "object" ||
       Array.isArray(config) ||
-      Object.keys(config).some((key) => key !== "scope") ||
-      (config.scope !== undefined && !["current", "store"].includes(config.scope))
+      Object.keys(config).some((key) => !["scope", "requireBinding"].includes(key)) ||
+      (config.scope !== undefined && !["current", "store"].includes(config.scope)) ||
+      (config.requireBinding !== undefined && typeof config.requireBinding !== "boolean")
     ) {
       invalid(`Command '${this.#definition}' имеет неверный context scope`);
     }

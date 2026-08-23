@@ -1,38 +1,17 @@
 /** @fileoverview Проверки namespace, root policy и conflicts Plugin commands. */
 
 import assert from "node:assert/strict";
-import { promises as fs } from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import test from "node:test";
 
+import { Command } from "commander";
 import { definePlugin } from "@openspec-orch/plugin-sdk";
 import {
   CandidateCli,
+  PluginCommandRegistry,
   PluginCommandMounter,
-  PluginLoader,
   PluginRegistry,
 } from "@openspec-orch/core";
-
-/** Загружает Plugin definition через реальную package boundary. */
-async function loadPlugin(t, plugin) {
-  const packageRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-command-plugin-"));
-  t.after(() => fs.rm(packageRoot, { recursive: true, force: true }));
-  const manifest = {
-    name: `@test/openspec-orch-plugin-${plugin.id}`,
-    version: "1.0.0",
-    type: "module",
-    exports: "./index.js",
-    openspecOrchestrator: { apiVersion: 1, plugin: "./index.js" },
-    peerDependencies: { "@openspec-orch/plugin-sdk": "*" },
-  };
-  await fs.writeFile(path.join(packageRoot, "package.json"), `${JSON.stringify(manifest)}\n`);
-  await fs.writeFile(path.join(packageRoot, "index.js"), "export default {};\n");
-  return new PluginLoader(async () => ({ default: plugin })).load({
-    packageRoot: await fs.realpath(packageRoot),
-    pluginId: plugin.id,
-  });
-}
+import { loadPluginExport } from "./helpers/plugin-materializer.js";
 
 /** Создаёт command-only Plugin. */
 function commandPlugin(id, registration) {
@@ -53,7 +32,7 @@ function candidate(
 test("CandidateCli mounts user Plugin commands only inside plugin-id namespace", async (t) => {
   const actions = [];
   const boundaries = [];
-  const sample = await loadPlugin(t, commandPlugin("sample", (commands) => {
+  const sample = await loadPluginExport(t, commandPlugin("sample", (commands) => {
     const builder = commands.command("hello <name>")
       .description("Приветствие")
       .action(function action(name, options, ...internal) {
@@ -82,7 +61,7 @@ test("CandidateCli mounts user Plugin commands only inside plugin-id namespace",
 test("Plugin command can declare nested options and request invocation context", async (t) => {
   const actions = [];
   const context = Object.freeze({ repository: Object.freeze({ id: "specs", role: "store" }) });
-  const sample = await loadPlugin(t, commandPlugin("sample", (commands) => {
+  const sample = await loadPluginExport(t, commandPlugin("sample", (commands) => {
     commands.command("record")
       .description("Record")
       .command("assignment <change-id>")
@@ -118,9 +97,34 @@ test("Plugin command can declare nested options and request invocation context",
   assert.equal(Object.isFrozen(actions[0].options), true);
 });
 
+test("Plugin parser errors use the Commander invalid-argument contract", async () => {
+  const program = new Command().exitOverride().configureOutput({ writeErr() {} });
+  const registry = new PluginCommandRegistry({
+    parent: program,
+    path: [],
+    pluginId: "sample",
+    resolveContext: async () => undefined,
+  });
+  registry.command("inspect").description("Inspect")
+    .option("--repo <id>", "Repository", {
+      parser(value, previous) {
+        if (previous !== undefined) throw new Error("опцию можно указать только один раз");
+        return value;
+      },
+    }).action(() => {});
+
+  await assert.rejects(
+    program.parseAsync([
+      "node", "openspec-orch", "inspect", "--repo", "frontend", "--repo", "backend",
+    ]),
+    (error) => error.code === "commander.invalidArgument" && error.exitCode === 1 &&
+      /опцию можно указать только один раз/.test(error.message),
+  );
+});
+
 test("explicit composition policy can mount trusted Plugin commands at root", async (t) => {
   const actions = [];
-  const tracking = await loadPlugin(t, commandPlugin("change-tracking", (commands) => {
+  const tracking = await loadPluginExport(t, commandPlugin("change-tracking", (commands) => {
     commands.command("assign <change-id>")
       .description("Назначить Change")
       .action((changeId) => actions.push(changeId));
@@ -137,7 +141,7 @@ test("explicit composition policy can mount trusted Plugin commands at root", as
 });
 
 test("Plugin namespace and root commands cannot replace Core or implicit commands", async (t) => {
-  const initPlugin = await loadPlugin(t, commandPlugin("init", (commands) => {
+  const initPlugin = await loadPluginExport(t, commandPlugin("init", (commands) => {
     commands.command("custom").description("Custom").action(() => {});
   }));
   assert.throws(
@@ -145,7 +149,7 @@ test("Plugin namespace and root commands cannot replace Core or implicit command
     /PLUGIN_COMMAND_CONFLICT: command path 'init'/,
   );
 
-  const rootPlugin = await loadPlugin(t, commandPlugin("tracking", (commands) => {
+  const rootPlugin = await loadPluginExport(t, commandPlugin("tracking", (commands) => {
     commands.command("connect").description("Conflict").action(() => {});
   }));
   assert.throws(
@@ -156,7 +160,7 @@ test("Plugin namespace and root commands cannot replace Core or implicit command
     /PLUGIN_COMMAND_CONFLICT: command path 'connect'/,
   );
 
-  const helpPlugin = await loadPlugin(t, commandPlugin("helper", (commands) => {
+  const helpPlugin = await loadPluginExport(t, commandPlugin("helper", (commands) => {
     commands.command("help").description("Conflict").action(() => {});
   }));
   assert.throws(
@@ -175,7 +179,7 @@ test("Plugin namespace and root commands cannot replace Core or implicit command
 
 test("duplicate Plugin command paths fail while building CLI before any action", async (t) => {
   let actionCalls = 0;
-  const duplicate = await loadPlugin(t, commandPlugin("duplicate", (commands) => {
+  const duplicate = await loadPluginExport(t, commandPlugin("duplicate", (commands) => {
     commands.command("check").description("First").action(() => { actionCalls += 1; });
     commands.command("check <target>").description("Second").action(() => { actionCalls += 1; });
   }));
@@ -188,10 +192,10 @@ test("duplicate Plugin command paths fail while building CLI before any action",
 });
 
 test("two root Plugins cannot contribute the same command path", async (t) => {
-  const alpha = await loadPlugin(t, commandPlugin("alpha", (commands) => {
+  const alpha = await loadPluginExport(t, commandPlugin("alpha", (commands) => {
     commands.command("inspect").description("Alpha").action(() => {});
   }));
-  const beta = await loadPlugin(t, commandPlugin("beta", (commands) => {
+  const beta = await loadPluginExport(t, commandPlugin("beta", (commands) => {
     commands.command("inspect").description("Beta").action(() => {});
   }));
 
@@ -208,7 +212,7 @@ test("two root Plugins cannot contribute the same command path", async (t) => {
 });
 
 test("root policy is an exact command contract, not only a Plugin allowlist", async (t) => {
-  const extra = await loadPlugin(t, commandPlugin("extra", (commands) => {
+  const extra = await loadPluginExport(t, commandPlugin("extra", (commands) => {
     commands.command("assign").description("Assign").action(() => {});
     commands.command("remove-all").description("Unexpected").action(() => {});
   }));
@@ -220,7 +224,7 @@ test("root policy is an exact command contract, not only a Plugin allowlist", as
     /PLUGIN_COMMAND_RESERVED: extra не разрешена root command 'remove-all'/,
   );
 
-  const missing = await loadPlugin(t, commandPlugin("missing", (commands) => {
+  const missing = await loadPluginExport(t, commandPlugin("missing", (commands) => {
     commands.command("assign").description("Assign").action(() => {});
   }));
   assert.throws(
@@ -233,7 +237,7 @@ test("root policy is an exact command contract, not only a Plugin allowlist", as
 });
 
 test("PluginCommandMounter validates root policy and command contribution result", async (t) => {
-  const commandsOnly = await loadPlugin(t, commandPlugin("commands", (commands) => {
+  const commandsOnly = await loadPluginExport(t, commandPlugin("commands", (commands) => {
     commands.command("run").description("Run").action(() => {});
   }));
   const registry = new PluginRegistry([commandsOnly]);
@@ -262,7 +266,7 @@ test("PluginCommandMounter validates root policy and command contribution result
     hasCommandContribution: () => "yes",
     registerCommands: valid.registerCommands.bind(valid),
   });
-  const invalidLoaded = await loadPlugin(t, invalid);
+  const invalidLoaded = await loadPluginExport(t, invalid);
   assert.throws(
     () => candidate(new PluginRegistry([invalidLoaded])).createProgram(),
     /hasCommandContribution должен вернуть boolean/,

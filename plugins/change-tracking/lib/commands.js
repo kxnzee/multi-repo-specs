@@ -141,7 +141,7 @@ function printStatus(status, currentRepository, write) {
 /** Registers the preserved root command grammar through the public SDK builder. */
 export function registerChangeTrackingCommands(
   commands,
-  { output = console, prompt = confirm, serviceFactory = (context) => new ChangeTrackingService(context) } = {},
+  { output = console, prompt = confirm } = {},
 ) {
   const write = (message) => output.log(message);
   const confirmCycle = (preview) => confirmAssign(preview, write, prompt);
@@ -154,7 +154,7 @@ export function registerChangeTrackingCommands(
       required: true,
     })
     .actionWithContext(async (context, changeId, options) => {
-      const result = await serviceFactory(context).assign({
+      const result = await new ChangeTrackingService(context).assign({
         changeId,
         repositoryIds: options.repo,
         confirm: confirmCycle,
@@ -180,13 +180,13 @@ export function registerChangeTrackingCommands(
     .description("показать текущий Cycle Record и следующее действие")
     .option("--json", "вывести машиночитаемый контекст Cycle и текущего Repository")
     .actionWithContext(async (context, changeId, options) => {
-      const status = await serviceFactory(context).status(changeId);
+      const status = await new ChangeTrackingService(context).status(changeId);
       if (options.json) {
         write(JSON.stringify(formatStatusJson(status, context.invocation), null, 2));
       } else {
         printStatus(status, context.invocation, write);
       }
-    }, { scope: "store" });
+    }, { scope: "store", requireBinding: false });
 
   const record = commands.command("record")
     .description("записать внешний результат в локальное состояние");
@@ -210,7 +210,7 @@ export function registerChangeTrackingCommands(
     })
     .option("--note <text>", "необязательная заметка", { parser: singleValue })
     .actionWithContext(async (context, changeId, options) => {
-      const result = await serviceFactory(context).recordAssignment({
+      const result = await new ChangeTrackingService(context).recordAssignment({
         changeId,
         repositoryId: options.repo,
         implementationRevision: options.commit,
@@ -232,7 +232,7 @@ export function registerChangeTrackingCommands(
   commands.command("verify <change-id>")
     .description("вычислить Snapshot текущих completed Result Receipts")
     .actionWithContext(async (context, changeId) => {
-      const result = await serviceFactory(context).verify(changeId);
+      const result = await new ChangeTrackingService(context).verify(changeId);
       write(`snapshot_id: ${result.snapshot.snapshot_id}`);
       for (const [repositoryId, revision] of Object.entries(result.snapshot.implementations)) {
         write(`${repositoryId}: ${revision}`);
@@ -252,7 +252,7 @@ export function registerChangeTrackingCommands(
     })
     .option("--note <text>", "необязательная заметка", { parser: singleValue })
     .actionWithContext(async (context, changeId, options) => {
-      const result = await serviceFactory(context).recordVerification({
+      const result = await new ChangeTrackingService(context).recordVerification({
         changeId,
         result: options.result,
         source: options.source,

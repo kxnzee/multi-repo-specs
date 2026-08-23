@@ -14,10 +14,9 @@ import {
   configuration,
   createCandidateProgram,
   createProject,
-  PluginLoader,
 } from "@openspec-orch/core";
 
-import { SAMPLE_PLUGIN_ROOT } from "./helpers/plugin-materializer.js";
+import { loadPluginExport, SAMPLE_PLUGIN_ROOT } from "./helpers/plugin-materializer.js";
 
 /** Создаёт реальный Store config для candidate lifecycle flow. */
 async function storeFixture(t, { declared = true } = {}) {
@@ -58,18 +57,6 @@ async function storeFixture(t, { declared = true } = {}) {
 
 /** Загружает наблюдаемый sample Plugin через настоящий Loader. */
 async function samplePlugin(t, calls) {
-  const packageRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-platform-plugin-"));
-  t.after(() => fs.rm(packageRoot, { recursive: true, force: true }));
-  const manifest = {
-    name: "@test/openspec-orch-plugin-sample",
-    version: "1.0.0",
-    type: "module",
-    exports: "./index.js",
-    openspecOrchestrator: { apiVersion: 1, plugin: "./index.js" },
-    peerDependencies: { "@openspec-orch/plugin-sdk": "*" },
-  };
-  await fs.writeFile(path.join(packageRoot, "package.json"), `${JSON.stringify(manifest)}\n`);
-  await fs.writeFile(path.join(packageRoot, "index.js"), "export default {};\n");
   const plugin = definePlugin({
     id: "sample",
     supports: ["code"],
@@ -93,10 +80,7 @@ async function samplePlugin(t, calls) {
         .action(() => calls.push(["command", "hello"]));
     },
   });
-  return new PluginLoader(async () => ({ default: plugin })).load({
-    packageRoot: await fs.realpath(packageRoot),
-    pluginId: "sample",
-  });
+  return loadPluginExport(t, plugin);
 }
 
 test("PluginPlatform wires sample lifecycle and namespaced command into candidate CLI", async (t) => {
@@ -196,7 +180,7 @@ test("empty composition still exposes Core plugin lifecycle without Plugin-speci
 
 test("command context preserves start and selects current or Store scope explicitly", async (t) => {
   const calls = [];
-  const loadedPlugin = await samplePlugin(t, []);
+  const contextCalls = [];
   const start = "/virtual/workspace/repositories/frontend";
   const commandPlugin = definePlugin({
     id: "sample",
@@ -210,12 +194,11 @@ test("command context preserves start and selects current or Store scope explici
         .actionWithContext((context) => calls.push(context));
       commands.command("store-scope").description("Store")
         .actionWithContext((context) => calls.push(context), { scope: "store" });
+      commands.command("store-history").description("Store history")
+        .actionWithContext((context) => calls.push(context), { scope: "store", requireBinding: false });
     },
   });
-  const scopedPlugin = await new PluginLoader(async () => ({ default: commandPlugin })).load({
-    packageRoot: loadedPlugin.root,
-    pluginId: "sample",
-  });
+  const scopedPlugin = await loadPluginExport(t, commandPlugin);
   const storeProject = { store: { id: "specs" } };
   const invocation = Object.freeze({ id: "frontend", role: "code", path: start });
   const storeStarts = [];
@@ -229,13 +212,12 @@ test("command context preserves start and selects current or Store scope explici
     loadedPlugins: [scopedPlugin],
     pluginContextFactory: {
       async forRepository(input) {
-        return Object.freeze({
-          invocation: input.invocation,
-          repositoryId: input.repositoryId,
-        });
+        contextCalls.push(["connected", input.repositoryId]);
+        return Object.freeze({ invocation: input.invocation, repositoryId: input.repositoryId });
       },
       async forRepositorySetup(input) {
-        return this.forRepository(input);
+        contextCalls.push(["unbound", input.repositoryId]);
+        return Object.freeze({ invocation: input.invocation, repositoryId: input.repositoryId });
       },
     },
     start,
@@ -249,9 +231,11 @@ test("command context preserves start and selects current or Store scope explici
 
   await program.parseAsync(["node", "openspec-orch", "sample", "current-scope"]);
   await program.parseAsync(["node", "openspec-orch", "sample", "store-scope"]);
+  await program.parseAsync(["node", "openspec-orch", "sample", "store-history"]);
   assert.deepEqual(storeStarts, [start]);
-  assert.deepEqual(calls.map(({ repositoryId }) => repositoryId), ["frontend", "specs"]);
+  assert.deepEqual(calls.map(({ repositoryId }) => repositoryId), ["frontend", "specs", "specs"]);
   assert.equal(calls.every((context) => context.invocation === invocation), true);
+  assert.deepEqual(contextCalls.map(([kind]) => kind), ["connected", "connected", "unbound"]);
 });
 
 test("bundled provider initializes and restores a Plugin without Store runtime", async (t) => {

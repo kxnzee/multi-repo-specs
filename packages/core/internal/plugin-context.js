@@ -260,8 +260,14 @@ export class PluginContextFactory {
     });
   }
 
-  async forRepositorySetup({ loadedPlugin, storeProject, repositoryId } = {}) {
-    return this.#create({ loadedPlugin, storeProject, repositoryId, requireBinding: false });
+  async forRepositorySetup({ loadedPlugin, storeProject, repositoryId, invocation } = {}) {
+    return this.#create({
+      loadedPlugin,
+      storeProject,
+      repositoryId,
+      invocation,
+      requireBinding: false,
+    });
   }
 
   async #create({ loadedPlugin, storeProject, repositoryId, invocation, requireBinding }) {

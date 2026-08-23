@@ -13,10 +13,10 @@ import {
   PluginDisconnectionResult,
   PluginHost,
   PluginLifecycleService,
-  PluginLoader,
   PluginRegistry,
   PluginStatusResult,
 } from "@openspec-orch/core";
+import { loadPluginExport } from "./helpers/plugin-materializer.js";
 
 /** Записывает project fixture с одним Store и одним Code Repository. */
 async function createStoreFixture(t, { backendConnected = false, connected = false } = {}) {
@@ -68,18 +68,6 @@ async function createStoreFixture(t, { backendConnected = false, connected = fal
 
 /** Загружает наблюдаемый Plugin через реальную package boundary Loader. */
 async function loadPlugin(t, calls, { connect, status } = {}) {
-  const packageRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-lifecycle-package-"));
-  t.after(() => fs.rm(packageRoot, { recursive: true, force: true }));
-  const manifest = {
-    name: "@test/openspec-orch-plugin-sample",
-    version: "1.0.0",
-    type: "module",
-    exports: "./index.js",
-    openspecOrchestrator: { apiVersion: 1, plugin: "./index.js" },
-    peerDependencies: { "@openspec-orch/plugin-sdk": "*" },
-  };
-  await fs.writeFile(path.join(packageRoot, "package.json"), `${JSON.stringify(manifest)}\n`);
-  await fs.writeFile(path.join(packageRoot, "index.js"), "export default {};\n");
   const plugin = Object.freeze({
     id: "sample",
     supports: Object.freeze(["code"]),
@@ -106,10 +94,7 @@ async function loadPlugin(t, calls, { connect, status } = {}) {
     hasCommandContribution: () => false,
     registerCommands() {},
   });
-  return new PluginLoader(async () => ({ default: plugin })).load({
-    packageRoot: await fs.realpath(packageRoot),
-    pluginId: "sample",
-  });
+  return loadPluginExport(t, plugin);
 }
 
 /** Собирает реальный Host и application service с наблюдаемыми contexts. */

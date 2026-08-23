@@ -63,12 +63,15 @@ export class PluginPlatform {
     };
     this.#commands = new PluginCommandMounter({
       registry,
-      resolveContext: async (pluginId, scope) => {
+      resolveContext: async (pluginId, scope, requireBinding) => {
         const { storeProject, invocation } = await resolveInvocation();
         if (scope === "current" && !invocation) {
           throw new Error("PLUGIN_COMMAND_CONTEXT_UNAVAILABLE: текущий Repository не определён");
         }
-        return contextFactory.forRepository({
+        const createContext = requireBinding
+          ? contextFactory.forRepository.bind(contextFactory)
+          : contextFactory.forRepositorySetup.bind(contextFactory);
+        return createContext({
           loadedPlugin: registry.require(pluginId),
           storeProject,
           repositoryId: scope === "store" ? storeProject.store.id : invocation.id,

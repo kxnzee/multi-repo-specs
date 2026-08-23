@@ -12,6 +12,19 @@ import { CycleRecordRepository } from "./cycle-record-repository.js";
 import { SnapshotIdentity } from "./snapshot-identity.js";
 import { ChangeTrackingState, ChangeTrackingStore } from "./state.js";
 
+/** Creates one stable repository status row without repeating its nullable fields. */
+function repositoryStatus(repositoryId, state, receipt = null, details = {}) {
+  return Object.freeze({
+    repositoryId,
+    state,
+    receipt,
+    commitAvailable: null,
+    head: null,
+    headMatches: null,
+    ...details,
+  });
+}
+
 /** Returns whether two repository lists contain the same IDs regardless of order. */
 function sameRepositorySet(left, right) {
   if (left.length !== right.length) return false;
@@ -370,48 +383,31 @@ export class ChangeTrackingService {
       current.cycle.repositories.map(async (repositoryId) => {
         const receipt = state.result(current.cycle.cycleId, repositoryId);
         if (!this.#context.repositories.isConnected(repositoryId)) {
-          return Object.freeze({
-            repositoryId,
-            state: "disconnected",
-            receipt: receipt ?? null,
-            commitAvailable: null,
-            head: null,
-            headMatches: null,
-          });
+          return repositoryStatus(repositoryId, "disconnected", receipt);
         }
         if (!receipt) {
-          return Object.freeze({
-            repositoryId,
-            state: "missing",
-            receipt: null,
-            commitAvailable: null,
-            head: null,
-            headMatches: null,
-          });
+          return repositoryStatus(repositoryId, "missing");
         }
         const repositoryGit = await this.#context.repositories.git(repositoryId);
         if (!repositoryGit) {
-          return Object.freeze({
-            repositoryId,
-            state: "commit_unavailable",
-            receipt,
+          return repositoryStatus(repositoryId, "commit_unavailable", receipt, {
             commitAvailable: false,
-            head: null,
-            headMatches: null,
           });
         }
         const [head, available] = await Promise.all([
           repositoryGit.revision(),
           repositoryGit.hasCommit(receipt.implementation_revision),
         ]);
-        return Object.freeze({
+        return repositoryStatus(
           repositoryId,
-          state: available ? receipt.status : "commit_unavailable",
+          available ? receipt.status : "commit_unavailable",
           receipt,
-          commitAvailable: available,
-          head,
-          headMatches: head === receipt.implementation_revision,
-        });
+          {
+            commitAvailable: available,
+            head,
+            headMatches: head === receipt.implementation_revision,
+          },
+        );
       }),
     ));
     const allCompleted = repositories.every((repository) => repository.state === "completed");

@@ -4,7 +4,6 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
-import { RepositoryCheckout } from "./checkout.js";
 import { coreState } from "./core-state.js";
 import { git } from "./git.js";
 import { StoreProject } from "./store-project.js";
@@ -71,14 +70,14 @@ export class CurrentRepositoryService {
     });
     if (!workspaceModel) return null;
     for (const repository of storeProject.project.codeRepositories) {
-      const expectedPath = workspaceModel.checkoutPath(repository);
-      const stat = await lstatOrNull(expectedPath);
-      if (!stat?.isDirectory() || stat.isSymbolicLink()) continue;
-      const canonicalPath = await fs.realpath(expectedPath);
-      if (canonicalPath !== repositoryRoot) continue;
-      const checkout = new RepositoryCheckout(repository, canonicalPath);
+      const checkout = await this.#workspace.resolveCheckout(workspaceModel, repository)
+        .catch((error) => {
+          if (error.code === "REPOSITORY_CHECKOUT_UNAVAILABLE") return null;
+          throw error;
+        });
+      if (!checkout || checkout.root !== repositoryRoot) continue;
       await this.#git.forRepository(checkout).assertIdentity();
-      return Object.freeze({ id: repository.id, role: "code", path: canonicalPath });
+      return Object.freeze({ id: repository.id, role: "code", path: checkout.root });
     }
     return null;
   }

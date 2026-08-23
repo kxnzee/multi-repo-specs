@@ -1,37 +1,13 @@
 /** @fileoverview Проверки fail-fast Plugin registry и repository lifecycle host. */
 
 import assert from "node:assert/strict";
-import { promises as fs } from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import test from "node:test";
 
 import {
   PluginHost,
-  PluginLoader,
   PluginRegistry,
 } from "@openspec-orch/core";
-
-/** Создаёт package contract для Loader с подменяемым plain Plugin export. */
-async function loadPlugin(t, plugin) {
-  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-plugin-host-"));
-  const root = await fs.realpath(temporary);
-  t.after(() => fs.rm(root, { recursive: true, force: true }));
-  const manifest = {
-    name: `@test/openspec-orch-plugin-${plugin.id}`,
-    version: "1.0.0",
-    type: "module",
-    exports: "./index.js",
-    openspecOrchestrator: { apiVersion: 1, plugin: "./index.js" },
-    peerDependencies: { "@openspec-orch/plugin-sdk": "*" },
-  };
-  await fs.writeFile(path.join(root, "package.json"), `${JSON.stringify(manifest)}\n`);
-  await fs.writeFile(path.join(root, "index.js"), "export default {};\n");
-  return new PluginLoader(async () => ({ default: plugin })).load({
-    packageRoot: root,
-    pluginId: plugin.id,
-  });
-}
+import { loadPluginExport } from "./helpers/plugin-materializer.js";
 
 /** Создаёт structurally valid Plugin export с наблюдаемым lifecycle. */
 function pluginExport(id, calls, { repository = true, sync = true } = {}) {
@@ -63,8 +39,8 @@ function pluginExport(id, calls, { repository = true, sync = true } = {}) {
 
 test("PluginRegistry has stable order independent of load order and rejects duplicates", async (t) => {
   const calls = [];
-  const beta = await loadPlugin(t, pluginExport("beta", calls));
-  const alpha = await loadPlugin(t, pluginExport("alpha", calls));
+  const beta = await loadPluginExport(t, pluginExport("beta", calls));
+  const alpha = await loadPluginExport(t, pluginExport("alpha", calls));
   const registry = new PluginRegistry([beta, alpha]);
 
   assert.deepEqual(registry.list().map(({ id }) => id), ["alpha", "beta"]);
@@ -75,7 +51,7 @@ test("PluginRegistry has stable order independent of load order and rejects dupl
 
 test("PluginHost uses setup context for connect and connected context for status and sync", async (t) => {
   const calls = [];
-  const loadedPlugin = await loadPlugin(t, pluginExport("sample", calls));
+  const loadedPlugin = await loadPluginExport(t, pluginExport("sample", calls));
   const contexts = [];
   const contextFactory = {
     async forRepositorySetup(options) {
@@ -105,10 +81,10 @@ test("PluginHost uses setup context for connect and connected context for status
 
 test("PluginHost fails before context creation or callback for unsupported lifecycle", async (t) => {
   const calls = [];
-  const withoutRepository = await loadPlugin(t, pluginExport("commands", calls, {
+  const withoutRepository = await loadPluginExport(t, pluginExport("commands", calls, {
     repository: false,
   }));
-  const withoutSync = await loadPlugin(t, pluginExport("no-sync", calls, { sync: false }));
+  const withoutSync = await loadPluginExport(t, pluginExport("no-sync", calls, { sync: false }));
   let contextCalls = 0;
   const contextFactory = {
     async forRepositorySetup() { contextCalls += 1; },

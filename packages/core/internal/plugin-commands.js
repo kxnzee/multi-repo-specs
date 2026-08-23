@@ -1,6 +1,6 @@
 /** @fileoverview Безопасный монтаж Plugin command contributions в candidate CLI. */
 
-import { Command, Option } from "commander";
+import { Command, InvalidArgumentError, Option } from "commander";
 
 import { CORE_CLI_COMMANDS, CORE_PATTERNS } from "./constants.js";
 import { PluginRegistry } from "./plugin-host.js";
@@ -8,6 +8,7 @@ import { ownValue } from "./value.js";
 
 const IMPLICIT_ROOT_COMMANDS = new Set(CORE_CLI_COMMANDS.implicit);
 const COMMAND_CONTEXT_SCOPES = new Set(["current", "store"]);
+const COMMAND_CONTEXT_KEYS = new Set(["scope", "requireBinding"]);
 
 /** Извлекает проверенное имя команды из Commander definition. */
 function commandName(definition, pluginId) {
@@ -22,6 +23,19 @@ function commandName(definition, pluginId) {
     );
   }
   return Object.freeze({ definition: normalized, name: match[0].trim() });
+}
+
+/** Keeps Commander error semantics without exposing Commander through the Plugin SDK. */
+function optionParser(parser) {
+  if (parser === undefined) return undefined;
+  return (...args) => {
+    try {
+      return parser(...args);
+    } catch (error) {
+      if (error instanceof InvalidArgumentError) throw error;
+      throw new InvalidArgumentError(error instanceof Error ? error.message : String(error));
+    }
+  };
 }
 
 /** Ограниченный builder без доступа Plugin к Commander instance. */
@@ -74,7 +88,7 @@ export class PluginCommandBuilder {
       !config ||
       typeof config !== "object" ||
       Array.isArray(config) ||
-      Object.keys(config).some((key) => key !== "scope")
+      Object.keys(config).some((key) => !COMMAND_CONTEXT_KEYS.has(key))
     ) {
       throw new Error(
         `PLUGIN_COMMAND_INVALID: ${this.#pluginId} context config должен быть object`,
@@ -86,10 +100,16 @@ export class PluginCommandBuilder {
         `PLUGIN_COMMAND_INVALID: ${this.#pluginId} context scope должен быть current или store`,
       );
     }
+    const requireBinding = config.requireBinding ?? true;
+    if (typeof requireBinding !== "boolean") {
+      throw new Error(
+        `PLUGIN_COMMAND_INVALID: ${this.#pluginId} requireBinding должен быть boolean`,
+      );
+    }
     this.#command.action(async (...args) => {
       args.pop();
       const options = ownValue(args.pop());
-      const context = await this.#resolveContext(this.#pluginId, scope);
+      const context = await this.#resolveContext(this.#pluginId, scope, requireBinding);
       return handler(context, ...args, options);
     });
     return this;
@@ -116,7 +136,7 @@ export class PluginCommandBuilder {
   option(flags, description, { choices, parser, required = false } = {}) {
     const option = new Option(flags, description);
     if (choices !== undefined) option.choices(choices);
-    if (parser !== undefined) option.argParser(parser);
+    if (parser !== undefined) option.argParser(optionParser(parser));
     if (required) option.makeOptionMandatory();
     this.#command.addOption(option);
     return this;
