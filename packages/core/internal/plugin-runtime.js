@@ -14,6 +14,14 @@ function invalid(message, options) {
   throw new Error(`PLUGIN_RUNTIME_INVALID: ${message}`, options);
 }
 
+/** Сообщает ожидаемо отсутствующий runtime, который можно восстановить через plugin init. */
+function unavailable(message, options) {
+  throw Object.assign(
+    new Error(`PLUGIN_RUNTIME_UNAVAILABLE: ${message}`, options),
+    { code: "PLUGIN_RUNTIME_UNAVAILABLE" },
+  );
+}
+
 /** Возвращает lstat или null для отсутствующего path. */
 async function lstatOrNull(target) {
   try {
@@ -145,7 +153,7 @@ export class StorePluginRuntimeResolver {
       declaration.source === "local" &&
       !await this.#localOverrides.forStore(this.#checkout).resolve(declaration.id)
     ) {
-      invalid(`${declaration.id}: local source недоступен на этой машине`);
+      unavailable(`${declaration.id}: local source недоступен на этой машине`);
     }
     const relativeDirectory = path.posix.join(
       CORE_SERVICE_PATHS.pluginRuntimeDirectory,
@@ -156,7 +164,7 @@ export class StorePluginRuntimeResolver {
       relativeDirectory,
       { optional: true },
     );
-    if (!pluginDirectory) invalid(`${declaration.id}: runtime не установлен`);
+    if (!pluginDirectory) unavailable(`${declaration.id}: runtime не установлен`);
     const entries = await fs.readdir(pluginDirectory, { withFileTypes: true });
     const versions = entries.flatMap((entry) => {
       if (entry.name.startsWith(".install-")) {
@@ -177,7 +185,7 @@ export class StorePluginRuntimeResolver {
       if (record.source.spec === declaration.source) candidates.push({ record, runtimeRoot });
     }
     if (candidates.length === 0) {
-      invalid(`${declaration.id}: runtime для source ${declaration.source} не установлен`);
+      unavailable(`${declaration.id}: runtime для source ${declaration.source} не установлен`);
     }
     if (candidates.length > 1) {
       invalid(`${declaration.id}: найдено несколько runtime для source ${declaration.source}`);

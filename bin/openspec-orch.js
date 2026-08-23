@@ -9,4 +9,5 @@ import { createCandidateProgram } from "../packages/core/index.js";
 
 const templateRoot = fileURLToPath(new URL("../templates/base/", import.meta.url));
 
-await createCandidateProgram({ templateRoot }).parseAsync(process.argv);
+const program = await createCandidateProgram({ templateRoot });
+await program.parseAsync(process.argv);

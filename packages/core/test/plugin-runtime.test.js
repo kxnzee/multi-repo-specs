@@ -77,7 +77,11 @@ test("PluginRuntimeResolver requires local override before loading runtime", asy
 
   await assert.rejects(
     new StorePluginRuntimeResolver(fixture.checkout).resolve(fixture.declaration),
-    /local source недоступен/,
+    (error) => {
+      assert.match(error.message, /local source недоступен/);
+      assert.equal(error.code, "PLUGIN_RUNTIME_UNAVAILABLE");
+      return true;
+    },
   );
 });
 

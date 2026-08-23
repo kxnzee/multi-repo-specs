@@ -77,8 +77,10 @@ test("candidate plugin init installs, declares and reuses a local Plugin end to 
       "--from",
       SAMPLE_PLUGIN_ROOT,
     ];
-    await createProgram().parseAsync(args);
-    await createProgram().parseAsync(args);
+    await (await createProgram()).parseAsync(args);
+    const restarted = await createProgram();
+    assert.equal(restarted.commands.some((command) => command.name() === "sample"), true);
+    await restarted.parseAsync(args);
   } finally {
     process.chdir(previousCwd);
   }

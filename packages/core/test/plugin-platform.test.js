@@ -128,7 +128,7 @@ test("PluginPlatform wires sample lifecycle and namespaced command into candidat
   const previousCwd = process.cwd();
   process.chdir(storeRoot);
   try {
-    await createCandidateProgram(options).parseAsync([
+    await (await createCandidateProgram(options)).parseAsync([
       "node",
       "openspec-orch",
       "plugin",
@@ -138,7 +138,7 @@ test("PluginPlatform wires sample lifecycle and namespaced command into candidat
       "frontend",
     ]);
     output.length = 0;
-    await createCandidateProgram(options).parseAsync([
+    await (await createCandidateProgram(options)).parseAsync([
       "node",
       "openspec-orch",
       "plugin",
@@ -158,7 +158,7 @@ test("PluginPlatform wires sample lifecycle and namespaced command into candidat
       }],
     });
     output.length = 0;
-    await createCandidateProgram(options).parseAsync([
+    await (await createCandidateProgram(options)).parseAsync([
       "node",
       "openspec-orch",
       "plugin",
@@ -167,7 +167,7 @@ test("PluginPlatform wires sample lifecycle and namespaced command into candidat
       "--repo",
       "frontend",
     ]);
-    await createCandidateProgram(options).parseAsync([
+    await (await createCandidateProgram(options)).parseAsync([
       "node",
       "openspec-orch",
       "sample",
@@ -190,8 +190,29 @@ test("PluginPlatform wires sample lifecycle and namespaced command into candidat
   assert.deepEqual(output, ["sample -> frontend: synced", "updated"]);
 });
 
-test("empty composition still exposes Core plugin lifecycle without Plugin-specific branches", () => {
-  const program = createCandidateProgram();
+test("empty composition still exposes Core plugin lifecycle without Plugin-specific branches", async () => {
+  const program = await createCandidateProgram({ loadedPlugins: [] });
   assert.equal(program.commands.some((command) => command.name() === "plugin"), true);
   assert.equal(program.commands.some((command) => command.name() === "sample"), false);
+});
+
+test("automatic composition skips unavailable runtime but rejects corrupted cache", async (t) => {
+  const storeRoot = await storeFixture(t);
+  const previousCwd = process.cwd();
+  process.chdir(storeRoot);
+  try {
+    const repairable = await createCandidateProgram();
+    assert.equal(repairable.commands.some((command) => command.name() === "plugin"), true);
+    assert.equal(repairable.commands.some((command) => command.name() === "sample"), false);
+
+    const runtimeDirectory = path.join(
+      storeRoot,
+      ".openspec-orch/cache/plugin-runtimes/sample",
+    );
+    await fs.mkdir(runtimeDirectory, { recursive: true });
+    await fs.writeFile(path.join(runtimeDirectory, "unexpected"), "corrupted");
+    await assert.rejects(createCandidateProgram(), /PLUGIN_RUNTIME_INVALID/);
+  } finally {
+    process.chdir(previousCwd);
+  }
 });
