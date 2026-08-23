@@ -20,6 +20,21 @@ function runCli(cwd, ...args) {
   return execa(process.execPath, [CLI_PATH, ...args], { cwd });
 }
 
+/** Инициализирует реальный Git Repository для distribution smoke. */
+async function initializeGitRepository(root) {
+  await execa("git", ["init", "--initial-branch=main"], { cwd: root });
+  await execa("git", ["add", "."], { cwd: root });
+  await execa(
+    "git",
+    [
+      "-c", "user.name=OpenSpec Orchestrator Test",
+      "-c", "user.email=orchestrator@example.test",
+      "commit", "-m", "Initial fixture",
+    ],
+    { cwd: root },
+  );
+}
+
 test("candidate distribution initializes bundled Plugins and mounts trusted root commands", async (t) => {
   const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-distribution-"));
   const storeRoot = path.join(workspaceRoot, "specs");
@@ -61,6 +76,8 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     configuration.serializeProject(project),
   );
   await fs.writeFile(path.join(storeRoot, "openspec/config.yaml"), "schema: spec-driven\n");
+  await initializeGitRepository(storeRoot);
+  await initializeGitRepository(codeRoot);
 
   await runCli(storeRoot, "plugin", "init", "--plugin", "change-tracking");
   await runCli(storeRoot, "plugin", "init", "--plugin", "codegraph");
@@ -79,6 +96,12 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     storeRoot,
     "plugin", "connect", "codegraph", "--repo", "specs", "--repo", "frontend",
   );
+  assert.equal((await execa(
+    "git",
+    ["status", "--short", "--untracked-files=all"],
+    { cwd: codeRoot },
+  )).stdout, "");
+  await assert.rejects(fs.access(path.join(codeRoot, ".gitignore")));
   const status = await runCli(
     storeRoot,
     "plugin", "status", "--plugin", "codegraph", "--json",

@@ -35,8 +35,9 @@ openspec-orch codegraph --repository frontend explore "authentication flow"
 `codegraph init .`, то есть первичная индексация выполняется сразу. Для явного
 обновления используйте `openspec-orch plugin sync codegraph --repo frontend`.
 
-Добавьте `.codegraph/` в `.gitignore` каждого Code Repository. Сам индекс остаётся
-локальным и не переносится в Store.
+Перед индексацией Plugin добавляет `.codegraph/` в локальный `.git/info/exclude`.
+Tracked `.gitignore` Repository не меняется, а сам индекс остаётся локальным и не
+переносится в Store.
 
 ## MCP для агента
 

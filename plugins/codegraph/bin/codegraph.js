@@ -11,6 +11,7 @@ import {
   installAgentIntegration,
   removeAgentIntegration,
 } from "../lib/agent.js";
+import { CodeGraphRepository } from "../lib/repository.js";
 
 const require = createRequire(import.meta.url);
 const packageRoot = path.dirname(require.resolve("@colbymchenry/codegraph/package.json"));
@@ -27,6 +28,9 @@ if (args[0] === "agent" && ["install", "remove"].includes(args[1])) {
   else await removeAgentIntegration(agentId);
   console.log(`codegraph: agent ${agentId} ${args[1] === "install" ? "installed" : "removed"}`);
 } else {
+  if (args[0] === "init") {
+    await new CodeGraphRepository(args[1]).excludeGeneratedIndex();
+  }
   const child = spawn(process.execPath, [entrypoint, ...args], {
     stdio: "inherit",
   });
