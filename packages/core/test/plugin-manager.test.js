@@ -79,6 +79,7 @@ test("PluginManager installs and restores one deterministic runtime per Plugin",
     (await fs.readdir(path.dirname(restored.runtimeRoot))).filter((name) => name.startsWith(".install-")),
     [],
   );
+  assert.throws(() => new PluginInstallation(), /используйте Plugin Manager/);
 });
 
 test("PluginManager preserves the previous runtime when replacement validation fails", async (t) => {

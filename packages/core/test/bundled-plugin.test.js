@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  BundledPluginInstallation,
   BundledPluginPackage,
   BundledPluginProvider,
+  PluginInstallation,
   PluginSource,
 } from "@openspec-orch/core";
 
@@ -30,10 +30,10 @@ test("BundledPluginProvider exposes catalog and loads the validated package in p
 
   const installation = await provider.install(entry.id, entry.source);
 
-  assert.equal(installation instanceof BundledPluginInstallation, true);
+  assert.equal(installation instanceof PluginInstallation, true);
   assert.equal(installation.id, "sample");
   assert.equal(installation.version, "1.0.0");
-  assert.equal(installation.packageRoot, SAMPLE_PLUGIN_ROOT);
+  assert.equal(installation.loadedPlugin.root, SAMPLE_PLUGIN_ROOT);
   assert.equal(installation.loadedPlugin.id, "sample");
   assert.equal(installation.source.kind, "bundled");
   assert.equal(provider.has("sample", entry.source.declaration), true);
@@ -55,5 +55,4 @@ test("BundledPluginProvider rejects unknown sources and mismatched package ident
     })),
     /package identity/,
   );
-  assert.throws(() => new BundledPluginInstallation(), /BundledPluginProvider\.install/);
 });

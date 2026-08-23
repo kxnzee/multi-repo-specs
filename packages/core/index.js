@@ -2,7 +2,6 @@
 
 export { AtomicWriter, atomicWriter } from "./internal/atomic-writer.js";
 export {
-  BundledPluginInstallation,
   BundledPluginPackage,
   BundledPluginProvider,
   bundledPlugins,
@@ -38,8 +37,8 @@ export {
   PluginStatusResult,
 } from "./internal/plugin-lifecycle.js";
 export { LoadedPlugin, PluginLoader, pluginLoader } from "./internal/plugin-loader.js";
+export { PluginInstallation } from "./internal/plugin-installation.js";
 export {
-  PluginInstallation,
   PluginManagerService,
   StorePluginManager,
   pluginManagers,

@@ -13,11 +13,10 @@ import {
 } from "./constants.js";
 import { locks } from "./lock.js";
 import { npmPackageInstaller } from "./npm-package-installer.js";
+import { createPluginInstallation } from "./plugin-installation.js";
 import { pluginLoader } from "./plugin-loader.js";
 import { PluginDeclaration } from "./plugin-declaration.js";
 import { PluginSource } from "./plugin-source.js";
-
-const INSTALLATION_CONSTRUCTION = Symbol("PluginInstallation construction");
 
 /** Завершает операцию стабильной ошибкой Plugin Manager. */
 function invalid(message, options) {
@@ -143,39 +142,6 @@ async function writeRuntimeManifest(runtimeRoot) {
   );
 }
 
-/** Immutable результат загрузки одного Plugin package. */
-export class PluginInstallation {
-  #loadedPlugin;
-  #runtimeRoot;
-  #source;
-
-  constructor({ loadedPlugin, runtimeRoot, source } = {}, token) {
-    if (
-      token !== INSTALLATION_CONSTRUCTION ||
-      !loadedPlugin ||
-      typeof loadedPlugin.id !== "string" ||
-      typeof runtimeRoot !== "string" ||
-      !path.isAbsolute(runtimeRoot) ||
-      !(source instanceof PluginSource)
-    ) {
-      invalid("используйте StorePluginManager.install или resolve");
-    }
-    this.#loadedPlugin = loadedPlugin;
-    this.#runtimeRoot = runtimeRoot;
-    this.#source = source;
-    Object.freeze(this);
-  }
-
-  get declaration() {
-    return `${this.#loadedPlugin.package.name}@${this.#loadedPlugin.package.version}`;
-  }
-  get id() { return this.#loadedPlugin.id; }
-  get loadedPlugin() { return this.#loadedPlugin; }
-  get runtimeRoot() { return this.#runtimeRoot; }
-  get source() { return this.#source; }
-  get version() { return this.#loadedPlugin.package.version; }
-}
-
 /** Один facade владеет materialization, resolution и removal Store-local runtime. */
 export class StorePluginManager {
   #bundled;
@@ -246,11 +212,11 @@ export class StorePluginManager {
       invalid(`${declaration.id}: runtime должен быть безопасным каталогом`);
     }
     const loadedPlugin = await this.#loadExternal(runtimeRoot, declaration.id);
-    const installation = new PluginInstallation({
+    const installation = createPluginInstallation({
       loadedPlugin,
       runtimeRoot,
       source: PluginSource.parse(declaration.source, { cwd: this.#checkout.root }),
-    }, INSTALLATION_CONSTRUCTION);
+    });
     if (installation.declaration !== declaration.source) {
       invalid(`${declaration.id}: package identity не совпадает с project declaration`);
     }
@@ -318,11 +284,11 @@ export class StorePluginManager {
           invalid(`${pluginId}: package identity изменилась при активации`);
         }
         if (backup) await fs.rm(backup, { recursive: true });
-        return new PluginInstallation({
+        return createPluginInstallation({
           loadedPlugin,
           runtimeRoot: target,
           source,
-        }, INSTALLATION_CONSTRUCTION);
+        });
       } catch (error) {
         await fs.rm(target, { recursive: true, force: true });
         if (backup) await fs.rename(backup, target);
