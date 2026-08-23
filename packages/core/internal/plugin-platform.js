@@ -2,13 +2,16 @@
 
 import process from "node:process";
 
+import { BundledPluginProvider } from "./bundled-plugin.js";
 import { CandidateCli } from "./cli.js";
+import { PluginApplicationService } from "./plugin-application.js";
 import { pluginContexts } from "./plugin-context.js";
 import { PluginLifecycleCommands } from "./plugin-cli.js";
 import { PluginCommandMounter } from "./plugin-commands.js";
 import { PluginHost, PluginRegistry } from "./plugin-host.js";
 import { PluginLifecycleService } from "./plugin-lifecycle.js";
-import { pluginRuntimes } from "./plugin-runtime.js";
+import { PluginInstallerService } from "./plugin-installer.js";
+import { PluginRuntimeService, pluginRuntimes } from "./plugin-runtime.js";
 import { storeProjects } from "./store-project.js";
 
 /** Собирает Loader output, Host, lifecycle и CLI adapters без знания Plugin IDs. */
@@ -72,12 +75,31 @@ export class PluginPlatformService {
     Object.freeze(this);
   }
 
-  async create({ loadedPlugins, start = process.cwd(), ...options } = {}) {
-    const resolved = loadedPlugins ?? await this.#loadInstalled(start);
-    return new PluginPlatform({ ...options, loadedPlugins: resolved });
+  async create({ bundledProvider, loadedPlugins, pluginCliOptions = {}, start = process.cwd(), ...options } = {}) {
+    let runtimeService = this.#runtimes;
+    let resolvedPluginCliOptions = pluginCliOptions;
+    if (bundledProvider !== undefined) {
+      if (!(bundledProvider instanceof BundledPluginProvider)) {
+        throw new Error("PLUGIN_PLATFORM_INVALID: bundledProvider должен быть BundledPluginProvider");
+      }
+      runtimeService = new PluginRuntimeService({ bundledProvider });
+      resolvedPluginCliOptions = {
+        applicationService: new PluginApplicationService({
+          installerService: new PluginInstallerService({ bundledProvider }),
+        }),
+        catalog: bundledProvider.catalog,
+        ...pluginCliOptions,
+      };
+    }
+    const resolved = loadedPlugins ?? await this.#loadInstalled(start, runtimeService);
+    return new PluginPlatform({
+      ...options,
+      loadedPlugins: resolved,
+      pluginCliOptions: resolvedPluginCliOptions,
+    });
   }
 
-  async #loadInstalled(start) {
+  async #loadInstalled(start, runtimeService) {
     let storeProject;
     try {
       storeProject = await this.#storeProjects.find(start);
@@ -85,7 +107,7 @@ export class PluginPlatformService {
       if (error.code === "STORE_ROOT_NOT_FOUND") return Object.freeze([]);
       throw error;
     }
-    const resolver = this.#runtimes.forStore(storeProject.checkout);
+    const resolver = runtimeService.forStore(storeProject.checkout);
     const loadedPlugins = [];
     for (const declaration of storeProject.project.pluginDeclarations) {
       try {

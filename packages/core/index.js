@@ -1,6 +1,12 @@
 /** @fileoverview Публичная граница нового Orchestrator Core. */
 
 export { AtomicWriter, atomicWriter } from "./internal/atomic-writer.js";
+export {
+  BundledPluginInstallation,
+  BundledPluginPackage,
+  BundledPluginProvider,
+  bundledPlugins,
+} from "./internal/bundled-plugin.js";
 export { CandidateCli } from "./internal/cli.js";
 export { ConnectionResult, ConnectionService, RepositoryConnection, connection } from "./internal/connection.js";
 export { RepositoryCheckout, createRepositoryCheckout } from "./internal/checkout.js";
@@ -70,6 +76,7 @@ import { pluginPlatforms } from "./internal/plugin-platform.js";
 
 /** Создаёт candidate CLI с уже перенесёнными Core operations. */
 export async function createCandidateProgram({
+  bundledProvider,
   loadedPlugins,
   pluginCliOptions,
   pluginContextFactory,
@@ -78,6 +85,7 @@ export async function createCandidateProgram({
   ...options
 } = {}) {
   const platform = await pluginPlatforms.create({
+    bundledProvider,
     contextFactory: pluginContextFactory,
     loadedPlugins,
     pluginCliOptions,

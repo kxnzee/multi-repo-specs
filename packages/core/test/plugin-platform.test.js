@@ -9,6 +9,8 @@ import test from "node:test";
 
 import { definePlugin } from "@openspec-orch/plugin-sdk";
 import {
+  BundledPluginPackage,
+  BundledPluginProvider,
   configuration,
   createCandidateProgram,
   createProject,
@@ -19,8 +21,10 @@ import {
   PluginRegistry,
 } from "@openspec-orch/core";
 
+import { SAMPLE_PLUGIN_ROOT } from "./helpers/plugin-materializer.js";
+
 /** Создаёт реальный Store config для candidate lifecycle flow. */
-async function storeFixture(t) {
+async function storeFixture(t, { declared = true } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-platform-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   await fs.mkdir(path.join(root, ".openspec-store"));
@@ -29,7 +33,7 @@ async function storeFixture(t) {
     version: 3,
     strict: true,
     agents: ["codex"],
-    plugins: [{ id: "sample", source: "@test/plugin-sample@1.0.0" }],
+    plugins: declared ? [{ id: "sample", source: "@test/plugin-sample@1.0.0" }] : [],
     repositories: [
       {
         id: "specs",
@@ -194,6 +198,64 @@ test("empty composition still exposes Core plugin lifecycle without Plugin-speci
   const program = await createCandidateProgram({ loadedPlugins: [] });
   assert.equal(program.commands.some((command) => command.name() === "plugin"), true);
   assert.equal(program.commands.some((command) => command.name() === "sample"), false);
+});
+
+test("bundled provider initializes and restores a Plugin without Store runtime", async (t) => {
+  const storeRoot = await storeFixture(t, { declared: false });
+  const output = [];
+  const bundledProvider = new BundledPluginProvider([new BundledPluginPackage({
+    id: "sample",
+    name: "Sample Plugin",
+    packageName: "@test/openspec-orch-plugin-sample",
+    packageRoot: SAMPLE_PLUGIN_ROOT,
+    version: "1.0.0",
+  })]);
+  const options = {
+    bundledProvider,
+    pluginCliOptions: { output: { log: (value) => output.push(value) } },
+  };
+  const previousCwd = process.cwd();
+  process.chdir(storeRoot);
+  try {
+    await (await createCandidateProgram(options)).parseAsync([
+      "node",
+      "openspec-orch",
+      "plugin",
+      "init",
+      "--all",
+    ]);
+    const restarted = await createCandidateProgram(options);
+    assert.equal(restarted.commands.some((command) => command.name() === "sample"), true);
+    await restarted.parseAsync(["node", "openspec-orch", "sample", "hello"]);
+    await (await createCandidateProgram(options)).parseAsync([
+      "node",
+      "openspec-orch",
+      "plugin",
+      "init",
+      "--plugin",
+      "sample",
+    ]);
+  } finally {
+    process.chdir(previousCwd);
+  }
+
+  const project = configuration.parseProject(
+    await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
+  );
+  assert.equal(
+    project.pluginDeclaration("sample").source,
+    "@test/openspec-orch-plugin-sample@1.0.0",
+  );
+  assert.equal(await fs.lstat(path.join(
+    storeRoot,
+    ".openspec-orch/cache/plugin-runtimes",
+  )).catch((error) => error.code), "ENOENT");
+  assert.deepEqual(output, [
+    "sample: initialized",
+    "Далее: openspec-orch plugin connect <plugin-id>",
+    "sample: already_initialized",
+    "Далее: openspec-orch plugin connect <plugin-id>",
+  ]);
 });
 
 test("automatic composition skips unavailable runtime but rejects corrupted cache", async (t) => {

@@ -164,7 +164,7 @@ export class PluginLifecycleCommands {
     for (const { id, source } of selections) {
       const result = await this.#applications.install(storeProject, id, source);
       this.#output.log(
-        `${id}: ${result.installation.reused ? "already_initialized" : "initialized"}`,
+        `${id}: ${result.initialized ? "initialized" : "already_initialized"}`,
       );
     }
     this.#output.log("Далее: openspec-orch plugin connect <plugin-id>");

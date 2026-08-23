@@ -10,6 +10,7 @@ import { pluginLoader } from "./plugin-loader.js";
 import { npmPackageInstaller } from "./npm-package-installer.js";
 import { isContainedPath } from "./path.js";
 import { PluginSource } from "./plugin-source.js";
+import { bundledPlugins } from "./bundled-plugin.js";
 
 const INSTALLATION_CONSTRUCTION = Symbol("PluginInstallation construction");
 
@@ -201,13 +202,19 @@ export class PluginInstallation {
 /** Installer, уже привязанный к одному Store checkout. */
 export class StorePluginInstaller {
   #checkout;
+  #bundled;
   #loader;
   #lock;
   #npmInstaller;
 
   constructor(
     storeCheckout,
-    { loader = pluginLoader, lock = locks, npmInstaller = npmPackageInstaller } = {},
+    {
+      bundledProvider = bundledPlugins,
+      loader = pluginLoader,
+      lock = locks,
+      npmInstaller = npmPackageInstaller,
+    } = {},
   ) {
     assertStoreCheckout(storeCheckout);
     if (typeof loader?.load !== "function") invalid("loader должен предоставлять load");
@@ -215,7 +222,11 @@ export class StorePluginInstaller {
     if (typeof npmInstaller?.install !== "function") {
       invalid("npmInstaller должен предоставлять install");
     }
+    if (typeof bundledProvider?.install !== "function") {
+      invalid("bundledProvider должен предоставлять install");
+    }
     this.#checkout = storeCheckout;
+    this.#bundled = bundledProvider;
     this.#loader = loader;
     this.#lock = lock;
     this.#npmInstaller = npmInstaller;
@@ -227,9 +238,10 @@ export class StorePluginInstaller {
     if (typeof pluginId !== "string" || !CORE_PATTERNS.pluginId.test(pluginId)) {
       invalid(`некорректный plugin-id '${pluginId ?? ""}'`);
     }
-    if (!(source instanceof PluginSource) || !source.installable) {
-      invalid("требуется installable PluginSource");
+    if (!(source instanceof PluginSource)) {
+      invalid("требуется PluginSource");
     }
+    if (source.kind === "bundled") return this.#bundled.install(pluginId, source);
     await ensureDirectories(this.#checkout.root, CORE_SERVICE_PATHS.lockDirectory);
     const storeRoot = await fs.realpath(this.#checkout.root);
     return this.#lock.run(

@@ -8,6 +8,7 @@ import { localPluginOverrides } from "./local-plugin-overrides.js";
 import { PluginDeclaration } from "./plugin-declaration.js";
 import { PluginInstallationRecord } from "./plugin-installation-record.js";
 import { pluginLoader } from "./plugin-loader.js";
+import { bundledPlugins } from "./bundled-plugin.js";
 
 /** Завершает восстановление стабильной ошибкой Plugin runtime. */
 function invalid(message, options) {
@@ -126,18 +127,29 @@ export class ResolvedPluginRuntime {
 /** Resolver, привязанный к одному Store checkout. */
 export class StorePluginRuntimeResolver {
   #checkout;
+  #bundled;
   #loader;
   #localOverrides;
 
   constructor(
     storeCheckout,
-    { loader = pluginLoader, localOverrideService = localPluginOverrides } = {},
+    {
+      bundledProvider = bundledPlugins,
+      loader = pluginLoader,
+      localOverrideService = localPluginOverrides,
+    } = {},
   ) {
     assertStoreCheckout(storeCheckout);
-    if (typeof loader?.load !== "function" || typeof localOverrideService?.forStore !== "function") {
+    if (
+      typeof bundledProvider?.has !== "function" ||
+      typeof bundledProvider?.resolve !== "function" ||
+      typeof loader?.load !== "function" ||
+      typeof localOverrideService?.forStore !== "function"
+    ) {
       invalid("требуются Plugin Loader и local override service");
     }
     this.#checkout = storeCheckout;
+    this.#bundled = bundledProvider;
     this.#loader = loader;
     this.#localOverrides = localOverrideService;
     Object.freeze(this);
@@ -148,6 +160,9 @@ export class StorePluginRuntimeResolver {
     const rootStat = await lstatOrNull(this.#checkout.root);
     if (!rootStat?.isDirectory() || rootStat.isSymbolicLink()) {
       invalid("Store root должен быть существующим обычным каталогом");
+    }
+    if (this.#bundled.has(declaration.id, declaration.source)) {
+      return this.#bundled.resolve(declaration);
     }
     if (
       declaration.source === "local" &&

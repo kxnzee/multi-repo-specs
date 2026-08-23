@@ -49,24 +49,29 @@ async function ensureLockDirectory(root) {
 
 /** Immutable результат успешной установки и регистрации Plugin. */
 export class PluginApplicationResult {
+  #initialized;
   #installation;
   #storeProject;
 
-  constructor({ installation, storeProject }) {
+  constructor({ initialized, installation, storeProject }) {
     if (
       !installation ||
-      !installation.record ||
+      typeof installation.id !== "string" ||
+      !(installation.source instanceof PluginSource) ||
+      typeof initialized !== "boolean" ||
       !(storeProject instanceof StoreProject) ||
-      !storeProject.project.hasPlugin(installation.record.pluginId)
+      !storeProject.project.hasPlugin(installation.id)
     ) {
       invalid("результат installation не согласован со StoreProject");
     }
     this.#installation = installation;
+    this.#initialized = initialized;
     this.#storeProject = storeProject;
     Object.freeze(this);
   }
 
   get installation() { return this.#installation; }
+  get initialized() { return this.#initialized; }
   get storeProject() { return this.#storeProject; }
 }
 
@@ -145,8 +150,8 @@ export class PluginApplicationService {
   /** Устанавливает Plugin и только затем публикует его lock и project declaration. */
   async install(storeProject, pluginId, source) {
     if (!(storeProject instanceof StoreProject)) invalid("требуется StoreProject");
-    if (!(source instanceof PluginSource) || !source.installable) {
-      invalid("требуется installable PluginSource");
+    if (!(source instanceof PluginSource)) {
+      invalid("требуется PluginSource");
     }
     await ensureLockDirectory(storeProject.root);
     return this.#lock.run(
@@ -169,15 +174,16 @@ export class PluginApplicationService {
 
   async #installUnlocked(root, pluginId, source) {
     const current = await this.#storeProjects.load(root);
-    current.project.declarePlugin(pluginId, source.declaration);
+    const initialized = current.project.declarePlugin(pluginId, source.declaration);
     const projectSource = this.#configuration.serializeProject(current.project);
     const installation = await this.#installers.forStore(current.checkout).install(pluginId, source);
     if (
-      !installation?.record ||
-      installation.record.pluginId !== pluginId ||
-      installation.record.source.spec !== source.declaration
+      !installation ||
+      installation.id !== pluginId ||
+      !(installation.source instanceof PluginSource) ||
+      installation.source.declaration !== source.declaration
     ) {
-      invalid("Installer вернул несогласованный installation record");
+      invalid("Installer вернул несогласованный installation");
     }
     if (source.developmentOnly) {
       await this.#localOverrides.forStore(current.checkout).set(pluginId, source);
@@ -186,7 +192,7 @@ export class PluginApplicationService {
       CORE_FILES.orchestratorConfig,
       projectSource,
     );
-    return new PluginApplicationResult({ installation, storeProject: current });
+    return new PluginApplicationResult({ initialized, installation, storeProject: current });
   }
 
   async #removeUnlocked(root, pluginId) {

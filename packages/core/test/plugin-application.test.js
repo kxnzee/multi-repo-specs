@@ -66,7 +66,7 @@ function installerFixture(record, calls) {
       return {
         async install(pluginId, source) {
           calls.push({ pluginId, source });
-          return { record };
+          return { id: record.pluginId, record, source };
         },
         async remove(pluginId) {
           calls.push({ operation: "remove", pluginId });
@@ -89,6 +89,7 @@ test("PluginApplicationService publishes config only after installation", async 
   const result = await service.install(storeProject, "sample", source);
 
   assert.equal(result instanceof PluginApplicationResult, true);
+  assert.equal(result.initialized, true);
   assert.equal(result.installation.record, record);
   assert.equal(result.storeProject.project.version, 3);
   assert.equal(result.storeProject.project.pluginDeclaration("sample").source, "local");
@@ -116,7 +117,7 @@ test("PluginApplicationService rejects an inconsistent installation before confi
       "sample",
       PluginSource.parse(path.join(root, "local-plugin"), { cwd: root }),
     ),
-    /несогласованный installation record/,
+    /несогласованный installation/,
   );
 
   assert.equal(calls.length, 1);

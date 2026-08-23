@@ -76,7 +76,7 @@ test("plugin init preserves --plugin/--from grammar and delegates to application
     applicationService: {
       async install(current, pluginId, source) {
         calls.push({ current, pluginId, source });
-        return { installation: { reused: false } };
+        return { initialized: true };
       },
       async remove() {},
     },
@@ -160,7 +160,7 @@ test("plugin init installs discovered catalog entries through --all", async () =
   const applicationService = {
     async install(current, pluginId, source) {
       calls.push({ current, pluginId, source });
-      return { installation: { reused: pluginId === "zeta" } };
+      return { initialized: pluginId !== "zeta" };
     },
     async remove() {},
   };
@@ -202,7 +202,7 @@ test("plugin init uses checkbox catalog selection and requires TTY", async () =>
   const applicationService = {
     async install(_current, pluginId) {
       calls.push(pluginId);
-      return { installation: { reused: false } };
+      return { initialized: true };
     },
     async remove() {},
   };
