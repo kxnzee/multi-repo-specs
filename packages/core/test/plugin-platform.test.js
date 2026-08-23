@@ -14,11 +14,7 @@ import {
   configuration,
   createCandidateProgram,
   createProject,
-  PluginHost,
-  PluginLifecycleService,
   PluginLoader,
-  PluginPlatform,
-  PluginRegistry,
 } from "@openspec-orch/core";
 
 import { SAMPLE_PLUGIN_ROOT } from "./helpers/plugin-materializer.js";
@@ -120,15 +116,6 @@ test("PluginPlatform wires sample lifecycle and namespaced command into candidat
       },
     },
   };
-  const platform = new PluginPlatform({
-    contextFactory: options.pluginContextFactory,
-    loadedPlugins: options.loadedPlugins,
-    pluginCliOptions: options.pluginCliOptions,
-  });
-  assert.equal(platform.registry instanceof PluginRegistry, true);
-  assert.equal(platform.host instanceof PluginHost, true);
-  assert.equal(platform.lifecycle instanceof PluginLifecycleService, true);
-
   const previousCwd = process.cwd();
   process.chdir(storeRoot);
   try {

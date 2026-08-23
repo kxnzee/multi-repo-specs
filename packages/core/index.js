@@ -44,7 +44,7 @@ export {
   pluginManagers,
 } from "./internal/plugin-manager.js";
 export { NpmPackageInstaller, NpmPackageInstallResult, npmPackageInstaller } from "./internal/npm-package-installer.js";
-export { PluginPlatform, PluginPlatformService, pluginPlatforms } from "./internal/plugin-platform.js";
+export { PluginPlatform } from "./internal/plugin-platform.js";
 export { PluginSource } from "./internal/plugin-source.js";
 export { PluginStorage, PluginStorageService, pluginStorage } from "./internal/plugin-storage.js";
 export { ProcessService, ScopedProcess, processes } from "./internal/process.js";
@@ -63,7 +63,7 @@ export {
 } from "./internal/template.js";
 export { Workspace, WorkspaceResolver, workspace } from "./internal/workspace.js";
 
-import { pluginPlatforms } from "./internal/plugin-platform.js";
+import { PluginPlatform } from "./internal/plugin-platform.js";
 
 /** Создаёт candidate CLI с уже перенесёнными Core operations. */
 export async function createCandidateProgram({
@@ -75,7 +75,7 @@ export async function createCandidateProgram({
   start,
   ...options
 } = {}) {
-  const platform = await pluginPlatforms.create({
+  const platform = await PluginPlatform.create({
     bundledProvider,
     contextFactory: pluginContextFactory,
     loadedPlugins,

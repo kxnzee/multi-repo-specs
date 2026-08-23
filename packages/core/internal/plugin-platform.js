@@ -16,10 +16,7 @@ import { storeProjects } from "./store-project.js";
 /** Собирает Loader output, Host, lifecycle и CLI adapters без знания Plugin IDs. */
 export class PluginPlatform {
   #commands;
-  #host;
-  #lifecycle;
   #lifecycleCommands;
-  #registry;
 
   constructor({
     contextFactory = pluginContexts,
@@ -30,56 +27,33 @@ export class PluginPlatform {
     if (!pluginCliOptions || typeof pluginCliOptions !== "object" || Array.isArray(pluginCliOptions)) {
       throw new Error("PLUGIN_PLATFORM_INVALID: pluginCliOptions должен быть object");
     }
-    this.#registry = new PluginRegistry(loadedPlugins);
-    this.#host = new PluginHost({ contextFactory, registry: this.#registry });
+    const registry = new PluginRegistry(loadedPlugins);
+    const host = new PluginHost({ contextFactory, registry });
     const applicationService = pluginCliOptions.applicationService;
-    this.#lifecycle = new PluginLifecycleService({
+    const lifecycle = new PluginLifecycleService({
       ...(applicationService === undefined ? {} : { applicationService }),
-      host: this.#host,
+      host,
     });
     this.#commands = new PluginCommandMounter({
-      registry: this.#registry,
+      registry,
       rootCommands,
     });
     this.#lifecycleCommands = new PluginLifecycleCommands({
       ...pluginCliOptions,
-      lifecycleService: this.#lifecycle,
+      lifecycleService: lifecycle,
     });
     Object.freeze(this);
   }
 
-  get registry() { return this.#registry; }
-  get host() { return this.#host; }
-  get lifecycle() { return this.#lifecycle; }
-
-  createProgram(options) {
-    return new CandidateCli({
-      ...options,
-      pluginCommandMounter: this.#commands,
-      pluginLifecycleCommands: this.#lifecycleCommands,
-    }).createProgram();
-  }
-}
-
-/** Асинхронно восстанавливает установленные Plugins и собирает Plugin Platform. */
-export class PluginPlatformService {
-  #managers;
-  #storeProjects;
-
-  constructor({ managerService = pluginManagers, storeProjectService = storeProjects } = {}) {
-    if (typeof managerService?.forStore !== "function") {
-      throw new Error("PLUGIN_PLATFORM_INVALID: managerService должен предоставлять forStore");
-    }
-    if (typeof storeProjectService?.find !== "function") {
-      throw new Error("PLUGIN_PLATFORM_INVALID: storeProjectService должен предоставлять find");
-    }
-    this.#managers = managerService;
-    this.#storeProjects = storeProjectService;
-    Object.freeze(this);
-  }
-
-  async create({ bundledProvider, loadedPlugins, pluginCliOptions = {}, start = process.cwd(), ...options } = {}) {
-    let managerService = this.#managers;
+  /** Восстанавливает установленные Plugins и собирает готовую Platform. */
+  static async create({
+    bundledProvider,
+    loadedPlugins,
+    pluginCliOptions = {},
+    start = process.cwd(),
+    ...options
+  } = {}) {
+    let managerService = pluginManagers;
     let resolvedPluginCliOptions = pluginCliOptions;
     if (bundledProvider !== undefined) {
       if (!(bundledProvider instanceof BundledPluginProvider)) {
@@ -94,7 +68,7 @@ export class PluginPlatformService {
         ...pluginCliOptions,
       };
     }
-    const resolved = loadedPlugins ?? await this.#loadInstalled(start, managerService);
+    const resolved = loadedPlugins ?? await PluginPlatform.#loadInstalled(start, managerService);
     return new PluginPlatform({
       ...options,
       loadedPlugins: resolved,
@@ -102,10 +76,18 @@ export class PluginPlatformService {
     });
   }
 
-  async #loadInstalled(start, managerService) {
+  createProgram(options) {
+    return new CandidateCli({
+      ...options,
+      pluginCommandMounter: this.#commands,
+      pluginLifecycleCommands: this.#lifecycleCommands,
+    }).createProgram();
+  }
+
+  static async #loadInstalled(start, managerService) {
     let storeProject;
     try {
-      storeProject = await this.#storeProjects.find(start);
+      storeProject = await storeProjects.find(start);
     } catch (error) {
       if (error.code === "STORE_ROOT_NOT_FOUND") return Object.freeze([]);
       throw error;
@@ -122,6 +104,3 @@ export class PluginPlatformService {
     return Object.freeze(loadedPlugins);
   }
 }
-
-/** Общий async composition facade Plugin Platform. */
-export const pluginPlatforms = Object.freeze(new PluginPlatformService());
