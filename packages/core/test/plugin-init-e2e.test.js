@@ -20,37 +20,49 @@ import {
   SAMPLE_PLUGIN_ROOT,
 } from "./helpers/plugin-materializer.js";
 
-/** Создаёт минимальный Store, который принимает candidate Core v3. */
+/** Создаёт стандартный Workspace со Store и Code Repository для candidate Core v3. */
 async function storeFixture(t) {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-plugin-init-e2e-"));
-  const root = await fs.realpath(temporary);
-  t.after(() => fs.rm(root, { recursive: true, force: true }));
-  await fs.mkdir(path.join(root, ".openspec-store"));
-  await fs.mkdir(path.join(root, "openspec"));
+  const workspaceRoot = path.join(await fs.realpath(temporary), "workspace");
+  const storeRoot = path.join(workspaceRoot, "specs");
+  const frontendRoot = path.join(workspaceRoot, "src", "frontend");
+  t.after(() => fs.rm(temporary, { recursive: true, force: true }));
+  await fs.mkdir(path.join(storeRoot, ".openspec-store"), { recursive: true });
+  await fs.mkdir(path.join(storeRoot, "openspec"));
+  await fs.mkdir(frontendRoot, { recursive: true });
   await fs.writeFile(
-    path.join(root, ".openspec-store/store.yaml"),
+    path.join(storeRoot, ".openspec-store/store.yaml"),
     "version: 1\nid: specs\nremote: https://example.test/specs.git\n",
   );
-  await fs.writeFile(path.join(root, "openspec/config.yaml"), "schema: spec-driven\n");
-  await fs.writeFile(path.join(root, "openspec-orch.yaml"), configuration.serializeProject(
+  await fs.writeFile(path.join(storeRoot, "openspec/config.yaml"), "schema: spec-driven\n");
+  await fs.writeFile(path.join(storeRoot, "openspec-orch.yaml"), configuration.serializeProject(
     createProject({
       version: 3,
       strict: true,
       agents: ["codex"],
       plugins: [],
-      repositories: [{
-        id: "specs",
-        role: "store",
-        remote: "https://example.test/specs.git",
-        defaultBranch: "main",
-        plugins: [],
-      }],
+      repositories: [
+        {
+          id: "specs",
+          role: "store",
+          remote: "https://example.test/specs.git",
+          defaultBranch: "main",
+          plugins: [],
+        },
+        {
+          id: "frontend",
+          role: "code",
+          remote: "https://example.test/frontend.git",
+          defaultBranch: "main",
+          plugins: [],
+        },
+      ],
     }),
   ));
-  return root;
+  return storeRoot;
 }
 
-test("candidate plugin init installs, declares and reuses a local Plugin end to end", async (t) => {
+test("candidate Plugin survives CLI restarts across init, connect and status", async (t) => {
   const storeRoot = await storeFixture(t);
   const output = [];
   const applicationService = new PluginApplicationService({
@@ -78,9 +90,29 @@ test("candidate plugin init installs, declares and reuses a local Plugin end to 
       SAMPLE_PLUGIN_ROOT,
     ];
     await (await createProgram()).parseAsync(args);
-    const restarted = await createProgram();
-    assert.equal(restarted.commands.some((command) => command.name() === "sample"), true);
-    await restarted.parseAsync(args);
+    const afterInit = await createProgram();
+    assert.equal(afterInit.commands.some((command) => command.name() === "sample"), true);
+    await afterInit.parseAsync([
+      "node",
+      "openspec-orch",
+      "plugin",
+      "connect",
+      "sample",
+      "--repo",
+      "frontend",
+    ]);
+    await (await createProgram()).parseAsync([
+      "node",
+      "openspec-orch",
+      "plugin",
+      "status",
+      "--plugin",
+      "sample",
+      "--repo",
+      "frontend",
+      "--json",
+    ]);
+    await (await createProgram()).parseAsync(args);
   } finally {
     process.chdir(previousCwd);
   }
@@ -89,6 +121,7 @@ test("candidate plugin init installs, declares and reuses a local Plugin end to 
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
   );
   assert.deepEqual(project.plugins, ["sample"]);
+  assert.deepEqual(project.requireRepository("frontend").plugins, ["sample"]);
   assert.equal(project.pluginDeclaration("sample").source, "local");
   const override = JSON.parse(await fs.readFile(
     path.join(storeRoot, ".openspec-orch/cache/local-plugins.json"),
@@ -104,6 +137,15 @@ test("candidate plugin init installs, declares and reuses a local Plugin end to 
   assert.deepEqual(output, [
     "sample: initialized",
     "Далее: openspec-orch plugin connect <plugin-id>",
+    "sample -> frontend: connected",
+    JSON.stringify({
+      plugins: [{
+        pluginId: "sample",
+        repositoryId: "frontend",
+        state: "ready",
+        output: "",
+      }],
+    }, null, 2),
     "sample: already_initialized",
     "Далее: openspec-orch plugin connect <plugin-id>",
   ]);
