@@ -20,8 +20,13 @@ function runCli(cwd, ...args) {
 }
 
 test("candidate distribution initializes bundled Plugins and mounts trusted root commands", async (t) => {
-  const storeRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-distribution-"));
-  t.after(() => fs.rm(storeRoot, { recursive: true, force: true }));
+  const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-distribution-"));
+  const storeRoot = path.join(workspaceRoot, "specs");
+  const codeRoot = path.join(workspaceRoot, "src", "frontend");
+  t.after(() => fs.rm(workspaceRoot, { recursive: true, force: true }));
+  await fs.mkdir(storeRoot);
+  await fs.mkdir(codeRoot, { recursive: true });
+  await fs.writeFile(path.join(codeRoot, "index.js"), "export const ready = true;\n");
   await fs.mkdir(path.join(storeRoot, ".openspec-store"));
   await fs.mkdir(path.join(storeRoot, "openspec"));
   const project = createProject({
@@ -29,13 +34,22 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     strict: true,
     agents: ["codex"],
     plugins: [],
-    repositories: [{
-      id: "specs",
-      role: "store",
-      remote: "https://example.test/specs.git",
-      defaultBranch: "main",
-      plugins: [],
-    }],
+    repositories: [
+      {
+        id: "specs",
+        role: "store",
+        remote: "https://example.test/specs.git",
+        defaultBranch: "main",
+        plugins: [],
+      },
+      {
+        id: "frontend",
+        role: "code",
+        remote: "https://example.test/frontend.git",
+        defaultBranch: "main",
+        plugins: [],
+      },
+    ],
   });
   await fs.writeFile(
     path.join(storeRoot, ".openspec-store/store.yaml"),
@@ -60,23 +74,31 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     /\[mcp_servers\."openspec-orch-codegraph"\]/,
   );
   assert.match(await fs.readFile(path.join(storeRoot, "AGENTS.md"), "utf8"), /codegraph_explore/);
-  await runCli(storeRoot, "plugin", "connect", "codegraph", "--repo", "specs");
+  await runCli(
+    storeRoot,
+    "plugin", "connect", "codegraph", "--repo", "specs", "--repo", "frontend",
+  );
   const status = await runCli(
     storeRoot,
-    "plugin", "status", "--plugin", "codegraph", "--repo", "specs", "--json",
+    "plugin", "status", "--plugin", "codegraph", "--json",
   );
   assert.deepEqual(JSON.parse(status.stdout).plugins.map(({ pluginId, repositoryId, state }) => ({
     pluginId,
     repositoryId,
     state,
-  })), [{ pluginId: "codegraph", repositoryId: "specs", state: "ready" }]);
+  })), [
+    { pluginId: "codegraph", repositoryId: "specs", state: "ready" },
+    { pluginId: "codegraph", repositoryId: "frontend", state: "ready" },
+  ]);
   await runCli(storeRoot, "plugin", "sync", "codegraph", "--repo", "specs");
+  await runCli(storeRoot, "plugin", "sync", "codegraph", "--repo", "frontend");
   for (const command of ["assign", "status", "record", "verify"]) {
     assert.match(stdout, new RegExp(`\\b${command}\\b`));
   }
   assert.doesNotMatch(stdout, /change-tracking\s+Команды Plugin/);
 
   await runCli(storeRoot, "plugin", "disconnect", "codegraph", "--repo", "specs");
+  await runCli(storeRoot, "plugin", "disconnect", "codegraph", "--repo", "frontend");
   await runCli(storeRoot, "plugin", "remove", "codegraph");
   const removed = configuration.parseProject(
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
