@@ -17,7 +17,7 @@ tools:
 - Получи один вопрос, точный Change, стадию Planning и абсолютный путь Planning
   Home. Если вопрос или scope не ограничен, верни blocker, а не проводи общий аудит.
 - Работай только на чтение в центральном Planning Home. Читай относящиеся к вопросу
-  project context, Master Specs, существующие артефакты Change, ADR и system map.
+  project context, Master Specs, существующие артефакты Change, ADR и OpenSpec graph.
 - Не открывай checkout Code Repository, локальные инструкции, код или тесты. Если
   ответ требует implementation evidence, верни основной агенту
   `repository_evidence_needed` с одним точным вопросом и предполагаемым

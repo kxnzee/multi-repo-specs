@@ -22,6 +22,7 @@
 | Выбрать и подключить CLI Plugin | [Plugins](plugins.md) |
 | Выбрать поддерживаемого агента | [Поддерживаемые агенты](supported-agents.md) |
 | Настроить навигацию агентов по коду | [CodeGraph Plugin](../../plugins/codegraph/README.md) |
+| Увидеть связи репозиториев и OpenSpec | [OpenSpec Graph Plugin](../../plugins/openspec-graph/README.md) |
 
 Технический контракт реализации Orchestrator пользователю для ежедневной работы не
 нужен. Он находится в [`docs/technical/`](../technical/README.md).

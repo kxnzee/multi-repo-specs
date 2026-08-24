@@ -8,7 +8,8 @@
   ],
   "openspecOrchestrator": {
     "bundledPlugins": [
-      "@openspec-orch/plugin-codegraph"
+      "@openspec-orch/plugin-codegraph",
+      "@openspec-orch/plugin-openspec-graph"
     ]
   },
   "files": [
@@ -21,7 +22,8 @@
   "dependencies": {
     "@openspec-orch/core": "0.1.0",
     "@openspec-orch/plugin-change-tracking": "1.0.0",
-    "@openspec-orch/plugin-codegraph": "1.0.0"
+    "@openspec-orch/plugin-codegraph": "1.0.0",
+    "@openspec-orch/plugin-openspec-graph": "1.0.0"
   },
   "scripts": {
     "test": "node --test --test-concurrency=1",

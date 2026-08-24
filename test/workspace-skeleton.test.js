@@ -25,6 +25,7 @@ test("root distribution exposes the candidate entrypoint and required runtime fi
     "@openspec-orch/core": "0.1.0",
     "@openspec-orch/plugin-change-tracking": "1.0.0",
     "@openspec-orch/plugin-codegraph": "1.0.0",
+    "@openspec-orch/plugin-openspec-graph": "1.0.0",
   });
 });
 

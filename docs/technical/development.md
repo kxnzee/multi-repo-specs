@@ -10,6 +10,7 @@
 - `packages/plugin-sdk/` — единственный API, доступный Plugin packages;
 - `plugins/change-tracking/` — команды и домен истории изменений;
 - `plugins/codegraph/` — CodeGraph lifecycle, launcher, MCP и Agent instructions;
+- `plugins/openspec-graph/` — Store-only граф Store, Repository, Master Spec, Change и Delta Spec;
 - `templates/base/` — Project Template, используемый только при `init`;
 - `test/` — unit- и интеграционные проверки на временных Git-репозиториях.
 
@@ -17,7 +18,7 @@
 контрактом является только `@openspec-orch/plugin-sdk`; импорт Core internals запрещён.
 
 Корневой `package.json` перечисляет Core и first-party Plugins как обычные npm
-dependencies. Поэтому установка Orchestrator автоматически устанавливает SDK, оба
+dependencies. Поэтому установка Orchestrator автоматически устанавливает SDK, все
 Plugin package и их собственные runtime dependencies. Корневой tarball содержит
 только CLI composition root и Project Template; исходники workspace-пакетов в нём не
 дублируются.

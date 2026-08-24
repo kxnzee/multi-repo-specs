@@ -32,6 +32,24 @@ openspec-orch plugin disconnect codegraph --repo frontend
 openspec-orch plugin remove codegraph
 ```
 
+Для единого графа Store используется отдельный Store-only Plugin:
+
+```bash
+openspec-orch plugin init --plugin openspec-graph
+openspec-orch plugin connect openspec-graph --repo <store-id>
+openspec-orch graph build
+openspec-orch graph status
+openspec-orch graph impact <change-id>
+openspec-orch graph inspect <node-id>
+openspec-orch graph view
+```
+
+Он строит Store → Repository → Master Spec → Change → Delta Spec projection и не
+пересекается с CodeGraph, который индексирует файлы и символы внутри Code
+Repositories. Формат
+`openspec/graph.yaml`, строгие проверки и UI описаны в
+[OpenSpec Graph Plugin](../../plugins/openspec-graph/README.md).
+
 `disconnect` удаляет только binding из `openspec-orch.yaml` и не удаляет данные,
 созданные инструментом внутри Repository. `remove` разрешён после отключения Plugin
 от всех repositories.

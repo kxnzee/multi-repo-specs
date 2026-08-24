@@ -24,18 +24,19 @@
 - `openspec-orch.yaml` описывает конфигурацию Core и реестр репозиториев,
   `.openspec-store/` — metadata Store.
 - Перед созданием или проверкой Change прочитай из `openspec-orch.yaml` точные
-  `repository-id` записей с `roles: [code]`, затем сопоставь их с
-  `openspec/context/system-map.yaml`. Техническое устройство, команды и инженерные
-  ограничения проверяй в checkout и файле инструкций агента соответствующего Code
-  Repository; не копируй их в центральный `openspec/context/`. В Proposal, Design и
-  Tasks разделяй влияние и evidence по этим id; Requirements и Scenarios оставляй
-  capability-oriented и не дублируй по репозиториям.
-- Relationship из `system-map.yaml` читай буквально как
-  `source → relation → target`: только типизированные ссылки `system:<id>` и
-  `repository:<id>` задают стороны связи. Не меняй направление, не подставляй
-  похожее имя и не достраивай отсутствующую обратную или транзитивную связь. Для
-  impact используй только подтверждённую relationship с разрешившимися сторонами и
-  evidence; иначе зафиксируй неизвестное.
+  `repository-id` записей с `roles: [code]`, затем используй валидированный
+  OpenSpec Graph Plugin для иерархии Store, Repository, Master Spec, Change и Delta
+  Spec, а `openspec/graph.yaml` — для явно подтверждённых связей. Техническое
+  устройство, команды и инженерные ограничения проверяй в checkout и файле
+  инструкций агента соответствующего Code Repository; не копируй их в центральный
+  `openspec/context/`. В Proposal, Design и Tasks разделяй влияние и evidence по этим
+  id; Requirements и Scenarios оставляй capability-oriented и не дублируй по
+  репозиториям.
+- Relationship из `openspec/graph.yaml` читай только после успешной строгой сборки
+  OpenSpec Graph Plugin. Для Change используй `openspec-orch graph impact
+  <change-id>`, для адресного узла — `openspec-orch graph inspect <node-id>`. Не
+  меняй направление, не подставляй похожее имя и не достраивай отсутствующую
+  обратную или транзитивную связь.
 ## Границы workspace и файлового доступа
 
 - Разрешай путь Code Repository только тогда, когда для текущего вопроса действительно

@@ -39,10 +39,11 @@ const templateRoot = fileURLToPath(new URL("../templates/base/", import.meta.url
 try {
   assertNodeVersion();
   const [{ BundledPluginPackage, BundledPluginProvider, createCandidateProgram },
-    changeTracking, codeGraph] = await Promise.all([
+    changeTracking, codeGraph, openSpecGraph] = await Promise.all([
     import("@openspec-orch/core"),
     resolvePluginPackage("@openspec-orch/plugin-change-tracking"),
     resolvePluginPackage("@openspec-orch/plugin-codegraph"),
+    resolvePluginPackage("@openspec-orch/plugin-openspec-graph"),
   ]);
   const bundledProvider = new BundledPluginProvider([
     new BundledPluginPackage({
@@ -59,11 +60,19 @@ try {
       packageRoot: codeGraph.root,
       version: codeGraph.manifest.version,
     }),
+    new BundledPluginPackage({
+      id: "openspec-graph",
+      name: "OpenSpec Graph",
+      packageName: openSpecGraph.manifest.name,
+      packageRoot: openSpecGraph.root,
+      version: openSpecGraph.manifest.version,
+    }),
   ]);
   const program = await createCandidateProgram({
     bundledProvider,
     rootCommands: new Map([
       ["change-tracking", ["assign", "status", "record", "verify"]],
+      ["openspec-graph", ["graph"]],
     ]),
     templateRoot,
   });

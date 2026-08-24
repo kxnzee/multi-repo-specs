@@ -10,6 +10,8 @@ agents:
         to: .gitignore
       - from: openspec/config.yaml
         to: openspec/config.yaml
+      - from: openspec/graph.yaml
+        to: openspec/graph.yaml
       - from: context
         to: openspec/context
       - from: commands
@@ -32,6 +34,8 @@ agents:
         to: .gitignore
       - from: openspec/config.yaml
         to: openspec/config.yaml
+      - from: openspec/graph.yaml
+        to: openspec/graph.yaml
       - from: context
         to: openspec/context
       - from: commands
@@ -54,6 +58,8 @@ agents:
         to: .gitignore
       - from: openspec/config.yaml
         to: openspec/config.yaml
+      - from: openspec/graph.yaml
+        to: openspec/graph.yaml
       - from: context
         to: openspec/context
       - from: commands

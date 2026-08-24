@@ -7,9 +7,10 @@ context: |
   Requirements и Scenarios после принятия принадлежат OpenSpec. Если существует
   openspec-orch.yaml, прочитай repositories с `roles: [code]` и используй их точные
   id.
-  Общие границы репозиториев проверяй по openspec/context/system-map.yaml. Локальный
-  технический контекст проверяй в checkout соответствующего Code Repository и его
-  файле инструкций агента; не копируй его в центральный openspec/context/.
+  Связи репозиториев, Master Specs и Delta Specs проверяй по валидированному
+  `openspec/graph.yaml` через OpenSpec Graph Plugin. Локальный технический контекст
+  проверяй в checkout соответствующего Code Repository и его файле инструкций
+  агента; не копируй его в центральный openspec/context/.
   Во время штатного Apply сначала используй project skill
   openspec-base-apply-context. Если Cycle существует, он ограничивает запуск секциями
   Tasks текущего Code Repository. Если status возвращает именно CYCLE_NOT_FOUND,

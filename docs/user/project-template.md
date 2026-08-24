@@ -99,23 +99,20 @@ Tasks. Context pack является обычным набором project files
 команды находятся рядом с официальными OpenSpec extensions и не изменяют их.
 
 `openspec-orch.yaml` остаётся единственным реестром точных repository identity.
-Context pack добавляет `system-map.yaml`: он описывает общую ответственность,
-системы и межсистемные контракты, не копируя remotes, branches и локальное устройство
-Code Repositories. Структура модулей и классов, версии технологий, локальные
-API/config-параметры, команды build/test/lint, CI и упаковка остаются в файлах
-инструкций и других источниках соответствующего Code Repository. Planning rules
-требуют раздельный Repository impact в Proposal, implementation map в Design и Tasks
-по каждому id. Requirements и Scenarios продолжают описывать capability, а не
-структуру Git-репозиториев.
+Template добавляет `openspec/graph.yaml`, а Store-only Plugin `openspec-graph`
+проецирует единую иерархию Store → Repository → Master Spec → Change → Delta Spec.
+Store и Repository берутся из реестра Orchestrator, Change и Specs — непосредственно
+из стандартной структуры OpenSpec. Операции `ADDED`, `MODIFIED`, `REMOVED`,
+`RENAMED` выводятся из Delta Specs автоматически; в `graph.yaml` вручную фиксируются
+только подтверждённые типизированные связи с существующим Store-relative `path:line`
+evidence.
 
-`system-map.yaml` версии 2 хранит каждую подтверждённую направленную связь как
-`source → relation → target`. Стороны задаются только типизированными ссылками
-`system:<id>` и `repository:<id>`, а relation выбирается из allowlist карты:
-`implemented_by`, `depends_on`, `calls`, `publishes_to` или `verifies`. Для `calls`
-и `publishes_to` обязателен contract. Связи нельзя достраивать по похожим именам,
-расположению каталогов, обратному или транзитивному предположению. Версия 1 с
-неоднозначными `from/to/type` не мигрируется автоматически: команда контекста
-показывает предложенное направление и запрашивает отдельное подтверждение.
+Граф OpenSpec не индексирует функции, классы, вызовы внутри одного Code Repository
+и не читает `.codegraph/`. Эта плоскость принадлежит CodeGraph. Структура кода,
+локальные API/config-параметры, команды build/test/lint, CI и упаковка остаются в
+Code Repository. Planning rules требуют раздельный Repository impact в Proposal,
+implementation map в Design и Tasks по каждому id. Requirements и Scenarios
+продолжают описывать capability, а не структуру Git-репозиториев.
 
 Поставляемые базовым Template расширения OpenSpec используют namespace
 `openspec-base-*`. Самостоятельный skill `base-intent` является намеренным

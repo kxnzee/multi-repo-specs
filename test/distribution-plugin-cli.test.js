@@ -94,12 +94,17 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
 
   await runCli(storeRoot, "plugin", "init", "--plugin", "change-tracking");
   await runCli(storeRoot, "plugin", "init", "--plugin", "codegraph");
+  await runCli(storeRoot, "plugin", "init", "--plugin", "openspec-graph");
   const { stdout } = await runCli(storeRoot, "--help");
+  const graphHelp = await runCli(storeRoot, "graph", "--help");
   const configured = configuration.parseProject(
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
   );
 
-  assert.deepEqual(configured.plugins, ["change-tracking", "codegraph"]);
+  assert.deepEqual(configured.plugins, ["change-tracking", "codegraph", "openspec-graph"]);
+  assert.match(graphHelp.stdout, /build/);
+  assert.match(graphHelp.stdout, /status/);
+  assert.match(graphHelp.stdout, /view/);
   assert.match(
     await fs.readFile(path.join(storeRoot, ".codex/config.toml"), "utf8"),
     /\[mcp_servers\."openspec-orch-codegraph"\]/,
@@ -140,7 +145,7 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   const removed = configuration.parseProject(
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
   );
-  assert.deepEqual(removed.plugins, ["change-tracking"]);
+  assert.deepEqual(removed.plugins, ["change-tracking", "openspec-graph"]);
   assert.doesNotMatch(
     await fs.readFile(path.join(storeRoot, ".codex/config.toml"), "utf8"),
     /openspec-orch-codegraph/,

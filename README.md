@@ -51,8 +51,10 @@ Store со спецификациями и Code Repositories, фиксирует
 и repository evidence scout. Repository-specific исследование выполняется отдельно
 для каждого точного `repository-id`, разрешённого checkout и проверенной полной Git
 revision с чистым working tree; агент не ищет репозитории за пределами переданного
-workspace. Направленные зависимости систем хранятся в `system-map.yaml` версии 2 как
-типизированные `source → relation → target`, а новые Scenario ID имеют формат
+workspace. Иерархию Store, Repository, Master Spec, Change и Delta Spec строит
+отдельный Store-only OpenSpec Graph Plugin; в строгом `openspec/graph.yaml`
+объявляются только связи, которые нельзя вывести из OpenSpec. Plugin не пересекается
+с CodeGraph. Новые Scenario ID имеют формат
 `<change-id>-<index>`.
 
 Текущая версия рассчитана на одного инженера, одну машину, один Store и локальные checkout

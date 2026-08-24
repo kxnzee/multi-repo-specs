@@ -1,0 +1,35 @@
+{
+  "name": "@openspec-orch/plugin-openspec-graph",
+  "version": "1.0.0",
+  "description": "Store, repository, Master Spec, Change and Delta Spec graph for OpenSpec Orchestrator",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "README.md",
+    "bin",
+    "index.js",
+    "lib",
+    "viewer"
+  ],
+  "openspecOrchestrator": {
+    "apiVersion": 1,
+    "plugin": "./index.js"
+  },
+  "peerDependencies": {
+    "@openspec-orch/plugin-sdk": "0.1.0"
+  },
+  "dependencies": {
+    "vis-network": "10.1.2",
+    "yaml": "2.9.0"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "license": "MIT"
+}
