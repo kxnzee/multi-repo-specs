@@ -40,6 +40,7 @@ openspec-orch plugin connect openspec-graph --repo <store-id>
 openspec-orch graph build
 openspec-orch graph status
 openspec-orch graph impact <change-id>
+openspec-orch graph check-scope <change-id> --repo <repository-id>...
 openspec-orch graph inspect <node-id>
 openspec-orch graph view
 ```

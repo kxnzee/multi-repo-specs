@@ -105,6 +105,7 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   assert.match(graphHelp.stdout, /build/);
   assert.match(graphHelp.stdout, /status/);
   assert.match(graphHelp.stdout, /view/);
+  assert.match(graphHelp.stdout, /check-scope/);
   assert.match(
     await fs.readFile(path.join(storeRoot, ".codex/config.toml"), "utf8"),
     /\[mcp_servers\."openspec-orch-codegraph"\]/,

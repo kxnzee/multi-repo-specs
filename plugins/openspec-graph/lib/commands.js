@@ -1,8 +1,13 @@
 /** @fileoverview Human-facing OpenSpec Graph commands. */
 
 import { OpenSpecGraphService } from "./service.js";
-import { inspectChangeImpact, inspectGraphNode } from "./query.js";
+import { checkChangeScope, inspectChangeImpact, inspectGraphNode } from "./query.js";
 import { startGraphViewer } from "./viewer.js";
+
+/** Collects a repeatable repository option. */
+function collectValues(value, previous = []) {
+  return [...previous, value];
+}
 
 /** Parses a loopback HTTP port. */
 function port(value) {
@@ -64,5 +69,20 @@ export function registerGraphCommands(commands, { output = console } = {}) {
     .actionWithContext(async (context, changeId) => {
       const document = await new OpenSpecGraphService(context).readFresh();
       output.log(JSON.stringify(inspectChangeImpact(document, changeId), null, 2));
+    }, { scope: "store" });
+
+  graph.command("check-scope <change-id>")
+    .description("check proposed Cycle repositories against one Change impact")
+    .option("--repo <repository-id>", "proposed Cycle repository-id", {
+      parser: collectValues,
+      required: true,
+    })
+    .actionWithContext(async (context, changeId, options) => {
+      const document = await new OpenSpecGraphService(context).readFresh();
+      const result = checkChangeScope(document, changeId, options.repo);
+      output.log(JSON.stringify(result, null, 2));
+      if (result.state === "invalid") {
+        throw new Error("OPENSPEC_GRAPH_SCOPE_INVALID: proposed Cycle scope is incomplete");
+      }
     }, { scope: "store" });
 }

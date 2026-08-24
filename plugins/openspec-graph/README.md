@@ -62,6 +62,7 @@ openspec-orch plugin connect openspec-graph --repo <store-id>
 openspec-orch graph build
 openspec-orch graph status
 openspec-orch graph impact <change-id>
+openspec-orch graph check-scope <change-id> --repo <repository-id>...
 openspec-orch graph inspect <node-id>
 openspec-orch graph view
 ```
@@ -82,6 +83,13 @@ Repository-связи учитываются только на один пере
 транзитивно через весь мультирепозиторий.
 Транзитивное влияние строится только по явно подтверждённым связям Master Spec
 `depends_on`; отсутствующие связи не угадываются.
+
+`check-scope` сравнивает предложенный набор Code Repositories для Cycle с этим
+impact. Прямые репозитории обязательны; их отсутствие, Change без Delta Specs или
+непривязанная напрямую изменяемая Master Spec завершают команду ошибкой. Зависимые и
+review-репозитории выводятся для явного решения, но не включаются в Cycle
+автоматически. Дополнительные зарегистрированные репозитории разрешены и возвращаются
+отдельно, чтобы их назначение можно было обосновать в Planning.
 
 `build` сначала выполняет строгую валидацию OpenSpec, затем атомарно заменяет
 последний успешно собранный индекс в Plugin storage. `view` поднимает read-only UI

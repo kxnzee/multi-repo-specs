@@ -162,3 +162,102 @@ export function inspectChangeImpact(graph, changeId) {
     ].sort((left, right) => left.id.localeCompare(right.id))),
   });
 }
+
+/** Checks a proposed Cycle repository set against deterministic Change impact. */
+export function checkChangeScope(graph, changeId, repositoryIds) {
+  if (
+    !Array.isArray(repositoryIds)
+    || repositoryIds.length === 0
+    || repositoryIds.some((repositoryId) => (
+      typeof repositoryId !== "string" || repositoryId.trim().length === 0
+    ))
+  ) {
+    throw new Error("OPENSPEC_GRAPH_SCOPE_INVALID: repository IDs are required");
+  }
+  if (new Set(repositoryIds).size !== repositoryIds.length) {
+    throw new Error("OPENSPEC_GRAPH_SCOPE_INVALID: duplicate repository ID");
+  }
+
+  const repositoryNodes = graph.nodes.filter(({ type }) => type === "repository");
+  const repositoryNodesById = new Map(
+    repositoryNodes.map((repository) => [repository.repository_id, repository]),
+  );
+  for (const repositoryId of repositoryIds) {
+    if (!repositoryNodesById.has(repositoryId)) {
+      throw new Error(`OPENSPEC_GRAPH_REPOSITORY_NOT_FOUND: ${repositoryId}`);
+    }
+  }
+
+  const impact = inspectChangeImpact(graph, changeId);
+  const proposedRepositoryIds = new Set(repositoryIds);
+  const requiredRepositoryIds = new Set(
+    impact.direct_repositories.map(({ repository_id: repositoryId }) => repositoryId),
+  );
+  const reviewRepositoryIds = new Set([
+    ...impact.dependent_repositories,
+    ...impact.review_repositories,
+  ].map(({ repository_id: repositoryId }) => repositoryId));
+  const knownImpactRepositoryIds = new Set([
+    ...requiredRepositoryIds,
+    ...reviewRepositoryIds,
+  ]);
+  const missingRequiredRepositoryIds = new Set([...requiredRepositoryIds]
+    .filter((repositoryId) => !proposedRepositoryIds.has(repositoryId)));
+  const includedReviewRepositoryIds = new Set([...reviewRepositoryIds]
+    .filter((repositoryId) => proposedRepositoryIds.has(repositoryId)));
+  const reviewRepositoryIdsOutsideScope = new Set([...reviewRepositoryIds]
+    .filter((repositoryId) => !proposedRepositoryIds.has(repositoryId)));
+  const extraRepositoryIds = new Set([...proposedRepositoryIds]
+    .filter((repositoryId) => !knownImpactRepositoryIds.has(repositoryId)));
+
+  const directMasterIds = new Set(impact.direct_master_specs.map(({ id }) => id));
+  const directDeltaIds = new Set(impact.delta_specs.map(({ id }) => id));
+  const mappedMasterIds = new Set(graph.edges
+    .filter(({ relation, source }) => relation === "implemented_by" && directMasterIds.has(source))
+    .map(({ source }) => source));
+  const targetedDeltaIds = new Set(graph.edges
+    .filter(({ relation, source }) => relation === "targets" && directDeltaIds.has(source))
+    .map(({ source }) => source));
+  for (const edge of graph.edges) {
+    if (
+      edge.relation === "changes"
+      && targetedDeltaIds.has(edge.source)
+      && directMasterIds.has(edge.target)
+    ) {
+      mappedMasterIds.add(edge.target);
+    }
+  }
+  const unmappedMasterIds = new Set([...directMasterIds]
+    .filter((masterId) => !mappedMasterIds.has(masterId)));
+  const missingDeltaSpecs = impact.delta_specs.length === 0;
+  const state = missingDeltaSpecs
+    || missingRequiredRepositoryIds.size > 0
+    || unmappedMasterIds.size > 0
+    ? "invalid"
+    : "ready";
+  const orderedRepositoryIds = (selected) => repositoryNodes
+    .map(({ repository_id: repositoryId }) => repositoryId)
+    .filter((repositoryId) => selected.has(repositoryId));
+
+  return Object.freeze({
+    change_id: changeId,
+    state,
+    proposed_repositories: Object.freeze([...proposedRepositoryIds].sort()),
+    required_repositories: Object.freeze(orderedRepositoryIds(requiredRepositoryIds)),
+    review_repositories: Object.freeze(orderedRepositoryIds(reviewRepositoryIds)),
+    missing_required_repositories: Object.freeze(
+      orderedRepositoryIds(missingRequiredRepositoryIds),
+    ),
+    included_review_repositories: Object.freeze(
+      orderedRepositoryIds(includedReviewRepositoryIds),
+    ),
+    review_repositories_outside_scope: Object.freeze(
+      orderedRepositoryIds(reviewRepositoryIdsOutsideScope),
+    ),
+    extra_repositories: Object.freeze(orderedRepositoryIds(extraRepositoryIds)),
+    missing_delta_specs: missingDeltaSpecs,
+    unmapped_master_specs: Object.freeze(impact.direct_master_specs
+      .filter(({ id }) => unmappedMasterIds.has(id))
+      .map(({ capability }) => capability)),
+  });
+}

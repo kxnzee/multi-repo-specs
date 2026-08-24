@@ -14,7 +14,7 @@ import { assertPluginContract } from "@openspec-orch/plugin-sdk/testing";
 
 import plugin from "../index.js";
 import { buildOpenSpecGraph } from "../lib/builder.js";
-import { inspectChangeImpact, inspectGraphNode } from "../lib/query.js";
+import { checkChangeScope, inspectChangeImpact, inspectGraphNode } from "../lib/query.js";
 import { startGraphViewer } from "../lib/viewer.js";
 
 const packageRoot = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
@@ -334,6 +334,67 @@ test("Read queries separate direct and downstream Change impact", async (t) => {
   assert.deepEqual(emptyImpact.related_repositories, []);
   assert.deepEqual(emptyImpact.review_repositories, []);
   assert.deepEqual(emptyImpact.all_repositories, []);
+});
+
+test("Scope check separates required, review and extra Cycle repositories", async (t) => {
+  const root = await storeFixture(t);
+  const graph = await buildOpenSpecGraph(root, { repositories, storeId });
+  const graphWithExtraRepository = Object.freeze({
+    ...graph,
+    nodes: Object.freeze([
+      ...graph.nodes,
+      Object.freeze({
+        id: "repository:operations",
+        type: "repository",
+        label: "operations",
+        repository_id: "operations",
+      }),
+    ].sort((left, right) => left.id.localeCompare(right.id))),
+  });
+
+  assert.deepEqual(checkChangeScope(
+    graphWithExtraRepository,
+    "jit-100-promote",
+    ["qa", "web", "operations"],
+  ), {
+    change_id: "jit-100-promote",
+    state: "ready",
+    proposed_repositories: ["operations", "qa", "web"],
+    required_repositories: ["web"],
+    review_repositories: ["control", "notifications", "portal", "qa"],
+    missing_required_repositories: [],
+    included_review_repositories: ["qa"],
+    review_repositories_outside_scope: ["control", "notifications", "portal"],
+    extra_repositories: ["operations"],
+    missing_delta_specs: false,
+    unmapped_master_specs: [],
+  });
+
+  assert.equal(checkChangeScope(graph, "jit-100-promote", ["qa"]).state, "invalid");
+  assert.deepEqual(
+    checkChangeScope(graph, "jit-100-promote", ["qa"]).missing_required_repositories,
+    ["web"],
+  );
+  assert.equal(checkChangeScope(graph, "empty-change", ["web"]).state, "invalid");
+  assert.equal(checkChangeScope(graph, "empty-change", ["web"]).missing_delta_specs, true);
+  assert.throws(
+    () => checkChangeScope(graph, "jit-100-promote", ["missing"]),
+    /REPOSITORY_NOT_FOUND: missing/u,
+  );
+  assert.throws(
+    () => checkChangeScope(graph, "jit-100-promote", ["web", "web"]),
+    /SCOPE_INVALID.*duplicate/u,
+  );
+
+  const unmappedGraph = Object.freeze({
+    ...graph,
+    edges: Object.freeze(graph.edges.filter(({ relation }) => (
+      relation !== "implemented_by" && relation !== "targets"
+    ))),
+  });
+  const unmapped = checkChangeScope(unmappedGraph, "jit-100-promote", ["web"]);
+  assert.equal(unmapped.state, "invalid");
+  assert.deepEqual(unmapped.unmapped_master_specs, ["conference/visitors"]);
 });
 
 test("Viewer serves graph and vendored vis-network only on loopback", async (t) => {
