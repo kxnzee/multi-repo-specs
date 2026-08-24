@@ -1,6 +1,6 @@
 ---
 name: openspec-base-apply-context
-description: Выбрать standard или orchestrated режим штатного OpenSpec Apply и подготовить repository-scoped контекст для принятого Cycle. Использовать внутри штатного Apply перед изменением кода, когда Change хранится в центральном Store. При CYCLE_NOT_FOUND предлагать обычный Apply без Orchestrator либо создание Cycle; при существующем Cycle проверять repository-id, planning revision и выбирать только принадлежащие текущему репозиторию секции Tasks. Не заменять встроенный openspec-apply-change.
+description: Выбрать standard или orchestrated режим штатного OpenSpec Apply и подготовить repository-scoped контекст для принятого Cycle. Использовать внутри штатного Apply перед изменением кода, когда Change хранится в центральном Store. При CYCLE_NOT_FOUND предлагать обычный Apply без Orchestrator либо создание Cycle; при существующем Cycle проверять его через OpenSpec Graph, выбирать Tasks текущего репозитория и использовать CodeGraph только для локальной навигации по коду. Не заменять встроенный openspec-apply-change.
 ---
 
 # Repository-scoped контекст Apply
@@ -87,6 +87,35 @@ orchestrated-режиме.
    Gate и новый Cycle. Не считать добавление, удаление, перестановку или изменение
    текста задачи обычным progress.
 
+## Подтверждение Cycle через OpenSpec Graph
+
+Выполнить после проверки принятого Planning и до выбора задач текущего репозитория.
+OpenSpec Graph определяет межрепозиторный scope; он не используется для поиска
+файлов или символов внутри Code Repository.
+
+1. Из Store выполнить `openspec-orch graph status --json`. Продолжать только при
+   `state: ready`. Отсутствующая команда или binding, `stale` и `unavailable` —
+   blocker до изменения кода. Не запускать `graph build` автоматически и не читать
+   `openspec/graph.yaml` как обход; вернуть пользователю точную команду
+   `openspec-orch graph build`.
+2. Выполнить `openspec-orch graph impact "<change-id>"`, затем
+   `openspec-orch graph check-scope "<change-id>"`, передав отдельный `--repo` для
+   каждого точного значения из `repositories` ответа `openspec-orch status`. Не
+   добавлять и не удалять repositories при формировании команды.
+3. Считать блокирующими ошибку команды, `state: invalid`, непустые
+   `missing_required_repositories` или `unmapped_master_specs`, а также
+   `missing_delta_specs: true`. Такой Cycle не соответствует принятому Change и
+   должен вернуться в Planning; не исправлять его во время Apply.
+4. `review_repositories_outside_scope` может остаться вне Cycle только при явном
+   evidence и решении `no-change` в принятом Planning. Для каждого
+   `extra_repositories` требуется зафиксированная в Proposal, Design или Tasks роль
+   в реализации или проверке. Необъяснённое расхождение считать blocker, даже если
+   `check-scope` вернул `ready`; review-репозитории не включать автоматически.
+5. Классифицировать текущий repository как `direct`, `review` или `extra` по
+   результату `check-scope` и сохранить эту классификацию в `apply_scope`. Граф
+   подтверждает только принадлежность scope; право изменять код по-прежнему задают
+   Cycle и repository-owned Tasks.
+
 ## Выбор repository scope
 
 1. Прочитать полный файл из `contextFiles.tasks`; не использовать плоский массив
@@ -100,6 +129,30 @@ orchestrated-режиме.
    и запросить решение, не распределять задачи эвристически.
 4. Не выполнять и не отмечать задачи sections других Code Repositories. Зависимость
    от их evidence считать blocker текущей задачи, пока evidence не предоставлен.
+
+## Навигация по коду текущего Repository
+
+После подтверждения Cycle использовать CodeGraph только как необязательный быстрый
+индекс внутри `current_repository.path`. OpenSpec Graph и CodeGraph не читают данные
+друг друга: skill связывает их только через подтверждённый `repository-id` и путь из
+Orchestrator status.
+
+1. До первого изменения кода проверить точный Git root, repository identity, полный
+   `HEAD` и чистоту worktree. Несовпадение identity блокирует Apply. Уже изменённый
+   worktree не очищать: сохранить пользовательские изменения и не использовать для
+   него CodeGraph как исходный индекс. Если для repository подключён CodeGraph,
+   проверить `openspec-orch plugin status --plugin codegraph --repo <repository-id>`.
+2. Если в корне существует `.codegraph/`, status равен `ready` и MCP
+   `codegraph_explore` доступен, сначала запросить относящиеся к выбранным Tasks
+   символы и пути с `projectPath: current_repository.path`. Не обращаться этим
+   запросом к другим repositories Cycle.
+3. Если индекс отсутствует, `stale`, `unavailable`, не покрывает язык либо MCP
+   недоступен, не блокировать Apply: использовать адресный read/search в том же
+   checkout и указать `code_navigation: fallback`. Не запускать `plugin sync`
+   автоматически.
+4. После изменения файлов проверять актуальный diff, код и тесты напрямую. Рёбра
+   CodeGraph помогают найти точки влияния, но не являются evidence реализации,
+   runtime-поведения или успешной проверки.
 
 ## Evidence gate для checkbox
 
@@ -166,7 +219,11 @@ apply_scope:
   cycle: <cycle-id>
   planning_revision: <sha>
   planning_integrity: exact | progress-only
+  graph_status: ready
+  cycle_scope_check: ready
   repository: <repository-id>
+  repository_impact: direct | review | extra
+  code_navigation: codegraph | fallback
   selected_tasks: []
   excluded_repositories: []
   scope_status: ready | blocked
