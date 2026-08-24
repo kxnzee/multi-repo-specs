@@ -139,15 +139,20 @@ implementation map в Design и Tasks по каждому id. Requirements и Sc
   человеческий Gate;
 - `openspec-base-apply-context` — выбирает режим штатного Apply: только при
   `CYCLE_NOT_FOUND` предлагает standard OpenSpec Apply без Orchestrator либо создание
-  Cycle; при существующем Cycle подтверждает repository-id, проверяет planning
-  revision и выбирает только принадлежащие репозиторию sections Tasks. Перед каждым
-  `[x]` требует task-level evidence (реальный artifact и выполненную проверку), а при
-  незакрытой задаче не разрешает объявить repository Result завершённым;
+  Cycle; при существующем Cycle подтверждает его scope через OpenSpec Graph,
+  проверяет planning revision и выбирает только принадлежащие репозиторию sections
+  Tasks. Внутри текущего Code Repository использует CodeGraph как необязательную
+  навигацию с fallback на адресный read/search. Перед каждым `[x]` требует task-level
+  evidence, а при незакрытой задаче не разрешает объявить repository Result
+  завершённым;
+- `openspec-base-graph-maintenance` — проверяет, пересобирает или точечно обновляет
+  подтверждённые явные связи `openspec/graph.yaml`, не изменяя Specs, Changes, Cycle
+  или CodeGraph и не создавая связи без Store-relative evidence;
 - `openspec-base-test-cases` — список трассируемых тест-кейсов без автоматической записи
   нештатного файла внутри Change.
 
-`base-intent`, `openspec-base-apply-context` и `openspec-base-test-cases` являются
-leaf-skills:
+`base-intent`, `openspec-base-apply-context`, `openspec-base-graph-maintenance` и
+`openspec-base-test-cases` являются leaf-skills:
 основной агент или пользователь может выбрать их напрямую, но они не вызывают
 project skills, commands или subagents. Только `openspec-base-meta-planning` может
 оркестрировать Planning-проверки; рекурсивный вызов meta-skill запрещён.

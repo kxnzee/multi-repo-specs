@@ -33,9 +33,9 @@ Store со спецификациями и Code Repositories, фиксирует
 
 - инструкциями и нативными mapping для Qwen, GigaCode и Claude;
 - правилами подготовки и проверки Proposal, Delta Specs, Design и Tasks;
-- единым meta-skill `openspec-base-meta-planning`, тремя leaf-skills для Intent,
-  Apply-контекста и тест-кейсов, тремя ограниченными read-only subagents и project
-  command `/openspec-base-context`;
+- единым meta-skill `openspec-base-meta-planning`, четырьмя leaf-skills для Intent,
+  Apply-контекста, обслуживания OpenSpec Graph и тест-кейсов, тремя ограниченными
+  read-only subagents и project command `/openspec-base-context`;
 - структурой долговечного контекста проекта: продукт, доменная модель, архитектура,
   безопасность, quality gates и release process;
 - командой обновления проектного контекста без переноса прикладного кода в Store.
@@ -110,6 +110,12 @@ openspec-orch plugin disconnect <plugin-id> --repo <repository-id>
 openspec-orch plugin remove <plugin-id>
 openspec-orch plugin register <plugin-id> [path]
 openspec-orch <plugin-id> <plugin-command> [args...]
+openspec-orch graph build
+openspec-orch graph status [--json]
+openspec-orch graph impact <change-id>
+openspec-orch graph check-scope <change-id> --repo <repository-id>...
+openspec-orch graph inspect <node-id>
+openspec-orch graph view [--port <port>]
 openspec-orch repository status [--repo <repository-id>]...
 openspec-orch assign <change-id> --repo <repository-id>...
 openspec-orch status <change-id>
