@@ -132,6 +132,20 @@ Archive разрешён только после завершения реали
 соответствии с политикой проекта. Штатный `/opsx-archive` остаётся владельцем
 синхронизации Delta Specs и перемещения Change.
 
+Перед изменением Master Specs Archive требует свежий OpenSpec Graph, проверяет
+`graph impact`, порядок зависимых Changes и соответствие Cycle через `graph
+check-scope`. При `CYCLE_NOT_FOUND` scope берётся из принятых Tasks sections,
+предусматривающих работу в Code Repository; остальные ошибки Orchestrator блокируют
+Archive. Для явно принятого
+`skip_specs` проверка scope помечается `not_applicable`, а repository sections
+проверяются напрямую без создания фиктивной Delta Spec. Review-репозиторий вне Cycle
+допустим только с принятым evidence `no-change`.
+
+После Archive граф пересобирается повторно, потому что применение Delta Specs и
+перемещение Change изменяют входы проекции. Пока `graph status --json` не вернул
+`ready` и `graph impact` не прочитан для архивного Change, Graph handoff считается
+незавершённым; штатный Archive автоматически не откатывается.
+
 Для Confluence требуется идемпотентная публикация архивной копии, ключ которой
 включает Store, `change-id` и archive revision. Страница содержит Jira, архивную Git
 revision, итоговые Specs и Design, Snapshot, release artifact, PR, Zephyr и решения

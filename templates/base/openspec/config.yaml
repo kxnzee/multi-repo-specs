@@ -46,3 +46,12 @@ rules:
     - "Для пользовательского или системного поведения указать проверку наблюдаемого результата, а не только факт изменения кода или прохождения изолированного unit-теста."
     - "Включить подготовку evidence для PR Review, IFT и QA, но не отмечать внешнюю проверку выполненной заранее."
     - "Группировать задачи в sections, заголовок которых содержит точный repository-id из Repository impact. Межрепозиторные и общие проверки выделять отдельно и указывать owner; если owner не указан, им считается однозначный primary solution owner из Repository implementation map Design. Не использовать условные backend/frontend вместо зарегистрированного id."
+
+operations:
+  archive:
+    guidance:
+      - "До синхронизации Delta Specs и перемещения Change выполнить openspec-orch graph status --json. Если состояние не ready, выполнить openspec-orch graph build и повторить status; отсутствие Plugin или binding либо неуспешный build блокирует Archive. Не редактировать openspec/graph.yaml автоматически как часть Archive."
+      - "На свежем индексе выполнить openspec-orch graph impact <change-id>. Проверить dependency_changes и не архивировать Change раньше активных Changes, от которых он зависит."
+      - "Если openspec-orch status <change-id> --json возвращает Cycle, передать каждый точный repository-id из repositories отдельным --repo в openspec-orch graph check-scope <change-id>. Только при CYCLE_NOT_FOUND использовать точные repository-id принятых Tasks sections, предусматривающих работу в Code Repository; любая другая ошибка status блокирует Archive. Для явно принятого skip_specs без Delta Specs зафиксировать scope_check: not_applicable и проверить repository sections напрямую, не создавать фиктивный Delta Spec."
+      - "До Archive устранить invalid scope, missing_required_repositories, missing_delta_specs для Change без принятого skip_specs, unmapped_master_specs и необъяснённые review_repositories_outside_scope или extra_repositories. Не добавлять review-репозитории автоматически: вне Cycle для них требуется принятое evidence no-change."
+      - "После успешного Archive снова выполнить openspec-orch graph build, потребовать graph status --json со state ready и проверить graph impact <change-id> уже для архивного Change. Не откатывать штатный Archive автоматически при ошибке post-build, но явно считать Graph handoff незавершённым до исправления и успешной пересборки."

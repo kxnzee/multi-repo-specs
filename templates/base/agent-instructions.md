@@ -111,4 +111,6 @@
 - Не считай вывод project skill решением Gate: approval принимает человек в
   установленном процессом месте.
 - Не архивируй Change, пока не завершена реализация во всех затронутых Code
-  Repositories и не выполнена ручная проверка.
+  Repositories и не выполнена ручная проверка. Выполни Graph preflight из
+  `operations.archive.guidance`, а после штатного Archive пересобери OpenSpec Graph;
+  до состояния `ready` Graph handoff не завершён.
