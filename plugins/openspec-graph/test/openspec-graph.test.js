@@ -75,11 +75,28 @@ async function storeFixture(t) {
       "    sources:",
       "      - docs/architecture.md:12",
       "      - docs/architecture.toml:1",
+      "  - source: repository:portal",
+      "    relation: calls",
+      "    target: repository:web",
+      "    contract: Visitor API",
+      "    sources:",
+      "      - docs/architecture.md:13",
+      "  - source: repository:web",
+      "    relation: publishes_to",
+      "    target: repository:notifications",
+      "    contract: Visitor events",
+      "    sources:",
+      "      - docs/architecture.md:14",
       "  - source: master-spec:conference/visitors",
       "    relation: implemented_by",
       "    target: repository:web",
       "    sources:",
       "      - openspec/specs/conference/visitors/spec.md:1",
+      "  - source: repository:qa",
+      "    relation: verifies",
+      "    target: master-spec:conference/visitors",
+      "    sources:",
+      "      - docs/architecture.md:15",
       "  - source: master-spec:conference/agenda",
       "    relation: depends_on",
       "    target: master-spec:conference/visitors",
@@ -118,6 +135,9 @@ async function storeFixture(t) {
 
 const repositories = [
   { id: "control", role: "code" },
+  { id: "notifications", role: "code" },
+  { id: "portal", role: "code" },
+  { id: "qa", role: "code" },
   { id: "web", role: "code" },
 ];
 const storeId = "specs";
@@ -146,7 +166,7 @@ test("Builder projects the Store hierarchy and strict graph edges", async (t) =>
 
   assert.deepEqual(second, first);
   assert.equal(first.graph_version, 1);
-  assert.equal(first.nodes.length, 8);
+  assert.equal(first.nodes.length, 11);
   assert.deepEqual(first.nodes.map(({ id }) => id), [
     "change:empty-change",
     "change:jit-100-promote",
@@ -154,16 +174,22 @@ test("Builder projects the Store hierarchy and strict graph edges", async (t) =>
     "master-spec:conference/agenda",
     "master-spec:conference/visitors",
     "repository:control",
+    "repository:notifications",
+    "repository:portal",
+    "repository:qa",
     "repository:web",
     "store:specs",
   ].sort());
-  assert.equal(first.edges.length, 10);
+  assert.equal(first.edges.length, 16);
   assert.deepEqual(
     first.edges.filter(({ relation }) => relation === "contains")
       .map(({ source, target }) => [source, target]),
     [
       ["change:jit-100-promote", "delta-spec:jit-100-promote/conference/visitors"],
       ["store:specs", "repository:control"],
+      ["store:specs", "repository:notifications"],
+      ["store:specs", "repository:portal"],
+      ["store:specs", "repository:qa"],
       ["store:specs", "repository:web"],
     ],
   );
@@ -242,6 +268,7 @@ test("Read queries separate direct and downstream Change impact", async (t) => {
     "change:jit-100-promote",
     "delta-spec:jit-100-promote/conference/visitors",
     "master-spec:conference/agenda",
+    "repository:qa",
     "repository:web",
   ]);
 
@@ -265,11 +292,34 @@ test("Read queries separate direct and downstream Change impact", async (t) => {
     "repository:control",
     "repository:web",
   ]);
+  assert.deepEqual(impact.verification_repositories.map(({ id }) => id), [
+    "repository:qa",
+  ]);
+  assert.deepEqual(impact.related_repositories.map(({ id }) => id), [
+    "repository:notifications",
+    "repository:portal",
+  ]);
+  assert.deepEqual(impact.review_repositories.map(({ id }) => id), [
+    "repository:notifications",
+    "repository:portal",
+    "repository:qa",
+  ]);
+  assert.deepEqual(impact.all_repositories.map(({ id }) => id), [
+    "repository:control",
+    "repository:notifications",
+    "repository:portal",
+    "repository:qa",
+    "repository:web",
+  ]);
   assert.deepEqual(impact.edges.map(({ relation }) => relation), [
     "affects",
     "contains",
     "changes",
+    "depends_on",
+    "calls",
+    "publishes_to",
     "implemented_by",
+    "verifies",
     "depends_on",
     "implemented_by",
     "targets",
@@ -280,6 +330,10 @@ test("Read queries separate direct and downstream Change impact", async (t) => {
   assert.deepEqual(emptyImpact.direct_master_specs, []);
   assert.deepEqual(emptyImpact.dependent_master_specs, []);
   assert.deepEqual(emptyImpact.total_master_specs, []);
+  assert.deepEqual(emptyImpact.verification_repositories, []);
+  assert.deepEqual(emptyImpact.related_repositories, []);
+  assert.deepEqual(emptyImpact.review_repositories, []);
+  assert.deepEqual(emptyImpact.all_repositories, []);
 });
 
 test("Viewer serves graph and vendored vis-network only on loopback", async (t) => {
@@ -318,6 +372,8 @@ test("Viewer serves graph and vendored vis-network only on loopback", async (t) 
   assert.match(application, /function isMasterDependency/u);
   assert.match(application, /import \{ inspectChangeImpact \} from "\/graph-query\.js"/u);
   assert.match(application, /function impactForChange/u);
+  assert.match(application, /impact\.review_repositories/u);
+  assert.match(application, /Репозитории для проверки связей/u);
   assert.match(application, /function expandChange/u);
   assert.match(application, /function enabledNodeTypes/u);
   assert.match(application, /function syncLayerCount/u);

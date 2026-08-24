@@ -72,6 +72,14 @@ Specs с Delta Spec внутри выбранного Change, `dependent_master_
 Master Specs, которые прямо или транзитивно зависят от изменяемых, и
 `total_master_specs` — их объединение без дубликатов. Репозитории аналогично
 разделены на `direct_repositories`, `dependent_repositories` и общий `repositories`.
+Репозитории, которые проверяют затронутые Master Specs через `verifies`, и
+непосредственные соседи implementation-репозиториев по явным `depends_on`, `calls`
+или `publishes_to` отдельно возвращаются как `verification_repositories`,
+`related_repositories` и их объединение `review_repositories`. Они требуют проверки
+влияния, но не добавляются автоматически в implementation scope. `all_repositories`
+объединяет implementation scope и review-контур для отображения и машинной обработки.
+Repository-связи учитываются только на один переход и не распространяются
+транзитивно через весь мультирепозиторий.
 Транзитивное влияние строится только по явно подтверждённым связям Master Spec
 `depends_on`; отсутствующие связи не угадываются.
 
@@ -100,7 +108,8 @@ Specs показывают точные операции `ADDED`, `MODIFIED`, `R
 Выбор Change фокусирует его impact. Фиолетовая рамка обозначает напрямую изменяемые
 Master Specs, бирюзовая — зависимые Master Specs с потенциальным downstream-влиянием.
 Остальной граф приглушается, а инспектор показывает отдельные списки и общий размер
-impact.
+impact. Репозитории из `review_repositories` выводятся отдельным янтарным списком и
+не смешиваются с прямым или зависимым implementation scope.
 
 Путь к файлу в инспекторе открывает его read-only содержимое в новой вкладке. Меню
 рядом позволяет повторить просмотр, открыть файл в VS Code (когда `graph view`

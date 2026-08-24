@@ -162,6 +162,7 @@ function impactForChange(changeNodeId) {
     dependentMasters: impact.dependent_master_specs,
     directRepositories: impact.direct_repositories,
     dependentRepositories: impact.dependent_repositories,
+    reviewRepositories: impact.review_repositories,
     focusEdgeIds: new Set(impact.edges.map(({ id }) => id)),
     focusNodeIds: new Set([
       changeNodeId,
@@ -619,7 +620,7 @@ function appendMasterDependencies(nodeId) {
   appendNodeList("От неё зависят", incoming, "dependency-list", "direction", "incoming");
 }
 
-/** Adds direct and dependent impact lists for one Change. */
+/** Adds implementation and review impact lists for one Change. */
 function appendChangeImpact(impact) {
   appendNodeList("Напрямую изменяет", impact.directMasters, "change-impact-list", "impact", "direct");
   appendNodeList(
@@ -642,6 +643,13 @@ function appendChangeImpact(impact) {
     "change-impact-list",
     "impact",
     "dependent",
+  );
+  appendNodeList(
+    "Репозитории для проверки связей",
+    impact.reviewRepositories,
+    "change-impact-list",
+    "impact",
+    "review",
   );
 }
 
@@ -666,6 +674,7 @@ function renderNode(nodeId) {
     addDetail(list, "Прямые Master Specs", changeImpact.directMasterIds.size);
     addDetail(list, "Зависимые Master Specs", changeImpact.dependentMasterIds.size);
     addDetail(list, "Общий impact", changeImpact.totalMasterIds.size);
+    addDetail(list, "Проверить репозитории", changeImpact.reviewRepositories.length);
   }
   if (["master-spec", "delta-spec"].includes(data.type)) {
     addEntityDetail(list, "Возможность", data);

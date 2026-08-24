@@ -94,6 +94,29 @@ export function inspectChangeImpact(graph, changeId) {
       .filter((repositoryId) => !directRepositoryIds.has(repositoryId)),
   );
   const totalRepositoryIds = new Set([...directRepositoryIds, ...dependentRepositoryIds]);
+  const verificationEdges = graph.edges.filter(({ source, relation, target }) => (
+    relation === "verifies"
+    && nodesById.get(source)?.type === "repository"
+    && totalMasterIds.has(target)
+  ));
+  const verificationRepositoryIds = new Set(
+    verificationEdges.map(({ source }) => source),
+  );
+  const repositoryRelations = new Set(["calls", "depends_on", "publishes_to"]);
+  const repositoryDependencyEdges = graph.edges.filter(({ source, relation, target }) => (
+    repositoryRelations.has(relation)
+    && nodesById.get(source)?.type === "repository"
+    && nodesById.get(target)?.type === "repository"
+    && (totalRepositoryIds.has(source) || totalRepositoryIds.has(target))
+  ));
+  const relatedRepositoryIds = new Set(repositoryDependencyEdges
+    .flatMap(({ source, target }) => [source, target])
+    .filter((repositoryId) => !totalRepositoryIds.has(repositoryId)));
+  const reviewRepositoryIds = new Set([
+    ...verificationRepositoryIds,
+    ...relatedRepositoryIds,
+  ].filter((repositoryId) => !totalRepositoryIds.has(repositoryId)));
+  const allRepositoryIds = new Set([...totalRepositoryIds, ...reviewRepositoryIds]);
   const dependencyDeltaIds = new Set(deltaDependencyEdges.map(({ target }) => target));
   const dependencyChangeIds = new Set(graph.nodes
     .filter(({ id, type }) => type === "delta-spec" && dependencyDeltaIds.has(id))
@@ -114,6 +137,16 @@ export function inspectChangeImpact(graph, changeId) {
       graph.nodes.filter(({ id }) => dependentRepositoryIds.has(id)),
     ),
     repositories: Object.freeze(graph.nodes.filter(({ id }) => totalRepositoryIds.has(id))),
+    verification_repositories: Object.freeze(
+      graph.nodes.filter(({ id }) => verificationRepositoryIds.has(id)),
+    ),
+    related_repositories: Object.freeze(
+      graph.nodes.filter(({ id }) => relatedRepositoryIds.has(id)),
+    ),
+    review_repositories: Object.freeze(
+      graph.nodes.filter(({ id }) => reviewRepositoryIds.has(id)),
+    ),
+    all_repositories: Object.freeze(graph.nodes.filter(({ id }) => allRepositoryIds.has(id))),
     dependency_changes: Object.freeze(graph.nodes.filter(({ id }) => dependencyChangeIds.has(id))),
     edges: Object.freeze([
       ...containmentEdges,
@@ -122,6 +155,8 @@ export function inspectChangeImpact(graph, changeId) {
       ...targetEdges,
       ...directImplementationEdges,
       ...dependentImplementationEdges,
+      ...verificationEdges,
+      ...repositoryDependencyEdges,
       ...masterDependencyImpactEdges.values(),
       ...deltaDependencyEdges,
     ].sort((left, right) => left.id.localeCompare(right.id))),

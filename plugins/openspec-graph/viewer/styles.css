@@ -343,3 +343,7 @@ aside { min-width: 0; overflow: auto; padding: 18px; background: #f8fafc; }
   border-left: 3px dashed #0f766e;
   background: #f0fdfa;
 }
+.change-impact-list li[data-impact="review"] {
+  border-left: 3px dashed #d97706;
+  background: #fffbeb;
+}
