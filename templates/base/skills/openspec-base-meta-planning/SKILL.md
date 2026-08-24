@@ -21,6 +21,9 @@ workflow или промежуточный review-файл и не вызыва�
   подтверждённым рискам и запросу пользователя.
 - Не выдавать отсутствие evidence за отсутствие проблемы и не считать имя файла,
   каталога или сервиса доказательством поведения.
+- Не запускать `openspec-orch graph build`: команда изменяет производное Plugin
+  storage и выходит за read-only границу skill. При `stale` или `unavailable`
+  вернуть blocker с точной командой сборки для пользователя.
 - Не вызывать `openspec-base-meta-planning` рекурсивно.
 
 ## Режим
@@ -53,14 +56,32 @@ implementation readiness или PR alignment: их владельцы — соо
    `resolvedOutputPath`. Отсутствие ещё не разблокированных последующих артефактов не
    считать finding.
 4. Если существует `openspec-orch.yaml`, получить из него точные `repository-id`
-   записей с `roles: [code]` и сопоставить их с валидированным `openspec/graph.yaml`.
+   записей с `roles: [code]`. Реестр подтверждает identity, но не доказывает impact.
    Технический контекст читать только в checkout соответствующего Code Repository
    через контракт `openspec-base-repository-evidence-scout`; не смешивать evidence
    разных revisions.
-5. Relationship из `openspec/graph.yaml` учитывать только после успешной строгой
-   сборки OpenSpec Graph Plugin; для текущего Change вызвать `openspec-orch graph
-   impact <change-id>`. Не выводить обратные, транзитивные или новые связи
-   автоматически. Ошибку графа вернуть как planning finding, а не обходить догадкой.
+5. Проверить `openspec-orch graph status --json`. Relationship учитывать только при
+   состоянии `ready`. При отсутствующей команде, binding, индексе либо состоянии
+   `stale` или `unavailable` вернуть blocker и предложить пользователю выполнить
+   `openspec-orch graph build`; не читать `openspec/graph.yaml` как обход и не
+   достраивать связи по именам.
+6. Выбрать фазу графа по фактическим артефактам Change:
+   - `preliminary` — Delta Specs ещё отсутствуют. Не вызывать `graph impact` или
+     `graph check-scope`: они не могут подтвердить scope без Delta Specs. Получить из
+     Proposal только кандидатные capability paths; для уже существующей capability
+     использовать `openspec-orch graph inspect master-spec:<capability-path>`. Для
+     новой capability явно зафиксировать, что graph node и repository scope появятся
+     после Delta Spec. Любой Repository impact в этой фазе считать гипотезой;
+   - `authoritative` — Delta Specs существуют и прошли применимую OpenSpec
+     валидацию. Вызвать `openspec-orch graph impact <change-id>`. Когда Proposal,
+     Design или Tasks уже содержат точный набор `repository-id`, дополнительно
+     вызвать `openspec-orch graph check-scope <change-id>` с отдельным `--repo` для
+     каждого заявленного репозитория. Не передавать в `check-scope` догадочный набор.
+7. В authoritative-фазе считать `missing_required_repositories`,
+   `missing_delta_specs` и `unmapped_master_specs` из `check-scope` блокирующими.
+   `review_repositories_outside_scope` требует evidence и явного `no-change` либо
+   добавления в scope; `extra_repositories` требует объяснения, но само по себе не
+   является ошибкой. Не включать review-репозитории в scope автоматически.
 
 ## Общий порядок
 
@@ -94,7 +115,9 @@ implementation readiness или PR alignment: их владельцы — соо
   наблюдаемое поведение или доменные правила в центральном Store. Не передавать ему
   Code Repository и не использовать context evidence вместо решения владельца.
 - После готовности продуктовой постановки определить только необходимый Repository
-  impact. Использовать `openspec-base-repository-evidence-scout` с
+  impact. До появления Delta Specs считать его preliminary и исследовать только
+  кандидатные Master Specs через `graph inspect`; не выдавать его за готовый Cycle
+  scope. Использовать `openspec-base-repository-evidence-scout` с
   `evidence_kind: implementation`, только если категория влияния зависит от
   существующего кода или тестов.
 - При реальной неопределённости межсистемного контракта, security, совместимости,
@@ -113,6 +136,10 @@ implementation readiness или PR alignment: их владельцы — соо
 
 - Проверить соответствие capability из Proposal, наблюдаемость Requirements,
   однозначность Scenarios и стабильные Scenario ID.
+- После появления валидных Delta Specs перейти к authoritative-фазе графа и вызвать
+  `graph impact`. Проверить совпадение Delta Spec capability paths с прямыми Master
+  Specs. Repository scope на этой стадии может оставаться неполным до Design, но
+  отсутствие capability impact или ошибка графа является finding.
 - Missing Design и Tasks не являются finding этой промежуточной стадии.
 - Привлекать `openspec-base-project-context-researcher` только для одного спорного
   поведения. Не переносить техническую декомпозицию репозиториев в Requirements и
@@ -126,6 +153,9 @@ implementation readiness или PR alignment: их владельцы — соо
   Specs, считать это `BLOCKER` и вернуть Change к уточнению Planning.
 - Если Repository impact или границы систем изменились после Proposal, выполнить
   ограниченный impact-review по изменившейся области, не повторяя весь анализ.
+- Сопоставить точный Repository implementation map Design с `graph impact` через
+  `graph check-scope`. Пропущенный прямой репозиторий или непривязанная Master Spec —
+  `BLOCKER`; review-репозиторий вне scope требует evidence и явного `no-change`.
 - Использовать `openspec-base-repository-evidence-scout` с `evidence_kind:
   architecture` для одного вопроса о принадлежащей репозиторию стороне контракта,
   совместимости, security, миграции, rollout или rollback; с `evidence_kind:
@@ -140,6 +170,10 @@ implementation readiness или PR alignment: их владельцы — соо
 - Проверить, что repository sections имеют в заголовке точный `repository-id`. Для
   общей секции должен быть указан owner либо однозначно определяться primary
   solution owner из Repository implementation map Design.
+- Повторить `graph check-scope` по точным `repository-id` секций Tasks и проверить,
+  что они не потеряли обязательный Design scope. Дополнительная секция допустима
+  только с объяснённой ролью `tests-only | configuration | documentation` либо иным
+  подтверждённым типом влияния.
 - Если неясны существующие уровни проверки или repository-specific evidence,
   использовать `openspec-base-repository-evidence-scout` с `evidence_kind:
   verification` отдельно для каждого репозитория. Не требовать implementation
@@ -154,7 +188,10 @@ implementation readiness или PR alignment: их владельцы — соо
 
 - Не выполнять этот режим до формирования продуктовой постановки. Если она
   неполна, вернуть Change на стадию Proposal.
-- Прочитать только относящиеся к вопросу Master Specs, ADR, системную карту,
+- До Delta Specs выполнять только preliminary impact и явно называть его
+  непригодным для создания Cycle. После Delta Specs использовать authoritative
+  `graph impact`, а при наличии заявленного Repository scope — `graph check-scope`.
+- Прочитать только относящиеся к вопросу Master Specs, ADR, OpenSpec Graph,
   контракты, конфигурацию, код и тесты.
 - Проверить только применимые области: capability и поведение; системы,
   репозитории и владельцев данных; API, события, схемы и внешние зависимости;
@@ -179,6 +216,12 @@ implementation readiness или PR alignment: их владельцы — соо
   OpenSpec от семантических findings.
 - Собрать review set: заявленные `repository-id`, подтверждённо затрагиваемые, но
   пропущенные репозитории, и обоснованные `no-change`.
+- Требовать authoritative graph phase и успешный `graph check-scope` по предлагаемому
+  Cycle set — репозиториям, для которых Planning действительно предусматривает
+  работу. Proposal, Design и Tasks могут содержать разные рассмотренные множества
+  из-за явно обоснованных `no-change`, но пропущенный обязательный репозиторий,
+  Tasks без Design scope или необъяснённое расхождение классификации является
+  `BLOCKER` до человеческого Gate.
 - Проверить трассировку: источник → Why и scope → capability → Requirement →
   Scenario → Design decision → Task → план evidence.
 - Для каждого репозитория проверить цепочку `Proposal impact → Design map → Tasks →
@@ -227,6 +270,9 @@ implementation readiness или PR alignment: их владельцы — соо
 meta_planning:
   change: <change-id>
   stage: proposal | specs | design | tasks | impact-review | planning-review
+  graph_phase: preliminary | authoritative
+  graph_status: ready | stale | unavailable | not_configured
+  scope_check: not_applicable | ready | invalid
   checks_used: []
   subagents_used: []
   findings:
