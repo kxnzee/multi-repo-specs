@@ -16,6 +16,9 @@
 - Для проверки текущего Planning-артефакта, анализа влияния и полного ревью Change
   используй единый meta-skill `openspec-base-meta-planning`; он выбирает режим и
   маршрутизирует доступные read-only subagents по стадии и рискам.
+- Для аудита, пересборки или точечного изменения подтверждённых явных связей
+  `openspec/graph.yaml` используй leaf-skill `openspec-base-graph-maintenance`. Он не
+  редактирует Specs, Change, Cycle или CodeGraph и не придумывает связи без evidence.
 - Во время штатного OpenSpec Apply используй project skill
   `openspec-base-apply-context`: при существующем Cycle он подтверждает текущий Code
   Repository, проверяет planning revision и ограничивает Apply принадлежащими этому
