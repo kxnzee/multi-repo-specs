@@ -46,8 +46,10 @@ expected_source: Monitoring, runbooks, incidents, or maintainer confirmation
   принятых Tasks sections;
   принятый `skip_specs` помечает scope-check как неприменимый без фиктивной Delta Spec.
 - После Archive OpenSpec Graph пересобирается повторно. До `graph status: ready` и
-  проверки impact архивного Change Graph handoff остаётся незавершённым; сам
-  штатный Archive автоматически не откатывается.
+  проверки impact архивного Change агент повторно проверяет каждую directly changed
+  Master Spec. Change-scoped `targets` НЕ ЗАМЕНЯЕТ постоянный
+  `Master Spec → implemented_by → Repository`; отсутствующий подтверждённый mapping
+  блокирует Graph handoff. Сам штатный Archive автоматически не откатывается.
 - Если политика проекта требует Confluence, при Archive создаётся или обновляется одна
   производная копия.
 - Ключ идемпотентности публикации включает Store, `change-id` и archive revision.

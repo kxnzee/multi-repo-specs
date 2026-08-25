@@ -563,7 +563,7 @@ test("Viewer serves graph and vendored vis-network only on loopback", async (t) 
   assert.doesNotMatch(markup, /id="relation-filter"/u);
   assert.match(markup, /id="node-type-filters"/u);
   assert.match(markup, /id="layers-menu"/u);
-  assert.match(markup, /id="layer-count">4\/4/u);
+  assert.match(markup, /id="layer-count">3\/4/u);
   assert.doesNotMatch(markup, /id="lane-guide"/u);
   assert.match(markup, /Репозиторий/u);
   assert.match(markup, /Мастер-спека/u);
@@ -571,7 +571,7 @@ test("Viewer serves graph and vendored vis-network only on loopback", async (t) 
   assert.match(markup, /value="repository" checked/u);
   assert.match(markup, /value="master-spec" checked/u);
   assert.match(markup, /value="change" checked/u);
-  assert.match(markup, /value="delta-spec" checked/u);
+  assert.doesNotMatch(markup, /value="delta-spec" checked/u);
   assert.match(markup, /Дельта-спека/u);
   assert.match(markup, /id="reset-view"/u);
   assert.doesNotMatch(markup, /id="stabilize"/u);
@@ -600,7 +600,15 @@ test("Viewer serves graph and vendored vis-network only on loopback", async (t) 
   assert.match(application, /function positionExpandedDeltas/u);
   assert.match(application, /filterableNodeTypes = \["repository", "master-spec", "change", "delta-spec"\]/u);
   assert.match(application, /const radius = 58 \+ Math\.sqrt\(index \+ 1\) \* 26/u);
-  assert.match(application, /edge\.relation !== "targets" \|\| focusedEdgeIds\.has/u);
+  assert.doesNotMatch(
+    application,
+    /edge\.relation !== "affects" && edge\.relation !== "targets"/u,
+  );
+  assert.match(
+    application,
+    /if \(edge\.relation === "affects"\) return !hasVisibleDeltaPath\(edge\)/u,
+  );
+  assert.doesNotMatch(application, /edge\.relation !== "targets" \|\| focusedEdgeIds\.has/u);
   assert.match(application, /visibleNodeIds\.add\(id\)/u);
   assert.doesNotMatch(application, /changePosition\.x \+ dx \* 0\.48/u);
   assert.match(application, /Прямые Master Specs/u);

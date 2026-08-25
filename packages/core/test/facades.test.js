@@ -17,6 +17,8 @@ import {
   Workspace,
 } from "@openspec-orch/core";
 
+import { createDirectoryLink } from "../fixtures/filesystem.js";
+
 /** Создаёт изолированный RepositoryCheckout fixture. */
 async function checkoutFixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-core-facades-"));
@@ -160,6 +162,6 @@ test("FileService reads and atomically writes only inside Repository checkout", 
 
   const outside = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-core-outside-"));
   t.after(() => fs.rm(outside, { recursive: true, force: true }));
-  await fs.symlink(outside, path.join(root, "linked"), "dir");
+  await createDirectoryLink(outside, path.join(root, "linked"));
   await assert.rejects(service.write("linked/file.txt", "blocked"), /symlink/);
 });

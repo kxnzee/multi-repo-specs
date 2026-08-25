@@ -92,15 +92,129 @@ Proposal, Specs, Design, Tasks и Store context ЗАПРЕЩЕНО превра�
 
 OpenSpec Graph — Store-only производная модель Specs, Changes, Code Repositories и
 явно подтверждённых связей из `openspec/graph.yaml`. Он не читает внутренности Code
-Repositories и не меняет OpenSpec artifacts.
+Repositories, не меняет OpenSpec artifacts и не является фоновым сервисом.
 
-До появления Delta Specs используется только preliminary phase:
+#### Что строится автоматически, а что хранится явно
+
+При каждом `graph build` Plugin заново выводит из Store:
+
+- Store и зарегистрированные Code Repositories;
+- текущие Master Specs;
+- активные и архивные Changes и Delta Specs;
+- связи `Store → contains → Repository`;
+- связи `Change → contains → Delta Spec`;
+- связи `Change → affects → Master Spec`;
+- связи `Delta Spec → changes → Master Spec` с операцией `ADDED`, `MODIFIED`,
+  `REMOVED` или `RENAMED`.
+
+В tracked-файле `openspec/graph.yaml` хранятся только связи, которые нельзя безопасно
+вывести из структуры OpenSpec:
+
+- `Master Spec → implemented_by → Repository` — постоянное место реализации
+  capability;
+- `Delta Spec → targets → Repository` — implementation scope только одного Change;
+- `Master Spec → depends_on → Master Spec` и
+  `Delta Spec → depends_on → Delta Spec`;
+- `Repository → depends_on|calls|publishes_to → Repository`;
+- `Repository → verifies → Master Spec`.
+
+Каждая такая связь ОБЯЗАНА иметь точный Store-relative `path:line` evidence.
+Совпадение имён, предполагаемая архитектура и ребро CodeGraph evidence не заменяют.
+`targets` ЗАПРЕЩЕНО автоматически копировать в `implemented_by`: временный scope
+Change не доказывает постоянного владельца реализации capability.
+
+Tracked `openspec/graph.yaml` входит в обычный Git-процесс Store. Построенный индекс
+Plugin является локальным производным состоянием, не коммитится и всегда может быть
+воспроизведён через `graph build`. Перед построением Plugin запускает строгую
+валидацию всего OpenSpec Store и заменяет последний успешный индекс атомарно только
+после успешной проекции.
+
+#### Главное правило запуска
+
+Graph НИЧЕГО не запускает сам при изменении файлов, Planning, Apply, создании Cycle
+или Archive. У Plugin нет watcher, фоновой пересборки и автоматического вызова из
+штатных OpenSpec operations.
+
+Фраза «агент обязан вызвать Graph» в этом документе означает, что агент сам явно
+выполняет соответствующую команду перед продолжением текущего workflow. Пользователю
+не нужно дублировать этот вызов. Если пользователь проходит flow без агента, те же
+команды он выполняет вручную.
+
+#### Однократное подключение
+
+Решение установить Plugin и привязать его к Store принимает пользователь или
+администратор Store:
+
+```bash
+openspec-orch plugin init --plugin openspec-graph
+openspec-orch plugin connect openspec-graph --repo <store-id>
+openspec-orch graph build
+```
+
+Агент ЗАПРЕЩЕНО молча устанавливать или подключать Plugin, менять Plugin declarations
+или выбирать Store. Он может выполнить эти команды только по явному запросу
+пользователя. После принятого подключения агент использует Graph как обязательную
+проверку Planning и Archive без отдельного напоминания на каждом шаге.
+
+#### Единый preflight агента
+
+Перед `inspect`, `impact`, `check-scope` или `view` агент выполняет:
+
+```bash
+openspec-orch graph status --json
+```
+
+Дальнейшее действие определяется статусом:
+
+- `ready` и `authoritative: true` — разрешено выполнять запрос;
+- `stale` или `unavailable` с `next_command` — агент выполняет точную предложенную
+  команду, повторяет status и продолжает только после `ready`;
+- `invalid` — агент останавливает Graph-dependent шаг, диагностирует входные данные
+  и возвращает blocker;
+- Plugin не подключён — агент возвращает `not_configured` и останавливает обязательный
+  Graph-dependent flow; пользователь решает подключить Plugin либо явно перейти на
+  процесс, где Graph не требуется политикой проекта.
+
+Last known-good используется только для диагностики. `inspect`, `impact`,
+`check-scope` и `view` ЗАПРЕЩЕНО выполнять по несвежему индексу.
+
+`source_digest` изменяют topology-входы: Store ID, `repository-id + role`, Master
+Specs, Delta Specs, активное или архивное состояние Changes, `openspec/graph.yaml` и
+файлы evidence явных связей. Обычное изменение кода в Code Repository, обновление
+CodeGraph, текста Proposal, Design, Tasks или task checkbox само по себе Graph stale
+не делает. Proposal, Design или Tasks попадают в digest только если конкретная строка
+используется как evidence явной связи.
+
+#### Что делает каждая команда
+
+- `graph status --json` ничего не пересобирает и показывает freshness, признак
+  authoritative, last known-good и точный `next_command` для recovery;
+- `graph build` валидирует OpenSpec и перестраивает локальный индекс из текущих
+  topology-входов;
+- `graph inspect <node-id>` возвращает прямое окружение одного точного node ID без
+  fuzzy-поиска;
+- `graph impact <change-id>` возвращает directly changed и downstream Master Specs,
+  implementation repositories, review-кандидатов и зависимости между Changes;
+- `graph check-scope <change-id> --repo ...` сравнивает предложенный implementation
+  scope с impact, но ничего не добавляет в Planning или Cycle;
+- `graph view` запускает read-only локальный UI по тому же свежему индексу.
+
+Все перечисленные `graph`-команды, кроме `build`, являются read-only. Успешный
+`build` подтверждает структуру и provenance графа, но не доказывает истинность
+архитектурного утверждения в explicit edge: за эту семантику отвечает человек,
+принявший решение.
+
+#### Planning до и после Delta Specs
+
+До появления валидных Delta Specs используется preliminary phase:
 
 - capability candidates берутся из принятого intent и Proposal;
-- для существующей capability разрешён точный `graph inspect`;
-- `graph impact`, `graph check-scope` и объявление Cycle scope ЗАПРЕЩЕНЫ.
+- агент может выполнить только точный `graph inspect` уже существующей Master Spec;
+- `graph impact`, `graph check-scope` и объявление Cycle scope ЗАПРЕЩЕНЫ;
+- Graph не используется для угадывания будущего repository scope.
 
-После валидных Delta Specs Graph ОБЯЗАН перейти в authoritative phase:
+После создания или изменения валидных Delta Specs агент ОБЯЗАН перейти в
+authoritative phase:
 
 ```bash
 openspec-orch graph build
@@ -109,16 +223,108 @@ openspec-orch graph impact <change-id>
 openspec-orch graph check-scope <change-id> --repo <repository-id>...
 ```
 
-Продолжать разрешено только при `state: ready` и `authoritative: true`.
+Агент сопоставляет `direct_repositories` с Repository Impact, Design и Tasks.
 `missing_required_repositories`, `missing_delta_specs` и `unmapped_master_specs` —
 BLOCKER. `dependent_repositories` и `review_repositories` являются кандидатами для
-проверки и ЗАПРЕЩЕНЫ к автоматическому добавлению в implementation scope.
+адресной проверки и ЗАПРЕЩЕНЫ к автоматическому добавлению в implementation scope.
 `publishes_to` описывает топологию event contract и сам по себе не добавляет
 Repository в impact или review.
+
+Перед Gate 1 агент вызывает `openspec-base-graph-maintenance` для КАЖДОЙ directly
+changed Master Spec и сверяет её постоянные `implemented_by`. Если точное evidence
+уже существует и изменение разрешено, агент добавляет минимальную связь в
+`openspec/graph.yaml`, пересобирает Graph и повторяет проверки. Если владелец
+реализации неоднозначен, агент ЗАПРЕЩЕНО угадывать связь: решение принимает Владелец
+или назначенный архитектурный owner, после чего агент фиксирует подтверждённый
+результат.
 
 Для принятого `skip_specs` без Delta Specs `graph impact` и `graph check-scope`
 помечаются как `not_applicable`; Repository Impact и Tasks sections проверяются
 напрямую. Создавать фиктивную Delta Spec ЗАПРЕЩЕНО.
+
+#### Apply и изменение scope
+
+После Gate 1 Graph используется агентом как источник принятого repository scope и
+контекста impact. Сам Plugin не выполняет checkout, не меняет код, не запускает
+тесты, не вызывает CodeGraph и не отмечает Tasks.
+
+Если во время Apply обнаружено, что нужен ещё один Repository или меняется другая
+capability, агент останавливает реализацию и возвращает Change в Planning. После
+обновления Delta Specs, Repository Impact, Design и Tasks он заново выполняет
+`build`, `impact`, `check-scope`, сверку `implemented_by` и Gate 1. Добавлять
+Repository только в Cycle или Tasks в обход Graph-проверки ЗАПРЕЩЕНО.
+
+#### Участие в Change Tracking
+
+Change Tracking не вызывает Graph и не вычисляет impact автоматически. Перед
+`assign` агент ОБЯЗАН выполнить `graph check-scope` для точного принятого набора
+repositories. Пользователь выбирает Standard Apply или создание Cycle, а также
+подтверждает preview `assign`; Graph этого решения не принимает.
+
+После создания Cycle изменение topology-входов Graph или repository scope требует
+повторной Graph-проверки. Изменение Planning, нарушающее planning integrity, отдельно
+инвалидирует Cycle по правилам Change Tracking.
+
+#### Archive и post-Archive handoff
+
+Пользователь принимает Gate 2, Gate 3 и решение об Archive. Агент может выполнить
+`/opsx-archive <change-id>` только после такого разрешения; Graph не инициирует
+Archive.
+
+Перед Archive агент выполняет preflight, `impact`, проверку prerequisite Changes,
+`check-scope` и повторную сверку `implemented_by`. После штатного Archive агент
+ОБЯЗАН:
+
+1. выполнить новый `graph build` и получить `ready`/`authoritative`;
+2. прочитать `graph impact <change-id>` уже для архивного Change;
+3. выполнить `graph inspect` каждой directly changed Master Spec;
+4. подтвердить, что актуальные постоянные `implemented_by` сохранены.
+
+Post-Archive failure не откатывает уже выполненный Archive, но Graph handoff остаётся
+незавершённым до устранения ошибки.
+
+#### Кто запускает команды
+
+| Действие | Агент | Пользователь |
+| --- | --- | --- |
+| Установить и подключить Plugin | Только по явному запросу | Принимает решение и указывает Store |
+| Проверить status и пересобрать stale index внутри Planning/Archive | Выполняет без отдельного напоминания | Выполняет сам, если работает без агента |
+| Выполнить `inspect`, `impact`, `check-scope` | Выполняет на соответствующем этапе flow | Может запускать вручную для анализа |
+| Изменить явную связь в `graph.yaml` | Делает минимальный edit только с evidence и разрешением | Подтверждает неоднозначную семантику и новую архитектурную связь |
+| Создать или изменить Cycle | Не делает автоматически | Выбирает режим и подтверждает `assign` |
+| Запустить Archive | Только после явного разрешения | Принимает Gate и решение об Archive |
+| Запустить `graph view` | Только по запросу на демонстрацию или UI-проверку | Обычно запускает и останавливает локальный viewer сам |
+
+#### Viewer и видимые связи
+
+Пользователь запускает read-only интерфейс из корня Store:
+
+```bash
+openspec-orch graph view
+```
+
+Команда работает до `Ctrl-C` и принимает только свежий `ready` index. Агент запускает
+долгоживущий viewer только по явному запросу пользователя либо когда UI-проверка
+прямо входит в задачу.
+
+По умолчанию видны три основных слоя: Repository, Master Spec и Change. Delta Specs
+скрыты. Поэтому impact показывается короткой агрегированной связью
+`Change → affects → Master Spec`, а постоянная связь
+`Master Spec → implemented_by → Repository` остаётся видимой.
+
+При включении слоя Delta Spec viewer для каждой раскрытой цепочки динамически скрывает
+дублирующую `affects` и показывает подробный путь:
+
+```text
+Change → contains → Delta Spec → changes → Master Spec
+                         └────── targets ──────→ Repository
+Master Spec ───────── implemented_by ─────────→ Repository
+```
+
+Таким образом, `affects` не исчезает из модели: оно скрывается только тогда, когда тот
+же impact уже виден через Delta Spec. `targets` отвечает за scope конкретного Change,
+а `implemented_by` — за постоянную связь capability с Repository. Кнопка сброса
+возвращает основные три слоя и снова показывает агрегированную `affects`.
 
 ### CodeGraph
 
@@ -145,6 +351,9 @@ CodeGraph evidence подтверждает только текущую реал
 - OpenSpec Change проходит строгую валидацию;
 - Proposal, Delta Specs, Design и Tasks согласованы между собой;
 - OpenSpec Graph свежий, а repository scope проверен после Delta Specs;
+- для каждой непосредственно изменяемой Master Spec подтверждена постоянная связь
+  `implemented_by` с Repository, который остаётся местом реализации capability;
+  Change-scoped `targets` НЕ ЗАМЕНЯЕТ эту связь;
 - Repository Impact, Design и Tasks содержат одинаковый набор `repository-id` только
   для репозиториев с планируемыми изменениями;
 - каждый новый или изменённый Scenario имеет план проверки;
@@ -320,11 +529,19 @@ Delta Specs и перемещения Change.
      repository sections напрямую;
 4. устранить missing, unmapped и extra repositories;
 5. review-кандидата добавить в scope только после подтверждения реального изменения и
-   повторного Planning/Gate 1.
+   повторного Planning/Gate 1;
+6. через `openspec-base-graph-maintenance` проверить КАЖДУЮ directly changed Master
+   Spec: `targets` показывает scope этого Change, но НЕ ЯВЛЯЕТСЯ постоянным mapping.
+   Подтверждённый Repository, который остаётся местом реализации capability, ОБЯЗАН
+   иметь явную `Master Spec → implemented_by → Repository`. Временный target,
+   review-only и no-change Repository добавлять ЗАПРЕЩЕНО. Неопределённый владелец
+   реализации блокирует Archive handoff и требует решения владельца.
 
 После Archive Graph ОБЯЗАН быть пересобран, потому что применение Delta Specs и
-перемещение Change изменяют входы проекции. Пока `graph status --json` не вернул
-`ready` и `graph impact` не прочитан для архивного Change, Graph handoff считается
+перемещение Change изменяют входы проекции. Затем агент ОБЯЗАН повторно выполнить
+`graph impact` и `graph inspect` для каждой directly changed Master Spec и подтвердить
+её постоянные `implemented_by`. Пока `graph status --json` не вернул `ready`, impact
+архивного Change не прочитан и mapping не подтверждён, Graph handoff считается
 незавершённым. Ошибка post-build не откатывает уже выполненный штатный Archive.
 
 Jira, CI, Zephyr, Confluence и другие внешние системы остаются adapters команды и не

@@ -13,6 +13,8 @@ import {
   createRepositoryCheckout,
 } from "@openspec-orch/core";
 
+import { createDirectoryLink } from "../fixtures/filesystem.js";
+
 /** Создаёт Store checkout для state tests. */
 async function stateFixture(t) {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-core-state-"));
@@ -72,8 +74,8 @@ test("CoreStateStore rejects unsupported version and symlink state", async (t) =
   await assert.rejects(store.read(), /contract_version 1/);
 
   await fs.rm(target);
-  const outside = path.join(root, "outside.json");
-  await fs.writeFile(outside, JSON.stringify({ contract_version: 1, workspace: null }), "utf8");
-  await fs.symlink(outside, target);
+  const outside = path.join(root, "outside-state");
+  await fs.mkdir(outside);
+  await createDirectoryLink(outside, target);
   await assert.rejects(store.read(), /обычным файлом/);
 });

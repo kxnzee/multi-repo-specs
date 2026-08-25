@@ -14,6 +14,8 @@ import {
   WorkspaceResolver,
 } from "@openspec-orch/core";
 
+import { createDirectoryLink } from "../fixtures/filesystem.js";
+
 /** Создаёт изолированный временный каталог для path tests. */
 async function temporaryDirectory(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-core-workspace-"));
@@ -105,7 +107,7 @@ test("workspace rejects a symlink instead of accepting an aliased root", async (
   const real = path.join(root, "real");
   const link = path.join(root, "link");
   await fs.mkdir(real);
-  await fs.symlink(real, link, "dir");
+  await createDirectoryLink(real, link);
 
   await assert.rejects(
     workspace.resolve({

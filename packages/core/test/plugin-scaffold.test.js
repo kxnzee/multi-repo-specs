@@ -10,13 +10,14 @@ import test from "node:test";
 import { execa } from "execa";
 import { PluginLoader, PluginScaffoldService } from "@openspec-orch/core";
 
+import { createDirectoryLink } from "../fixtures/filesystem.js";
 import { PLUGIN_SDK_ROOT } from "./helpers/plugin-materializer.js";
 
 /** Делает публичный SDK доступным созданному локальному package без npm registry. */
 async function linkSdk(packageRoot) {
   const scope = path.join(packageRoot, "node_modules", "@openspec-orch");
   await fs.mkdir(scope, { recursive: true });
-  await fs.symlink(PLUGIN_SDK_ROOT, path.join(scope, "plugin-sdk"), "dir");
+  await createDirectoryLink(PLUGIN_SDK_ROOT, path.join(scope, "plugin-sdk"));
 }
 
 test("PluginScaffoldService creates a native SDK package without legacy files", async (t) => {

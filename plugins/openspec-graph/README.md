@@ -159,10 +159,18 @@ Changes постоянно находятся на canvas и образуют к
 
 Delta Specs всегда отображаются компактными кластерами вокруг своих Changes — так
 же, как Master Specs группируются вокруг Repository. Связи от Delta Specs к Master
-Specs показывают точные операции `ADDED`, `MODIFIED`, `REMOVED` и `RENAMED`. Четыре
-чекбокса позволяют независимо скрыть Repository, Master Spec, Change или Delta Spec;
-по умолчанию включены все группы. Вместе со скрытыми узлами исчезают их рёбра;
-расположение остальных групп не перестраивается.
+Specs показывают точные операции `ADDED`, `MODIFIED`, `REMOVED` и `RENAMED`. При
+включённом слое Delta Spec связи `Delta Spec → targets → Repository` сохраняют
+видимый путь до scope Change. Они не заменяют постоянные
+`Master Spec → implemented_by → Repository`.
+
+Четыре чекбокса позволяют независимо скрыть Repository, Master Spec, Change или
+Delta Spec. По умолчанию видны Repository, Master Spec и Change, а подробный слой
+Delta Spec выключен. В этом режиме агрегированная связь `Change → affects → Master
+Spec` сохраняет видимый impact-путь. При включении соответствующей Delta Spec viewer
+динамически скрывает дублирующую `affects` и показывает подробную цепочку
+`Change → Delta Spec → Master Spec` вместе с `targets` до Repository. Вместе со
+скрытыми узлами исчезают их рёбра; расположение остальных групп не перестраивается.
 
 Выбор Change фокусирует его impact. Фиолетовая рамка обозначает напрямую изменяемые
 Master Specs, бирюзовая — зависимые Master Specs с потенциальным downstream-влиянием.

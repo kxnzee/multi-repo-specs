@@ -16,6 +16,8 @@ import {
   StoreTarget,
 } from "@openspec-orch/core";
 
+import { createDirectoryLink } from "../fixtures/filesystem.js";
+
 /** Создаёт изолированный Store checkout fixture. */
 async function storeFixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-core-storage-"));
@@ -39,7 +41,9 @@ test("AtomicWriter replaces a regular file without leaving temporary files", asy
 
   assert.equal(await fs.readFile(target, "utf8"), "after");
   assert.deepEqual(await fs.readdir(root), ["state.json"]);
-  await fs.symlink(path.join(root, "outside.json"), path.join(root, "linked.json"));
+  const outside = path.join(root, "outside");
+  await fs.mkdir(outside);
+  await createDirectoryLink(outside, path.join(root, "linked.json"));
   await assert.rejects(
     new AtomicWriter().write(path.join(root, "linked.json"), "blocked"),
     /ATOMIC_WRITE_UNSAFE/,
@@ -154,7 +158,7 @@ test("PluginStorage fails closed for invalid data, envelope and symlink paths", 
   const outside = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-storage-outside-"));
   t.after(() => fs.rm(outside, { recursive: true, force: true }));
   await fs.writeFile(path.join(outside, "state.json"), "{}", "utf8");
-  await fs.symlink(outside, path.join(root, ".openspec-orch/plugins/demo"), "dir");
+  await createDirectoryLink(outside, path.join(root, ".openspec-orch/plugins/demo"));
   await assert.rejects(storage.read(), /PLUGIN_STORAGE_CORRUPTED/);
 });
 

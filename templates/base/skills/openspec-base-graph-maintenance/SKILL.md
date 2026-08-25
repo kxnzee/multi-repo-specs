@@ -1,12 +1,14 @@
 ---
 name: openspec-base-graph-maintenance
-description: Проверить или точечно обновить подтверждённые явные связи OpenSpec Graph в центральном Store. Использовать для аудита, добавления, изменения или удаления конкретной explicit edge в openspec/graph.yaml. Не использовать как общий способ routine refresh и не редактировать Master Specs, Delta Specs, Cycle или внутренние связи CodeGraph.
+description: Проверить или точечно обновить подтверждённые явные связи OpenSpec Graph в центральном Store, включая обязательную сверку persistent implementation mapping для одного точного Change перед Gate 1 и после Archive. Использовать для аудита, добавления, изменения или удаления explicit edges в openspec/graph.yaml. Не использовать как общий способ routine refresh и не редактировать Master Specs, Delta Specs, Cycle или внутренние связи CodeGraph.
 ---
 
 # Обслуживание OpenSpec Graph
 
-- ОБЯЗАН работать только с одной явно запрошенной explicit edge и подтверждённым
-  Store-relative evidence.
+- ОБЯЗАН работать либо с одной явно запрошенной explicit edge, либо с ограниченным
+  набором `implemented_by` для непосредственно изменяемых Master Specs одного точного
+  `change-id`. Для каждой entry ОБЯЗАТЕЛЬНО отдельное подтверждённое Store-relative
+  evidence.
 - ЗАПРЕЩЕНО угадывать relation, автоматически расширять scope, открывать Code
   Repository или исправлять соседние данные ради успешного build.
 - Нет точного node ID, evidence, ready/authoritative Graph или разрешённого edit — это
@@ -32,6 +34,10 @@ agents. Работать только в центральном Store и не о
 - Не записывать выводимые связи `Store → Repository`, Change/Delta containment и
   Delta Spec → Master Spec `changes` с операциями `ADDED`, `MODIFIED`, `REMOVED` или
   `RENAMED`: Plugin строит их из авторитетных файлов автоматически.
+- `Delta Spec → Repository targets` описывает scope одного Change и НИКОГДА не
+  заменяет постоянную связь `Master Spec → Repository implemented_by`. ЗАПРЕЩЕНО
+  автоматически копировать `targets` в `implemented_by`: сначала требуется
+  подтверждение постоянного владельца реализации.
 - Сохранять пользовательские и несвязанные изменения в рабочем дереве. Менять только
   запрошенные entries `openspec/graph.yaml`; не сортировать и не форматировать
   остальные entries без необходимости.
@@ -76,6 +82,31 @@ agents. Работать только в центральном Store и не о
    либо подтверждения, что её evidence больше не поддерживает утверждение; не
    удалять соседние edges.
 
+## Обязательная сверка implementation mapping для Change
+
+Перед Gate 1 и повторно после Archive для одного точного `change-id` ОБЯЗАН:
+
+1. Выполнить `graph impact <change-id>` и получить полный список
+   `direct_master_specs`, `delta_specs` и `direct_repositories`.
+2. Для КАЖДОЙ directly changed Master Spec выполнить `graph inspect <node-id>` и
+   перечислить существующие `implemented_by`. Наличие `targets` НЕ ЗАСЧИТЫВАТЬ как
+   implementation mapping.
+3. Сопоставить только репозитории, где принятые Repository Impact и Tasks требуют
+   реального изменения. Review-only, verification-only, соседние и строки без
+   изменений ЗАПРЕЩЕНО превращать в `implemented_by`.
+4. Если подтверждено, что Repository остаётся местом реализации capability, а
+   `implemented_by` отсутствует, найти уже существующее evidence в Proposal, Design,
+   принятом Store context или другом Store artifact. Добавить точную edge в рамках
+   того же bounded edit. ЗАПРЕЩЕНО дописывать технические детали в Master Spec или
+   создавать evidence-файл ради Graph build.
+5. Если постоянный владелец реализации не подтверждён либо Change затрагивает
+   Repository только временно, НЕМЕДЛЕННО вернуть BLOCKER владельцу решения. Не
+   угадывать mapping и не считать Graph handoff завершённым.
+6. После Archive повторить build/status/impact/inspect по архивному Change. Для каждой
+   текущей directly changed Master Spec ОБЯЗАТЕЛЬНА хотя бы одна подтверждённая
+   `implemented_by`, кроме явно принятого owner decision о capability без Code
+   Repository. Такое исключение ОБЯЗАНО иметь причину, владельца и evidence.
+
 ## Изменение и пересборка
 
 В `edit` применить минимальный patch только к `openspec/graph.yaml`. Сохранять
@@ -115,6 +146,7 @@ graph_maintenance:
   build: not_run | passed | failed
   status_after: ready | stale | invalid | unavailable | not_configured | not_checked
   affected_changes: []
+  implementation_mappings_checked: []
   blockers: []
 ```
 

@@ -65,8 +65,9 @@ const overviewScale = graph.nodes.length > 800 ? 0.3 : graph.nodes.length > 300 
 const graphNodes = new Map(graph.nodes.map((node) => [node.id, node]));
 const graphEdges = new Map(graph.edges.map((edge) => [edge.id, edge]));
 const filterableNodeTypes = ["repository", "master-spec", "change", "delta-spec"];
+const defaultVisibleNodeTypes = new Set(["repository", "master-spec", "change"]);
 const defaultNodeIds = new Set(graph.nodes
-  .filter(({ type }) => filterableNodeTypes.includes(type))
+  .filter(({ type }) => defaultVisibleNodeTypes.has(type))
   .map(({ id }) => id));
 const deltaIdsByChange = new Map(graph.nodes
   .filter(({ type }) => type === "change")
@@ -78,6 +79,15 @@ for (const edge of graph.edges) {
   }
 }
 for (const deltaIds of deltaIdsByChange.values()) deltaIds.sort();
+const deltaPathIdsByChangeMaster = new Map();
+for (const edge of graph.edges) {
+  if (edge.relation !== "changes") continue;
+  const delta = graphNodes.get(edge.source);
+  if (delta?.type !== "delta-spec") continue;
+  const key = `change:${delta.change_id}\0${edge.target}`;
+  if (!deltaPathIdsByChangeMaster.has(key)) deltaPathIdsByChangeMaster.set(key, []);
+  deltaPathIdsByChangeMaster.get(key).push(delta.id);
+}
 
 /** Converts one technical identifier segment to a display name. */
 function humanizeSegment(value) {
@@ -173,8 +183,7 @@ function impactForChange(changeNodeId) {
 
 /** Returns whether one edge belongs to the exact default graph. */
 function isDefaultEdge(edge) {
-  if (!defaultNodeIds.has(edge.source) || !defaultNodeIds.has(edge.target)) return false;
-  return edge.relation !== "affects" && edge.relation !== "targets";
+  return defaultNodeIds.has(edge.source) && defaultNodeIds.has(edge.target);
 }
 
 /** Returns the deterministic local offset of one Delta Spec from its Change. */
@@ -750,14 +759,20 @@ function syncLayerCount() {
   layerCount.textContent = `${typeFilters.filter(({ checked }) => checked).length}/${typeFilters.length}`;
 }
 
+/** Returns whether an affects edge is represented by a currently visible Delta path. */
+function hasVisibleDeltaPath(edge) {
+  const deltaIds = deltaPathIdsByChangeMaster.get(`${edge.source}\0${edge.target}`) ?? [];
+  return deltaIds.some((deltaId) => visibleNodeIds.has(deltaId));
+}
+
 /** Determines if an edge belongs to the current filtered visual state. */
 function edgeIsVisible(edge) {
   if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) return false;
   const sourceType = graphNodes.get(edge.source)?.type;
   const targetType = graphNodes.get(edge.target)?.type;
   if (sourceType === "store" || targetType === "store") return false;
-  if (edge.relation === "affects") return false;
-  return edge.relation !== "targets" || focusedEdgeIds.has(edge.id);
+  if (edge.relation === "affects") return !hasVisibleDeltaPath(edge);
+  return true;
 }
 
 /** Updates edge visibility and focus without changing graph positions. */
@@ -1002,7 +1017,7 @@ for (const filter of typeFilters) {
 }
 document.getElementById("reset-view").addEventListener("click", () => {
   search.value = "";
-  for (const filter of typeFilters) filter.checked = true;
+  for (const filter of typeFilters) filter.checked = defaultVisibleNodeTypes.has(filter.value);
   syncLayerCount();
   layersMenu.open = false;
   network.unselectAll();

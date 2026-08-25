@@ -12,6 +12,8 @@ import {
   PluginLoader,
 } from "@openspec-orch/core";
 
+import { createDirectoryLink } from "../fixtures/filesystem.js";
+
 const SAMPLE_ROOT = await fs.realpath(fileURLToPath(
   new URL("../../../test-fixtures/plugin-sdk/sample-plugin/", import.meta.url),
 ));
@@ -87,9 +89,9 @@ test("PluginLoader rejects package and entrypoint problems before import", async
     return { default: externalPlugin() };
   });
   await fs.rm(path.join(root, "index.js"));
-  const outside = path.join(root, "outside.js");
-  await fs.writeFile(outside, "export default {};\n");
-  await fs.symlink(outside, path.join(root, "index.js"));
+  const outside = path.join(root, "outside-entrypoint");
+  await fs.mkdir(outside);
+  await createDirectoryLink(outside, path.join(root, "index.js"));
 
   await assert.rejects(
     loader.load({ packageRoot: root, pluginId: "external" }),

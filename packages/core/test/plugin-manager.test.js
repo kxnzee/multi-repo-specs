@@ -22,6 +22,7 @@ import {
   PLUGIN_SDK_VERSION,
   SAMPLE_PLUGIN_ROOT,
 } from "./helpers/plugin-materializer.js";
+import { createDirectoryLink } from "../fixtures/filesystem.js";
 
 /** Создаёт изолированный Store checkout. */
 async function storeFixture(t) {
@@ -150,7 +151,7 @@ test("PluginManager fails closed for a busy lock and unsafe runtime directory", 
   await fs.rmdir(lockPath);
   const outside = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-runtime-outside-"));
   t.after(() => fs.rm(outside, { recursive: true, force: true }));
-  await fs.symlink(outside, path.join(root, ".openspec-orch/cache/plugin-runtimes"));
+  await createDirectoryLink(outside, path.join(root, ".openspec-orch/cache/plugin-runtimes"));
   await assert.rejects(manager.install("sample", source), /небезопасный directory segment/);
   assert.equal(installs, 0);
 });
