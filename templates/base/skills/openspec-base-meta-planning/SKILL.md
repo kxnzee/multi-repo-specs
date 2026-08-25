@@ -1,290 +1,141 @@
 ---
 name: openspec-base-meta-planning
-description: Единый мета-skill для проверки отдельных Planning-артефактов, анализа влияния и полного read-only ревью OpenSpec Change. Использовать для стадий proposal, specs, design, tasks, impact-review или planning-review. Маршрутизирует узкие read-only subagents, но не изменяет артефакты и не принимает Gate.
+description: Единая read-only проверка Proposal, Specs, Design, Tasks, impact или полного Planning OpenSpec Change. Использует фактические artifact rules, Graph queries и при необходимости один repository evidence scout; не изменяет артефакты и не принимает Gate.
 ---
 
-# Мета-проверка Planning
+# Meta Planning
 
-Быть единой точкой входа для проверки OpenSpec Planning. Не создавать отдельный
-workflow или промежуточный review-файл и не вызывать другие мета-skills.
+- ОБЯЗАН проверять только фактические rules текущей стадии и подтверждённые sources.
+- ЗАПРЕЩЕНО компенсировать отсутствие evidence догадкой, чтением запрещённого Code
+  Repository, расширением scope или созданием параллельного workflow.
+- Нарушение artifact boundary, нерешённое решение владельца или обязательный rule без
+  evidence означает BLOCKER. НЕМЕДЛЕННО ОСТАНОВИСЬ и не возвращай ready.
+
+Проверить одну стадию: proposal, specs, design, tasks, impact-review или
+planning-review. Не создавать параллельный workflow и не повторять содержательные
+правила артефактов из openspec/config.yaml.
 
 ## Границы
 
-- Работать только на чтение. Не изменять Change, Master Specs, код, тесты или Tasks.
-- Не изменять schema и встроенные `openspec-*` skills или `opsx-*` commands.
-- Быть единственным project meta-skill и единственным skill, который оркестрирует
-  другие project skills и Planning subagents. Не передавать им право дальнейшего
-  вызова skills, commands или subagents.
-- Не считать результат approval, Gate, Verification Receipt или доказательством
-  реализации.
-- Не запускать все проверки по умолчанию: выбирать минимальный набор по стадии,
-  подтверждённым рискам и запросу пользователя.
-- Не выдавать отсутствие evidence за отсутствие проблемы и не считать имя файла,
-  каталога или сервиса доказательством поведения.
-- Не запускать `openspec-orch graph build`: команда изменяет производное Plugin
-  storage и выходит за read-only границу skill. При `stale` или `unavailable`
-  вернуть blocker с точной командой сборки для пользователя.
-- Не вызывать `openspec-base-meta-planning` рекурсивно.
+- Не изменять Change, Master Specs, код, тесты или Tasks.
+- Не изменять schema, встроенные OpenSpec skills/commands и Cycle.
+- Не считать результат approval, Gate или evidence реализации.
+- Не вызывать этот meta-skill рекурсивно.
+- Не запускать все проверки формально: использовать минимальный scope текущей стадии.
 
-## Режим
+Proposal и Specs являются Store-only стадиями. Code Repository, CodeGraph и
+repository evidence scout для них запрещены. На Design, Tasks, impact-review и
+planning-review код разрешён только через один ограниченный scout request.
 
-Использовать явно переданную стадию либо определить её из запроса и текущего
-артефакта:
+## Preflight
 
-- `proposal` — продуктовая постановка и границы Change;
-- `specs` — наблюдаемое поведение и Scenarios;
-- `design` — технические решения и их связь с требованиями;
-- `tasks` — план реализации и evidence;
-- `impact-review` — отдельный доказательный анализ влияния после формирования
-  продуктовой постановки;
-- `planning-review` — сквозная проверка Proposal, Specs, Design и Tasks перед
-  человеческим Gate.
+1. Выполнить openspec status --change <change-id> --json. Использовать возвращённые
+   planningHome, changeRoot, artifactPaths и actionContext.
+2. Для отдельного артефакта выполнить openspec instructions <artifact-id> --change
+   <change-id> --json. Поле rules из этого ответа — единственный содержательный
+   checklist стадии.
+3. Прочитать только существующие outputs, их зависимости и релевантный Store context.
+   Отсутствие ещё не разблокированного следующего артефакта не является finding.
+4. Если существует openspec-orch.yaml, использовать code repository records как
+   точные identity, но не как доказательство impact.
 
-Если режим неоднозначен, остановиться и запросить один режим. Не выполнять здесь
-implementation readiness или PR alignment: их владельцы — соответственно
-`openspec-base-apply-context` и штатный OpenSpec Verify.
+## Graph phase
 
-## Определение контекста
+Перед graph query выполнить status → recovery → status по корневым инструкциям.
+Derived build не нарушает read-only границу Planning, потому что не меняет tracked
+product artifacts.
 
-1. Определить Change и выполнить `openspec status --change "<change-id>" --json` с
-   выбранным `--store`, если он используется.
-2. Использовать `planningHome`, `changeRoot`, `artifactPaths` и `actionContext` из
-   ответа. Прочитать существующие outputs и только относящийся к вопросу project
-   context.
-3. Для стадии артефакта получить `openspec instructions <artifact-id> --change
-   "<change-id>" --json` и проверить `instruction`, `rules`, зависимости и
-   `resolvedOutputPath`. Отсутствие ещё не разблокированных последующих артефактов не
-   считать finding.
-4. Если существует `openspec-orch.yaml`, получить из него точные `repository-id`
-   записей с `roles: [code]`. Реестр подтверждает identity, но не доказывает impact.
-   Технический контекст читать только в checkout соответствующего Code Repository
-   через контракт `openspec-base-repository-evidence-scout`; не смешивать evidence
-   разных revisions.
-5. Проверить `openspec-orch graph status --json`. Relationship учитывать только при
-   состоянии `ready`. При отсутствующей команде, binding, индексе либо состоянии
-   `stale` или `unavailable` вернуть blocker и предложить пользователю выполнить
-   `openspec-orch graph build`; не читать `openspec/graph.yaml` как обход и не
-   достраивать связи по именам.
-6. Выбрать фазу графа по фактическим артефактам Change:
-   - `preliminary` — Delta Specs ещё отсутствуют. Не вызывать `graph impact` или
-     `graph check-scope`: они не могут подтвердить scope без Delta Specs. Получить из
-     Proposal только кандидатные capability paths; для уже существующей capability
-     использовать `openspec-orch graph inspect master-spec:<capability-path>`. Для
-     новой capability явно зафиксировать, что graph node и repository scope появятся
-     после Delta Spec. Любой Repository impact в этой фазе считать гипотезой;
-   - `authoritative` — Delta Specs существуют и прошли применимую OpenSpec
-     валидацию. Вызвать `openspec-orch graph impact <change-id>`. Когда Proposal,
-     Design или Tasks уже содержат точный набор `repository-id`, дополнительно
-     вызвать `openspec-orch graph check-scope <change-id>` с отдельным `--repo` для
-     каждого заявленного репозитория. Не передавать в `check-scope` догадочный набор.
-7. В authoritative-фазе считать `missing_required_repositories`,
-   `missing_delta_specs` и `unmapped_master_specs` из `check-scope` блокирующими.
-   `review_repositories_outside_scope` требует evidence и явного `no-change` либо
-   добавления в scope; `extra_repositories` требует объяснения, но само по себе не
-   является ошибкой. Не включать review-репозитории в scope автоматически.
+До Delta Specs использовать phase preliminary:
 
-## Общий порядок
+- capability candidates брать из Proposal;
+- неизвестный path находить через openspec list --specs --json;
+- для существующей capability разрешён точный graph inspect;
+- не вызывать impact/check-scope и не объявлять Cycle scope.
 
-Для Change с изменением поведения сначала проверить продуктовую постановку:
+После валидных Delta Specs использовать phase authoritative:
 
-1. источник запроса и причина изменения;
-2. затронутые пользователи, роли или внешние системы;
-3. текущее и целевое наблюдаемое поведение;
-4. доменные и бизнес-правила;
-5. scope, Non-Goals и критерии успеха;
-6. вопросы, требующие решения владельца.
+- вызвать graph impact <change-id>;
+- при заявленном implementation scope вызвать graph check-scope с отдельным --repo
+  для каждого точного repository-id;
+- missing_required_repositories, missing_delta_specs и unmapped_master_specs являются
+  blockers;
+- review-only Repository не входит в Repository Impact, Design map, Tasks или Cycle;
+  не требовать для него no-change row или отдельный artifact;
+- если проверка review Repository подтвердила необходимое изменение, вернуть Change
+  в Planning и только тогда добавить его в impact и scope;
+- extra repository требует объяснённой роли;
+- не добавлять review repository в Cycle автоматически.
 
-Для чисто технического Change вместо пользовательского сценария требовать
-инженерную или эксплуатационную проблему и наблюдаемый результат. Код может
-подтвердить текущее поведение и ограничения, но не является источником intent или
-новых требований.
+## Проверка
 
-Если обязательная продуктовая информация отсутствует, вернуть `needs_revision` или
-`blocked` и не переходить к широкому impact-анализу. Задать владельцу один
-необходимый вопрос. Только после согласованной постановки исследовать реализацию и
-архитектурное влияние.
+Сопоставить текущий артефакт с фактическими rules из openspec instructions и
+подтверждёнными зависимостями:
 
-## Проверка по стадии
+- утверждение о целевом поведении проверяется по intent, Proposal и Specs;
+- техническое решение трассируется к Requirement, Scenario или ограничению Proposal;
+- Task трассируется к принятому поведению/решению и плану evidence;
+- repository scope сопоставляется с authoritative Graph;
+- Repository Impact содержит только repositories с планируемыми изменениями и не
+  повторяет весь registry либо review-контур;
+- полный Planning Review проверяет цепочку source → Why/scope → capability →
+  Requirement → Scenario → Design decision → Task → evidence.
 
-### Proposal
+Расхождение целевого Requirement с текущим кодом — implementation gap, а не причина
+переписать Requirement. Код может опровергнуть только утверждение о текущем состоянии
+или технической возможности.
 
-- Проверить Jira или другой источник, Why, пользователей, текущее и целевое
-  поведение, доменные правила, scope, Non-Goals, критерии успеха, capabilities и
-  открытые решения владельца.
-- Использовать `openspec-base-project-context-researcher`, если спорны текущее
-  наблюдаемое поведение или доменные правила в центральном Store. Не передавать ему
-  Code Repository и не использовать context evidence вместо решения владельца.
-- После готовности продуктовой постановки определить только необходимый Repository
-  impact. До появления Delta Specs считать его preliminary и исследовать только
-  кандидатные Master Specs через `graph inspect`; не выдавать его за готовый Cycle
-  scope. Использовать `openspec-base-repository-evidence-scout` с
-  `evidence_kind: implementation`, только если категория влияния зависит от
-  существующего кода или тестов.
-- При реальной неопределённости межсистемного контракта, security, совместимости,
-  миграции, rollout или rollback использовать
-  `openspec-base-repository-evidence-scout` с `evidence_kind: architecture` отдельно
-  для каждой требующей проверки стороны. Межрепозиторный вывод собирает основной
-  агент.
-- Проверить, что Proposal описывает WHY и WHAT. Внутренние файлы, классы, функции,
-  построчное code evidence, точки реализации и выбранный технический способ должны
-  находиться в Design, а не заменять продуктовую постановку.
-- Для каждого рассмотренного Code Repository проверить точный `repository-id`, тип
-  `implementation | tests-only | configuration | documentation | no-change`,
-  ожидаемый результат на границе репозитория и причину.
+Repository finding с path:line остаётся в результате проверки и не переносится в
+Change или долговечный Store context. Если Proposal, Specs, Design или Tasks содержат
+внутренние paths, symbols, code inventory, локальную конфигурацию, команды сборки,
+таблицы или выбранные библиотеки Code Repository, meta-review ОБЯЗАН вернуть BLOCKER и потребовать
+переписать их через наблюдаемое поведение, публичный контракт, системное решение,
+repository-id и проверяемый результат. Публичный нормативный контракт не считается
+внутренней деталью реализации.
 
-### Specs
+Для impact-review проверять только применимые contracts, data, security,
+compatibility, migration, rollout, rollback и verification. Для каждого вывода дать
+Requirement/Scenario или path:line и отделить факт, вывод, конфликт и unknown.
 
-- Проверить соответствие capability из Proposal, наблюдаемость Requirements,
-  однозначность Scenarios и стабильные Scenario ID.
-- После появления валидных Delta Specs перейти к authoritative-фазе графа и вызвать
-  `graph impact`. Проверить совпадение Delta Spec capability paths с прямыми Master
-  Specs. Repository scope на этой стадии может оставаться неполным до Design, но
-  отсутствие capability impact или ошибка графа является finding.
-- Missing Design и Tasks не являются finding этой промежуточной стадии.
-- Привлекать `openspec-base-project-context-researcher` только для одного спорного
-  поведения. Не переносить техническую декомпозицию репозиториев в Requirements и
-  Scenarios.
+## Repository evidence
 
-### Design
+Если на разрешённой стадии нужен current-state факт, вызвать только
+openspec-base-repository-evidence-scout. Передать полный входной контракт его профиля:
+один claim, why_code_needed, evidence_kind, один repository-id, проверенный checkout,
+полный revision, anchors и stop_condition.
 
-- Проверить, что каждое техническое решение связано с Requirement, Scenario или
-  явным ограничением Proposal и объясняет влияние на наблюдаемое поведение.
-- Если Design вводит новое или изменённое поведение, которого нет в Proposal и
-  Specs, считать это `BLOCKER` и вернуть Change к уточнению Planning.
-- Если Repository impact или границы систем изменились после Proposal, выполнить
-  ограниченный impact-review по изменившейся области, не повторяя весь анализ.
-- Сопоставить точный Repository implementation map Design с `graph impact` через
-  `graph check-scope`. Пропущенный прямой репозиторий или непривязанная Master Spec —
-  `BLOCKER`; review-репозиторий вне scope требует evidence и явного `no-change`.
-- Использовать `openspec-base-repository-evidence-scout` с `evidence_kind:
-  architecture` для одного вопроса о принадлежащей репозиторию стороне контракта,
-  совместимости, security, миграции, rollout или rollback; с `evidence_kind:
-  implementation` — только для подтверждения конкретной точки входа.
-- Проверить согласованность Repository implementation map с Proposal и Specs.
+Не просить scout делать межрепозиторный вывод или собирать общий обзор. Если scout
+недоступен, выполнить такой же адресный read/search самостоятельно с теми же
+ограничениями. Store-level context и Planning review основной агент читает сам.
 
-### Tasks
+openspec-base-test-cases применять только по запросу пользователя либо для проверки
+неоднозначного test coverage. Expected result брать из Planning; repository evidence
+может определить только automation placement. При его отсутствии использовать
+automation_placement: unknown.
 
-- Проверить, что задача не добавляет поведение или scope, отсутствующие в принятых
-  Planning-артефактах, а проверка подтверждает наблюдаемый результат там, где он
-  применим.
-- Проверить, что repository sections имеют в заголовке точный `repository-id`. Для
-  общей секции должен быть указан owner либо однозначно определяться primary
-  solution owner из Repository implementation map Design.
-- Повторить `graph check-scope` по точным `repository-id` секций Tasks и проверить,
-  что они не потеряли обязательный Design scope. Дополнительная секция допустима
-  только с объяснённой ролью `tests-only | configuration | documentation` либо иным
-  подтверждённым типом влияния.
-- Если неясны существующие уровни проверки или repository-specific evidence,
-  использовать `openspec-base-repository-evidence-scout` с `evidence_kind:
-  verification` отдельно для каждого репозитория. Не требовать implementation
-  evidence, которого ещё не должно быть на Planning-стадии.
-- Применять `openspec-base-test-cases`, только когда пользователь просит тест-кейсы
-  либо проверка выявила неоднозначное тестовое покрытие. До вызова собрать необходимый
-  repository evidence через scout и передать готовые `repository_evidence` outputs в
-  evidence bundle; `test-cases` не собирает их через subagent самостоятельно. Не
-  создавать нештатный файл автоматически.
+## Findings
 
-### Impact Review
-
-- Не выполнять этот режим до формирования продуктовой постановки. Если она
-  неполна, вернуть Change на стадию Proposal.
-- До Delta Specs выполнять только preliminary impact и явно называть его
-  непригодным для создания Cycle. После Delta Specs использовать authoritative
-  `graph impact`, а при наличии заявленного Repository scope — `graph check-scope`.
-- Прочитать только относящиеся к вопросу Master Specs, ADR, OpenSpec Graph,
-  контракты, конфигурацию, код и тесты.
-- Проверить только применимые области: capability и поведение; системы,
-  репозитории и владельцев данных; API, события, схемы и внешние зависимости;
-  security, privacy и compliance; совместимость и миграцию; rollout, наблюдение,
-  rollback и уровни проверки.
-- Для каждого подтверждённого влияния указать `path:line` или точный
-  Requirement/Scenario. Отделить факт, вывод, конфликт и неизвестное.
-- Для каждого рассмотренного Code Repository указать точный `repository-id`, тип
-  влияния, ожидаемое изменение, evidence и зависимости. Отдельно назвать
-  проверенные `no-change` репозитории.
-- Если требуется отдельное repository-specific исследование, передать repository
-  evidence scout один вопрос и один `repository-id`; не поручать ему собирать
-  межрепозиторный вывод.
-- Сопоставить выводы с Proposal и Design и вернуть findings, но не редактировать
-  артефакты.
-
-### Planning Review
-
-- Прочитать Proposal, все Delta Specs, Design, Tasks, соответствующие Master Specs и
-  применимый project context.
-- Выполнить штатную строгую неинтерактивную валидацию Change и отделить ошибки
-  OpenSpec от семантических findings.
-- Собрать review set: заявленные `repository-id`, подтверждённо затрагиваемые, но
-  пропущенные репозитории, и обоснованные `no-change`.
-- Требовать authoritative graph phase и успешный `graph check-scope` по предлагаемому
-  Cycle set — репозиториям, для которых Planning действительно предусматривает
-  работу. Proposal, Design и Tasks могут содержать разные рассмотренные множества
-  из-за явно обоснованных `no-change`, но пропущенный обязательный репозиторий,
-  Tasks без Design scope или необъяснённое расхождение классификации является
-  `BLOCKER` до человеческого Gate.
-- Проверить трассировку: источник → Why и scope → capability → Requirement →
-  Scenario → Design decision → Task → план evidence.
-- Для каждого репозитория проверить цепочку `Proposal impact → Design map → Tasks →
-  verification plan`, входящие и исходящие контракты, зависимости, порядок работ и
-  симметричность межрепозиторных изменений.
-- Использовать `openspec-base-planning-reviewer` в режиме `planning-review` для
-  одного независимого вопроса о полноте или согласованности. Для недостающего
-  repository-specific evidence использовать `openspec-base-repository-evidence-scout`
-  отдельно по каждому репозиторию. Не запускать все subagents формально.
-
-## Выбор subagents
-
-- Перед применением дополнительного project skill полностью прочитать его
-  `SKILL.md`; перед делегированием subagent прочитать его профиль. Не
-  восстанавливать контракт только по имени.
-- Передавать каждому subagent один вопрос, точный Change, стадию и минимальный scope.
-- Использовать `openspec-base-planning-reviewer` только в `planning-review` перед
-  человеческим Gate либо для одного конкретного спорного finding, где требуется
-  независимое второе мнение. Не запускать его как обязательное продолжение каждой
-  стадийной проверки.
-- Для context researcher и planning reviewer передавать абсолютный Planning Home и
-  точный список разрешённых источников; planning reviewer дополнительно получает
-  минимальный уже собранный evidence bundle.
-- Для repository-specific вопроса полностью прочитать профиль
-  `openspec-base-repository-evidence-scout` и сформировать его обязательный вход. Если
-  входной контракт не выполнен, не запускать исследование.
-- Не сообщать subagent предполагаемый ответ. Передавать исходный артефакт и вопрос,
-  чтобы получить независимое evidence.
-- Если нужный subagent недоступен, выполнить адресное read/search самостоятельно и
-  явно назвать fallback. Repository-specific fallback обязан соблюдать входной
-  контракт профиля `openspec-base-repository-evidence-scout`. Отсутствие subagent само
-  по себе не блокирует проверку.
-
-## Решение
-
-Удалить дубликаты findings и классифицировать их:
-
-- `BLOCKER` — артефакт противоречит подтверждённому intent, требованию, коду,
-  контракту или обязательному правилу либо требует решения владельца;
-- `WARNING` — риск или недостаток evidence должен быть явно принят;
-- `NOTE` — улучшение, не мешающее следующему Planning-шагу.
+- BLOCKER — противоречие intent, Requirement, публичному контракту или обязательному
+  rule либо нерешённое решение владельца.
+- WARNING — риск или недостаток evidence требует явного принятия.
+- NOTE — улучшение, не блокирующее следующий Planning step.
 
 Вернуть на русском:
 
-```yaml
+~~~yaml
 meta_planning:
   change: <change-id>
   stage: proposal | specs | design | tasks | impact-review | planning-review
   graph_phase: preliminary | authoritative
-  graph_status: ready | stale | unavailable | not_configured
+  graph_status: ready | stale | unavailable | invalid | not_configured
   scope_check: not_applicable | ready | invalid
   checks_used: []
-  subagents_used: []
-  findings:
-    blockers: 0
-    warnings: 0
-    notes: 0
+  repository_scout_used: false
+  findings: { blockers: 0, warnings: 0, notes: 0 }
   check_status: ready | needs_revision | blocked
   next_action: continue | revise_current_artifact | request_owner_decision
-```
+~~~
 
-После блока привести только относящиеся к выбранной стадии findings с evidence
-`path:line` или Requirement/Scenario и требуемым решением. Для `impact-review`
-добавить краткую матрицу влияния и репозиториев; для `planning-review` — краткую
-матрицу трассируемости и покрытия репозиториев. `ready` означает только отсутствие
-найденных препятствий в прочитанном scope, а не approval или успешную реализацию.
+После блока вывести только findings текущей стадии с evidence и требуемым решением.
+Для impact-review добавить impact/repository matrix, для planning-review —
+traceability/repository coverage matrix. ready не является approval или
+подтверждением реализации.

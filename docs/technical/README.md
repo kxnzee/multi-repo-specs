@@ -8,13 +8,12 @@
 
 1. [Продуктовый контракт](product-contract.md) — нормативные границы, термины и
    текущие файловые контракты.
-2. [План реализации](implementation-plan.md) — техническая декомпозиция реализации
-   v1.
-3. [External Integrations](external-integrations.md) — границы Jira, Zephyr и
+2. [External Integrations](external-integrations.md) — границы Jira, Zephyr и
    Confluence до появления event Plugin API.
-4. [Разработка Core](development.md) — структура исходного кода и проверки.
-5. [Backlog после пилота](../../BACKLOG.md) — кандидаты развития, которые не входят в
+3. [Разработка Core](development.md) — структура исходного кода и проверки.
+4. [Backlog](../../BACKLOG.md) — кандидаты развития, которые не входят в
    текущую версию.
 
-Исторические проекты и планы не дополняют текущий контракт и находятся только в
+Исторические планы и audits удалены из рабочего дерева; их provenance остаётся в Git.
+Единственное защищённое историческое reference описано в
 [`docs/archive/`](../archive/README.md).

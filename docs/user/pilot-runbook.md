@@ -4,14 +4,16 @@
 
 Статус: **актуальный сценарий пилота**.
 
-Runbook проверяет две гипотезы:
+Runbook проверяет три гипотезы:
 
 1. Cycle сохраняет, какие репозитории и какая версия планирования приняты для Change.
 2. Snapshot не даёт перепутать точные версии frontend и backend при общей проверке.
+3. Слабый агент формирует Intent, Proposal и Delta Specs без чтения Code Repositories,
+   а свежий OpenSpec Graph детерминированно определяет межрепозиторный scope до Apply.
 
 Пилот рассчитан на одного инженера, одну машину, один Store и два Code Repository.
-Команды соответствуют реализованной v1 и её
-[плану реализации](../technical/implementation-plan.md).
+Команды соответствуют текущему интегрированному product flow и нормативному
+[контракту Core и Change Tracking](../technical/product-contract.md).
 
 ## 1. Выбор реального Change
 
@@ -31,15 +33,17 @@ Runbook проверяет две гипотезы:
 ORCH_CLI_ROOT=/absolute/path/to/multi-repo-specs
 ORCH_WORKSPACE_ROOT=/absolute/path/to/pilot-workspace
 ORCH_STORE_ROOT=/absolute/path/to/pilot-workspace/specs
+ORCH_STORE_ID=specs
 ORCH_CHANGE_ID=checkout-flow
+ORCH_CAPABILITY_ID=conference/visitors
 ORCH_FRONTEND_ID=frontend
 ORCH_BACKEND_ID=backend
 ORCH_CHANGE_KEY=$(node -e 'process.stdout.write(Buffer.from(process.argv[1], "utf8").toString("base64url"))' "$ORCH_CHANGE_ID")
 ORCH_CYCLE_PATH=".openspec-orch/changes/${ORCH_CHANGE_KEY}.json"
 ```
 
-Пилот запускать из чистой закоммиченной ревизии Orchestrator. Во время пилота
-продуктовый контракт, план реализации и runbook не редактировать;
+Пилот запускать из чистой закоммиченной ревизии Orchestrator. Во время одного
+зафиксированного прогона продуктовый контракт и runbook не редактировать;
 наблюдения записывать только в `docs/user/pilot-feedback.md`.
 
 ## 2. Установка и подключение
@@ -70,6 +74,54 @@ openspec-orch repository status
 - рабочие копии чистые;
 - `repository status` ничего не изменил и не выполнил сетевых операций.
 
+### 2.1. Подключение OpenSpec Graph и CodeGraph
+
+Из Store инициализировать Plugins и связать их только с принадлежащими им
+repositories:
+
+```bash
+cd "$ORCH_STORE_ROOT"
+openspec-orch plugin init --plugin openspec-graph --plugin codegraph
+openspec-orch plugin connect openspec-graph --repo "$ORCH_STORE_ID"
+openspec-orch plugin connect codegraph \
+  --repo "$ORCH_FRONTEND_ID" \
+  --repo "$ORCH_BACKEND_ID"
+openspec-orch graph build
+openspec-orch graph status --json
+```
+
+Ожидается `state: ready`, `authoritative: true`. CodeGraph status проверяется отдельно
+для frontend и backend; его отсутствие не меняет Requirements и не блокирует
+Store-only Planning.
+
+### 2.2. Intent, Planning и authoritative impact
+
+Запустить агента из Store root и сформировать Intent через `base-intent`. До принятия
+Proposal и Delta Specs агенту запрещено открывать frontend/backend или вызывать
+`codegraph_explore`. Если capability path неизвестен, использовать:
+
+```bash
+cd "$ORCH_STORE_ROOT"
+openspec list --specs --json
+openspec-orch graph inspect "master-spec:$ORCH_CAPABILITY_ID"
+```
+
+После подтверждения Владельцем intent создать Proposal и Delta Specs штатным OpenSpec
+workflow. Сразу после записи Delta Specs выполнить:
+
+```bash
+openspec-orch graph build
+openspec-orch graph status --json
+openspec-orch graph impact "$ORCH_CHANGE_ID"
+openspec-orch graph check-scope "$ORCH_CHANGE_ID" \
+  --repo "$ORCH_FRONTEND_ID" \
+  --repo "$ORCH_BACKEND_ID"
+```
+
+Ожидается свежий authoritative impact, отсутствие missing required repositories и
+явное решение по каждому review repository. Негативная проверка пилота: журнал tools
+агента до Delta Specs не содержит чтения Code Repository или CodeGraph.
+
 ## 3. Создание Cycle
 
 Сначала подготовить и закоммитить Change обычным процессом OpenSpec. После этого из
@@ -98,6 +150,12 @@ openspec-orch status "$ORCH_CHANGE_ID"
 вывода `assign`; при несовпадении остановить прогон как дефект контракта.
 
 ## 4. Запись результатов реализации
+
+Перед записью Receipts выполнить штатный Apply отдельно в каждом Code Repository.
+`openspec-base-apply-context` подтверждает Cycle, planning revision и repository-owned
+Tasks; только после этого разрешены локальные инструкции, CodeGraph и адресное чтение
+кода выбранного Repository. Агент не выполняет Tasks другого repository-id и не
+добавляет найденную в коде работу, не связанную с Requirement, Scenario или Design.
 
 Реализация и проектные проверки выполняются вне Orchestrator. После чистого коммита
 frontend получить SHA и записать Receipt:
@@ -157,6 +215,24 @@ openspec-orch status "$ORCH_CHANGE_ID"
 Ожидаемый итог: `status` показывает Cycle, оба Result Receipt, текущий Snapshot,
 Verification Receipt и следующее действие `готово`.
 
+### 5.1. Archive и повторная проекция Graph
+
+После завершения обеих реализаций и ручной проверки выполнить штатный OpenSpec Archive.
+До Archive проверить prerequisites текущего Change, после Archive пересобрать граф:
+
+```bash
+cd "$ORCH_STORE_ROOT"
+openspec-orch graph status --json
+openspec-orch graph impact "$ORCH_CHANGE_ID"
+# Выполнить штатный /opsx-archive для Change.
+openspec-orch graph build
+openspec-orch graph status --json
+openspec-orch graph impact "$ORCH_CHANGE_ID"
+```
+
+Ожидается `state: ready`; архивный Change остаётся доступен для impact, а active
+dependent Changes видны отдельно от prerequisites.
+
 ## 6. Обязательные отрицательные проверки
 
 На отдельном тестовом Change или временных репозиториях проверить безопасные отказы:
@@ -203,5 +279,7 @@ state: Cycle восстанавливается из Git, а Receipts честн
 - чужой Cycle и несуществующий commit отклоняются;
 - одинаковый набор коммитов даёт одинаковый Snapshot;
 - Verification Receipt нельзя привязать к другому Snapshot;
+- Proposal и Delta Specs созданы без Code Repository/CodeGraph;
+- Graph после Delta Specs и Archive возвращает `ready` и детерминированный impact;
 - feedback содержит реальные наблюдения либо явно фиксирует, что повторяющейся боли
   не обнаружено.

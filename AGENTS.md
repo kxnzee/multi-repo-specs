@@ -1,14 +1,12 @@
 # OpenSpec project rules
 
-## Orchestrator Core freeze
+## Orchestrator Core evolution
 
-Until the pilot is completed and reviewed, do not add product capabilities to
-`src/`. Record every proposed Orchestrator enhancement in `BACKLOG.md` instead.
-
-A Core change before the pilot is allowed only for a confirmed defect against the
-current contract or a case that blocks the pilot. Record the observed case in
-`docs/user/pilot-feedback.md`, choose the smallest fix, add a regression test, and avoid
-expanding the eight current operations.
+Core is not frozen. Changes to `packages/core/` and `packages/plugin-sdk/` are allowed
+when their product intent and public contract are accepted, the smallest coherent
+implementation is chosen, and observable behavior is covered by regression tests.
+Unaccepted ideas remain in `BACKLOG.md`; pilot feedback is evidence for prioritization,
+not a prerequisite for every Core change.
 
 ## Change ownership
 

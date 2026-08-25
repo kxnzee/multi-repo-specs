@@ -82,9 +82,48 @@ export function inspectChangeImpact(graph, changeId) {
   const dependentImplementationEdges = graph.edges.filter(
     ({ source, relation }) => dependentMasterIds.has(source) && relation === "implemented_by",
   );
-  const deltaDependencyEdges = graph.edges.filter(
-    ({ source, relation }) => deltaIds.has(source) && relation === "depends_on",
-  );
+  const deltaNodes = graph.nodes.filter(({ type }) => type === "delta-spec");
+  const deltaChangeById = new Map(deltaNodes.map(({ id, change_id: idOfChange }) => (
+    [id, idOfChange]
+  )));
+  const changeDependencies = new Map();
+  const changeDependents = new Map();
+  const deltaDependencyEdges = graph.edges.filter(({ source, relation, target }) => (
+    relation === "depends_on"
+    && deltaChangeById.has(source)
+    && deltaChangeById.has(target)
+  ));
+  for (const edge of deltaDependencyEdges) {
+    const sourceChangeId = deltaChangeById.get(edge.source);
+    const targetChangeId = deltaChangeById.get(edge.target);
+    if (sourceChangeId === targetChangeId) continue;
+    if (!changeDependencies.has(sourceChangeId)) changeDependencies.set(sourceChangeId, new Set());
+    if (!changeDependents.has(targetChangeId)) changeDependents.set(targetChangeId, new Set());
+    changeDependencies.get(sourceChangeId).add(targetChangeId);
+    changeDependents.get(targetChangeId).add(sourceChangeId);
+  }
+
+  /** Returns direct and more distant Change IDs without returning the selected Change. */
+  function traverseChanges(adjacency) {
+    const direct = new Set(adjacency.get(changeId) ?? []);
+    direct.delete(changeId);
+    const transitive = new Set();
+    const visited = new Set([changeId, ...direct]);
+    const pending = [...direct];
+    while (pending.length > 0) {
+      const current = pending.shift();
+      for (const candidate of adjacency.get(current) ?? []) {
+        if (visited.has(candidate)) continue;
+        visited.add(candidate);
+        transitive.add(candidate);
+        pending.push(candidate);
+      }
+    }
+    return { direct, transitive };
+  }
+
+  const prerequisites = traverseChanges(changeDependencies);
+  const dependents = traverseChanges(changeDependents);
   const directRepositoryIds = new Set(
     [...targetEdges, ...directImplementationEdges].map(({ target }) => target),
   );
@@ -102,25 +141,33 @@ export function inspectChangeImpact(graph, changeId) {
   const verificationRepositoryIds = new Set(
     verificationEdges.map(({ source }) => source),
   );
-  const repositoryRelations = new Set(["calls", "depends_on", "publishes_to"]);
-  const repositoryDependencyEdges = graph.edges.filter(({ source, relation, target }) => (
-    repositoryRelations.has(relation)
-    && nodesById.get(source)?.type === "repository"
-    && nodesById.get(target)?.type === "repository"
-    && (totalRepositoryIds.has(source) || totalRepositoryIds.has(target))
-  ));
+  const repositoryDependencyEdges = graph.edges.filter(({ source, relation, target }) => {
+    if (
+      nodesById.get(source)?.type !== "repository"
+      || nodesById.get(target)?.type !== "repository"
+    ) return false;
+    return (relation === "depends_on" || relation === "calls")
+      && totalRepositoryIds.has(target);
+  });
   const relatedRepositoryIds = new Set(repositoryDependencyEdges
-    .flatMap(({ source, target }) => [source, target])
+    .map(({ source }) => source)
     .filter((repositoryId) => !totalRepositoryIds.has(repositoryId)));
   const reviewRepositoryIds = new Set([
     ...verificationRepositoryIds,
     ...relatedRepositoryIds,
   ].filter((repositoryId) => !totalRepositoryIds.has(repositoryId)));
   const allRepositoryIds = new Set([...totalRepositoryIds, ...reviewRepositoryIds]);
-  const dependencyDeltaIds = new Set(deltaDependencyEdges.map(({ target }) => target));
-  const dependencyChangeIds = new Set(graph.nodes
-    .filter(({ id, type }) => type === "delta-spec" && dependencyDeltaIds.has(id))
-    .map(({ change_id: dependencyChangeId }) => `change:${dependencyChangeId}`));
+  const changesFor = (selected) => Object.freeze(graph.nodes.filter(({ type, change_id: id }) => (
+    type === "change" && selected.has(id)
+  )));
+  const prerequisiteChanges = Object.freeze({
+    direct: changesFor(prerequisites.direct),
+    transitive: changesFor(prerequisites.transitive),
+  });
+  const dependentChanges = Object.freeze({
+    direct: changesFor(dependents.direct),
+    transitive: changesFor(dependents.transitive),
+  });
   return Object.freeze({
     change_id: changeId,
     change,
@@ -147,7 +194,12 @@ export function inspectChangeImpact(graph, changeId) {
       graph.nodes.filter(({ id }) => reviewRepositoryIds.has(id)),
     ),
     all_repositories: Object.freeze(graph.nodes.filter(({ id }) => allRepositoryIds.has(id))),
-    dependency_changes: Object.freeze(graph.nodes.filter(({ id }) => dependencyChangeIds.has(id))),
+    prerequisite_changes: prerequisiteChanges,
+    dependent_changes: dependentChanges,
+    dependency_changes: Object.freeze([
+      ...prerequisiteChanges.direct,
+      ...prerequisiteChanges.transitive,
+    ]),
     edges: Object.freeze([
       ...containmentEdges,
       ...affectEdges,

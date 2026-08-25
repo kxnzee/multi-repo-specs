@@ -1,8 +1,9 @@
 # Release process
 
-Релиз должен продвигать тот же artifact, который связан со Snapshot успешного Gate
-3. Замена commit, build или image после проверки создаёт нового кандидата и требует
-повторной проверки.
+Релиз должен продвигать тот же artifact, который прошёл Gate 3. В Standard flow его
+identity задаётся точными commits и ссылкой на artifact в действующем процессе
+команды; при Change Tracking — текущим Snapshot. Замена commit, build или image после
+проверки создаёт нового кандидата и требует повторной проверки.
 
 Центральный контекст хранит общую политику продвижения и отката. Конкретные команды,
 конфигурация, метрики и процедура поставки компонента принадлежат его Code Repository.
@@ -38,21 +39,24 @@ expected_source: Monitoring, runbooks, incidents, or maintainer confirmation
 - Штатный OpenSpec Archive остаётся владельцем применения Delta Specs к Master Specs
   и перемещения Change.
 - До изменения Master Specs требуется свежий OpenSpec Graph, проверка impact, порядка
-  зависимых Changes и соответствия Cycle через `graph check-scope`. Только
-  `CYCLE_NOT_FOUND` разрешает проверить scope по принятым Tasks sections с работой в
-  Code Repository;
+  зависимых Changes и repository scope через `graph check-scope`. При подключённом
+  Change Tracking используется набор repositories Cycle; `CYCLE_NOT_FOUND` разрешает
+  проверить scope по принятым Tasks sections с работой в Code Repository. Если Change
+  Tracking не подключён, его команды не вызываются, а scope сразу берётся из тех же
+  принятых Tasks sections;
   принятый `skip_specs` помечает scope-check как неприменимый без фиктивной Delta Spec.
 - После Archive OpenSpec Graph пересобирается повторно. До `graph status: ready` и
   проверки impact архивного Change Graph handoff остаётся незавершённым; сам
   штатный Archive автоматически не откатывается.
-- При Archive обязательно создаётся или обновляется одна производная копия в
-  Confluence.
+- Если политика проекта требует Confluence, при Archive создаётся или обновляется одна
+  производная копия.
 - Ключ идемпотентности публикации включает Store, `change-id` и archive revision.
 - Confluence-страница содержит ссылку на Jira, архивную Git revision, Specs, Design,
-  Snapshot, release artifact, PR, Zephyr и решения Gate.
+  identity кандидата, release artifact, PR, Zephyr и решения Gate. Snapshot указывается
+  только для Change Tracking flow.
 - При расхождении источником истины остаётся архивная Git revision OpenSpec Store.
-- Сбой публикации не изменяет OpenSpec, но Archive handoff остаётся незавершённым до
-  успешного повтора.
+- Сбой обязательной по project policy публикации не изменяет OpenSpec, но Archive
+  handoff остаётся незавершённым до успешного повтора.
 
 <!-- TODO
 question: Какой Confluence space, parent page и сервисный credential используются для публикации?

@@ -1,116 +1,111 @@
 # Инструкции для агента
 
-## Контекст центрального Store
+## Источники истины
 
-- Текущий репозиторий — центральный OpenSpec Store. Каталог `openspec/` является
-  источником истины для Specs и Changes; прикладной код находится в
-  зарегистрированных Code Repositories.
-- `openspec/context/` хранит подтверждённый долговечный контекст проекта, но не
-  заменяет Requirements и Delta Specs. Для его инициализации и актуализации вызывай
-  команду `/openspec-base-context`.
-- Для списка проверяемых тест-кейсов по конкретному Change используй project skill
-  `openspec-base-test-cases`.
-- Для фасилитации Intent перед переходом к Planning используй самостоятельный
-  project skill `base-intent`. Он помогает сформулировать ценность, ожидаемое
-  улучшение и критерии успеха, но не создаёт Change и не заменяет Proposal.
-- Для проверки текущего Planning-артефакта, анализа влияния и полного ревью Change
-  используй единый meta-skill `openspec-base-meta-planning`; он выбирает режим и
-  маршрутизирует доступные read-only subagents по стадии и рискам.
-- Для аудита, пересборки или точечного изменения подтверждённых явных связей
-  `openspec/graph.yaml` используй leaf-skill `openspec-base-graph-maintenance`. Он не
-  редактирует Specs, Change, Cycle или CodeGraph и не придумывает связи без evidence.
-- Во время штатного OpenSpec Apply используй project skill
-  `openspec-base-apply-context`: при существующем Cycle он подтверждает текущий Code
-  Repository, проверяет planning revision и ограничивает Apply принадлежащими этому
-  репозиторию sections Tasks. Только при `CYCLE_NOT_FOUND` он предлагает standard
-  OpenSpec Apply без Orchestrator либо создание Cycle. Он не заменяет встроенный Apply.
-- `openspec-orch.yaml` описывает конфигурацию Core и реестр репозиториев,
-  `.openspec-store/` — metadata Store.
-- Перед созданием или проверкой Change прочитай из `openspec-orch.yaml` точные
-  `repository-id` записей с `roles: [code]`, затем используй валидированный
-  OpenSpec Graph Plugin для иерархии Store, Repository, Master Spec, Change и Delta
-  Spec, а `openspec/graph.yaml` — для явно подтверждённых связей. Техническое
-  устройство, команды и инженерные ограничения проверяй в checkout и файле
-  инструкций агента соответствующего Code Repository; не копируй их в центральный
-  `openspec/context/`. В Proposal, Design и Tasks разделяй влияние и evidence по этим
-  id; Requirements и Scenarios оставляй capability-oriented и не дублируй по
-  репозиториям.
-- Relationship из `openspec/graph.yaml` читай только после успешной строгой сборки
-  OpenSpec Graph Plugin. Для Change используй `openspec-orch graph impact
-  <change-id>`, для адресного узла — `openspec-orch graph inspect <node-id>`. Не
-  меняй направление, не подставляй похожее имя и не достраивай отсутствующую
-  обратную или транзитивную связь.
-## Границы workspace и файлового доступа
+- Текущий репозиторий — центральный OpenSpec Store. Requirements и Changes
+  принадлежат каталогу openspec/; Code Repositories только реализуют принятые Changes.
+- openspec/context/ содержит подтверждённый долговечный контекст, но не заменяет
+  Requirements. Его обновляет только команда /openspec-base-context.
+- openspec-orch.yaml — реестр точных repository-id. openspec/graph.yaml содержит
+  только explicit relations; типизированную модель читать через OpenSpec Graph Plugin.
+- Локальное устройство, test/build commands и implementation evidence принадлежат
+  конкретному Code Repository и не копируются в Store context.
 
-- Разрешай путь Code Repository только тогда, когда для текущего вопроса действительно
-  требуется repository-specific evidence. Для Store-only задачи не определяй
-  workspace и не открывай Code Repositories.
-- Принимай checkout path только из одного явного источника: разрешённого root текущего
-  runtime/workset, абсолютного пути от пользователя либо результата
-  `openspec-orch repository status --repo <repository-id>`, если задача использует
-  Orchestrator. Не читай `.openspec-orch/state.json` напрямую.
-- Канонизируй переданный путь и проверь, что это корень ожидаемого Git repository. При
-  наличии `openspec-orch.yaml` дополнительно проверь identity по точному
-  `repository-id`. После проверки разрешай чтение только внутри этого checkout, но не
-  в его родительских или соседних каталогах.
-- Не ищи workspace, каталог `src` или checkout по файловой системе. Не запускай
-  `find`, `locate`, recursive glob или аналогичный обход от `/`, домашнего каталога,
-  родителя Store либо другого неразрешённого root и не угадывай возможные пути.
-- Если разрешённый путь отсутствует, недоступен или не прошёл проверку, останови
-  repository-specific исследование со статусом `blocked` и запроси один точный путь
-  либо предложи пользователю выполнить
-  `openspec-orch connect --workspace <absolute-path>`. Не запускай `connect`
-  самостоятельно.
+## КРИТИЧЕСКИЕ ЗАПРЕТЫ
 
-## Взаимодействие с пользователем
+ЭТИ ПРАВИЛА ОБЯЗАТЕЛЬНЫ. Полнота ответа, удобство и желание «добавить контекст» не
+являются оправданием для нарушения.
 
-- Когда для продолжения нужен выбор или уточнение, не проси пользователя формулировать
-  ответ с нуля, если можешь предложить осмысленные варианты из доступного контекста.
-- Предлагай 2–4 конкретных взаимоисключающих варианта, кратко показывай последствия
-  каждого. Помечай вариант как рекомендуемый, только если доступные evidence или
-  правила дают основание для ранжирования, и кратко называй это основание. Если
-  честно выбрать лучший вариант нельзя, показывай варианты нейтрально и называй
-  недостающий критерий.
-- Всегда разрешай ответить номером или коротким подтверждением, а также написать свой
-  вариант, если ни один из предложенных не подходит.
-- Не выдавай предложенные варианты за подтверждённые факты или решения владельца и не
-  скрывай существенную неопределённость. Проси сформулировать ответ самостоятельно
-  только когда доступного контекста недостаточно даже для честных вариантов; в этом
-  случае кратко объясни, какой информации не хватает.
-- Для разрешения на запись, удаление или внешнее действие не помечай согласие как
-  рекомендуемый ответ и не выбирай его по умолчанию. Нейтрально покажи точный scope и
-  последствия, затем предложи подтвердить или отклонить действие.
-- Если процесс требует задавать вопросы по одному, предлагай варианты только для
-  текущего вопроса и не объединяй с ним следующие решения.
+1. НЕ ОТКРЫВАЙ Code Repository или CodeGraph при создании Intent, Proposal,
+   Requirements и Scenarios. Их источники — запрос и решения владельца, Master Specs
+   и подтверждённый Store context.
+2. На Design, Tasks и Apply открывай Code Repository ТОЛЬКО для подтверждения или
+   опровержения одного заранее сформулированного current-state утверждения, проверки
+   совместимости либо реализуемости принятого решения.
+3. ЗАПРЕЩЕНО переносить в Store paths, symbols, модули, таблицы, библиотеки, локальную
+   конфигурацию, build/test commands, code inventory и path:line. Код может подтвердить
+   только constraint, conflict, implementation gap или unknown.
+4. В Store разрешены только наблюдаемое поведение, доменные правила, repository-id,
+   принятые системные решения и публичные контракты.
+5. Если правило нарушено или его нельзя выполнить однозначно, НЕМЕДЛЕННО ОСТАНОВИСЬ.
+   Не завершай артефакт и верни blocker с точной причиной.
+
+## Маршрутизация
+
+- Intent перед Planning: base-intent.
+- Проверка Proposal, Specs, Design, Tasks, impact или полного Planning:
+  openspec-base-meta-planning.
+- Preflight standard или repository-scoped штатного Apply:
+  openspec-base-apply-context.
+- Аудит или точечное изменение explicit edge: openspec-base-graph-maintenance.
+- Трассируемые test cases: openspec-base-test-cases.
+- Инициализация, аудит и обновление Store context: /openspec-base-context.
+
+Artifact rules Proposal/Specs/Design/Tasks находятся только в openspec/config.yaml.
+Не восстанавливай их по краткому описанию skills.
+
+Repository Impact — не инвентаризация registry. ОБЯЗАН указывать ТОЛЬКО Repository,
+где Change требует изменения кода, тестов, конфигурации или документации. ЗАПРЕЩЕНО
+добавлять остальные зарегистрированные, соседние, verification или review-only
+repositories и создавать для них строки no-change. Graph review-кандидат входит в
+Planning ТОЛЬКО после подтверждения, что в нём действительно требуется изменение.
+
+Единственный project subagent — openspec-base-repository-evidence-scout. Он разрешён
+только на Design, Tasks, Apply или при явной проверке current-state conflict из
+context command. Передавай один repository-id, полный Git SHA, один claim,
+why_code_needed, непустые anchors и stop_condition. Основной агент сам читает
+Store-level context и выполняет Planning review; отдельные context/planning subagents
+не используются.
+
+## OpenSpec Graph lifecycle
+
+Перед inspect, impact, check-scope или view:
+
+1. Выполни openspec-orch graph status --json.
+2. При ready и authoritative продолжай.
+3. При stale или unavailable выполни точный next_command, повтори status и продолжай
+   только при ready.
+4. При invalid, отсутствующем binding или неготовом повторном status остановись.
+   Last-known-good допустим только для диагностики.
+
+Graph build меняет только локальный производный Plugin index и является обычной
+частью pre-query workflow. После изменения Delta Spec, Master Spec, registry identity,
+openspec/graph.yaml или Archive выполни build и status. Изменение только кода или
+CodeGraph не требует OpenSpec Graph build.
+
+Если capability path неизвестен, получи список через openspec list --specs --json,
+выбери точный ID и только затем вызывай graph inspect. Не выбирай fuzzy candidate,
+не обращай направление relation и не достраивай отсутствующую связь.
+
+## Доступ к Code Repository
+
+- Открывай Code Repository только для одного конкретного технического утверждения,
+  которое нельзя проверить по Store, Specs, Graph и подтверждённой архитектуре.
+- Путь принимай только из разрешённого runtime/workset root, явного абсолютного пути
+  пользователя или openspec-orch repository status --repo <repository-id>. Не читай
+  .openspec-orch/state.json напрямую.
+- Канонизируй path, проверь Git root, repository identity, полный HEAD и допустимое
+  состояние worktree. Не ищи workspace или checkout обходом файловой системы.
+- Ограничивай чтение одним checkout. Не открывай родительские, соседние repositories
+  и другой repository Cycle в том же evidence request.
+- CodeGraph используй только внутри уже разрешённого Repository и только когда его
+  index соответствует revision. Он ускоряет навигацию, но не доказывает runtime
+  behavior или выполнение проверки.
+
+Если path или revision не подтверждены, останови repository-specific исследование и
+запроси точный путь либо предложи пользователю выполнить openspec-orch connect.
 
 ## Постоянные ограничения
 
-- Создавай, изменяй и архивируй OpenSpec Changes только в центральном Store. Code Repositories реализуют существующие Changes и не создают собственные каталоги `openspec/changes/`.
-- Не изменяй штатные OpenSpec `openspec-*` skills и `opsx-*` commands, созданные
-  `openspec init`. Артефакты `openspec-base-*` принадлежат базовому Project Template.
-- Встроенный OpenSpec skill всегда остаётся владельцем workflow и артефактов. Нативные
-  project subagents используй только для ограниченного read-only исследования; они не
-  создают и не изменяют OpenSpec-артефакты или код.
-- `openspec-base-meta-planning` — единственный project meta-skill: только он может
-  оркестрировать другие project skills и Planning subagents. Единственное исключение
-  вне meta-skill — пользовательская команда `/openspec-base-context`, которая может
-  вызывать только context researcher и repository evidence scout.
-- Остальные project skills являются leaf-артефактами: основной агент или пользователь
-  может выбрать их напрямую, но они не вызывают другие project skills, project
-  commands или subagents.
-- `base-intent` является leaf-skill и не входит в namespace `openspec-base-*`, потому
-  что не обслуживает OpenSpec workflow напрямую.
-- Все project subagents также являются leaf-артефактами, но не пользовательскими
-  точками входа. Их вызывает только `openspec-base-meta-planning`; исключение
-  `/openspec-base-context` ограничено двумя subagents, названными выше. Subagents не
-  вызывают skills, commands или других agents.
-- Имена сабагентов базового Template, обслуживающих OpenSpec workflow, начинаются с
-  `openspec-base-`.
-  Профили без этого префикса являются общими project subagents и не получают
-  OpenSpec-роль автоматически.
-- Не считай вывод project skill решением Gate: approval принимает человек в
-  установленном процессом месте.
-- Не архивируй Change, пока не завершена реализация во всех затронутых Code
-  Repositories и не выполнена ручная проверка. Выполни Graph preflight из
-  `operations.archive.guidance`, а после штатного Archive пересобери OpenSpec Graph;
-  до состояния `ready` Graph handoff не завершён.
+- Не создавай openspec/changes/ в Code Repositories.
+- Не изменяй встроенные openspec-* skills и opsx-* commands.
+- openspec-base-meta-planning — единственный project meta-skill. Остальные skills и
+  repository scout являются leaf-артефактами и не вызывают skills, commands или
+  других agents.
+- /openspec-base-context может вызвать только repository evidence scout и только по
+  его полному входному контракту.
+- Результат skill или subagent не является человеческим Gate.
+- Не выполняй commit, push, merge, release или Archive без явного пользовательского
+  действия или принятого командного процесса.
+- Не архивируй Change до завершения реализации затронутых repositories и ручной
+  проверки. До и после Archive выполни guidance из openspec/config.yaml.

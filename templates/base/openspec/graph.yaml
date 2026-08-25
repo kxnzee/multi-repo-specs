@@ -17,5 +17,9 @@ version: 1
 # operations are derived automatically and must not be duplicated here.
 # Every explicit edge requires at least one existing Store-relative path:line source.
 # `calls` and `publishes_to` also require a named contract.
+# Direction semantics:
+#   source depends_on target      -> target change reviews source
+#   source calls target           -> target contract change reviews source caller
+#   source publishes_to target    -> topology only; no automatic impact or review
 
 edges: []

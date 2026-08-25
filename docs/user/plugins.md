@@ -45,11 +45,17 @@ openspec-orch graph inspect <node-id>
 openspec-orch graph view
 ```
 
-Он строит Store → Repository → Master Spec → Change → Delta Spec projection и не
-пересекается с CodeGraph, который индексирует файлы и символы внутри Code
-Repositories. Формат
+Он строит типизированную Store-level модель: Store содержит Repository, Change
+содержит Delta Spec и влияет на Master Spec, Delta Spec изменяет Master Spec, а
+explicit relations связывают Specs и Repositories. Модель не пересекается с
+CodeGraph, который индексирует файлы и символы внутри Code Repositories. Формат
 `openspec/graph.yaml`, строгие проверки и UI описаны в
 [OpenSpec Graph Plugin](../../plugins/openspec-graph/README.md).
+
+Перед `inspect`, `impact`, `check-scope` или `view` требуется `graph status --json`
+со `state: ready` и `authoritative: true`. Для `stale` или `unavailable` выполните
+`next_command` и повторите status; `invalid` требует исправления inputs. Last-known-
+good предназначен только для диагностики.
 
 `disconnect` удаляет только binding из `openspec-orch.yaml` и не удаляет данные,
 созданные инструментом внутри Repository. `remove` разрешён после отключения Plugin

@@ -50,18 +50,56 @@ export class OpenSpecGraphService {
     if (!stored) {
       return Object.freeze({
         state: "unavailable",
+        authoritative: false,
+        reason: "GRAPH_NOT_BUILT",
+        stored_digest: null,
+        current_digest: null,
+        last_known_good_available: false,
+        nodes: 0,
+        edges: 0,
+        next_command: "openspec-orch graph build",
         details: JSON.stringify({ reason: "GRAPH_NOT_BUILT" }),
       });
     }
-    const current = await this.#project();
-    return Object.freeze({
-      state: stored.source_digest === current.source_digest ? "ready" : "stale",
-      details: JSON.stringify({
+    let current;
+    try {
+      current = await this.#project();
+    } catch (error) {
+      return Object.freeze({
+        state: "invalid",
+        authoritative: false,
+        reason: "CURRENT_INPUTS_INVALID",
         stored_digest: stored.source_digest,
-        current_digest: current.source_digest,
+        current_digest: null,
+        last_known_good_available: true,
         nodes: stored.nodes?.length ?? 0,
         edges: stored.edges?.length ?? 0,
-      }),
+        next_command: "openspec-orch graph build",
+        details: JSON.stringify({
+          reason: "CURRENT_INPUTS_INVALID",
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      });
+    }
+    const ready = stored.source_digest === current.source_digest;
+    const detail = {
+      ...(ready ? {} : { reason: "SOURCE_DIGEST_CHANGED" }),
+      stored_digest: stored.source_digest,
+      current_digest: current.source_digest,
+      nodes: stored.nodes?.length ?? 0,
+      edges: stored.edges?.length ?? 0,
+    };
+    return Object.freeze({
+      state: ready ? "ready" : "stale",
+      authoritative: ready,
+      reason: ready ? null : "SOURCE_DIGEST_CHANGED",
+      stored_digest: stored.source_digest,
+      current_digest: current.source_digest,
+      last_known_good_available: true,
+      nodes: stored.nodes?.length ?? 0,
+      edges: stored.edges?.length ?? 0,
+      next_command: ready ? null : "openspec-orch graph build",
+      details: JSON.stringify(detail),
     });
   }
 

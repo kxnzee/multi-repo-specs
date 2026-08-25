@@ -1,241 +1,149 @@
 ---
 name: openspec-base-apply-context
-description: Выбрать standard или orchestrated режим штатного OpenSpec Apply и подготовить repository-scoped контекст для принятого Cycle. Использовать внутри штатного Apply перед изменением кода, когда Change хранится в центральном Store. При CYCLE_NOT_FOUND предлагать обычный Apply без Orchestrator либо создание Cycle; при существующем Cycle проверять его через OpenSpec Graph, выбирать Tasks текущего репозитория и использовать CodeGraph только для локальной навигации по коду. Не заменять встроенный openspec-apply-change.
+description: Подготовить standard или repository-scoped orchestrated контекст штатного OpenSpec Apply. Не заменяет встроенный openspec-apply-change и не создаёт отдельный implementation workflow.
 ---
 
-# Repository-scoped контекст Apply
+# Apply context
 
-Сохранить обычный OpenSpec Apply доступным для Change без Cycle и ограничить Apply
-текущим Code Repository, когда пользователь включил Orchestrator созданием Cycle.
-Не создавать новый implementation workflow и не изменять встроенные `openspec-*`
-skills или `opsx-*` commands.
+- ОБЯЗАН выполнить весь preflight до передачи управления встроенному Apply.
+- ЗАПРЕЩЕНО писать код, обходить Cycle, подменять ошибку fallback-режимом или
+  продолжать при неподтверждённом Repository scope.
+- Любое невыполненное обязательное условие означает BLOCKER. НЕМЕДЛЕННО ОСТАНОВИСЬ;
+  не угадывай значение и не расширяй scope.
 
-Быть leaf-skill: не вызывать project skills, project commands или subagents.
-Передача подготовленного scope встроенному `openspec-apply-change` не является
-project orchestration.
+Быть leaf-skill: не вызывать project skills, commands или subagents. Передать
+проверенный scope встроенному OpenSpec Apply.
 
 ## Preflight
 
-1. Определить Change через штатный `openspec status --change "<change-id>" --json`
-   и получить Apply-контекст командой `openspec instructions apply --change
-   "<change-id>" --json`. Использовать возвращённые `changeDir`, `contextFiles`,
-   Tasks и project `context`, не собирать пути вручную.
-2. Из текущего рабочего каталога выполнить `openspec-orch status "<change-id>"
-   --json`.
-3. Классифицировать результат `status`:
-   - успешный ответ с Cycle — продолжить в orchestrated-режиме;
-   - только ошибка `CYCLE_NOT_FOUND` — перейти к выбору режима ниже;
-   - любая другая ошибка — остановить Apply со статусом `blocked`. Не трактовать
-     недоступную команду, повреждённый state, ошибку repository identity или иной
-     сбой как отсутствие Cycle.
-4. В orchestrated-режиме остановить Apply со статусом `blocked`, если:
-   - Cycle Record не закоммичен;
-   - `current_repository` отсутствует или имеет role `store`;
-   - `current_repository.in_cycle` не равен `true`;
-   - repository identity или OpenSpec pointer не прошли проверку Core.
-5. Если сессия открыта не из Code Repository, предложить открыть персональный
-   OpenSpec Workset, где Code Repository является первым member, а Store — вторым.
+1. Получить Change через openspec status --change <change-id> --json и
+   openspec instructions apply --change <change-id> --json. Использовать возвращённые
+   paths, contextFiles и Tasks.
+2. По openspec-orch.yaml определить, объявлен ли Change Tracking и подключён ли он для
+   текущего workflow. ЗАПРЕЩЕНО определять это пробным вызовом отсутствующей команды.
+3. Если Change Tracking не подключён, выбрать standard mode и не вызывать его команды.
+4. Если Change Tracking подключён, выполнить openspec-orch status <change-id> --json.
+   Успешный Cycle включает orchestrated mode. Только CYCLE_NOT_FOUND разрешает выбор
+   standard/orchestrated. Любая другая ошибка блокирует Apply.
 
-## Выбор режима без Cycle
+При Cycle требовать:
 
-Если `status` завершился именно с `CYCLE_NOT_FOUND`, не блокировать штатный Apply и
-не создавать Cycle автоматически. Предложить пользователю два явных варианта:
+- закоммиченный Cycle Record;
+- current_repository с role code и in_cycle: true;
+- подтверждённую repository identity и OpenSpec pointer;
+- Code Repository как первый member персонального Workset, Store как второй.
 
-1. **Standard OpenSpec Apply** — продолжить встроенный `openspec-apply-change` без
-   repository scope, Planning pin, Result Receipts и Snapshot Orchestrator.
-2. **Orchestrated Apply** — остановиться до изменения кода и предложить создать и
-   закоммитить Cycle обычной командой `openspec-orch assign` из Store.
+## Standard mode или Change без Cycle
 
-Если пользователь уже явно выбрал standard-режим в текущем запросе, не спрашивать
-повторно. В standard-режиме вывести следующий контракт и передать встроенному Apply
-исходные `contextFiles`, Tasks и project context без repository-фильтрации:
+Если Change Tracking не подключён, продолжить Standard OpenSpec Apply без Cycle. Не
+представлять отсутствие Plugin или binding как ошибку и не создавать их автоматически.
 
-```yaml
-apply_mode:
-  change: <change-id>
-  mode: standard
-  orchestration: disabled
-  reason: CYCLE_NOT_FOUND
-```
+Если Change Tracking подключён, но status вернул CYCLE_NOT_FOUND, предложить два
+варианта:
 
-Не вызывать для standard-режима проверки целостности Cycle из следующих разделов,
-не создавать фиктивные Receipts и не предлагать `record assignment` или `verify`.
-Явно предупредить, что встроенный Apply самостоятельно определяет доступный scope и
-что воспроизводимый multi-repository Snapshot в этом режиме отсутствует.
+1. Standard OpenSpec Apply — без repository scope, planning pin, Receipts и Snapshot.
+2. Orchestrated Apply — остановиться и создать/закоммитить Cycle через
+   openspec-orch assign.
 
-Если пользователь выбрал orchestrated-режим, не продолжать встроенный Apply в этой
-сессии: вывести требуемое следующее действие `openspec-orch assign` и дождаться
-закоммиченного Cycle. Если Cycle существует, не предлагать standard-режим как обход
-его guardrails: Change завершается в orchestrated-режиме либо сначала получает
-отдельное явное человеческое решение об отмене Cycle вне этого skill.
+Не создавать Cycle автоматически. В standard mode вернуть исходные
+contextFiles/Tasks встроенному Apply без repository filtering. Существующий Cycle
+нельзя обходить standard mode.
 
-## Целостность принятого Planning
+## Planning integrity
 
-Этот и следующие разделы до передачи управления применять только в
-orchestrated-режиме.
+В orchestrated mode сравнить текущий Change с planning_revision Cycle:
 
-1. Взять `planning_revision` только из JSON-ответа Orchestrator и проверить наличие
-   commit через Git без сети.
-2. Сравнить текущий `changeDir` с тем же каталогом в `planning_revision`, включая
-   staged, unstaged и untracked paths.
-3. Классифицировать состояние:
-   - `exact` — файлы Change совпадают;
-   - `progress-only` — отличаются только маркеры `[ ]`/`[x]` существующих строк
-     выбранных задач в Tasks; остальной текст и набор файлов совпадают;
-   - `drift` — любое другое отличие.
-4. При `drift` не изменять код и вернуть Change в Planning: требуется человеческий
-   Gate и новый Cycle. Не считать добавление, удаление, перестановку или изменение
-   текста задачи обычным progress.
+- exact — совпадает;
+- progress-only — отличаются только существующие checkbox выбранных Tasks;
+- drift — любой другой diff.
 
-## Подтверждение Cycle через OpenSpec Graph
+drift блокирует код и возвращает Change в Planning для нового человеческого Gate и
+Cycle. Не считать изменение текста, состава или порядка Tasks progress.
 
-Выполнить после проверки принятого Planning и до выбора задач текущего репозитория.
-OpenSpec Graph определяет межрепозиторный scope; он не используется для поиска
-файлов или символов внутри Code Repository.
+В standard mode planning_integrity пометить как not_applicable: Change Tracking pin
+отсутствует, и skill ЗАПРЕЩЕНО имитировать его ручным сравнением.
 
-1. Из Store выполнить `openspec-orch graph status --json`. Продолжать только при
-   `state: ready`. Отсутствующая команда или binding, `stale` и `unavailable` —
-   blocker до изменения кода. Не запускать `graph build` автоматически и не читать
-   `openspec/graph.yaml` как обход; вернуть пользователю точную команду
-   `openspec-orch graph build`.
-2. Выполнить `openspec-orch graph impact "<change-id>"`, затем
-   `openspec-orch graph check-scope "<change-id>"`, передав отдельный `--repo` для
-   каждого точного значения из `repositories` ответа `openspec-orch status`. Не
-   добавлять и не удалять repositories при формировании команды.
-3. Считать блокирующими ошибку команды, `state: invalid`, непустые
-   `missing_required_repositories` или `unmapped_master_specs`, а также
-   `missing_delta_specs: true`. Такой Cycle не соответствует принятому Change и
-   должен вернуться в Planning; не исправлять его во время Apply.
-4. `review_repositories_outside_scope` может остаться вне Cycle только при явном
-   evidence и решении `no-change` в принятом Planning. Для каждого
-   `extra_repositories` требуется зафиксированная в Proposal, Design или Tasks роль
-   в реализации или проверке. Необъяснённое расхождение считать blocker, даже если
-   `check-scope` вернул `ready`; review-репозитории не включать автоматически.
-5. Классифицировать текущий repository как `direct`, `review` или `extra` по
-   результату `check-scope` и сохранить эту классификацию в `apply_scope`. Граф
-   подтверждает только принадлежность scope; право изменять код по-прежнему задают
-   Cycle и repository-owned Tasks.
+## Graph и repository scope
 
-## Выбор repository scope
+1. Выполнить status → recovery → status OpenSpec Graph и требовать ready,
+   authoritative.
+2. Для Change с Delta Specs выполнить graph impact <change-id>.
+3. Выполнить graph check-scope <change-id>:
+   - в orchestrated mode передать каждый repository-id Cycle отдельным --repo;
+   - в standard mode передать каждый repository-id принятого Repository Impact и
+     repository sections Tasks отдельным --repo.
+4. Для явно принятого skip_specs без Delta Specs зафиксировать Graph impact и scope как
+   not_applicable и проверить Repository Impact/Tasks напрямую. Не создавать фиктивную
+   Delta Spec.
+5. missing required/delta specs, unmapped master specs, необъяснённый review outside
+   scope или extra repository блокируют Apply. Review repositories не добавлять в
+   Cycle или standard implementation scope автоматически.
+6. Классифицировать current repository как direct, review или extra, когда текущий
+   контекст относится к зарегистрированному Code Repository.
 
-1. Прочитать полный файл из `contextFiles.tasks`; не использовать плоский массив
-   `tasks` без заголовков как источник ownership.
-2. Считать repository section заголовок, содержащий точный `repository-id` из Cycle,
-   например `## 2. jitsi-web: ...`. Выбрать только sections текущего
-   `current_repository.repository_id`.
-3. Для явно общей секции использовать указанного в ней owner. Если owner не указан,
-   назначить её primary solution owner, однозначно указанному первым в Repository
-   implementation map Design. Если такого владельца нельзя определить, остановиться
-   и запросить решение, не распределять задачи эвристически.
-4. Не выполнять и не отмечать задачи sections других Code Repositories. Зависимость
-   от их evidence считать blocker текущей задачи, пока evidence не предоставлен.
+В orchestrated mode выбрать Tasks только из section с точным current repository-id.
+Общая section требует явного owner либо однозначного primary solution owner из Design.
+Не выполнять и не отмечать Tasks другого Repository. В standard mode не вводить
+repository filtering: передать встроенному Apply исходный набор Tasks.
 
-## Навигация по коду текущего Repository
+## Навигация и evidence
 
-После подтверждения Cycle использовать CodeGraph только как необязательный быстрый
-индекс внутри `current_repository.path`. OpenSpec Graph и CodeGraph не читают данные
-друг друга: skill связывает их только через подтверждённый `repository-id` и путь из
-Orchestrator status.
+До кода проверить Git root, repository-id, полный HEAD и пользовательский worktree.
+Не очищать чужие изменения.
 
-1. До первого изменения кода проверить точный Git root, repository identity, полный
-   `HEAD` и чистоту worktree. Несовпадение identity блокирует Apply. Уже изменённый
-   worktree не очищать: сохранить пользовательские изменения и не использовать для
-   него CodeGraph как исходный индекс. Если для repository подключён CodeGraph,
-   проверить `openspec-orch plugin status --plugin codegraph --repo <repository-id>`.
-2. Если в корне существует `.codegraph/`, status равен `ready` и MCP
-   `codegraph_explore` доступен, сначала запросить относящиеся к выбранным Tasks
-   символы и пути с `projectPath: current_repository.path`. Не обращаться этим
-   запросом к другим repositories Cycle.
-3. Если индекс отсутствует, `stale`, `unavailable`, не покрывает язык либо MCP
-   недоступен, не блокировать Apply: использовать адресный read/search в том же
-   checkout и указать `code_navigation: fallback`. Не запускать `plugin sync`
-   автоматически.
-4. После изменения файлов проверять актуальный diff, код и тесты напрямую. Рёбра
-   CodeGraph помогают найти точки влияния, но не являются evidence реализации,
-   runtime-поведения или успешной проверки.
+CodeGraph разрешён только внутри current repository и только при ready index на той
+же revision. Иначе использовать адресный read/search. Не запускать sync автоматически
+и не считать Graph evidence реализации.
 
-## Evidence gate для checkbox
+Перед checkbox сформировать:
 
-Перед каждым переключением выбранной задачи из `[ ]` в `[x]` сформировать
-`task_evidence` и проверить заявленный результат задачи, а не только наличие
-похожего изменения:
-
-```yaml
+~~~yaml
 task_evidence:
   task_id: <id>
-  claim: <проверяемый результат задачи>
+  claim: <проверяемый результат>
   artifacts: []
   checks: []
   status: satisfied | blocked
-```
+~~~
 
-1. В `artifacts` перечислить существующие пути, diff или внешние ссылки, которые
-   непосредственно доказывают результат. Ответ агента в чате сам по себе не является
-   durable artifact, если задача явно не требует только отчёт в текущей сессии.
-2. В `checks` перечислить реально выполненные команды или ручные проверки и их
-   результат. План проверки, предполагаемое поведение и статический вывод не считать
-   выполненной runtime/manual verification.
-3. Для задачи, требующей добавить или изменить тест:
-   - найти соответствующий test-файл в текущем diff;
-   - подтвердить, что тест проверяет заявленное поведение;
-   - выполнить наиболее узкую доступную test-команду и получить успешный результат.
-   Отсутствие test-инфраструктуры, test-файла или успешного запуска означает
-   `status: blocked`; не отмечать задачу выполненной и не заменять тест рассуждением.
-4. Для implementation-задачи подтвердить относящийся к ней diff и релевантную
-   проверку. Для документации или evidence package подтвердить durable artifact либо
-   явно указанную внешнюю ссылку. Для условного `no-change` зафиксировать evidence,
-   которое удовлетворяет условию самой задачи.
-5. Переключать checkbox только при `status: satisfied`. Если evidence недоступно,
-   оставить `[ ]`, назвать blocker и не объявлять repository scope завершённым.
-6. Перед завершением Apply повторно проверить все checkbox, переключённые текущей
-   сессией. Если evidence не подтверждается, вернуть такой checkbox в `[ ]`.
-   Существовавший до сессии `[x]` без доступного evidence не менять молча: остановить
-   scope и запросить ссылку на evidence или решение человека.
+Отмечать Task только при satisfied:
 
-Не запускать полный штатный OpenSpec Verify после каждого checkbox: task-level gate использует
-узкую проверку, а независимый Verify остаётся проверкой завершённого Snapshot.
+- artifacts непосредственно подтверждают результат;
+- реально выполненные checks перечислены с результатом;
+- требуемый тест существует, проверяет заявленное поведение и прошёл;
+- план проверки или рассуждение не выдаются за выполненную verification.
 
-## Передача управления штатному Apply
+Blocked Task остаётся незакрытой и запрещает completed Result Receipt текущего
+Repository. Proposal, Specs, Design и текст Tasks во время Apply не изменять.
 
-- Вернуть встроенному `openspec-apply-change` выбранные task IDs, текущий
-  repository-id, `planning_revision` и `planning_integrity`.
-- Разрешить изменения кода только внутри текущего Code Repository. Перед работой
-  прочитать его локальные инструкции агента и использовать его команды test/lint.
-- В центральном Store разрешить только переключение checkbox выбранной завершённой
-  задачи. Proposal, Specs, Design и текст Tasks не изменять.
-- Отмечать задачу выполненной только после `task_evidence.status: satisfied`.
-- Перед Result Receipt вывести `repository_completion` со списками `satisfied_tasks`,
-  `blocked_tasks` и выполненных проверок. При непустом `blocked_tasks` не предлагать
-  `status: completed` для Result Receipt.
-- После завершения repository scope остановиться. Не объявлять весь Change
-  реализованным, пока в других sections остаются незавершённые задачи.
+## Результат
 
-Перед продолжением Apply вывести:
+Перед Apply:
 
-```yaml
+~~~yaml
 apply_scope:
   change: <change-id>
-  mode: orchestrated
-  cycle: <cycle-id>
-  planning_revision: <sha>
-  planning_integrity: exact | progress-only
-  graph_status: ready
-  cycle_scope_check: ready
-  repository: <repository-id>
-  repository_impact: direct | review | extra
-  code_navigation: codegraph | fallback
+  mode: standard | orchestrated
+  cycle: <cycle-id|null>
+  planning_revision: <sha|null>
+  planning_integrity: exact | progress-only | not_applicable
+  graph_status: ready | not_applicable
+  repository: <repository-id|null>
+  repository_impact: direct | review | extra | not_applicable
+  code_navigation: codegraph | fallback | not_applicable
   selected_tasks: []
-  excluded_repositories: []
   scope_status: ready | blocked
-```
+~~~
 
-После выполнения выбранного scope вывести:
+После repository scope:
 
-```yaml
+~~~yaml
 repository_completion:
   repository: <repository-id>
   satisfied_tasks: []
   blocked_tasks: []
   checks: []
   completion_status: completed | incomplete
-```
+~~~
+
+Не объявлять весь Change реализованным по завершению одного Repository.

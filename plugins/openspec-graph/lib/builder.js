@@ -119,19 +119,40 @@ function referenceType(reference) {
 }
 
 /** Validates and materializes explicit edges from openspec/graph.yaml. */
-async function validateProvenance(root, value, edgeNumber) {
+async function validateProvenance(root, value, edgeNumber, changeDefinitions) {
   const match = value.match(/^([^:\\]+(?:\/[^:\\]+)*):(\d+)$/u);
   if (!match || path.posix.isAbsolute(match[1])) {
     invalid(`edge ${edgeNumber} source '${value}' must be a Store-relative path:line`);
   }
-  const relativePath = path.posix.normalize(match[1]);
+  const declaredPath = path.posix.normalize(match[1]);
+  let relativePath = declaredPath;
   if (relativePath === "." || relativePath.startsWith("../") || relativePath.includes("/../")) {
     invalid(`edge ${edgeNumber} source '${value}' escapes the Store`);
   }
-  const absolutePath = path.join(root, relativePath);
+  let absolutePath = path.join(root, relativePath);
+  let stat;
+  try {
+    stat = await fs.lstat(absolutePath);
+  } catch (error) {
+    const activeChange = declaredPath.match(/^openspec\/changes\/([^/]+)\/(.+)$/u);
+    const archived = activeChange && changeDefinitions.get(activeChange[1]);
+    if (error.code !== "ENOENT") throw error;
+    if (archived?.state !== "archived") {
+      invalid(`edge ${edgeNumber} source does not exist: ${declaredPath}`);
+    }
+    relativePath = `${archived.path}/${activeChange[2]}`;
+    absolutePath = path.join(root, relativePath);
+    try {
+      stat = await fs.lstat(absolutePath);
+    } catch (archiveError) {
+      if (archiveError.code === "ENOENT") {
+        invalid(`edge ${edgeNumber} source does not exist: ${declaredPath}`);
+      }
+      throw archiveError;
+    }
+  }
   let source;
   try {
-    const stat = await fs.lstat(absolutePath);
     if (!stat.isFile() || stat.isSymbolicLink()) {
       invalid(`edge ${edgeNumber} source '${relativePath}' must be an ordinary file`);
     }
@@ -141,7 +162,7 @@ async function validateProvenance(root, value, edgeNumber) {
     }
     source = await fs.readFile(absolutePath, "utf8");
   } catch (error) {
-    if (error.code === "ENOENT") invalid(`edge ${edgeNumber} source does not exist: ${relativePath}`);
+    if (error.code === "ENOENT") invalid(`edge ${edgeNumber} source does not exist: ${declaredPath}`);
     throw error;
   }
   const line = Number(match[2]);
@@ -153,7 +174,7 @@ async function validateProvenance(root, value, edgeNumber) {
 }
 
 /** Validates and materializes explicit edges from openspec/graph.yaml. */
-async function explicitEdges(document, nodes, root) {
+async function explicitEdges(document, nodes, root, changeDefinitions) {
   if (!document || typeof document !== "object" || Array.isArray(document)) {
     invalid("openspec/graph.yaml must contain an object");
   }
@@ -196,7 +217,7 @@ async function explicitEdges(document, nodes, root) {
     identities.add(identity);
     const provenance = [];
     for (const item of sources) {
-      const validated = await validateProvenance(root, item, index + 1);
+      const validated = await validateProvenance(root, item, index + 1, changeDefinitions);
       provenance.push(validated.reference);
       evidence.set(validated.path, validated.source);
     }
@@ -372,7 +393,7 @@ export async function buildOpenSpecGraph(projectRoot, { repositories = [], store
   } catch (error) {
     invalid(`${graphPath}: ${error.message}`);
   }
-  const declared = await explicitEdges(graphDocument, nodes, root);
+  const declared = await explicitEdges(graphDocument, nodes, root, changeDefinitions);
   for (const [file, source] of declared.evidence) inputs.set(file, source);
   const sortedNodes = [...nodes.values()].sort((left, right) => left.id.localeCompare(right.id));
   const sortedEdges = [...derivedEdges, ...declared.edges].sort(

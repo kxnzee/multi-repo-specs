@@ -5,7 +5,7 @@
 <!-- TODO
 question: Какие доменные сущности и отношения определяют поведение проекта?
 owner: unassigned
-expected_source: Maintained requirements, domain documentation, or verified behavior
+expected_source: Maintained requirements, domain documentation, or an owner decision
 -->
 
 ## Состояния и переходы
@@ -21,5 +21,5 @@ expected_source: Maintained requirements, scenarios, or domain documentation
 <!-- TODO
 question: Какие жизненные циклы объектов или процессов важны для нескольких компонентов?
 owner: unassigned
-expected_source: Maintained requirements or verified implementation behavior
+expected_source: Maintained requirements, domain documentation, or an owner decision
 -->

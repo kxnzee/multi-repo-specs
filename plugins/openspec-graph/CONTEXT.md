@@ -54,3 +54,13 @@ Directly Changed Master Spec.
 
 A Repository implementing a Dependent Master Spec. A Repository present in both
 groups remains part of the direct group and appears once in the total Repository set.
+
+### Repository relation direction
+
+- `source depends_on target`: a change to `target` reviews `source`; a change to
+  `source` does not review `target` automatically.
+- `source calls target`: `source` is the caller and `target` provides the named
+  contract; a provider change reviews the caller, not the reverse automatically.
+- `source publishes_to target`: `source` publishes the named event contract and
+  `target` is its direct consumer Repository. This is topology evidence only; it does
+  not add either Repository to impact or review automatically.

@@ -259,6 +259,49 @@ test("Builder rejects unverifiable explicit-edge provenance", async (t) => {
   );
 });
 
+test("Source digest tracks topology inputs rather than every Change file", async (t) => {
+  const root = await storeFixture(t);
+  const initial = await buildOpenSpecGraph(root, { repositories, storeId });
+
+  await fs.writeFile(
+    path.join(root, "openspec/changes/empty-change/proposal.md"),
+    "# Revised proposal without topology changes\n",
+  );
+  await fs.writeFile(
+    path.join(root, "openspec/changes/empty-change/tasks.md"),
+    "- [x] Documentation-only task state\n",
+  );
+  const planningOnly = await buildOpenSpecGraph(root, { repositories, storeId });
+  assert.equal(planningOnly.source_digest, initial.source_digest);
+
+  await fs.appendFile(
+    path.join(root, "openspec/specs/conference/visitors/spec.md"),
+    "\nTopology input changed.\n",
+  );
+  const changedMasterSpec = await buildOpenSpecGraph(root, { repositories, storeId });
+  assert.notEqual(changedMasterSpec.source_digest, initial.source_digest);
+});
+
+test("Builder projects an archived Change without retaining an active duplicate", async (t) => {
+  const root = await storeFixture(t);
+  const activePath = path.join(root, "openspec/changes/jit-100-promote");
+  const archivePath = path.join(root, "openspec/changes/archive/2026-08-25-jit-100-promote");
+  await fs.mkdir(path.dirname(archivePath), { recursive: true });
+  await fs.rename(activePath, archivePath);
+
+  const graph = await buildOpenSpecGraph(root, { repositories, storeId });
+  const changes = graph.nodes.filter(({ id }) => id === "change:jit-100-promote");
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].state, "archived");
+  assert.equal(changes[0].path, "openspec/changes/archive/2026-08-25-jit-100-promote");
+  assert.equal(
+    graph.nodes.find(({ id }) => (
+      id === "delta-spec:jit-100-promote/conference/visitors"
+    )).state,
+    "archived",
+  );
+});
+
 test("Read queries separate direct and downstream Change impact", async (t) => {
   const root = await storeFixture(t);
   const graph = await buildOpenSpecGraph(root, { repositories, storeId });
@@ -296,17 +339,14 @@ test("Read queries separate direct and downstream Change impact", async (t) => {
     "repository:qa",
   ]);
   assert.deepEqual(impact.related_repositories.map(({ id }) => id), [
-    "repository:notifications",
     "repository:portal",
   ]);
   assert.deepEqual(impact.review_repositories.map(({ id }) => id), [
-    "repository:notifications",
     "repository:portal",
     "repository:qa",
   ]);
   assert.deepEqual(impact.all_repositories.map(({ id }) => id), [
     "repository:control",
-    "repository:notifications",
     "repository:portal",
     "repository:qa",
     "repository:web",
@@ -317,7 +357,6 @@ test("Read queries separate direct and downstream Change impact", async (t) => {
     "changes",
     "depends_on",
     "calls",
-    "publishes_to",
     "implemented_by",
     "verifies",
     "depends_on",
@@ -334,6 +373,116 @@ test("Read queries separate direct and downstream Change impact", async (t) => {
   assert.deepEqual(emptyImpact.related_repositories, []);
   assert.deepEqual(emptyImpact.review_repositories, []);
   assert.deepEqual(emptyImpact.all_repositories, []);
+});
+
+test("Repository impact follows the declared direction of each relation", () => {
+  const impactFor = (relation, implementationRepository) => inspectChangeImpact({
+    nodes: [
+      { id: "change:direction", type: "change", change_id: "direction" },
+      {
+        id: "delta-spec:direction/example",
+        type: "delta-spec",
+        change_id: "direction",
+      },
+      { id: "master-spec:example", type: "master-spec", capability: "example" },
+      { id: "repository:source", type: "repository", repository_id: "source" },
+      { id: "repository:target", type: "repository", repository_id: "target" },
+    ],
+    edges: [
+      {
+        id: "contains",
+        source: "change:direction",
+        relation: "contains",
+        target: "delta-spec:direction/example",
+      },
+      {
+        id: "changes",
+        source: "delta-spec:direction/example",
+        relation: "changes",
+        target: "master-spec:example",
+      },
+      {
+        id: "implements",
+        source: "master-spec:example",
+        relation: "implemented_by",
+        target: `repository:${implementationRepository}`,
+      },
+      {
+        id: relation,
+        source: "repository:source",
+        relation,
+        target: "repository:target",
+      },
+    ],
+  }, "direction").related_repositories.map(({ repository_id: repositoryId }) => repositoryId);
+
+  assert.deepEqual(impactFor("depends_on", "source"), []);
+  assert.deepEqual(impactFor("depends_on", "target"), ["source"]);
+  assert.deepEqual(impactFor("calls", "source"), []);
+  assert.deepEqual(impactFor("calls", "target"), ["source"]);
+  assert.deepEqual(impactFor("publishes_to", "source"), []);
+  assert.deepEqual(impactFor("publishes_to", "target"), []);
+});
+
+test("Change impact separates direct and transitive prerequisites and dependents", () => {
+  const changeIds = ["a", "b", "c", "d", "e"];
+  const graph = {
+    nodes: [
+      ...changeIds.flatMap((changeId) => [
+        { id: `change:${changeId}`, type: "change", change_id: changeId },
+        {
+          id: `delta-spec:${changeId}/example`,
+          type: "delta-spec",
+          change_id: changeId,
+        },
+      ]),
+      { id: "master-spec:example", type: "master-spec", capability: "example" },
+    ],
+    edges: [
+      ...changeIds.map((changeId) => ({
+        id: `contains:${changeId}`,
+        source: `change:${changeId}`,
+        relation: "contains",
+        target: `delta-spec:${changeId}/example`,
+      })),
+      {
+        id: "changes:a",
+        source: "delta-spec:a/example",
+        relation: "changes",
+        target: "master-spec:example",
+      },
+      {
+        id: "a-needs-b",
+        source: "delta-spec:a/example",
+        relation: "depends_on",
+        target: "delta-spec:b/example",
+      },
+      {
+        id: "b-needs-d",
+        source: "delta-spec:b/example",
+        relation: "depends_on",
+        target: "delta-spec:d/example",
+      },
+      {
+        id: "c-needs-a",
+        source: "delta-spec:c/example",
+        relation: "depends_on",
+        target: "delta-spec:a/example",
+      },
+      {
+        id: "e-needs-c",
+        source: "delta-spec:e/example",
+        relation: "depends_on",
+        target: "delta-spec:c/example",
+      },
+    ],
+  };
+
+  const impact = inspectChangeImpact(graph, "a");
+  assert.deepEqual(impact.prerequisite_changes.direct.map(({ change_id: id }) => id), ["b"]);
+  assert.deepEqual(impact.prerequisite_changes.transitive.map(({ change_id: id }) => id), ["d"]);
+  assert.deepEqual(impact.dependent_changes.direct.map(({ change_id: id }) => id), ["c"]);
+  assert.deepEqual(impact.dependent_changes.transitive.map(({ change_id: id }) => id), ["e"]);
 });
 
 test("Scope check separates required, review and extra Cycle repositories", async (t) => {
@@ -361,10 +510,10 @@ test("Scope check separates required, review and extra Cycle repositories", asyn
     state: "ready",
     proposed_repositories: ["operations", "qa", "web"],
     required_repositories: ["web"],
-    review_repositories: ["control", "notifications", "portal", "qa"],
+    review_repositories: ["control", "portal", "qa"],
     missing_required_repositories: [],
     included_review_repositories: ["qa"],
-    review_repositories_outside_scope: ["control", "notifications", "portal"],
+    review_repositories_outside_scope: ["control", "portal"],
     extra_repositories: ["operations"],
     missing_delta_specs: false,
     unmapped_master_specs: [],
@@ -556,6 +705,14 @@ test("Repository lifecycle validates OpenSpec and persists the last good graph",
   ]);
   assert.deepEqual(await plugin.status(context), {
     state: "ready",
+    authoritative: true,
+    reason: null,
+    stored_digest: graph.source_digest,
+    current_digest: graph.source_digest,
+    last_known_good_available: true,
+    nodes: 1,
+    edges: 0,
+    next_command: null,
     details: JSON.stringify({
       stored_digest: graph.source_digest,
       current_digest: graph.source_digest,
@@ -563,4 +720,78 @@ test("Repository lifecycle validates OpenSpec and persists the last good graph",
       edges: 0,
     }),
   });
+});
+
+test("Repository status reports recovery guidance without exposing stale data as authoritative", async () => {
+  let stored = null;
+  let projectedDigest = "a".repeat(64);
+  let projectionError = null;
+  const context = Object.freeze({
+    project: Object.freeze({
+      id: "specs",
+      repositories: Object.freeze([Object.freeze({ id: "web", role: "code" })]),
+    }),
+    process: Object.freeze({
+      run(executable) {
+        if (executable === "openspec") return Promise.resolve("{}");
+        if (projectionError) return Promise.reject(projectionError);
+        return Promise.resolve(JSON.stringify({
+          graph_version: 1,
+          source_digest: projectedDigest,
+          nodes: [{ id: "repository:web" }],
+          edges: [],
+        }));
+      },
+    }),
+    storage: Object.freeze({
+      read() { return Promise.resolve(stored); },
+      write(value) { stored = value; return Promise.resolve(value); },
+    }),
+  });
+
+  assert.deepEqual(await plugin.status(context), {
+    state: "unavailable",
+    authoritative: false,
+    reason: "GRAPH_NOT_BUILT",
+    stored_digest: null,
+    current_digest: null,
+    last_known_good_available: false,
+    nodes: 0,
+    edges: 0,
+    next_command: "openspec-orch graph build",
+    details: JSON.stringify({ reason: "GRAPH_NOT_BUILT" }),
+  });
+
+  await plugin.connect(context);
+  const ready = await plugin.status(context);
+  assert.equal(ready.state, "ready");
+  assert.equal(ready.authoritative, true);
+  assert.equal(ready.next_command, null);
+
+  projectedDigest = "b".repeat(64);
+  const stale = await plugin.status(context);
+  assert.equal(stale.state, "stale");
+  assert.equal(stale.authoritative, false);
+  assert.equal(stale.reason, "SOURCE_DIGEST_CHANGED");
+  assert.equal(stale.last_known_good_available, true);
+  assert.equal(stale.next_command, "openspec-orch graph build");
+
+  projectionError = new Error("OPENSPEC_GRAPH_INVALID: broken inputs");
+  const invalid = await plugin.status(context);
+  assert.equal(invalid.state, "invalid");
+  assert.equal(invalid.authoritative, false);
+  assert.equal(invalid.reason, "CURRENT_INPUTS_INVALID");
+  assert.equal(invalid.last_known_good_available, true);
+  assert.equal(stored.source_digest, "a".repeat(64));
+
+  await assert.rejects(plugin.connect(context), /OPENSPEC_GRAPH_INVALID/u);
+  assert.equal(stored.source_digest, "a".repeat(64));
+
+  projectionError = null;
+  await plugin.connect(context);
+  const rebuilt = await plugin.status(context);
+  assert.equal(rebuilt.state, "ready");
+  assert.equal(rebuilt.authoritative, true);
+  assert.equal(rebuilt.stored_digest, "b".repeat(64));
+  assert.equal(rebuilt.current_digest, "b".repeat(64));
 });

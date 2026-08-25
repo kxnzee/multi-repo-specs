@@ -5,7 +5,7 @@
 <!-- TODO
 question: Из каких компонентов состоит проект и где проходят их границы ответственности?
 owner: unassigned
-expected_source: Code, deployment configuration, architecture documentation, or accepted ADRs
+expected_source: Maintained architecture documentation, accepted ADRs, or an owner decision
 -->
 
 ## Межсистемные ограничения и инварианты
@@ -21,7 +21,7 @@ expected_source: Contracts, maintained requirements, incidents, or accepted ADRs
 <!-- TODO
 question: Какие внешние и внутренние интеграции являются частью архитектуры?
 owner: unassigned
-expected_source: API schemas, events, configuration, code, or architecture documentation
+expected_source: Owner-confirmed contracts or schemas, maintained architecture documentation, or accepted ADRs
 -->
 
 ## Decision candidates

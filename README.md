@@ -65,12 +65,11 @@ checkout и не выполняет `git add`, `commit`, `push`, `merge` или 
 
 - [пользователям](docs/user/README.md) — что читать и как пройти командный процесс;
 - [разработчикам Orchestrator](docs/technical/README.md) — контракт и устройство текущей версии;
-- [оригинальная документация OpenSpec](docs/openspec-origin-docs/README.md) — справочник
-  upstream-продукта, не инструкция этого проекта;
-- [архив](docs/archive/README.md) — предыдущие модели и неактуальные материалы.
+- [архив](docs/archive/README.md) — единственный защищённый исторический reference;
+  остальные неактуальные материалы доступны только в Git history.
 
-Нормативный [продуктовый контракт](docs/technical/product-contract.md) находится в
-технической документации. Кандидаты развития после пилота
+Нормативный [контракт Core и Change Tracking](docs/technical/product-contract.md)
+находится в технической документации. Кандидаты развития
 собраны в [BACKLOG.md](BACKLOG.md).
 
 ## Требования и локальная установка
@@ -118,7 +117,7 @@ openspec-orch graph inspect <node-id>
 openspec-orch graph view [--port <port>]
 openspec-orch repository status [--repo <repository-id>]...
 openspec-orch assign <change-id> --repo <repository-id>...
-openspec-orch status <change-id>
+openspec-orch status <change-id> [--json]
 openspec-orch record assignment <change-id> --repo <repository-id> --commit <sha> --status <completed|failed|blocked> --source <human|agent|ci> [--note <text>]
 openspec-orch verify <change-id>
 openspec-orch record verification <change-id> --result <pass|fail> --source <human|agent|ci> [--note <text>]

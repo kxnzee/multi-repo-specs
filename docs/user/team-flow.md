@@ -1,64 +1,70 @@
 # Командный процесс OpenSpec
 
-Этот документ описывает целевой процесс команды поверх штатного OpenSpec. Он не
-добавляет команды Orchestrator Core и не изменяет встроенные `opsx-*` workflows.
+Этот документ описывает два поддерживаемых сценария работы команды. В обоих
+сценариях штатный OpenSpec владеет жизненным циклом Change, а Project Template и
+Plugins только добавляют проверки и контекст:
 
-## Поток одного Change
+1. **Standard OpenSpec + Graphs** — штатные Planning, Apply и Archive с OpenSpec
+   Graph и опциональным repository-local CodeGraph, но без Change Tracking.
+2. **OpenSpec + Graphs + Change Tracking** — тот же процесс с дополнительно
+   зафиксированными Cycle, planning revision, Result Receipts и Snapshot.
 
-1. **Jira Story** — источник запроса, ожидаемого результата и владельца.
-2. **Planning** — Analyst создаёт Proposal, Delta Specs, Design и Tasks.
-3. **Gate 1** — Analyst, Developer и QA подтверждают план; Lead подключается по
-   риск-триггерам.
-4. **Development** — Code Repositories реализуют принятый Change.
-5. **PR Review** — проверяются код, тесты и соответствие принятой OpenSpec revision.
-6. **Gate 2** — фиксируется кандидат на проверку: точные commits, сборка и Snapshot.
-7. **IFT** — проверка кандидата согласно принятой проектом IFT policy.
-8. **QA Verification** — проверка OpenSpec Scenarios и связанных Zephyr cases.
-9. **Gate 3** — подтверждение готовности проверенного Snapshot к релизу.
-10. **Release** — продвигается тот же проверенный artifact.
-11. **Archive** — штатный OpenSpec Archive и обязательная производная копия в
-    Confluence.
+ЗАПРЕЩЕНО считать отсутствие Change Tracking ошибкой Standard OpenSpec flow.
+ЗАПРЕЩЕНО, наоборот, обходить существующий Cycle переходом в standard mode.
 
-Разработчик запускает штатный `/opsx:apply <change-id>`. Project skill
-`openspec-base-apply-context` сначала проверяет наличие Cycle. Только
-`CYCLE_NOT_FOUND` открывает выбор: продолжить standard OpenSpec Apply без
-Orchestrator либо остановиться и создать Cycle. Standard-режим не даёт repository
-scope, Planning pin, Result Receipts и воспроизводимый multi-repository Snapshot.
+## Общая основа обоих сценариев
 
-При существующем Cycle применяется orchestrated-режим. Разработчик открывает
-персональный OpenSpec Workset, в котором его Code Repository является первым member,
-а центральный Store — вторым. Skill выполняет только sections Tasks этого
-repository-id; существующий Cycle нельзя обходить переключением в standard-режим.
-Общая секция выполняется указанным owner либо primary solution owner из Design.
-Изменение Proposal, Specs, Design или текста Tasks во время активного Cycle возвращает
-Change в Planning; обычное переключение checkbox является состоянием выполнения.
-Apply переключает checkbox только после task-level evidence: требуемый artifact
-существует, а предусмотренная задачей проверка фактически выполнена. Для test-задачи
-отсутствие test-файла или успешного запуска оставляет `[ ]` и блокирует completed
-Result Receipt.
+Единственный источник требований — центральный Store `sdd-specs/openspec`. Jira
+является источником запроса, но принятые Requirements и Scenarios принадлежат
+OpenSpec. Code Repositories только реализуют принятый Change и не содержат
+собственные `openspec/changes`.
 
-## Артефакты Planning
+Штатные OpenSpec workflows остаются владельцами операций:
+
+- Planning создаёт `proposal.md`, Delta Specs, `design.md` и `tasks.md`;
+- штатный OpenSpec Apply реализует принятые Tasks;
+- `/opsx-archive <change-id>` синхронизирует Delta Specs с Master Specs и перемещает
+  Change в архив.
+
+Orchestrator, OpenSpec Graph, CodeGraph и Change Tracking ЗАПРЕЩЕНО использовать как
+альтернативный источник требований или отдельную машину жизненного цикла Change.
+
+### Роли
+
+- **Владелец** подтверждает intent, scope, критерии успеха и продуктовые решения.
+- **Аналитик** отвечает за Proposal, Specs и сквозную трассировку.
+- **Разработчик** подтверждает реализуемость Design, Tasks и implementation evidence.
+- **Тестировщик** подтверждает проверяемость Scenarios и verification evidence.
+- **Лид** обязателен для breaking contract, security/compliance, миграции данных,
+  нескольких доменов, изменения SLO и необратимого rollout.
+
+Один человек может совмещать роли. Gate всегда является явным решением людей; skill,
+subagent, Graph или Change Tracking не принимают Gate автоматически.
+
+### Planning artifacts
 
 Полный Change включает:
 
 - `proposal.md` — зачем и что меняется;
 - `specs/<capability>/spec.md` — наблюдаемое поведение и Scenarios;
-- `design.md` — технические решения, риски, миграция и rollback;
-- `tasks.md` — проверяемый план реализации.
+- `design.md` — решения на уровне системных границ, публичных контрактов, рисков,
+  миграции и rollback;
+- `tasks.md` — проверяемый план реализации по затронутым Code Repositories.
 
-Proposal содержит Repository impact с точными `repository-id` из
-`openspec-orch.yaml`. Design разделяет часть решения, контракты и зависимости каждого
-затронутого репозитория; Tasks группируются по тем же id. Для релевантного, но
-незатронутого репозитория фиксируется `no-change`, чтобы отсутствие работы было
-решением, а не пропуском анализа.
+Proposal ОБЯЗАН содержать Repository Impact только для тех зарегистрированных
+`repository-id`, где из-за Change планируется изменение кода, тестов, конфигурации или
+документации. Design implementation map и repository sections Tasks ОБЯЗАНЫ
+использовать тот же набор.
 
-Specs при этом не дробятся по репозиториям: Requirement и Scenario описывают
-наблюдаемое поведение capability, а Repository impact показывает, где это поведение
-реализуется и проверяется.
+ЗАПРЕЩЕНО перечислять весь Repository registry, неизменяемые или review-only
+репозитории, а также создавать строки `no-change`. Если проверка review-кандидата
+подтвердила реальное изменение, Change ОБЯЗАН вернуться в Planning; только после этого
+репозиторий добавляется в Repository Impact, Design и Tasks.
 
-Если поведение меняется, Proposal перечисляет каждую новую или изменяемую capability,
-а Change содержит один Delta Spec на её существующем пути. `skip_specs` допустим
-только когда наблюдаемое поведение действительно не меняется.
+Specs не дробятся по репозиториям. Requirement и Scenario описывают наблюдаемое
+поведение capability. Если поведение меняется, Proposal перечисляет каждую новую или
+изменяемую capability, а Change содержит один Delta Spec на её существующем пути.
+`skip_specs` разрешён только при отсутствии изменения наблюдаемого поведения.
 
 Новый Scenario получает стабильный ID в заголовке:
 
@@ -66,97 +72,268 @@ Specs при этом не дробятся по репозиториям: Requi
 #### Scenario: Временная ошибка устранена — add-payment-retry-001
 ```
 
-Формат — `<change-id>-<index>`: используется точный lowercase `change-id`, а
-трёхзначный индекс последовательно увеличивается внутри Change. Префикс `SC-` и
-квадратные скобки не используются. Существующий ID не переименовывается и не
-переиспользуется для другого поведения, в том числе после переноса Scenario в Master
-Spec и в последующих Changes. Retained Scenarios в `MODIFIED` сохраняют свои ID;
-массовое присвоение ID старым Master Specs выполняется отдельным Change.
+Формат — `<change-id>-<index>`: точный lowercase `change-id` и последовательно
+увеличиваемый трёхзначный index. Существующий ID ЗАПРЕЩЕНО переименовывать или
+переиспользовать, включая перенос Scenario в Master Spec и последующие Changes.
+Retained Scenarios в `MODIFIED` сохраняют свои ID.
 
-## Gate 1 — Planning accepted
+### Граница технических деталей
 
-Обязательный вход:
+Proposal, Specs, Design, Tasks и Store context ЗАПРЕЩЕНО превращать в inventory
+текущей реализации. В центральный Store нельзя переносить внутренние пути, symbols,
+имена файлов, классов, функций, модулей, таблиц, библиотек, локальных config keys,
+команд сборки или построчное code evidence.
 
-- Jira Story связана с `change-id`;
+Разрешено фиксировать наблюдаемое поведение, доменные правила, системные границы,
+принятые публичные контракты и точные `repository-id`. Внутренняя реализация
+определяется в Code Repository во время Apply.
+
+### OpenSpec Graph
+
+OpenSpec Graph — Store-only производная модель Specs, Changes, Code Repositories и
+явно подтверждённых связей из `openspec/graph.yaml`. Он не читает внутренности Code
+Repositories и не меняет OpenSpec artifacts.
+
+До появления Delta Specs используется только preliminary phase:
+
+- capability candidates берутся из принятого intent и Proposal;
+- для существующей capability разрешён точный `graph inspect`;
+- `graph impact`, `graph check-scope` и объявление Cycle scope ЗАПРЕЩЕНЫ.
+
+После валидных Delta Specs Graph ОБЯЗАН перейти в authoritative phase:
+
+```bash
+openspec-orch graph build
+openspec-orch graph status --json
+openspec-orch graph impact <change-id>
+openspec-orch graph check-scope <change-id> --repo <repository-id>...
+```
+
+Продолжать разрешено только при `state: ready` и `authoritative: true`.
+`missing_required_repositories`, `missing_delta_specs` и `unmapped_master_specs` —
+BLOCKER. `dependent_repositories` и `review_repositories` являются кандидатами для
+проверки и ЗАПРЕЩЕНЫ к автоматическому добавлению в implementation scope.
+`publishes_to` описывает топологию event contract и сам по себе не добавляет
+Repository в impact или review.
+
+Для принятого `skip_specs` без Delta Specs `graph impact` и `graph check-scope`
+помечаются как `not_applicable`; Repository Impact и Tasks sections проверяются
+напрямую. Создавать фиктивную Delta Spec ЗАПРЕЩЕНО.
+
+### CodeGraph
+
+CodeGraph — опциональный revision-sensitive индекс внутри конкретного Code
+Repository. Он используется только для навигации по текущей реализации после того,
+как сформулировано точное current-state утверждение, которое требуется подтвердить
+или опровергнуть.
+
+На Proposal- и Specs-стадиях читать Code Repository или CodeGraph ЗАПРЕЩЕНО. На
+Design-, Tasks- и Apply-стадиях разрешена адресная проверка только выбранного
+Repository и только на подтверждённой Git revision. Если `.codegraph/` отсутствует,
+индекс stale или недоступен, используется адресный read/search; отсутствие CodeGraph
+не блокирует OpenSpec flow. Запускать `init` или `sync` автоматически ЗАПРЕЩЕНО.
+
+CodeGraph evidence подтверждает только текущую реализацию или техническую возможность.
+Его ЗАПРЕЩЕНО переносить в Store artifacts как технические детали или использовать
+для переписывания принятого Requirement.
+
+## Gate 1 — общий Planning Gate
+
+Перед началом реализации ОБЯЗАТЕЛЬНЫ:
+
+- Jira Story связана с `change-id` либо отсутствие Jira явно зафиксировано;
 - OpenSpec Change проходит строгую валидацию;
 - Proposal, Delta Specs, Design и Tasks согласованы между собой;
-- определены затронутые capability, системы и Code Repositories;
-- Repository impact, Design и Tasks используют одинаковый набор зарегистрированных
-  `repository-id`, либо различие явно обосновано;
-- тест-кейсы покрывают каждый новый или изменённый Scenario;
-- решения, влияющие на scope, Specs, Design или Tasks, закрыты.
+- OpenSpec Graph свежий, а repository scope проверен после Delta Specs;
+- Repository Impact, Design и Tasks содержат одинаковый набор `repository-id` только
+  для репозиториев с планируемыми изменениями;
+- каждый новый или изменённый Scenario имеет план проверки;
+- закрыты решения, меняющие scope, Specs, Design или Tasks;
+- Владелец, Аналитик, Разработчик и Тестировщик приняли Planning; Лид подключён по
+  риск-триггерам.
 
-Результат — явное решение участников и точная принятая planning revision. Lead
-обязателен для breaking contract, security/compliance, миграции данных, нескольких
-доменов, изменения SLO или необратимого rollout.
+Результат Gate 1 относится к точной Git revision Planning. В Standard flow команда
+фиксирует её своим обычным процессом. В Change Tracking flow она дополнительно
+записывается в Cycle Record.
 
-## Gate 2 — Implementation candidate
+## Сценарий 1 — Standard OpenSpec + Graphs
 
-Обязательный вход:
+Этот сценарий используется, когда Change Tracking не подключён или команда явно
+выбрала Standard OpenSpec Apply после `CYCLE_NOT_FOUND`.
 
-- завершены требуемые implementation PR;
-- PR Review подтвердил OpenSpec alignment или зарегистрировал отклонения;
-- CI и обязательные component/contract проверки успешны;
-- определены точные commit SHA всех Code Repositories;
-- определён build, image или иной поставляемый artifact;
-- вычислен один Snapshot для передачи в IFT и QA.
+### Поток
 
-Gate 2 не утверждает качество продукта: он фиксирует однозначного кандидата на
-проверку.
+1. Владелец и команда формируют intent и Planning artifacts.
+2. OpenSpec Graph проверяет capability impact и согласованность Repository Impact.
+3. Люди принимают Gate 1.
+4. Разработчики запускают штатный OpenSpec Apply и реализуют принятые Tasks
+   в соответствующих Code Repositories. CodeGraph может использоваться для адресной
+   навигации по текущей реализации.
+5. PR Review и repository-local CI проверяют код, тесты и соответствие принятому
+   Change.
+6. Команда своим действующим процессом фиксирует точные implementation commits,
+   поставляемый artifact и результаты IFT/QA.
+7. Люди принимают Gate 2 и Gate 3 на подтверждённом evidence.
+8. Выполняются Release и штатный OpenSpec Archive.
 
-## Gate 3 — Release ready
+### Что именно означает Standard Apply
 
-Обязательный вход:
+Project skill `openspec-base-apply-context` сначала проверяет конфигурацию Plugins. Если
+Change Tracking не подключён для текущего workflow, выбирается Standard OpenSpec
+Apply без вызова его команд. Если Change Tracking подключён, skill выполняет
+`openspec-orch status <change-id> --json`; только `CYCLE_NOT_FOUND` разрешает
+предложить Standard OpenSpec Apply или создание Cycle. Пользователь ОБЯЗАН явно
+выбрать режим; создавать Cycle автоматически ЗАПРЕЩЕНО.
 
-- IFT выполнен на Snapshot Gate 2;
-- QA проверила относящиеся к Change OpenSpec Scenarios;
-- Zephyr executions связаны со Scenario IDs и Snapshot;
-- нет блокирующих дефектов;
-- подтверждены rollout, наблюдение и rollback;
-- release artifact соответствует проверенному Snapshot.
+Standard mode передаёт исходные OpenSpec contextFiles и Tasks встроенному Apply. Он не
+предоставляет:
 
-## Инвалидация
+- машинный repository scope;
+- planning pin;
+- Cycle Record;
+- Result Receipts;
+- детерминированный multi-repository Snapshot;
+- Verification Receipt.
 
-- Новая planning revision требует повторного Gate 1 и нового Cycle.
-- Изменение состава репозиториев требует повторного Gate 1.
-- Новый implementation commit или build создаёт нового кандидата и инвалидирует
-  Gate 2, IFT, QA и Gate 3 старого Snapshot.
-- Изменение только внешней ссылки без изменения её результата не должно менять
-  Snapshot, но сохраняется в audit trail.
-- Изменение наблюдаемого поведения во время Development возвращается в Planning, а не
-  маскируется правкой кода или Tasks.
+Поэтому координация репозиториев, фиксация точных commits и привязка результатов
+проверки выполняются действующим процессом команды. Называть такой ручной набор
+версий `Change Tracking Snapshot` ЗАПРЕЩЕНО.
 
-## Archive и Confluence
+## Сценарий 2 — OpenSpec + Graphs + Change Tracking
 
-Archive разрешён только после завершения реализаций, ручной проверки и релиза в
-соответствии с политикой проекта. Штатный `/opsx-archive` остаётся владельцем
-синхронизации Delta Specs и перемещения Change.
+Этот сценарий добавляет Change Tracking после принятого Gate 1. Он не заменяет ни
+Planning, ни OpenSpec Graph, ни Apply, ни внешние проверки.
 
-Перед изменением Master Specs Archive требует свежий OpenSpec Graph, проверяет
-`graph impact`, порядок зависимых Changes и соответствие Cycle через `graph
-check-scope`. При `CYCLE_NOT_FOUND` scope берётся из принятых Tasks sections,
-предусматривающих работу в Code Repository; остальные ошибки Orchestrator блокируют
-Archive. Для явно принятого
-`skip_specs` проверка scope помечается `not_applicable`, а repository sections
-проверяются напрямую без создания фиктивной Delta Spec. Review-репозиторий вне Cycle
-допустим только с принятым evidence `no-change`.
+### Что добавляет Change Tracking
 
-После Archive граф пересобирается повторно, потому что применение Delta Specs и
+- Cycle Record с точным составом Code Repositories и Planning revision;
+- repository-scoped Apply context;
+- Result Receipt с точным implementation commit каждого Repository;
+- детерминированный Snapshot полного набора completed Results;
+- Verification Receipt последнего текущего Snapshot.
+
+Перед `assign` набор `--repo` ОБЯЗАН совпадать с принятым Repository Impact и пройти
+`graph check-scope`. Сам Change Tracking не вычисляет impact и не обращается к Graph
+автоматически.
+
+### Поток
+
+1. После Gate 1 Store checkout ОБЯЗАН быть чистым, а Planning — закоммиченным.
+2. Из Store создаётся Cycle:
+
+   ```bash
+   openspec-orch assign <change-id> --repo <repository-id>...
+   ```
+
+3. Пользователь проверяет preview. Созданный Cycle Record ОБЯЗАН быть закоммичен
+   обычным Git-процессом; `assign` не выполняет commit или push.
+4. При существующем Cycle штатный OpenSpec Apply работает только в orchestrated
+   mode. Обход Cycle через Standard Apply ЗАПРЕЩЁН.
+5. Apply ОБЯЗАН проверить planning integrity, свежий OpenSpec Graph и точный Cycle
+   scope. В текущем Code Repository выполняются только Tasks section с его точным
+   `repository-id`; общая section требует явного owner.
+6. После завершения Tasks и получения существующего implementation commit записывается
+   Result Receipt:
+
+   ```bash
+   openspec-orch record assignment <change-id> \
+     --repo <repository-id> --commit <sha> \
+     --status <completed|failed|blocked> --source <human|agent|ci>
+   ```
+
+7. Когда каждый Repository Cycle имеет текущий `completed` Receipt, вычисляется
+   Snapshot:
+
+   ```bash
+   openspec-orch verify <change-id>
+   ```
+
+8. `verify` только проверяет полноту Receipts и вычисляет `snapshot_id`. Он не делает
+   checkout, не запускает тесты и не подтверждает качество. IFT и QA ОБЯЗАНЫ быть
+   выполнены внешним процессом именно на версиях Snapshot.
+9. Результат внешней проверки записывается для последнего текущего Snapshot:
+
+   ```bash
+   openspec-orch record verification <change-id> \
+     --result <pass|fail> --source <human|agent|ci>
+   ```
+
+10. `openspec-orch status <change-id>` ОБЯЗАН показать текущий Cycle, Results,
+    Snapshot, Verification Receipt и следующее действие. После этого люди принимают
+    соответствующие Gate и Release-решение.
+
+### Planning integrity и инвалидация
+
+- Изменение Proposal, Specs, Design, текста или порядка Tasks после создания Cycle —
+  planning drift. Реализация блокируется, Change возвращается в Planning, Gate 1 и
+  Cycle создаются заново.
+- Переключение существующего Task checkbox при подтверждённом task-level evidence —
+  progress-only и не создаёт новую planning revision.
+- Изменение состава репозиториев требует нового Gate 1 и нового Cycle.
+- Новый implementation commit делает предыдущий Result Receipt, Snapshot и связанную
+  verification нетекущими; Gate 2, IFT, QA и Gate 3 должны относиться к новому
+  кандидату.
+- Blocked Task остаётся незакрытой и ЗАПРЕЩАЕТ `completed` Result Receipt текущего
+  Repository.
+
+### Ограничения Change Tracking v1
+
+Change Tracking v1 рассчитан на одного пользователя и одну активную рабочую копию
+Store на машине. Cycle Record хранится в Git, а Result Receipts, Snapshots и
+Verification Receipts — только в локальном Plugin state и между машинами не
+переносятся.
+
+Change Tracking не выполняет Git checkout, тесты, IFT, QA, Release или Archive, не
+публикует данные во внешние системы и не предоставляет отдельные `plan` или
+`implement` operations.
+
+## Gate 2 и Gate 3
+
+В обоих сценариях Gate остаются решениями людей:
+
+- **Gate 2 — Implementation candidate:** реализации прошли PR Review и обязательные
+  repository checks; зафиксированы точные commits и поставляемый artifact; отклонения
+  от OpenSpec отсутствуют или явно разрешены.
+- **Gate 3 — Release ready:** IFT и QA выполнены на том же кандидате; Scenarios
+  проверены; нет блокирующих дефектов; rollout, наблюдение и rollback подтверждены.
+
+В Standard flow evidence и набор commits фиксируются действующим процессом команды. В
+Change Tracking flow Gate 2 ОБЯЗАН ссылаться на текущий Snapshot, а результат внешней
+проверки — на его текущий Verification Receipt. Change Tracking не принимает Gate и
+не заменяет решение Владельца, Тестировщика или Лида.
+
+## Archive и внешние интеграции
+
+Archive разрешён только после завершения требуемых реализаций, ручной проверки и
+Release по политике проекта. Штатный `/opsx-archive` остаётся владельцем синхронизации
+Delta Specs и перемещения Change.
+
+Перед Archive ОБЯЗАТЕЛЬНО:
+
+1. получить свежий authoritative OpenSpec Graph;
+2. выполнить `graph impact <change-id>` и проверить prerequisite Changes;
+3. проверить repository scope через `graph check-scope`:
+   - при существующем Cycle использовать точный набор его repositories;
+   - при `CYCLE_NOT_FOUND` использовать только repository sections принятых Tasks,
+     предусматривающие реальное изменение;
+   - при принятом `skip_specs` пометить scope check как `not_applicable` и проверить
+     repository sections напрямую;
+4. устранить missing, unmapped и extra repositories;
+5. review-кандидата добавить в scope только после подтверждения реального изменения и
+   повторного Planning/Gate 1.
+
+После Archive Graph ОБЯЗАН быть пересобран, потому что применение Delta Specs и
 перемещение Change изменяют входы проекции. Пока `graph status --json` не вернул
 `ready` и `graph impact` не прочитан для архивного Change, Graph handoff считается
-незавершённым; штатный Archive автоматически не откатывается.
+незавершённым. Ошибка post-build не откатывает уже выполненный штатный Archive.
 
-Для Confluence требуется идемпотентная публикация архивной копии, ключ которой
-включает Store, `change-id` и archive revision. Страница содержит Jira, архивную Git
-revision, итоговые Specs и Design, Snapshot, release artifact, PR, Zephyr и решения
-Gate. Сбой публикации не меняет OpenSpec-файлы, но Archive handoff считается
-незавершённым до успешного повтора.
-
-Confluence не становится источником требований: при расхождении приоритет имеет
-архивная Git revision центрального Store.
+Jira, CI, Zephyr, Confluence и другие внешние системы остаются adapters команды и не
+становятся источником требований. Если политика проекта требует публикацию архивной
+копии, она должна быть идемпотентной и ссылаться на архивную Git revision Store. Сбой
+внешней публикации не изменяет OpenSpec artifacts.
 
 ## Исключения
 
-Для каждого исключения фиксируются причина, владелец решения, область, срок действия
-и компенсирующая проверка. Неизвестный владелец или бессрочное исключение блокирует
+Для каждого исключения ОБЯЗАТЕЛЬНЫ причина, владелец решения, область, срок действия и
+компенсирующая проверка. Неизвестный владелец или бессрочное исключение блокирует
 соответствующий Gate.

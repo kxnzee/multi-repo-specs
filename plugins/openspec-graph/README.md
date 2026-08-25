@@ -14,8 +14,8 @@ Plugin создаёт пять типов узлов:
 - `change:<change-id>` — активный или архивный OpenSpec Change;
 - `delta-spec:<change-id>/<capability-path>` — активная или архивная Delta Spec.
 
-Иерархия `Store → Repository → Master Spec → Change → Delta Spec` строится
-детерминированно. Store и Repository берутся из контекста Orchestrator, а Change,
+Типизированная Store-level модель строится детерминированно. Store и Repository
+берутся из контекста Orchestrator, а Change,
 Delta Spec и затрагиваемая Master Spec — из структуры OpenSpec. Операции `ADDED`,
 `MODIFIED`, `REMOVED` и `RENAMED` читаются из стандартных секций Delta Spec и
 агрегируются на связи Change с Master Spec. Исходная связь Delta Spec → Master Spec
@@ -40,10 +40,28 @@ edges:
       - docs/architecture.md:31
 ```
 
+Структурные отношения модели:
+
+```text
+Store contains Repository
+Change contains Delta Spec
+Change affects Master Spec
+Delta Spec changes Master Spec
+Master Spec implemented_by Repository
+Master Spec depends_on Master Spec
+Delta Spec targets Repository
+```
+
 Каждый `sources` — существующий Store-relative `path:line`. Dangling nodes,
 дубликаты, неподдерживаемые направления, отсутствующее evidence и `calls` без
 контракта блокируют сборку. Предположения по именам и транзитивные связи не
 достраиваются.
+
+Если source указывает на файл активного `openspec/changes/<change-id>/`, после
+штатного Archive builder разрешает тот же файл через единственный архивный каталог
+`openspec/changes/archive/<date>-<change-id>/` и возвращает его канонический архивный
+path в provenance. Для других отсутствующих paths сборка по-прежнему завершается
+ошибкой.
 
 ## Граница с CodeGraph
 
@@ -67,6 +85,10 @@ openspec-orch graph inspect <node-id>
 openspec-orch graph view
 ```
 
+`inspect` принимает только точный node ID и не выбирает fuzzy candidate. Если
+capability path неизвестен, сначала выполните `openspec list --specs --json`, выберите
+точный capability ID и затем вызовите `graph inspect master-spec:<capability-path>`.
+
 `impact` и `inspect` дают любому агенту provider-independent JSON из того же свежего
 индекса, который показывает UI. `impact` разделяет `direct_master_specs` — Master
 Specs с Delta Spec внутри выбранного Change, `dependent_master_specs` — downstream
@@ -74,15 +96,33 @@ Master Specs, которые прямо или транзитивно завис
 `total_master_specs` — их объединение без дубликатов. Репозитории аналогично
 разделены на `direct_repositories`, `dependent_repositories` и общий `repositories`.
 Репозитории, которые проверяют затронутые Master Specs через `verifies`, и
-непосредственные соседи implementation-репозиториев по явным `depends_on`, `calls`
-или `publishes_to` отдельно возвращаются как `verification_repositories`,
+направленно затронутые repositories по явным `depends_on` или `calls` отдельно
+возвращаются как `verification_repositories`,
 `related_repositories` и их объединение `review_repositories`. Они требуют проверки
 влияния, но не добавляются автоматически в implementation scope. `all_repositories`
 объединяет implementation scope и review-контур для отображения и машинной обработки.
 Repository-связи учитываются только на один переход и не распространяются
 транзитивно через весь мультирепозиторий.
+
+Направление Repository relations фиксировано:
+
+- `source depends_on target`: изменение dependency `target` отправляет dependent
+  `source` на review;
+- `source calls target`: изменение предоставляемого `target` contract отправляет
+  caller `source` на review;
+- `source publishes_to target`: фиксирует publisher и прямого consumer именованного
+  event contract, но сама по себе не добавляет Repository в impact или review.
+
+Обратное влияние для направленных impact-отношений не выводится автоматически.
 Транзитивное влияние строится только по явно подтверждённым связям Master Spec
 `depends_on`; отсутствующие связи не угадываются.
+
+Change dependencies возвращаются в обоих направлениях:
+`prerequisite_changes.direct/transitive` показывают Changes, от которых зависит
+выбранный Change, а `dependent_changes.direct/transitive` — активных или архивных
+потребителей выбранного Change. Совпавшие Delta Specs одного Change не создают
+внешнюю self-dependency. Поле `dependency_changes` временно сохраняется как
+совместимый объединённый список prerequisites.
 
 `check-scope` сравнивает предложенный набор Code Repositories для Cycle с этим
 impact. Прямые репозитории обязательны; их отсутствие, Change без Delta Specs или
@@ -94,6 +134,17 @@ review-репозитории выводятся для явного решен�
 `build` сначала выполняет строгую валидацию OpenSpec, затем атомарно заменяет
 последний успешно собранный индекс в Plugin storage. `view` поднимает read-only UI
 на loopback-интерфейсе и использует vendored vis-network без внешнего CDN.
+
+`source_digest` следует topology-only контракту: включает Store ID, `repository-id +
+role`, Master Specs, Delta Specs, состояние каталогов Changes, `openspec/graph.yaml` и
+файлы evidence explicit edges. Proposal, Design и Tasks не входят сами по себе; Design
+попадает в digest только когда его строка является explicit-edge evidence. Поэтому
+переключение checkbox Tasks не делает граф stale.
+
+`graph status --json` возвращает `ready`, `stale`, `unavailable` или `invalid`, признак
+`authoritative`, наличие last known-good и `next_command`. Last known-good доступен
+только для диагностики: `inspect`, `impact`, `check-scope` и `view` читают граф лишь
+при свежем `ready` состоянии.
 Интерфейс использует один force-directed граф без колонок. Store задаёт границу и
 имя открытого графа, но не занимает отдельный узел. Репозитории, Master Specs и
 Changes постоянно находятся на canvas и образуют кластеры по реальным связям.
