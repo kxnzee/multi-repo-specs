@@ -2,6 +2,7 @@
 
 import path from "node:path";
 
+import { createCliProgress } from "@openspec-orch/plugin-sdk";
 import { Command, Option } from "commander";
 
 import { collectValues, singleValue } from "./cli-values.js";
@@ -10,6 +11,7 @@ import { CORE_FILES } from "./constants.js";
 import { connection } from "./connection.js";
 import { initialization } from "./initialization.js";
 import { repositoryStatuses } from "./repository-status.js";
+import { formatStatusHeading } from "./status-output.js";
 import { workspace } from "./workspace.js";
 
 /** Собирает повторяемую Commander option. */
@@ -19,17 +21,18 @@ function collectRepositories(value, previous = []) {
 
 /** Печатает read-only состояние одного Repository. */
 function printRepositoryStatus(status) {
-  console.log(`${status.id} (${status.role}): ${status.state}`);
-  if (status.path) console.log(`  path: ${status.path}`);
+  console.log(formatStatusHeading(`${status.id} [${status.role}]`, status.state));
+  if (status.path) console.log(`  Путь: ${status.path}`);
   if (status.connected) {
     console.log(
-      `  branch: ${status.branch}${status.branchMatches ? "" : " (не совпадает с default_branch)"}`,
+      `  ${status.branchMatches ? "✓" : "✗"} Ветка: ${status.branch}` +
+        (status.branchMatches ? "" : " — не совпадает с default_branch"),
     );
-    const remoteState = status.remoteMatches
-      ? "совпадает"
-      : `не совпадает с ${CORE_FILES.orchestratorConfig}`;
-    console.log(`  remote: ${remoteState}`);
-    console.log(`  clean: ${status.clean ? "да" : "нет"}`);
+    console.log(
+      `  ${status.remoteMatches ? "✓" : "✗"} Remote: ` +
+        (status.remoteMatches ? "совпадает" : `не совпадает с ${CORE_FILES.orchestratorConfig}`),
+    );
+    console.log(`  ${status.clean ? "✓" : "⚠"} Рабочее дерево: ${status.clean ? "чистое" : "есть изменения"}`);
   }
 }
 
@@ -54,6 +57,7 @@ export class CandidateCli {
   #initialization;
   #pluginCommands;
   #pluginLifecycleCommands;
+  #progress;
   #repositoryStatuses;
   #templateRoot;
 
@@ -62,6 +66,7 @@ export class CandidateCli {
     initializationService = initialization,
     pluginCommandMounter,
     pluginLifecycleCommands,
+    progress = createCliProgress(),
     repositoryStatusService = repositoryStatuses,
     templateRoot,
   } = {}) {
@@ -75,6 +80,15 @@ export class CandidateCli {
       throw new Error("CLI_INVALID: pluginLifecycleCommands должен предоставлять mount");
     }
     this.#pluginLifecycleCommands = pluginLifecycleCommands;
+    if (
+      !progress ||
+      ["fail", "run", "start", "succeed", "update", "warn"].some((method) => (
+        typeof progress[method] !== "function"
+      ))
+    ) {
+      throw new Error("CLI_INVALID: progress должен предоставлять renderer contract");
+    }
+    this.#progress = progress;
     this.#repositoryStatuses = repositoryStatusService;
     this.#templateRoot = templateRoot;
     Object.freeze(this);
@@ -95,14 +109,18 @@ export class CandidateCli {
         .argParser(collectRepositories))
       .option("--no-strict", "отключить Git pinning и automation для текущего вызова")
       .action(async (target = ".", options) => {
-        const result = await this.#initialization.initialize({
-          target,
-          storeId: options.store,
-          agentId: options.agent,
-          templateRoot: options.template ?? this.#templateRoot,
-          repositories: options.repo ?? [],
-          noStrict: options.strict === false,
-        });
+        const result = await this.#progress.run(
+          "Инициализация Store и Project Template...",
+          () => this.#initialization.initialize({
+            target,
+            storeId: options.store,
+            agentId: options.agent,
+            templateRoot: options.template ?? this.#templateRoot,
+            repositories: options.repo ?? [],
+            noStrict: options.strict === false,
+          }),
+          { success: "Store и Project Template проверены" },
+        );
         if (result.alreadyInitialized) {
           console.log(`Store ${result.storeId} уже инициализирован; файлы не изменены.`);
           console.log(`Execution mode: ${result.executionMode}`);
@@ -121,10 +139,23 @@ export class CandidateCli {
       .addOption(new Option("--workspace <path>", "явный workspace").argParser(singleValue))
       .option("--no-strict", "отключить Git pinning и automation для текущего вызова")
       .action(async (options) => {
-        const result = await this.#connection.connect({
-          workspace: options.workspace,
-          noStrict: options.strict === false,
-        });
+        this.#progress.start("Подключение Store и Code Repositories...");
+        let result;
+        try {
+          result = await this.#connection.connect({
+            workspace: options.workspace,
+            noStrict: options.strict === false,
+            onProgress: (message, status) => {
+              if (status === "success") this.#progress.succeed(message);
+              else if (status === "warning") this.#progress.warn(message);
+              else this.#progress.update(message);
+            },
+          });
+          this.#progress.succeed("Store и Code Repositories подключены");
+        } catch (error) {
+          this.#progress.fail("Подключение Store и Code Repositories: ошибка");
+          throw error;
+        }
         console.log(`Store: ${result.storeId} (${result.storeRoot})`);
         console.log(`Workspace: ${result.workspace}`);
         console.log(`Execution mode: ${result.executionMode}`);
@@ -135,18 +166,16 @@ export class CandidateCli {
         }
         console.log("Локальная регистрация Store проверена OpenSpec.");
         for (const repository of result.repositories) {
-          console.log(
-            `${repository.id}: ${repository.status}${repository.cloned ? ", cloned" : ", existing"}`,
-          );
-          console.log(`  ${repository.path}`);
+          console.log(formatStatusHeading(repository.id, repository.status));
+          console.log(`  ✓ Checkout: ${repository.cloned ? "клонирован" : "уже существовал"}`);
+          console.log(`  Путь: ${repository.path}`);
           if (repository.pointerCreated) {
-            console.log(`  создан ${CORE_FILES.openSpecConfig}; требуется setup PR`);
+            console.log(`  ⚠ Создан ${CORE_FILES.openSpecConfig}; требуется setup PR`);
           } else if (repository.pointerPending) {
-            console.log(`  ${CORE_FILES.openSpecConfig} ещё не принят; требуется setup PR`);
+            console.log(`  ⚠ ${CORE_FILES.openSpecConfig} ещё не принят; требуется setup PR`);
           }
         }
-        console.log(`connect_status: ${result.status}`);
-        if (result.status === "ready") console.log("Локальное подключение готово.");
+        console.log(formatStatusHeading("Локальное подключение", result.status));
       });
     this.#pluginLifecycleCommands?.mount(program);
     const repository = program.command("repository")
@@ -156,9 +185,13 @@ export class CandidateCli {
       .addOption(new Option("--repo <repository-id>", "ограничить вывод одним repository-id")
         .argParser(collectValues))
       .action(async (options) => {
-        const statuses = await this.#repositoryStatuses.inspect({
-          repositoryIds: options.repo ?? [],
-        });
+        const statuses = await this.#progress.run(
+          "Проверка состояния repositories...",
+          () => this.#repositoryStatuses.inspect({
+            repositoryIds: options.repo ?? [],
+          }),
+          { success: "Состояние repositories проверено" },
+        );
         for (const status of statuses) printRepositoryStatus(status);
       });
     this.#pluginCommands?.mount(program);

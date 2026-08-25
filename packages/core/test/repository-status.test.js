@@ -155,3 +155,40 @@ test("CandidateCli preserves repository status filters", async () => {
   ]);
   assert.deepEqual(calls, [{ repositoryIds: ["frontend", "backend"] }]);
 });
+
+test("CandidateCli presents repository status with visual checks", async (t) => {
+  const output = [];
+  t.mock.method(console, "log", (value) => output.push(value));
+  const cli = new CandidateCli({
+    repositoryStatusService: {
+      async inspect() {
+        return [{
+          id: "frontend",
+          role: "code",
+          state: "connected",
+          path: "/workspace/frontend",
+          connected: true,
+          branch: "feature/status-output",
+          branchMatches: false,
+          remoteMatches: true,
+          clean: false,
+        }];
+      },
+    },
+  });
+
+  await cli.createProgram().parseAsync([
+    "node",
+    "openspec-orch",
+    "repository",
+    "status",
+  ]);
+
+  assert.deepEqual(output, [
+    "✓ frontend [code] — подключён",
+    "  Путь: /workspace/frontend",
+    "  ✗ Ветка: feature/status-output — не совпадает с default_branch",
+    "  ✓ Remote: совпадает",
+    "  ⚠ Рабочее дерево: есть изменения",
+  ]);
+});

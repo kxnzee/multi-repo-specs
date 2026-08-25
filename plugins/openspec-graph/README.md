@@ -141,7 +141,9 @@ role`, Master Specs, Delta Specs, состояние каталогов Changes,
 попадает в digest только когда его строка является explicit-edge evidence. Поэтому
 переключение checkbox Tasks не делает граф stale.
 
-`graph status --json` возвращает `ready`, `stale`, `unavailable` или `invalid`, признак
+`graph status` по умолчанию показывает человекочитаемую сводку с `✓`, `⚠` или `✗`,
+числом узлов и рёбер, digest и следующим действием. `graph status --json` возвращает
+`ready`, `stale`, `unavailable` или `invalid`, признак
 `authoritative`, наличие last known-good и `next_command`. Last known-good доступен
 только для диагностики: `inspect`, `impact`, `check-scope` и `view` читают граф лишь
 при свежем `ready` состоянии.

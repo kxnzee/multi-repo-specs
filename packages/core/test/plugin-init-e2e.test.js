@@ -174,9 +174,10 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
     `sample: registered at ${sourceRoot}`,
     `Entrypoint: ${path.join(sourceRoot, "index.js")}`,
     `После реализации: openspec-orch plugin init --from ${sourceRoot} --plugin sample`,
-    "sample: initialized",
+    "✓ sample — инициализирован",
     "Далее: openspec-orch plugin connect <plugin-id>",
-    "sample -> frontend: connected",
+    "✓ sample → frontend — подключён",
+    "✓ sample → frontend — готов",
     JSON.stringify({
       plugins: [{
         pluginId: "sample",
@@ -185,10 +186,10 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
         output: "",
       }],
     }, null, 2),
-    "sample: already_initialized",
+    "✓ sample — уже инициализирован",
     "Далее: openspec-orch plugin connect <plugin-id>",
-    "sample -> frontend: disconnected",
-    "sample: removed",
-    "sample: not_initialized",
+    "✓ sample → frontend — отключён",
+    "✓ sample — удалён",
+    "• sample — не был инициализирован",
   ]);
 });

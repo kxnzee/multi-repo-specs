@@ -73,6 +73,10 @@ async function samplePlugin(t, calls) {
         calls.push(["sync", context.repositoryId]);
         return "updated";
       },
+      exec(context, args) {
+        calls.push(["exec", context.repositoryId, args]);
+        return "native output";
+      },
     },
     registerCommands(commands) {
       commands.command("hello")
@@ -145,6 +149,18 @@ test("PluginPlatform wires sample lifecycle and namespaced command into candidat
     await (await createCandidateProgram(options)).parseAsync([
       "node",
       "openspec-orch",
+      "plugin",
+      "exec",
+      "sample",
+      "--repo",
+      "frontend",
+      "--",
+      "native-status",
+      "--json",
+    ]);
+    await (await createCandidateProgram(options)).parseAsync([
+      "node",
+      "openspec-orch",
       "sample",
       "hello",
     ]);
@@ -159,10 +175,19 @@ test("PluginPlatform wires sample lifecycle and namespaced command into candidat
   assert.deepEqual(calls, [
     ["connect", "frontend"],
     ["status", "frontend"],
+    ["status", "frontend"],
     ["sync", "frontend"],
+    ["status", "frontend"],
+    ["exec", "frontend", ["native-status", "--json"]],
     ["command", "hello"],
   ]);
-  assert.deepEqual(output, ["sample -> frontend: synced", "updated"]);
+  assert.deepEqual(output, [
+    "✓ sample → frontend — синхронизирован",
+    "updated",
+    "✓ sample → frontend — готов",
+    "  indexed",
+    "native output",
+  ]);
 });
 
 test("empty composition still exposes Core plugin lifecycle without Plugin-specific branches", async () => {
@@ -289,9 +314,9 @@ test("bundled provider initializes and restores a Plugin without Store runtime",
     ".openspec-orch/cache/plugin-runtimes",
   )).catch((error) => error.code), "ENOENT");
   assert.deepEqual(output, [
-    "sample: initialized",
+    "✓ sample — инициализирован",
     "Далее: openspec-orch plugin connect <plugin-id>",
-    "sample: already_initialized",
+    "✓ sample — уже инициализирован",
     "Далее: openspec-orch plugin connect <plugin-id>",
   ]);
 });
@@ -328,7 +353,7 @@ test("automatic composition skips unavailable runtime but rejects corrupted cach
       await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
     );
     assert.equal(disconnected.isPluginConnected("sample", "frontend"), false);
-    assert.deepEqual(output, ["sample -> frontend: disconnected"]);
+    assert.deepEqual(output, ["✓ sample → frontend — отключён"]);
 
     const runtimeDirectory = path.join(
       storeRoot,

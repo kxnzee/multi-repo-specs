@@ -133,15 +133,29 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     { pluginId: "codegraph", repositoryId: "specs", state: "stale" },
     { pluginId: "codegraph", repositoryId: "frontend", state: "ready" },
   ]);
-  await runCli(storeRoot, "plugin", "sync", "codegraph", "--repo", "specs");
-  await runCli(storeRoot, "plugin", "sync", "codegraph", "--repo", "frontend");
+  const humanStatus = await runCli(storeRoot, "plugin", "status", "--plugin", "codegraph");
+  assert.match(humanStatus.stdout, /⚠ codegraph → specs — требует обновления/);
+  assert.match(humanStatus.stdout, /✓ codegraph → frontend — готов/);
+  assert.doesNotMatch(humanStatus.stdout, /^\s*\{/mu);
+  const syncAll = await runCli(storeRoot, "plugin", "sync", "codegraph", "--all");
+  assert.match(syncAll.stdout, /✓ codegraph → specs — синхронизирован/);
+  assert.match(syncAll.stdout, /✓ codegraph → frontend — синхронизирован/);
+  assert.match(syncAll.stdout, /✓ codegraph → specs — готов/);
+  assert.match(syncAll.stdout, /✓ codegraph → frontend — готов/);
+  const execAll = await runCli(
+    storeRoot,
+    "plugin", "exec", "codegraph", "--all", "--", "status", "--json",
+  );
+  assert.match(execAll.stdout, /✓ codegraph → specs — команда выполнена/);
+  assert.match(execAll.stdout, /✓ codegraph → frontend — команда выполнена/);
   for (const command of ["assign", "status", "record", "verify"]) {
     assert.match(stdout, new RegExp(`\\b${command}\\b`));
   }
   assert.doesNotMatch(stdout, /change-tracking\s+Команды Plugin/);
 
-  await runCli(storeRoot, "plugin", "disconnect", "codegraph", "--repo", "specs");
-  await runCli(storeRoot, "plugin", "disconnect", "codegraph", "--repo", "frontend");
+  const disconnectAll = await runCli(storeRoot, "plugin", "disconnect", "codegraph", "--all");
+  assert.match(disconnectAll.stdout, /✓ codegraph → specs — отключён/);
+  assert.match(disconnectAll.stdout, /✓ codegraph → frontend — отключён/);
   await runCli(storeRoot, "plugin", "remove", "codegraph");
   const removed = configuration.parseProject(
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
@@ -262,8 +276,19 @@ test("candidate distribution completes Change Tracking through the public CLI", 
     store.checkout,
     "status", "checkout-flow", "--json",
   )).stdout);
+  const execStatus = JSON.parse((await runCli(
+    store.checkout,
+    "plugin", "exec", "change-tracking", "--repo", "specs", "--",
+    "status", "checkout-flow", "--json",
+  )).stdout);
 
   assert.equal(status.next_action, "готово");
+  assert.equal(execStatus.current_repository, null);
+  assert.equal(execStatus.change_id, status.change_id);
+  assert.equal(execStatus.cycle_id, status.cycle_id);
+  assert.deepEqual(execStatus.results, status.results);
+  assert.deepEqual(execStatus.snapshot, status.snapshot);
+  assert.deepEqual(execStatus.verification, status.verification);
   assert.equal(status.verification.result, "pass");
   assert.deepEqual(status.results.map(({ repository_id: id, status: state }) => ({ id, state })), [
     { id: "frontend", state: "completed" },

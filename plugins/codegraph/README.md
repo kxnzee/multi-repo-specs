@@ -29,13 +29,25 @@ cd <абсолютный путь до Store>
 openspec-orch plugin init --plugin codegraph
 openspec-orch plugin connect codegraph --repo frontend
 openspec-orch plugin status --plugin codegraph --repo frontend
-openspec-orch codegraph --repository frontend explore "authentication flow"
+openspec-orch plugin exec codegraph --repo frontend -- explore "authentication flow"
+```
+
+Если `--repo` не указан, команда выполняется во всех repositories, к которым
+подключён CodeGraph:
+
+```bash
+openspec-orch plugin exec codegraph -- status --json
 ```
 
 Интерактивный `plugin init` показывает checkbox каталога, а `plugin connect codegraph`
 позволяет выбрать несколько repositories. `connect` нативно вызывает
 `codegraph init .`, то есть первичная индексация выполняется сразу. Для явного
-обновления используйте `openspec-orch plugin sync codegraph --repo frontend`.
+обновления одного instance используйте
+`openspec-orch plugin sync codegraph --repo frontend`, а всех подключённых instances —
+`openspec-orch plugin sync codegraph`.
+Любую другую native-команду bundled CodeGraph можно вызвать через `plugin exec`;
+Core выбирает подключённый Repository instance и без разбора передаёт Package весь
+argv после `--`.
 
 Перед индексацией Plugin добавляет `.codegraph/` в локальный `.git/info/exclude`.
 Tracked `.gitignore` Repository не меняется, а сам индекс остаётся локальным и не

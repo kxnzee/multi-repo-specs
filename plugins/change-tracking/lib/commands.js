@@ -1,6 +1,7 @@
 /** @fileoverview Thin native CLI adapter for Change Tracking operations. */
 
 import { confirm } from "@inquirer/prompts";
+import { createCliProgress } from "@openspec-orch/plugin-sdk";
 
 import { ChangeTrackingService } from "./service.js";
 
@@ -61,6 +62,25 @@ async function confirmVerification(preview, write, prompt) {
   return prompt({ message: "Записать Verification Receipt?", default: false });
 }
 
+/** Показывает подготовительные проверки, но убирает spinner до интерактивного prompt. */
+async function runBeforePrompt(progress, message, success, operation) {
+  let prepared = false;
+  const finishPreparation = () => {
+    if (prepared) return;
+    progress.succeed(success);
+    prepared = true;
+  };
+  progress.start(message);
+  try {
+    const result = await operation(finishPreparation);
+    finishPreparation();
+    return result;
+  } catch (error) {
+    progress.fail(`${message}: ошибка`);
+    throw error;
+  }
+}
+
 /** Produces the stable agent-facing status JSON. */
 export function formatStatusJson(status, currentRepository) {
   return Object.freeze({
@@ -92,56 +112,80 @@ export function formatStatusJson(status, currentRepository) {
   });
 }
 
+/** Переводит machine state только для human status; JSON contract не меняется. */
+function resultStateLabel(state) {
+  return {
+    blocked: "заблокирован",
+    commit_unavailable: "commit недоступен",
+    completed: "завершён",
+    failed: "ошибка",
+    missing: "результат не записан",
+  }[state] ?? state;
+}
+
 /** Prints the human-readable status contract. */
 function printStatus(status, currentRepository, write) {
-  write(`change_id: ${status.changeId}`);
-  write(`cycle_id: ${status.cycle.cycleId}`);
-  write(`planning_revision: ${status.cycle.planningRevision}`);
-  write(`repositories: ${status.cycle.repositories.join(", ")}`);
-  write(`committed: ${status.committed ? "да" : "нет"}`);
+  const verificationFailed = status.verification?.current && status.verification.result === "fail";
+  const complete = status.nextAction === "готово" && !verificationFailed;
+  write(
+    `${verificationFailed ? "✗" : complete ? "✓" : "⚠"} Change ${status.changeId} — ` +
+      `${verificationFailed ? "проверка не пройдена" : complete ? "готов" : "требуется действие"}`,
+  );
+  write(`  Cycle: ${status.cycle.cycleId}`);
+  write(`  Planning revision: ${status.cycle.planningRevision}`);
+  write(`  ${status.committed ? "✓" : "⚠"} Cycle Record: ` +
+    `${status.committed ? "закоммичен" : "не закоммичен"}`);
   if (currentRepository) {
+    const inCycle = status.cycle.repositories.includes(currentRepository.id);
     write(
-      `current_repository: ${currentRepository.id} ` +
-        `(in_cycle: ${status.cycle.repositories.includes(currentRepository.id) ? "да" : "нет"})`,
+      `  ${inCycle ? "✓" : "•"} Текущий Repository: ${currentRepository.id} ` +
+        `(${inCycle ? "в Cycle" : "вне Cycle"})`,
     );
   }
-  if (!status.committed) write("Предупреждение: Cycle Record ещё не закоммичен.");
-  write("Результаты:");
+  write("");
+  write(`  Репозитории (${status.repositories.length})`);
   for (const repository of status.repositories) {
+    const icon = repository.state === "completed"
+      ? "✓"
+      : ["failed", "commit_unavailable"].includes(repository.state) ? "✗" : "⚠";
+    const state = resultStateLabel(repository.state);
     if (!repository.receipt) {
-      write(`  ${repository.repositoryId}: ${repository.state}`);
+      write(`    ${icon} ${repository.repositoryId} — ${state}`);
       continue;
     }
     write(
-      `  ${repository.repositoryId}: ${repository.state} @ ` +
-        `${repository.receipt.implementation_revision} (source: ${repository.receipt.source})`,
+      `    ${icon} ${repository.repositoryId} — ${state} @ ` +
+        `${repository.receipt.implementation_revision} (${repository.receipt.source})`,
     );
     if (repository.headMatches === false) {
       write(
-        `    info: HEAD checkout отличается (${repository.head}); Receipt сохраняет точный SHA.`,
+        `      ⚠ HEAD отличается (${repository.head}); Receipt сохраняет точный SHA`,
       );
     }
   }
   if (status.snapshot) {
     write(
-      `snapshot_id: ${status.snapshot.snapshot_id} ` +
-        `(current: ${status.snapshot.current ? "да" : "нет"})`,
+      `  ${status.snapshot.current ? "✓" : "⚠"} Snapshot: ${status.snapshot.snapshot_id} ` +
+        `(${status.snapshot.current ? "актуален" : "устарел"})`,
     );
   }
   if (status.verification) {
+    const passed = status.verification.current && status.verification.result === "pass";
     write(
-      `verification: ${status.verification.result} ` +
-        `(source: ${status.verification.source}, ` +
-        `current: ${status.verification.current ? "да" : "нет"})`,
+      `  ${passed ? "✓" : "✗"} Проверка: ` +
+        `${status.verification.result === "pass" ? "пройдена" : "не пройдена"} ` +
+        `(${status.verification.source}, ` +
+        `${status.verification.current ? "актуальна" : "устарела"})`,
     );
   }
-  write(`следующее действие: ${status.nextAction}`);
+  write("");
+  write(`  → Далее: ${status.nextAction}`);
 }
 
 /** Registers the preserved root command grammar through the public SDK builder. */
 export function registerChangeTrackingCommands(
   commands,
-  { output = console, prompt = confirm } = {},
+  { output = console, progress = createCliProgress(), prompt = confirm } = {},
 ) {
   const write = (message) => output.log(message);
   const confirmCycle = (preview) => confirmAssign(preview, write, prompt);
@@ -154,11 +198,19 @@ export function registerChangeTrackingCommands(
       required: true,
     })
     .actionWithContext(async (context, changeId, options) => {
-      const result = await new ChangeTrackingService(context).assign({
-        changeId,
-        repositoryIds: options.repo,
-        confirm: confirmCycle,
-      });
+      const result = await runBeforePrompt(
+        progress,
+        "Проверка Change и repositories перед созданием Cycle...",
+        "Данные Cycle проверены",
+        (prepared) => new ChangeTrackingService(context).assign({
+          changeId,
+          repositoryIds: options.repo,
+          confirm: async (preview) => {
+            prepared();
+            return confirmCycle(preview);
+          },
+        }),
+      );
       if (result.status === "cancelled") {
         write("Отменено пользователем; Cycle Record не записан.");
       } else if (result.status === "unchanged") {
@@ -180,7 +232,11 @@ export function registerChangeTrackingCommands(
     .description("показать текущий Cycle Record и следующее действие")
     .option("--json", "вывести машиночитаемый контекст Cycle и текущего Repository")
     .actionWithContext(async (context, changeId, options) => {
-      const status = await new ChangeTrackingService(context).status(changeId);
+      const status = await progress.run(
+        `Проверка текущего состояния Change ${changeId}...`,
+        () => new ChangeTrackingService(context).status(changeId),
+        { success: `Состояние Change ${changeId} проверено` },
+      );
       if (options.json) {
         write(JSON.stringify(formatStatusJson(status, context.invocation), null, 2));
       } else {
@@ -210,15 +266,23 @@ export function registerChangeTrackingCommands(
     })
     .option("--note <text>", "необязательная заметка", { parser: singleValue })
     .actionWithContext(async (context, changeId, options) => {
-      const result = await new ChangeTrackingService(context).recordAssignment({
-        changeId,
-        repositoryId: options.repo,
-        implementationRevision: options.commit,
-        status: options.status,
-        source: options.source,
-        note: options.note,
-        confirm: confirmResult,
-      });
+      const result = await runBeforePrompt(
+        progress,
+        "Проверка Cycle, Repository и commit перед записью Result Receipt...",
+        "Данные Result Receipt проверены",
+        (prepared) => new ChangeTrackingService(context).recordAssignment({
+          changeId,
+          repositoryId: options.repo,
+          implementationRevision: options.commit,
+          status: options.status,
+          source: options.source,
+          note: options.note,
+          confirm: async (preview) => {
+            prepared();
+            return confirmResult(preview);
+          },
+        }),
+      );
       if (result.status === "cancelled") {
         write("Отменено пользователем; Result Receipt не записан.");
       } else {
@@ -232,7 +296,11 @@ export function registerChangeTrackingCommands(
   commands.command("verify <change-id>")
     .description("вычислить Snapshot текущих completed Result Receipts")
     .actionWithContext(async (context, changeId) => {
-      const result = await new ChangeTrackingService(context).verify(changeId);
+      const result = await progress.run(
+        `Проверка Result Receipts и построение Snapshot для ${changeId}...`,
+        () => new ChangeTrackingService(context).verify(changeId),
+        { success: `Snapshot для ${changeId} построен` },
+      );
       write(`snapshot_id: ${result.snapshot.snapshot_id}`);
       for (const [repositoryId, revision] of Object.entries(result.snapshot.implementations)) {
         write(`${repositoryId}: ${revision}`);
@@ -252,13 +320,21 @@ export function registerChangeTrackingCommands(
     })
     .option("--note <text>", "необязательная заметка", { parser: singleValue })
     .actionWithContext(async (context, changeId, options) => {
-      const result = await new ChangeTrackingService(context).recordVerification({
-        changeId,
-        result: options.result,
-        source: options.source,
-        note: options.note,
-        confirm: confirmReceipt,
-      });
+      const result = await runBeforePrompt(
+        progress,
+        "Проверка Snapshot перед записью Verification Receipt...",
+        "Данные Verification Receipt проверены",
+        (prepared) => new ChangeTrackingService(context).recordVerification({
+          changeId,
+          result: options.result,
+          source: options.source,
+          note: options.note,
+          confirm: async (preview) => {
+            prepared();
+            return confirmReceipt(preview);
+          },
+        }),
+      );
       if (result.status === "cancelled") {
         write("Отменено пользователем; Verification Receipt не записан.");
       } else {

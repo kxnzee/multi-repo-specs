@@ -26,11 +26,22 @@ openspec-orch plugin status
 ```bash
 openspec-orch plugin init --plugin codegraph
 openspec-orch plugin connect codegraph --repo frontend --repo backend
-openspec-orch plugin status --plugin codegraph --json
-openspec-orch plugin sync codegraph --repo frontend
+openspec-orch plugin status --plugin codegraph
+openspec-orch plugin sync codegraph --all
+openspec-orch plugin exec codegraph --all -- status --json
+openspec-orch plugin exec openspec-graph --repo specs -- graph status --json
+openspec-orch plugin exec change-tracking --repo specs -- status <change-id> --json
 openspec-orch plugin disconnect codegraph --repo frontend
 openspec-orch plugin remove codegraph
 ```
+
+Status-команды без `--json` предназначены для человека: они показывают состояние
+через `✓`, `⚠` и `✗`, а вложенные Plugin details — как компактное дерево. Флаг
+`--json` сохраняет стабильный машиночитаемый контракт для CI, скриптов и агентов.
+Долгие операции показывают spinner в TTY и построчный progress в CI/non-TTY.
+Progress всегда идёт в `stderr`, поэтому JSON и raw output `plugin exec` остаются
+пригодными для перенаправления. После `plugin connect` и `plugin sync` результат
+подтверждается новым вызовом `repository.status`, а не только успешным глаголом.
 
 Для единого графа Store используется отдельный Store-only Plugin:
 
@@ -96,10 +107,31 @@ openspec-orch dependency-audit inspect
 openspec-orch dependency-audit scan --help
 ```
 
-Core не передаёт произвольные «native args» внешнему executable. Позиционные
-аргументы, options и Repository context объявляет сам Plugin через публичный command
-builder. Фактическую grammar установленного Plugin показывает
+Для стабильных пользовательских операций Plugin объявляет точную grammar через
+публичный command builder. Фактическую grammar установленного Plugin показывает
 `openspec-orch <plugin-id> --help`.
+
+Для редкой диагностики или доступа к команде внутреннего Package без расширения Core
+используйте универсальный passthrough:
+
+```bash
+openspec-orch plugin exec <plugin-id> [--repo <repository-id>]... [--all] -- <command> [args...]
+```
+
+Повторяемый `--repo` выбирает один или несколько подключённых Plugin instances.
+Без `--repo` и `--all` интерактивный терминал показывает checkbox; в CI и другом
+non-TTY режиме требуется явный selector. `--all` без prompt выбирает все подходящие
+repositories для `connect` или все существующие bindings для `sync`, `exec` и
+`disconnect`. `--repo` и `--all` нельзя использовать вместе. Core не интерпретирует
+хвост после `--`: каждый выбранный Plugin instance получает одинаковый immutable
+массив строк.
+Если Package предоставляет `repository.exec`, как CodeGraph, argv передаётся его
+native runtime с проверенным Repository cwd, timeout и ограничениями
+`PluginContext.process`. Иначе SDK исполняет command grammar из `registerCommands`,
+как для OpenSpec Graph и Change Tracking. Store-scoped command требуется запускать
+через Store instance; если Plugin связан также с Code Repositories, укажите Store
+через `--repo`, иначе выбор несовместимого instance остановится с
+`PLUGIN_EXEC_SCOPE_MISMATCH`.
 
 ## Создание пользовательского Plugin
 

@@ -51,6 +51,7 @@ test("Package owns its CodeGraph dependency and native Plugin entrypoint", async
     id: "codegraph",
     commands: [],
   });
+  assert.equal(plugin.canExec(), true);
   const calls = [];
   const integration = plugin.integrateAgent(Object.freeze({
     agent: Object.freeze({ id: "codex" }),
@@ -86,10 +87,12 @@ test("Native repository lifecycle delegates to the package launcher", async () =
   await plugin.connect(context);
   assert.deepEqual(await plugin.status(context), { state: "ready", details: readyDetails });
   await plugin.sync(context);
+  await plugin.exec(context, ["explore", "authentication flow", "--json"]);
   assert.deepEqual(calls, [
     [process.execPath, [launcher, "init", "."]],
     [process.execPath, [launcher, "status", ".", "--json"]],
     [process.execPath, [launcher, "sync", "."]],
+    [process.execPath, [launcher, "explore", "authentication flow", "--json"]],
   ]);
 });
 

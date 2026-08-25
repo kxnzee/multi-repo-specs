@@ -24,6 +24,7 @@ test("change-tracking contributes only the preserved root command set", () => {
     assertPluginContract({ plugin, packageManifest }).commands,
     ["assign", "status", "record", "verify"],
   );
+  assert.equal(plugin.canExec(), true);
 });
 
 test("CycleRecord creates and serializes the frozen v1 contract", () => {

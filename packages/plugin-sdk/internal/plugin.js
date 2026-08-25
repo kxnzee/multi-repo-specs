@@ -1,5 +1,7 @@
 /** @fileoverview Доменная модель Plugin и фабрика публичного API. */
 
+import { executePluginCommands } from "./command-executor.js";
+
 const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const REPOSITORY_ROLES = new Set(["store", "code"]);
 
@@ -114,6 +116,7 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
  * @property {(context: PluginContext) => unknown | Promise<unknown>} connect
  * @property {(context: PluginContext) => PluginRepositoryStatus | Promise<PluginRepositoryStatus>} status
  * @property {(context: PluginContext) => unknown | Promise<unknown>} [sync]
+ * @property {(context: PluginContext, args: readonly string[]) => unknown | Promise<unknown>} [exec]
  */
 
 /**
@@ -162,14 +165,16 @@ function assertCallback(value, label) {
 function repositoryContribution(repository) {
   if (repository === undefined) return undefined;
   assertPlainObject(repository, "repository");
-  assertKnownKeys(repository, new Set(["connect", "status", "sync"]), "repository");
+  assertKnownKeys(repository, new Set(["connect", "status", "sync", "exec"]), "repository");
   assertCallback(repository.connect, "repository.connect");
   assertCallback(repository.status, "repository.status");
   if (repository.sync !== undefined) assertCallback(repository.sync, "repository.sync");
+  if (repository.exec !== undefined) assertCallback(repository.exec, "repository.exec");
   return Object.freeze({
     connect: repository.connect,
     status: repository.status,
     ...(repository.sync === undefined ? {} : { sync: repository.sync }),
+    ...(repository.exec === undefined ? {} : { exec: repository.exec }),
   });
 }
 
@@ -276,6 +281,27 @@ export class Plugin {
       throw new Error(`PLUGIN_SYNC_UNSUPPORTED: ${this.#id} не поддерживает sync`);
     }
     return repository.sync(context);
+  }
+
+  canExec() {
+    return this.#repository?.exec !== undefined || this.#commandRegistration !== undefined;
+  }
+
+  exec(context, args) {
+    const repository = this.#requireRepositoryContribution("exec");
+    if (
+      !Array.isArray(args) ||
+      args.length === 0 ||
+      args.some((argument) => typeof argument !== "string")
+    ) {
+      throw new Error("PLUGIN_EXEC_INVALID: args должен быть непустым массивом строк");
+    }
+    const immutableArgs = Object.freeze([...args]);
+    if (repository.exec) return repository.exec(context, immutableArgs);
+    if (this.#commandRegistration) {
+      return executePluginCommands(this.#commandRegistration, context, immutableArgs);
+    }
+    throw new Error(`PLUGIN_EXEC_UNSUPPORTED: ${this.#id} не поддерживает exec`);
   }
 
   hasAgentContribution() {

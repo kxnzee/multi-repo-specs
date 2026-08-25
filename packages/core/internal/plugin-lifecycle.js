@@ -7,6 +7,30 @@ import { PluginHost } from "./plugin-host.js";
 import { repositoryRunner } from "./repository-operations.js";
 import { storeProjects } from "./store-project.js";
 
+const REPOSITORY_OPERATIONS = new Set(["connect", "disconnect", "exec", "sync"]);
+
+/** Выбирает связанные repositories явно или все в стабильном проектном порядке. */
+function selectConnections(project, pluginId, repositoryIds) {
+  const connections = project.pluginConnections({ pluginId });
+  if (repositoryIds === undefined) return connections;
+  if (!Array.isArray(repositoryIds)) {
+    throw new Error("PLUGIN_REPOSITORY_SELECTION_INVALID: repositoryIds должен быть массивом");
+  }
+  const selectedIds = [...new Set(repositoryIds)];
+  return Object.freeze(selectedIds.map((repositoryId) => {
+    const repository = project.requireRepository(repositoryId);
+    if (!project.isPluginConnected(pluginId, repositoryId)) {
+      throw new Error(`PLUGIN_NOT_CONNECTED: ${pluginId} не подключён к ${repositoryId}`);
+    }
+    return Object.freeze({ pluginId, repository });
+  }));
+}
+
+/** Возвращает transport-neutral данные Repository для CLI selection. */
+function repositoryCandidates(repositories) {
+  return Object.freeze(repositories.map(({ id, role }) => Object.freeze({ id, role })));
+}
+
 /** Immutable результат `plugin connect` для одного Repository. */
 export class PluginConnectionResult {
   #connected;
@@ -136,7 +160,8 @@ export class PluginLifecycleService {
     if (
       !applicationService ||
       typeof applicationService.connectMany !== "function" ||
-      typeof applicationService.disconnect !== "function"
+      typeof applicationService.disconnect !== "function" ||
+      typeof applicationService.disconnectMany !== "function"
     ) {
       throw new Error("PLUGIN_LIFECYCLE_INVALID: требуется PluginApplicationService");
     }
@@ -184,14 +209,49 @@ export class PluginLifecycleService {
     })));
   }
 
-  async disconnect({ start = process.cwd(), pluginId, repositoryId } = {}) {
+  async repositoryCandidates({ start = process.cwd(), pluginId, operation } = {}) {
+    if (!REPOSITORY_OPERATIONS.has(operation)) {
+      throw new Error(`PLUGIN_REPOSITORY_SELECTION_INVALID: неизвестная operation '${operation}'`);
+    }
     const storeProject = await this.#storeProjects.find(start);
-    const change = await this.#applications.disconnect(storeProject, pluginId, repositoryId);
-    return new PluginDisconnectionResult({
+    storeProject.project.requirePlugin(pluginId);
+    if (operation === "connect") {
+      this.#host.assertLoaded(pluginId);
+      return repositoryCandidates(storeProject.project.repositories.filter((repository) => (
+        this.#host.supportsRepository(pluginId, repository)
+      )));
+    }
+    if (operation !== "disconnect") this.#host.assertLoaded(pluginId);
+    return repositoryCandidates(storeProject.project
+      .pluginConnections({ pluginId })
+      .map(({ repository }) => repository));
+  }
+
+  async disconnect({ start = process.cwd(), pluginId, repositoryId } = {}) {
+    const [result] = await this.disconnectMany({
+      start,
+      pluginId,
+      repositoryIds: [repositoryId],
+    });
+    return result;
+  }
+
+  async disconnectMany({ start = process.cwd(), pluginId, repositoryIds } = {}) {
+    const storeProject = await this.#storeProjects.find(start);
+    const selectedIds = [...new Set(repositoryIds ?? storeProject.project
+      .pluginConnections({ pluginId })
+      .map(({ repository }) => repository.id))];
+    if (selectedIds.length === 0) return Object.freeze([]);
+    const changes = await this.#applications.disconnectMany(
+      storeProject,
+      pluginId,
+      selectedIds,
+    );
+    return Object.freeze(changes.map((change, index) => new PluginDisconnectionResult({
       disconnected: change.changed,
       pluginId,
-      repositoryId,
-    });
+      repositoryId: selectedIds[index],
+    })));
   }
 
   async status({ start = process.cwd(), pluginId, repositoryId } = {}) {
@@ -235,5 +295,47 @@ export class PluginLifecycleService {
   async sync({ start = process.cwd(), pluginId, repositoryId } = {}) {
     const storeProject = await this.#storeProjects.find(start);
     return this.#host.sync({ pluginId, repositoryId, storeProject });
+  }
+
+  async syncMany({ start = process.cwd(), pluginId, repositoryIds } = {}) {
+    const storeProject = await this.#storeProjects.find(start);
+    const connections = selectConnections(storeProject.project, pluginId, repositoryIds);
+    const results = await this.#runner.run(
+      connections.map(({ repository }) => repository),
+      async (repository) => Object.freeze({
+        output: await this.#host.sync({
+          pluginId,
+          repositoryId: repository.id,
+          storeProject,
+        }),
+        pluginId,
+        repositoryId: repository.id,
+      }),
+    );
+    return results;
+  }
+
+  async exec({ start = process.cwd(), args, pluginId, repositoryId } = {}) {
+    const storeProject = await this.#storeProjects.find(start);
+    return this.#host.exec({ args, pluginId, repositoryId, storeProject });
+  }
+
+  async execMany({ start = process.cwd(), args, pluginId, repositoryIds } = {}) {
+    const storeProject = await this.#storeProjects.find(start);
+    const connections = selectConnections(storeProject.project, pluginId, repositoryIds);
+    const results = await this.#runner.run(
+      connections.map(({ repository }) => repository),
+      async (repository) => Object.freeze({
+        output: await this.#host.exec({
+          args,
+          pluginId,
+          repositoryId: repository.id,
+          storeProject,
+        }),
+        pluginId,
+        repositoryId: repository.id,
+      }),
+    );
+    return results;
   }
 }

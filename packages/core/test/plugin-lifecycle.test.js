@@ -67,7 +67,7 @@ async function createStoreFixture(t, { backendConnected = false, connected = fal
 }
 
 /** Загружает наблюдаемый Plugin через реальную package boundary Loader. */
-async function loadPlugin(t, calls, { connect, status } = {}) {
+async function loadPlugin(t, calls, { connect, exec, status } = {}) {
   const plugin = Object.freeze({
     id: "sample",
     supports: Object.freeze(["code"]),
@@ -88,6 +88,11 @@ async function loadPlugin(t, calls, { connect, status } = {}) {
     sync(context) {
       calls.push(["sync", context]);
       return "synced";
+    },
+    canExec: () => true,
+    exec(context, args) {
+      calls.push(["exec", context, args]);
+      return exec ? exec(context, args) : "executed";
     },
     hasAgentContribution: () => false,
     integrateAgent() {},
@@ -216,7 +221,7 @@ test("PluginLifecycleService disconnects idempotently without Plugin callback", 
   assert.deepEqual(calls, []);
 });
 
-test("PluginLifecycleService delegates bound status and sync without changing config", async (t) => {
+test("PluginLifecycleService delegates bound status, sync and exec without changing config", async (t) => {
   const fixture = await createStoreFixture(t, { connected: true });
   const before = await fs.readFile(fixture.configPath, "utf8");
   const calls = [];
@@ -236,9 +241,121 @@ test("PluginLifecycleService delegates bound status and sync without changing co
     output: "",
   });
   assert.equal(await service.sync(request), "synced");
+  assert.equal(await service.exec({ ...request, args: ["status", "--json"] }), "executed");
   assert.equal(await fs.readFile(fixture.configPath, "utf8"), before);
-  assert.deepEqual(contextCalls.map(([mode]) => mode), ["connected", "connected"]);
-  assert.deepEqual(calls.map(([operation]) => operation), ["status", "sync"]);
+  assert.deepEqual(
+    contextCalls.map(([mode]) => mode),
+    ["connected", "connected", "connected"],
+  );
+  assert.deepEqual(calls.map(([operation]) => operation), ["status", "sync", "exec"]);
+  assert.deepEqual(calls[2][2], ["status", "--json"]);
+});
+
+test("PluginLifecycleService runs sync and exec for every connected binding in project order", async (t) => {
+  const fixture = await createStoreFixture(t, { backendConnected: true, connected: true });
+  const calls = [];
+  const { service } = await lifecycle(t, calls, {
+    exec: (context, args) => `${context.repositoryId}:${args.join(" ")}`,
+  });
+
+  const syncResults = await service.syncMany({
+    start: fixture.storeRoot,
+    pluginId: "sample",
+  });
+  const execResults = await service.execMany({
+    start: fixture.storeRoot,
+    pluginId: "sample",
+    args: ["status", "--json"],
+  });
+
+  assert.deepEqual(syncResults, [
+    { pluginId: "sample", repositoryId: "frontend", output: "synced" },
+    { pluginId: "sample", repositoryId: "backend", output: "synced" },
+  ]);
+  assert.deepEqual(execResults, [
+    { pluginId: "sample", repositoryId: "frontend", output: "frontend:status --json" },
+    { pluginId: "sample", repositoryId: "backend", output: "backend:status --json" },
+  ]);
+  assert.deepEqual(
+    calls.filter(([operation]) => operation === "exec").map(([, context, args]) => (
+      [context.repositoryId, args]
+    )),
+    [
+      ["frontend", ["status", "--json"]],
+      ["backend", ["status", "--json"]],
+    ],
+  );
+});
+
+test("PluginLifecycleService selects supported connect targets and connected operation targets", async (t) => {
+  const fixture = await createStoreFixture(t, { connected: true });
+  const calls = [];
+  const { service } = await lifecycle(t, calls);
+
+  assert.deepEqual(await service.repositoryCandidates({
+    start: fixture.storeRoot,
+    pluginId: "sample",
+    operation: "connect",
+  }), [
+    { id: "frontend", role: "code" },
+    { id: "backend", role: "code" },
+  ]);
+  assert.deepEqual(await service.repositoryCandidates({
+    start: fixture.storeRoot,
+    pluginId: "sample",
+    operation: "sync",
+  }), [
+    { id: "frontend", role: "code" },
+  ]);
+});
+
+test("PluginLifecycleService limits sync and exec batches to explicit repository IDs", async (t) => {
+  const fixture = await createStoreFixture(t, { backendConnected: true, connected: true });
+  const calls = [];
+  const { service } = await lifecycle(t, calls, {
+    exec: (context, args) => `${context.repositoryId}:${args.join(" ")}`,
+  });
+
+  const syncResults = await service.syncMany({
+    start: fixture.storeRoot,
+    pluginId: "sample",
+    repositoryIds: ["backend"],
+  });
+  const execResults = await service.execMany({
+    start: fixture.storeRoot,
+    pluginId: "sample",
+    repositoryIds: ["backend"],
+    args: ["status"],
+  });
+
+  assert.deepEqual(syncResults.map(({ repositoryId }) => repositoryId), ["backend"]);
+  assert.deepEqual(execResults.map(({ repositoryId }) => repositoryId), ["backend"]);
+  assert.deepEqual(calls.map(([operation, context]) => [operation, context.repositoryId]), [
+    ["sync", "backend"],
+    ["exec", "backend"],
+  ]);
+});
+
+test("PluginLifecycleService disconnects every connected binding when repository IDs are omitted", async (t) => {
+  const fixture = await createStoreFixture(t, { backendConnected: true, connected: true });
+  const calls = [];
+  const { service } = await lifecycle(t, calls);
+
+  const results = await service.disconnectMany({
+    start: fixture.storeRoot,
+    pluginId: "sample",
+  });
+
+  assert.deepEqual(results.map(({ repositoryId, disconnected }) => ({
+    repositoryId,
+    disconnected,
+  })), [
+    { repositoryId: "frontend", disconnected: true },
+    { repositoryId: "backend", disconnected: true },
+  ]);
+  const persisted = configuration.parseProject(await fs.readFile(fixture.configPath, "utf8"));
+  assert.equal(persisted.isPluginConnected("sample", "frontend"), false);
+  assert.equal(persisted.isPluginConnected("sample", "backend"), false);
 });
 
 test("PluginLifecycleService connects multiple repositories once under one project update", async (t) => {

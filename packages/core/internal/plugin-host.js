@@ -64,6 +64,33 @@ export class PluginHost {
     this.#registry.require(pluginId);
   }
 
+  supportsRepository(pluginId, repository) {
+    if (
+      !repository ||
+      typeof repository.id !== "string" ||
+      typeof repository.role !== "string"
+    ) {
+      throw new Error("PLUGIN_REPOSITORY_INVALID: требуется Repository handle");
+    }
+    const { plugin } = this.#registry.require(pluginId);
+    const contributes = plugin.hasRepositoryContribution();
+    if (typeof contributes !== "boolean") {
+      throw new Error(
+        `PLUGIN_CONTRACT_INVALID: ${plugin.id}.hasRepositoryContribution должен вернуть boolean`,
+      );
+    }
+    if (!contributes) {
+      throw new Error(
+        `PLUGIN_REPOSITORY_UNSUPPORTED: ${plugin.id} не предоставляет repository lifecycle`,
+      );
+    }
+    const supported = plugin.supportsRole(repository.role);
+    if (typeof supported !== "boolean") {
+      throw new Error(`PLUGIN_CONTRACT_INVALID: ${plugin.id}.supportsRole должен вернуть boolean`);
+    }
+    return supported;
+  }
+
   status(options) {
     return this.#invoke("status", options);
   }
@@ -72,7 +99,11 @@ export class PluginHost {
     return this.#invoke("sync", options);
   }
 
-  async #invoke(operation, { pluginId, storeProject, repositoryId } = {}) {
+  exec(options) {
+    return this.#invoke("exec", options);
+  }
+
+  async #invoke(operation, { args, pluginId, storeProject, repositoryId } = {}) {
     const loadedPlugin = this.#registry.require(pluginId);
     const { plugin } = loadedPlugin;
     const hasRepositoryContribution = plugin.hasRepositoryContribution();
@@ -93,11 +124,28 @@ export class PluginHost {
       }
       if (!canSync) throw new Error(`PLUGIN_SYNC_UNSUPPORTED: ${plugin.id} не поддерживает sync`);
     }
+    if (operation === "exec") {
+      const canExec = typeof plugin.canExec === "function" && plugin.canExec();
+      if (typeof canExec !== "boolean") {
+        throw new Error(`PLUGIN_CONTRACT_INVALID: ${plugin.id}.canExec должен вернуть boolean`);
+      }
+      if (!canExec || typeof plugin.exec !== "function") {
+        throw new Error(`PLUGIN_EXEC_UNSUPPORTED: ${plugin.id} не поддерживает exec`);
+      }
+      if (
+        !Array.isArray(args) ||
+        args.length === 0 ||
+        args.some((argument) => typeof argument !== "string")
+      ) {
+        throw new Error("PLUGIN_EXEC_INVALID: args должен быть непустым массивом строк");
+      }
+    }
     const context = operation === "connect"
       ? await this.#contexts.forRepositorySetup({ loadedPlugin, storeProject, repositoryId })
       : await this.#contexts.forRepository({ loadedPlugin, storeProject, repositoryId });
     if (operation === "connect") return plugin.connect(context);
     if (operation === "status") return plugin.status(context);
+    if (operation === "exec") return plugin.exec(context, Object.freeze([...args]));
     return plugin.sync(context);
   }
 }

@@ -40,6 +40,9 @@ const plugin = definePlugin({
     sync(context) {
       return run(context, "sync");
     },
+    exec(context, args) {
+      return context.process.run(process.execPath, [launcher, ...args]);
+    },
   },
 });
 

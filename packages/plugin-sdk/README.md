@@ -14,6 +14,7 @@ export default definePlugin({
     async status(context) {
       return { state: "ready" };
     },
+    async exec(context, args) {},
   },
   registerCommands(commands) {
     commands.command("hello")
@@ -28,6 +29,9 @@ export default definePlugin({
 публичные методы: `assertSupports`, `connect`, `status`, `sync`,
 `registerCommands` и `integrateAgent`. Loader проверяет этот API структурно и не
 зависит от `instanceof`, поэтому разные физические копии SDK не ломают загрузку.
+Опциональный `repository.exec` добавляет native passthrough. Если его нет, `exec`
+автоматически использует grammar из `registerCommands`. Старый Plugin без обоих
+contributions продолжает загружаться, но универсальный passthrough для него недоступен.
 
 Порядок загрузки Plugins не специфицирован. Plugin не должен полагаться на то, что
 другой Plugin загружен или зарегистрирован раньше.
@@ -36,7 +40,7 @@ Plugin импортирует только `@openspec-orch/plugin-sdk`. Дост
 repositories, Git, OpenSpec, files, process, storage, Agent и logger предоставляется
 Core через новый immutable `PluginContext` для каждого invocation.
 
-`repository.status` и `repository.sync` получают context, уже привязанный к одному
+`repository.status`, `repository.sync` и `repository.exec` получают context, уже привязанный к одному
 Repository. Для `repository.connect` Core создаёт setup-context: проверяет project
 registration, поддерживаемую role и локальный checkout, но сохраняет новый binding
 только после успешного callback. Для остальных операций существующий
@@ -53,12 +57,32 @@ action поле `invocation` отдельно сообщает `{ id, role, path
 Plugin и Repository identity, а ошибка одного status превращается в `unavailable`,
 не прерывая вывод остальных bindings.
 
+`repository.exec(context, args)` — низкоуровневый passthrough для редких Package-owned
+операций. `args` — непустой immutable массив строк после разделителя `--` в команде
+`openspec-orch plugin exec <plugin-id> [--repo <repository-id>]... [--all] -- <command> [args...]`.
+SDK не разбирает native grammar; Plugin передаёт argv своему runtime через scoped
+`context.process` и не ищет Repository checkout самостоятельно. Повторяемый `--repo`
+выбирает конкретные instances, `--all` — все связанные instances, а отсутствие обоих
+selector в интерактивном терминале открывает checkbox.
+
+Для Repository Plugin без `repository.exec` тот же вызов исполняет зарегистрированные
+команды внутри SDK. В этом случае argv должен включать полный command path Plugin,
+например `graph status --json` для OpenSpec Graph. `scope: "store"` требует выбрать
+Store через `--repo`, когда Plugin связан и с Code Repositories; SDK не подменяет
+выбранные Plugin instances другим context.
+
 `PluginPackage` аналогично инкапсулирует проверку `package.json` и предоставляет
 только package identity и ESM entrypoint. Тестовый `PluginContract` связывает обе
 модели и проверяет регистрацию команд, не выполняя их actions.
 
 Command action получает позиционные аргументы и последним параметром immutable
 snapshot опций. Внутренний Commander `Command` и весь CLI tree Plugin не передаются.
+
+SDK экспортирует `createCliProgress()` и `CliProgressRenderer` для Core и встроенных
+Plugin commands. Renderer пишет только в `stderr`: показывает spinner в TTY и
+стабильные строки в non-TTY/CI. Метод `run(message, operation, { success, failure })`
+пишет начальный progress до ожидания Promise, сохраняет результат operation и
+повторно выбрасывает исходную ошибку после строки `✗`.
 
 Вложенные команды, options и Repository context объявляются тем же builder:
 

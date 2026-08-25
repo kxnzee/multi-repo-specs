@@ -200,16 +200,30 @@ export class PluginApplicationService {
 
   /** Удаляет один Repository binding без вызова Plugin cleanup. */
   async disconnect(storeProject, pluginId, repositoryId) {
+    const [change] = await this.disconnectMany(storeProject, pluginId, [repositoryId]);
+    return change;
+  }
+
+  /** Удаляет несколько Repository bindings одной project mutation. */
+  async disconnectMany(storeProject, pluginId, repositoryIds) {
     if (!(storeProject instanceof StoreProject)) invalid("требуется StoreProject");
+    if (!Array.isArray(repositoryIds) || repositoryIds.length === 0) {
+      invalid("repositoryIds должен быть непустым массивом");
+    }
+    const selectedIds = [...new Set(repositoryIds)];
     await ensureLockDirectory(storeProject.root, "PLUGIN_BINDING_CORRUPTED");
     return this.#lock.run(
       path.join(storeProject.root, CORE_SERVICE_PATHS.projectConfigLock),
       async () => {
         const current = await this.#storeProjects.load(storeProject.root);
         current.project.requirePlugin(pluginId);
-        const changed = current.project.disconnectPlugin(pluginId, repositoryId);
-        if (changed) await this.#writeProject(current);
-        return new PluginBindingChange({ changed, output: "" });
+        for (const repositoryId of selectedIds) current.project.requireRepository(repositoryId);
+        const changes = selectedIds.map((repositoryId) => new PluginBindingChange({
+          changed: current.project.disconnectPlugin(pluginId, repositoryId),
+          output: "",
+        }));
+        if (changes.some(({ changed }) => changed)) await this.#writeProject(current);
+        return Object.freeze(changes);
       },
       { busyCode: "PLUGIN_BINDING_BUSY" },
     );

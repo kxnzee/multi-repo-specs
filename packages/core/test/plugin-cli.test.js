@@ -5,7 +5,6 @@ import test from "node:test";
 
 import {
   CandidateCli,
-  createProject,
   PluginCatalog,
   PluginCatalogEntry,
   PluginLifecycleCommands,
@@ -18,30 +17,11 @@ function outputCollector() {
   return { lines, output: { log: (value) => lines.push(value) } };
 }
 
-/** Создаёт Project registry для интерактивного repository checkbox. */
-function promptProject() {
-  return createProject({
-    version: 3,
-    strict: true,
-    agents: ["codex"],
-    plugins: [{ id: "sample", source: "@test/plugin-sample@1.0.0" }],
-    repositories: [
-      {
-        id: "specs",
-        role: "store",
-        remote: "https://example.test/specs.git",
-        defaultBranch: "main",
-        plugins: [],
-      },
-      {
-        id: "frontend",
-        role: "code",
-        remote: "https://example.test/frontend.git",
-        defaultBranch: "main",
-        plugins: [],
-      },
-    ],
-  });
+/** Выполняет operations без записи progress в test runner stderr. */
+function silentProgress() {
+  return {
+    async run(_message, operation) { return operation(); },
+  };
 }
 
 /** Собирает Candidate CLI с тестовыми lifecycle boundaries. */
@@ -51,6 +31,7 @@ function candidate({
   checkboxPrompt,
   lifecycleService,
   output,
+  progress = silentProgress(),
   scaffoldService,
   stdin,
   stdout,
@@ -60,8 +41,16 @@ function candidate({
     applicationService,
     catalog,
     checkboxPrompt,
-    lifecycleService,
+    lifecycleService: {
+      async disconnectMany() { return []; },
+      async exec() {},
+      async execMany() { return []; },
+      async repositoryCandidates() { return []; },
+      async syncMany() { return []; },
+      ...lifecycleService,
+    },
     output,
+    progress,
     scaffoldService,
     stdin,
     stdout,
@@ -157,7 +146,7 @@ test("plugin init preserves --plugin/--from grammar and delegates to application
   assert.equal(calls[0].source instanceof PluginSource, true);
   assert.equal(calls[0].source.declaration, "../sample-plugin");
   assert.deepEqual(captured.lines, [
-    "sample: initialized",
+    "✓ sample — инициализирован",
     "Далее: openspec-orch plugin connect <plugin-id>",
   ]);
 });
@@ -234,8 +223,8 @@ test("plugin init installs discovered catalog entries through --all", async () =
   assert.equal(calls.every(({ current }) => current === storeProject), true);
   assert.equal(calls.every(({ source }) => source.kind === "external"), true);
   assert.deepEqual(captured.lines, [
-    "alpha: initialized",
-    "zeta: already_initialized",
+    "✓ alpha — инициализирован",
+    "✓ zeta — уже инициализирован",
     "Далее: openspec-orch plugin connect <plugin-id>",
   ]);
 });
@@ -281,6 +270,7 @@ test("plugin init uses checkbox catalog selection and requires TTY", async () =>
 
   assert.deepEqual(prompts, [{
     message: "Выберите Plugins",
+    theme: { icon: { checked: "[✓]", unchecked: "[ ]" } },
     choices: [{ name: "Sample Plugin (sample)", value: "sample" }],
   }]);
   assert.deepEqual(calls, ["sample"]);
@@ -336,14 +326,13 @@ test("plugin connect preserves repeated --repo grammar and current output", asyn
     repositoryIds: ["frontend", "backend"],
   }]);
   assert.deepEqual(captured.lines, [
-    "sample -> frontend: connected",
+    "✓ sample → frontend — подключён",
     "configured",
-    "sample -> backend: already_connected",
+    "✓ sample → backend — уже подключён",
   ]);
 });
 
-test("plugin connect keeps checkbox UX and rejects implicit selection without TTY", async () => {
-  const project = promptProject();
+test("plugin connect keeps checkbox UX and supports explicit --all", async () => {
   const prompts = [];
   const calls = [];
   const captured = outputCollector();
@@ -353,10 +342,16 @@ test("plugin connect keeps checkbox UX and rejects implicit selection without TT
       return [{ repositoryId: "frontend", connected: true, output: "" }];
     },
     async disconnect() {},
+    async repositoryCandidates(options) {
+      calls.push(["candidates", options]);
+      return [
+        { id: "specs", role: "store" },
+        { id: "frontend", role: "code" },
+      ];
+    },
     async statuses() { return []; },
     async sync() {},
   };
-  const storeProjectService = { async find() { return { project }; } };
   const program = candidate({
     checkboxPrompt: async (options) => {
       prompts.push(options);
@@ -366,26 +361,38 @@ test("plugin connect keeps checkbox UX and rejects implicit selection without TT
     output: captured.output,
     stdin: { isTTY: true },
     stdout: { isTTY: true },
-    storeProjectService,
   });
 
   await program.parseAsync(["node", "openspec-orch", "plugin", "connect", "sample"]);
 
   assert.deepEqual(prompts[0], {
     message: "Подключить sample к repositories",
+    theme: { icon: { checked: "[✓]", unchecked: "[ ]" } },
     choices: [
       { name: "specs [store]", value: "specs" },
       { name: "frontend [code]", value: "frontend" },
     ],
   });
-  assert.deepEqual(calls[0].repositoryIds, ["frontend"]);
+  assert.deepEqual(calls, [
+    ["candidates", { operation: "connect", pluginId: "sample" }],
+    { pluginId: "sample", repositoryIds: ["frontend"] },
+  ]);
+
+  calls.length = 0;
+  await candidate({
+    lifecycleService,
+    output: captured.output,
+  }).parseAsync(["node", "openspec-orch", "plugin", "connect", "sample", "--all"]);
+  assert.deepEqual(calls, [
+    ["candidates", { operation: "connect", pluginId: "sample" }],
+    { pluginId: "sample", repositoryIds: ["specs", "frontend"] },
+  ]);
 
   const nonInteractive = candidate({
     lifecycleService,
     output: captured.output,
     stdin: { isTTY: false },
     stdout: { isTTY: false },
-    storeProjectService,
   });
   await assert.rejects(
     nonInteractive.parseAsync(["node", "openspec-orch", "plugin", "connect", "sample"]),
@@ -431,7 +438,7 @@ test("plugin status preserves filters, JSON shape and unavailable rows", async (
   assert.deepEqual(JSON.parse(captured.lines[0]), { plugins: statuses });
 });
 
-test("plugin human status and sync preserve current output", async () => {
+test("plugin human status uses icons while sync preserves current output", async () => {
   const calls = [];
   const captured = outputCollector();
   const lifecycleService = {
@@ -465,14 +472,164 @@ test("plugin human status and sync preserve current output", async () => {
 
   assert.deepEqual(calls, [{ pluginId: "sample", repositoryId: "frontend" }]);
   assert.deepEqual(captured.lines, [
-    "sample -> frontend: ready",
-    "  line one\n  line two",
-    "sample -> frontend: synced",
+    "✓ sample → frontend — готов",
+    "  line one",
+    "  line two",
+    "✓ sample → frontend — синхронизирован",
+    "synced output",
+    "✓ sample → frontend — готов",
+    "  line one",
+    "  line two",
+  ]);
+});
+
+test("plugin exec forwards the native argv tail to one connected instance", async () => {
+  const calls = [];
+  const captured = outputCollector();
+  const program = candidate({
+    lifecycleService: {
+      async connectMany() { return []; },
+      async disconnect() {},
+      async exec(options) {
+        calls.push(options);
+        return '{"initialized":true}';
+      },
+      async statuses() { return []; },
+      async sync() {},
+    },
+    output: captured.output,
+  });
+
+  await program.parseAsync([
+    "node",
+    "openspec-orch",
+    "plugin",
+    "exec",
+    "codegraph",
+    "--repo",
+    "frontend",
+    "--",
+    "status",
+    "--json",
+  ]);
+
+  assert.deepEqual(calls, [{
+    args: ["status", "--json"],
+    pluginId: "codegraph",
+    repositoryId: "frontend",
+  }]);
+  assert.deepEqual(captured.lines, ['{"initialized":true}']);
+});
+
+test("plugin exec --all forwards the argv tail to all connected instances", async () => {
+  const calls = [];
+  const captured = outputCollector();
+  const program = candidate({
+    lifecycleService: {
+      async connectMany() { return []; },
+      async disconnect() {},
+      async execMany(options) {
+        calls.push(options);
+        return [
+          { pluginId: "codegraph", repositoryId: "frontend", output: "frontend output" },
+          { pluginId: "codegraph", repositoryId: "backend", output: "backend output" },
+        ];
+      },
+      async repositoryCandidates() {
+        return [
+          { id: "frontend", role: "code" },
+          { id: "backend", role: "code" },
+        ];
+      },
+      async statuses() { return []; },
+      async sync() {},
+    },
+    output: captured.output,
+  });
+
+  await program.parseAsync([
+    "node",
+    "openspec-orch",
+    "plugin",
+    "exec",
+    "codegraph",
+    "--all",
+    "--",
+    "status",
+    "--json",
+  ]);
+
+  assert.deepEqual(calls, [{
+    args: ["status", "--json"],
+    pluginId: "codegraph",
+    repositoryIds: ["frontend", "backend"],
+  }]);
+  assert.deepEqual(captured.lines, [
+    "✓ codegraph → frontend — команда выполнена",
+    "frontend output",
+    "✓ codegraph → backend — команда выполнена",
+    "backend output",
+  ]);
+});
+
+test("plugin sync without --repo uses checkbox selection", async () => {
+  const calls = [];
+  const prompts = [];
+  const captured = outputCollector();
+  const program = candidate({
+    lifecycleService: {
+      async connectMany() { return []; },
+      async disconnect() {},
+      async statuses() { return []; },
+      async sync() {},
+      async repositoryCandidates(options) {
+        calls.push(["candidates", options]);
+        return [
+          { id: "frontend", role: "code" },
+          { id: "backend", role: "code" },
+        ];
+      },
+      async syncMany(options) {
+        calls.push(options);
+        return [{ pluginId: "sample", repositoryId: "frontend", output: "synced output" }];
+      },
+    },
+    checkboxPrompt: async (options) => {
+      prompts.push(options);
+      return ["frontend", "backend"];
+    },
+    output: captured.output,
+    stdin: { isTTY: true },
+    stdout: { isTTY: true },
+  });
+
+  await program.parseAsync([
+    "node",
+    "openspec-orch",
+    "plugin",
+    "sync",
+    "sample",
+  ]);
+
+  assert.deepEqual(prompts, [{
+    message: "Синхронизировать sample в repositories",
+    theme: { icon: { checked: "[✓]", unchecked: "[ ]" } },
+    choices: [
+      { name: "frontend [code]", value: "frontend" },
+      { name: "backend [code]", value: "backend" },
+    ],
+  }]);
+  assert.deepEqual(calls, [
+    ["candidates", { operation: "sync", pluginId: "sample" }],
+    { pluginId: "sample", repositoryIds: ["frontend", "backend"] },
+  ]);
+  assert.deepEqual(captured.lines, [
+    "✓ sample → frontend — синхронизирован",
     "synced output",
   ]);
 });
 
-test("plugin disconnect preserves mandatory --repo grammar and current output", async () => {
+test("plugin disconnect preserves explicit --repo grammar and current output", async () => {
   const calls = [];
   const captured = outputCollector();
   const lifecycleService = {
@@ -509,9 +666,102 @@ test("plugin disconnect preserves mandatory --repo grammar and current output", 
     { pluginId: "sample", repositoryId: "frontend" },
   ]);
   assert.deepEqual(captured.lines, [
-    "sample -> frontend: disconnected",
-    "sample -> frontend: not_connected",
+    "✓ sample → frontend — отключён",
+    "• sample → frontend — не был подключён",
   ]);
+});
+
+test("plugin disconnect --all removes all connected bindings", async () => {
+  const calls = [];
+  const captured = outputCollector();
+  const lifecycleService = {
+    async connectMany() { return []; },
+    async disconnect() {},
+    async disconnectMany(options) {
+      calls.push(options);
+      return [
+        { repositoryId: "frontend", disconnected: true },
+        { repositoryId: "backend", disconnected: true },
+      ];
+    },
+    async repositoryCandidates() {
+      return [
+        { id: "frontend", role: "code" },
+        { id: "backend", role: "code" },
+      ];
+    },
+    async statuses() { return []; },
+    async sync() {},
+  };
+
+  await candidate({ lifecycleService, output: captured.output }).parseAsync([
+    "node",
+    "openspec-orch",
+    "plugin",
+    "disconnect",
+    "sample",
+    "--all",
+  ]);
+
+  assert.deepEqual(calls, [{
+    pluginId: "sample",
+    repositoryIds: ["frontend", "backend"],
+  }]);
+  assert.deepEqual(captured.lines, [
+    "✓ sample → frontend — отключён",
+    "✓ sample → backend — отключён",
+  ]);
+});
+
+test("plugin lifecycle bulk commands preserve repeatable --repo and reject ambiguous --all", async () => {
+  const calls = [];
+  const captured = outputCollector();
+  const lifecycleService = {
+    async connectMany() { return []; },
+    async disconnect() {},
+    async disconnectMany(options) {
+      calls.push(["disconnect", options]);
+      return options.repositoryIds.map((repositoryId) => ({ repositoryId, disconnected: true }));
+    },
+    async execMany(options) {
+      calls.push(["exec", options]);
+      return options.repositoryIds.map((repositoryId) => ({ repositoryId, output: "" }));
+    },
+    async statuses() { return []; },
+    async sync() {},
+    async syncMany(options) {
+      calls.push(["sync", options]);
+      return options.repositoryIds.map((repositoryId) => ({ repositoryId, output: "" }));
+    },
+  };
+  const repositories = ["frontend", "backend"];
+
+  await candidate({ lifecycleService, output: captured.output }).parseAsync([
+    "node", "openspec-orch", "plugin", "sync", "sample",
+    ...repositories.flatMap((repositoryId) => ["--repo", repositoryId]),
+  ]);
+  await candidate({ lifecycleService, output: captured.output }).parseAsync([
+    "node", "openspec-orch", "plugin", "exec", "sample",
+    ...repositories.flatMap((repositoryId) => ["--repo", repositoryId]),
+    "--", "status",
+  ]);
+  await candidate({ lifecycleService, output: captured.output }).parseAsync([
+    "node", "openspec-orch", "plugin", "disconnect", "sample",
+    ...repositories.flatMap((repositoryId) => ["--repo", repositoryId]),
+  ]);
+
+  assert.deepEqual(calls, [
+    ["sync", { pluginId: "sample", repositoryIds: repositories }],
+    ["exec", { args: ["status"], pluginId: "sample", repositoryIds: repositories }],
+    ["disconnect", { pluginId: "sample", repositoryIds: repositories }],
+  ]);
+  await assert.rejects(
+    candidate({ lifecycleService, output: captured.output }).parseAsync([
+      "node", "openspec-orch", "plugin", "sync", "sample",
+      "--repo", "frontend", "--all",
+    ]),
+    /нельзя использовать вместе/,
+  );
 });
 
 test("plugin remove delegates to application facade and preserves current output", async () => {
@@ -550,5 +800,8 @@ test("plugin remove delegates to application facade and preserves current output
     { current: storeProject, pluginId: "sample" },
     { current: storeProject, pluginId: "sample" },
   ]);
-  assert.deepEqual(captured.lines, ["sample: removed", "sample: not_initialized"]);
+  assert.deepEqual(captured.lines, [
+    "✓ sample — удалён",
+    "• sample — не был инициализирован",
+  ]);
 });

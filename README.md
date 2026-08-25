@@ -102,10 +102,11 @@ openspec-orch --help
 openspec-orch init [path] --store <id> --agent <id> [--template <path>] [--repo <id=remote#branch>]...
 openspec-orch connect [--workspace <path>]
 openspec-orch plugin init [--plugin <plugin-id>]... [--from <source>]...
-openspec-orch plugin connect <plugin-id> [--repo <repository-id>]...
+openspec-orch plugin connect <plugin-id> [--repo <repository-id>]... [--all]
 openspec-orch plugin status [--plugin <plugin-id>] [--repo <repository-id>] [--json]
-openspec-orch plugin sync <plugin-id> --repo <repository-id>
-openspec-orch plugin disconnect <plugin-id> --repo <repository-id>
+openspec-orch plugin sync <plugin-id> [--repo <repository-id>]... [--all]
+openspec-orch plugin exec <plugin-id> [--repo <repository-id>]... [--all] -- <command> [args...]
+openspec-orch plugin disconnect <plugin-id> [--repo <repository-id>]... [--all]
 openspec-orch plugin remove <plugin-id>
 openspec-orch plugin register <plugin-id> [path]
 openspec-orch <plugin-id> <plugin-command> [args...]
@@ -134,7 +135,14 @@ openspec-orch record verification <change-id> --result <pass|fail> --source <hum
 preview и требуют интерактивного подтверждения. Отказ пользователя ничего не
 записывает. Единая JSON-оболочка всех команд и неинтерактивные confirmation token в
 текущую версию не входят; read-only `status` и `plugin status` имеют собственный
-`--json`.
+`--json`. Без него status-команды показывают компактный человекочитаемый отчёт с
+маркерами `✓`, `⚠` и `✗`; JSON предназначен для CI и агентной обработки.
+
+Долгие операции показывают progress сразу: в интерактивном терминале это spinner,
+а при перенаправлении и в CI — обычные строки. Progress и диагностические статусы
+пишутся в `stderr`, поэтому не загрязняют `stdout` команд с `--json` и raw-вывод
+`plugin exec`. После `plugin connect` и `plugin sync` CLI повторно вызывает текущий
+Plugin status и печатает подтверждённое состояние для каждого выбранного repository.
 
 Коды завершения: `0` — успех или отказ от preview, `1` — ошибка проверки или
 выполнения, `2` — неверный вызов CLI.

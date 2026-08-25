@@ -157,6 +157,43 @@ test("Package exposes a Store-only bundled Plugin contract", async () => {
     commands: ["graph"],
   });
   assert.deepEqual(plugin.supports, ["store"]);
+  assert.equal(plugin.canExec(), true);
+});
+
+test("Plugin exec runs the registered graph command grammar with native options", async (t) => {
+  const output = [];
+  t.mock.method(console, "log", (value) => output.push(value));
+  const graph = {
+    graph_version: 1,
+    source_digest: "a".repeat(64),
+    nodes: [{ id: "store:specs" }],
+    edges: [],
+  };
+  const context = Object.freeze({
+    repository: Object.freeze({ id: "specs", role: "store" }),
+    project: Object.freeze({
+      id: "specs",
+      repositories: Object.freeze([Object.freeze({ id: "specs", role: "store" })]),
+    }),
+    process: Object.freeze({
+      run() { return Promise.resolve(JSON.stringify(graph)); },
+    }),
+    storage: Object.freeze({
+      read() { return Promise.resolve(graph); },
+    }),
+  });
+
+  await plugin.exec(context, ["graph", "status", "--json"]);
+  await plugin.exec(context, ["graph", "status"]);
+
+  assert.equal(output.length, 5);
+  assert.equal(JSON.parse(output[0]).state, "ready");
+  assert.deepEqual(output.slice(1), [
+    "✓ OpenSpec Graph — готов и актуален",
+    "  Узлы: 1  Рёбра: 0",
+    `  Текущий digest: ${"a".repeat(12)}`,
+    `  Сохранённый digest: ${"a".repeat(12)}`,
+  ]);
 });
 
 test("Builder projects the Store hierarchy and strict graph edges", async (t) => {

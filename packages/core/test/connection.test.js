@@ -302,5 +302,8 @@ test("CandidateCli preserves connect grammar and normalized options", async () =
     "--no-strict",
   ]);
 
-  assert.deepEqual(calls, [{ workspace: "/workspace", noStrict: true }]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].workspace, "/workspace");
+  assert.equal(calls[0].noStrict, true);
+  assert.equal(typeof calls[0].onProgress, "function");
 });

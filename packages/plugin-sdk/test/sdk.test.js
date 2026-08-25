@@ -5,6 +5,8 @@ import { promises as fs } from "node:fs";
 import test from "node:test";
 
 import {
+  CliProgressRenderer,
+  createCliProgress,
   definePlugin,
   Plugin,
   PluginPackage,
@@ -16,6 +18,41 @@ import {
   PluginContract,
   testPluginContract,
 } from "@openspec-orch/plugin-sdk/testing";
+
+test("CLI progress writes before completion and preserves redirected output as lines", async () => {
+  let resolve;
+  const pending = new Promise((done) => { resolve = done; });
+  let source = "";
+  const progress = createCliProgress({
+    output: { isTTY: false, write(value) { source += value; } },
+  });
+
+  const running = progress.run("Проверка repositories...", () => pending, {
+    success: "Repositories проверены",
+  });
+  assert.equal(source, "… Проверка repositories...\n");
+  resolve("ready");
+
+  assert.equal(await running, "ready");
+  assert.equal(source, "… Проверка repositories...\n✓ Repositories проверены\n");
+  assert.equal(progress.active, false);
+});
+
+test("CLI progress renders a TTY spinner and reports failures without swallowing them", async () => {
+  let source = "";
+  const progress = new CliProgressRenderer({
+    intervalMs: 60_000,
+    output: { isTTY: true, write(value) { source += value; } },
+  });
+
+  await assert.rejects(
+    progress.run("Синхронизация...", async () => { throw new Error("failed"); }),
+    /failed/,
+  );
+  assert.match(source, /⠋ Синхронизация/);
+  assert.match(source, /✗ Синхронизация\.\.\.: ошибка/);
+  assert.equal(progress.active, false);
+});
 
 const SAMPLE_ROOT = new URL("../../../test-fixtures/plugin-sdk/sample-plugin/", import.meta.url);
 const SAMPLE_MANIFEST = JSON.parse(await fs.readFile(new URL("package.json", SAMPLE_ROOT), "utf8"));
@@ -32,7 +69,9 @@ test("definePlugin returns an immutable domain model without running contributio
     repository: {
       connect(context) { calls.push(["connect", context]); },
       status(context) { calls.push(["status", context]); },
+      exec(context, args) { calls.push(["exec", context, args]); },
     },
+    registerCommands() { calls.push(["register"]); },
   });
   supports.push("store");
 
@@ -52,9 +91,19 @@ test("definePlugin returns an immutable domain model without running contributio
   const context = Object.freeze({ repository: { id: "frontend", role: "code" } });
   plugin.connect(context);
   plugin.status(context);
-  assert.deepEqual(calls, [["connect", context], ["status", context]]);
+  const nativeArgs = ["status", "--json"];
+  plugin.exec(context, nativeArgs);
+  nativeArgs.push("--verbose");
+  assert.deepEqual(calls, [
+    ["connect", context],
+    ["status", context],
+    ["exec", context, ["status", "--json"]],
+  ]);
+  assert.equal(Object.isFrozen(calls[2][2]), true);
   assert.equal(plugin.canSync(), false);
   assert.throws(() => plugin.sync(context), /PLUGIN_SYNC_UNSUPPORTED/);
+  assert.equal(plugin.canExec(), true);
+  assert.throws(() => plugin.exec(context, []), /PLUGIN_EXEC_INVALID/);
   assert.equal(plugin.hasAgentContribution(), false);
   assert.throws(() => plugin.integrateAgent(context), /PLUGIN_AGENT_UNSUPPORTED/);
 });
@@ -73,6 +122,14 @@ test("definePlugin rejects invalid definitions without instanceof coupling", () 
   assert.throws(
     () => definePlugin({ id: "demo", supports: ["code"], repository: { connect() {} } }),
     /repository.status/,
+  );
+  assert.throws(
+    () => definePlugin({
+      id: "demo",
+      supports: ["code"],
+      repository: { connect() {}, status() {}, exec: true },
+    }),
+    /repository.exec/,
   );
   assert.throws(
     () => definePlugin({ id: "demo", supports: [], unexpected: true, registerCommands() {} }),
@@ -149,6 +206,65 @@ test("contract test kit validates command registration without running actions",
     }),
     /повторяющаяся Command/,
   );
+});
+
+test("repository exec falls back to the Plugin's registered command grammar", async () => {
+  const calls = [];
+  const plugin = definePlugin({
+    id: "command-exec",
+    supports: ["code"],
+    repository: {
+      connect() {},
+      status() { return { state: "ready" }; },
+    },
+    registerCommands(commands) {
+      commands.command("inspect <target>")
+        .description("Inspect target")
+        .option("--format <format>", "Output format", { choices: ["text", "json"] })
+        .option("--tag <tag>", "Repeatable tag", {
+          parser: (value, previous = []) => [...previous, value],
+        })
+        .actionWithContext((context, target, options) => {
+          calls.push({ context, options, target });
+        });
+    },
+  });
+  const context = Object.freeze({
+    repository: Object.freeze({ id: "frontend", role: "code" }),
+  });
+  const args = [
+    "inspect", "PluginHost", "--format=json", "--tag", "core", "--tag", "sdk",
+  ];
+
+  assert.equal(plugin.canExec(), true);
+  await plugin.exec(context, args);
+  args.push("--verbose");
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].context, context);
+  assert.equal(calls[0].target, "PluginHost");
+  assert.deepEqual(calls[0].options, { format: "json", tag: ["core", "sdk"] });
+  assert.equal(Object.isFrozen(calls[0].options), true);
+});
+
+test("registered Store commands reject exec through a Code Repository instance", async () => {
+  const plugin = definePlugin({
+    id: "store-command",
+    supports: ["store", "code"],
+    repository: {
+      connect() {},
+      status() { return { state: "ready" }; },
+    },
+    registerCommands(commands) {
+      commands.command("inspect")
+        .description("Inspect Store")
+        .actionWithContext(() => {}, { scope: "store" });
+    },
+  });
+
+  await assert.rejects(plugin.exec(Object.freeze({
+    repository: Object.freeze({ id: "frontend", role: "code" }),
+  }), ["inspect"]), /PLUGIN_EXEC_SCOPE_MISMATCH.*Store instance/);
 });
 
 test("contract test kit rejects invalid nested command actions and option metadata", () => {

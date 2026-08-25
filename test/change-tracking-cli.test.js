@@ -59,13 +59,16 @@ test("Change Tracking executes the preserved root CLI grammar through public com
   await program().parseAsync([
     "node", "openspec-orch", "status", "checkout-flow", "--json",
   ]);
+  await program().parseAsync([
+    "node", "openspec-orch", "status", "checkout-flow",
+  ]);
 
   assert.equal(resolutions.every(([pluginId, scope]) => (
     pluginId === "change-tracking" && scope === "store"
   )), true);
   assert.deepEqual(
     resolutions.map(([, , requireBinding]) => requireBinding),
-    [true, false, true, true, true, false],
+    [true, false, true, true, true, false, false],
   );
   const statuses = outputs.filter((value) => value.startsWith("{"))
     .map((value) => JSON.parse(value));
@@ -78,4 +81,8 @@ test("Change Tracking executes the preserved root CLI grammar through public com
   });
   assert.equal(status.results[0].status, "completed");
   assert.equal(status.verification.result, "pass");
+  assert.equal(outputs.includes("✓ Change checkout-flow — готов"), true);
+  assert.equal(outputs.some((value) => value.includes("✓ frontend — завершён")), true);
+  assert.equal(outputs.some((value) => value.includes("✓ Проверка: пройдена")), true);
+  assert.equal(outputs.includes("  → Далее: готово"), true);
 });
