@@ -223,9 +223,9 @@ openspec-orch record verification <change-id> --result <pass|fail> --source <hum
 записывается отдельно и не заменяет человеческое подтверждение финального checkpoint
 в `tasks.md`.
 
-Подробнее: [Plugins](docs2/user/plugins.md),
+Подробнее: [Plugins](docs/user/plugins.md),
 [OpenSpec Graph](plugins/openspec-graph/README.md) и
-[Project Template](docs2/user/project-template.md).
+[Project Template](docs/user/project-template.md).
 
 ## Публичный Core CLI
 
@@ -279,7 +279,7 @@ repositories:
 ```
 
 Binding Plugin записывается в `repositories[].plugins`. Точный контракт и strict/
-relaxed behavior описаны в [справочнике конфигурации](docs2/user/configuration.md).
+relaxed behavior описаны в [справочнике конфигурации](docs/user/configuration.md).
 
 ## Локальные и версионируемые данные
 
@@ -297,10 +297,10 @@ relaxed behavior описаны в [справочнике конфигурац�
 
 ## Документация и разработка
 
-- [вся актуальная документация](docs2/README.md);
-- [пользовательская документация](docs2/user/README.md);
-- [командный процесс](docs2/user/team-flow.md);
-- [техническая документация](docs2/technical/README.md);
+- [вся актуальная документация](docs/README.md);
+- [пользовательская документация](docs/user/README.md);
+- [командный процесс](docs/user/team-flow.md);
+- [техническая документация](docs/technical/README.md);
 - [текущий backlog](BACKLOG.md);
 - [исторический reference](docs/archive/README.md).
 

@@ -56,10 +56,9 @@ Do not modify built-in OpenSpec `openspec-*` skills or `opsx-*` commands in the 
 
 ## Reference flow documents
 
-`docs2/user/team-flow.md` is the current team process for this repository. Record
+`docs/user/team-flow.md` is the current team process for this repository. Record
 changes to Planning, repository impact, Gates, verification, Release and Archive in
-that document and the related current project documentation. Keep
-`docs/user/team-flow.md` only as a compatibility pointer for historical links.
+that document and the related current project documentation.
 
 `docs/archive/reference/OpenSpec для команды.md` is an immutable historical workplace
 reference. It is retained for provenance only and is not a current instruction,
