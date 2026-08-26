@@ -102,7 +102,7 @@ test("PluginScaffoldService creates convention-first commands, repository and na
         const templateTarget = path.join(temporary, `${pluginId}-template-target`);
         await fs.mkdir(templateTarget);
         const plan = await new ProjectTemplateService().planPlugin({
-          agentId: "codex",
+          agentId: "qwen",
           targetRoot: templateTarget,
           templateRoot: path.join(targetRoot, "template"),
         });
@@ -128,13 +128,13 @@ test("ProjectTemplateService rejects Base Agent metadata in a Plugin Template", 
   await fs.mkdir(templateRoot);
   await fs.mkdir(targetRoot);
   await fs.writeFile(path.join(templateRoot, "template.yaml"), `agents:
-  codex:
-    openspec_adapter: codex
+  qwen:
+    openspec_adapter: qwen
     copy: []
 `);
 
   await assert.rejects(
-    new ProjectTemplateService().planPlugin({ agentId: "codex", targetRoot, templateRoot }),
+    new ProjectTemplateService().planPlugin({ agentId: "qwen", targetRoot, templateRoot }),
     /openspec_adapter/u,
   );
 });

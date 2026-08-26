@@ -27,7 +27,7 @@ async function storeFixture(t, { declared = true } = {}) {
   const project = createProject({
     version: 1,
     strict: true,
-    agents: ["codex"],
+    agents: ["qwen"],
     plugins: declared ? [{ id: "sample", source: "@test/plugin-sample@1.0.0" }] : [],
     repositories: [
       {

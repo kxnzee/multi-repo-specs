@@ -167,9 +167,8 @@ OpenSpec Graph поддерживает `graph build/status/view/inspect/impact/
 CodeGraph работает только с Code Repository. `connect` вызывает `codegraph init .`,
 `sync` — `codegraph index .`, `exec` передаёт произвольную native-команду через
 package-owned launcher. Перед индексированием `.codegraph/` добавляется в локальный
-`.git/info/exclude`; tracked `.gitignore` не меняется. Поддержка агента в самом Plugin
-есть для Qwen, Claude, GigaCode и Codex, но Base Template можно инициализировать только
-для mappings `qwen`, `claude` и `gigacode`.
+`.git/info/exclude`; tracked `.gitignore` не меняется. Plugin и Base Template
+поддерживают mappings `qwen`, `claude` и `gigacode`.
 
 ## Project Template
 

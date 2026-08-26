@@ -15,7 +15,7 @@ function projectFixture() {
   return createProject({
     version: 1,
     strict: true,
-    agents: ["codex"],
+    agents: ["qwen"],
     plugins: [],
     repositories: [
       {

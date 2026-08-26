@@ -75,8 +75,7 @@ OpenSpec Graph отвечает на вопросы «какой Change меня
 Plugin владеет skill `openspec-graph-maintenance` и начальным
 `openspec/graph.yaml`. Они находятся в `template/`, который Core автоматически
 применяет через общий `ProjectTemplateService` при `plugin init`; `index.js` не
-содержит Agent integration или copy rules. Поддерживаются Claude, Codex, GigaCode
-и Qwen.
+содержит Agent integration или copy rules. Поддерживаются Claude, GigaCode и Qwen.
 
 Отличающийся существующий файл блокирует установку, одинаковый пропускается.
 `plugin remove` не удаляет добавленные в Store файлы: CLI перечисляет пути skill и

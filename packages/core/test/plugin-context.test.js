@@ -39,7 +39,7 @@ async function contextScenario(t, { backendPlugin = false, storePlugin = false }
   const project = createProject({
     version: 1,
     strict: true,
-    agents: ["codex"],
+    agents: ["qwen"],
     plugins: [{ id: "sample", source: "@test/plugin-sample@1.0.0" }],
     repositories: [
       {
@@ -127,7 +127,7 @@ test("PluginContextFactory creates a new immutable scoped context without exposi
       { id: "frontend", role: "code" },
       { id: "backend", role: "code" },
     ],
-    agent: { id: "codex" },
+    agent: { id: "qwen" },
   });
   assert.deepEqual(context.repository, { id: "frontend", role: "code" });
   assert.equal("root" in context.repository, false);

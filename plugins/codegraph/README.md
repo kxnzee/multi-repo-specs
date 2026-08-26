@@ -60,7 +60,7 @@ Tracked `.gitignore` Repository не меняется, а сам индекс о
 `plugin init codegraph` Package автоматически:
 
 - добавляет stdio MCP server `openspec-orch-codegraph` в project-local конфиг каждого
-  зарегистрированного Codex, Claude, Qwen или GigaCode;
+  зарегистрированного Claude, Qwen или GigaCode;
 - указывает абсолютные пути к текущему Node.js и bundled launcher, поэтому глобальный
   `codegraph` в `PATH` не нужен;
 - добавляет в project instructions короткое правило использования

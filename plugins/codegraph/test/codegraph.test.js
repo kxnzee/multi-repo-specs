@@ -54,7 +54,7 @@ test("Package owns its CodeGraph dependency and native Plugin entrypoint", async
   assert.equal(plugin.canExec(), true);
   const calls = [];
   const integration = plugin.integrateAgent(Object.freeze({
-    agent: Object.freeze({ id: "codex" }),
+    agent: Object.freeze({ id: "qwen" }),
     process: Object.freeze({
       run(executable, args) { calls.push([executable, args]); },
     }),
@@ -62,8 +62,8 @@ test("Package owns its CodeGraph dependency and native Plugin entrypoint", async
   await integration.install();
   await integration.remove();
   assert.deepEqual(calls, [
-    [process.execPath, [launcher, "agent", "install", "--agent", "codex"]],
-    [process.execPath, [launcher, "agent", "remove", "--agent", "codex"]],
+    [process.execPath, [launcher, "agent", "install", "--agent", "qwen"]],
+    [process.execPath, [launcher, "agent", "remove", "--agent", "qwen"]],
   ]);
 });
 
@@ -122,10 +122,9 @@ test("Repository status maps native CodeGraph freshness without false ready", as
   }
 });
 
-test("Package installs and removes MCP for registered Qwen and Codex Agents", async (t) => {
+test("Package installs and removes MCP for registered Qwen Agent", async (t) => {
   const root = await temporaryProject(t);
   await fs.mkdir(path.join(root, ".qwen"), { recursive: true });
-  await fs.mkdir(path.join(root, ".codex"), { recursive: true });
   await fs.writeFile(
     path.join(root, ".qwen", "settings.json"),
     `${JSON.stringify({
@@ -134,15 +133,10 @@ test("Package installs and removes MCP for registered Qwen and Codex Agents", as
     }, null, 2)}\n`,
   );
   await fs.writeFile(path.join(root, "QWEN.md"), "# Team instructions\n");
-  await fs.writeFile(path.join(root, ".codex", "config.toml"), "model = \"gpt-test\"\n");
-  await fs.writeFile(path.join(root, "AGENTS.md"), "# Project instructions\n");
 
-  for (const agentId of ["qwen", "codex"]) {
-    const result = runAgentLifecycle(root, "install", agentId);
-    assert.equal(result.status, 0, result.stderr);
-  }
+  const install = runAgentLifecycle(root, "install", "qwen");
+  assert.equal(install.status, 0, install.stderr);
   const qwenPath = path.join(root, ".qwen", "settings.json");
-  const codexPath = path.join(root, ".codex", "config.toml");
   const canonicalRoot = await fs.realpath(root);
   const qwen = JSON.parse(await fs.readFile(qwenPath, "utf8"));
   assert.deepEqual(qwen.mcpServers.existing, { command: "existing-server" });
@@ -152,27 +146,16 @@ test("Package installs and removes MCP for registered Qwen and Codex Agents", as
     cwd: canonicalRoot,
   });
   assert.match(await fs.readFile(path.join(root, "QWEN.md"), "utf8"), /codegraph_explore/);
-  const codex = await fs.readFile(codexPath, "utf8");
-  assert.match(codex, /model = "gpt-test"/);
-  assert.match(codex, /\[mcp_servers\."openspec-orch-codegraph"\]/);
-  assert.match(await fs.readFile(path.join(root, "AGENTS.md"), "utf8"), /codegraph_explore/);
 
   const stableQwen = await fs.readFile(qwenPath, "utf8");
-  const stableCodex = await fs.readFile(codexPath, "utf8");
   assert.equal(runAgentLifecycle(root, "install", "qwen").status, 0);
-  assert.equal(runAgentLifecycle(root, "install", "codex").status, 0);
   assert.equal(await fs.readFile(qwenPath, "utf8"), stableQwen);
-  assert.equal(await fs.readFile(codexPath, "utf8"), stableCodex);
 
-  for (const agentId of ["qwen", "codex"]) {
-    const result = runAgentLifecycle(root, "remove", agentId);
-    assert.equal(result.status, 0, result.stderr);
-  }
+  const remove = runAgentLifecycle(root, "remove", "qwen");
+  assert.equal(remove.status, 0, remove.stderr);
   const removedQwen = JSON.parse(await fs.readFile(qwenPath, "utf8"));
   assert.deepEqual(removedQwen.mcpServers, { existing: { command: "existing-server" } });
   assert.doesNotMatch(await fs.readFile(path.join(root, "QWEN.md"), "utf8"), /codegraph_explore/);
-  assert.doesNotMatch(await fs.readFile(codexPath, "utf8"), /openspec-orch-codegraph/);
-  assert.doesNotMatch(await fs.readFile(path.join(root, "AGENTS.md"), "utf8"), /codegraph_explore/);
 });
 
 test("Package installs and removes MCP for Claude and GigaCode Agents", async (t) => {

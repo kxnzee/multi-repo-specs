@@ -74,8 +74,7 @@ argv native runtime через package-owned launcher в cwd выбранног�
 `.codegraph/` добавляется в локальный `.git/info/exclude`; tracked `.gitignore` не
 изменяется.
 
-Plugin умеет устанавливать integration для Qwen, Claude, GigaCode и Codex. Наличие
-этого adapter не означает, что Base Project Template поддерживает `--agent codex`.
+Plugin умеет устанавливать integration для Qwen, Claude и GigaCode.
 
 ## Общий lifecycle
 

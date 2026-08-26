@@ -13,7 +13,7 @@ import {
 
 const CURRENT_CONFIG = `version: 1
 strict: true
-agents: [codex]
+agents: [qwen]
 plugins:
   - id: dependency-audit
     source: "@test/plugin-dependency-audit@1.0.0"
@@ -38,7 +38,7 @@ test("configuration parses version 1 YAML directly into the public domain model"
   assert.equal(project instanceof Project, true);
   assert.equal(project.storeRepository instanceof Repository, true);
   assert.equal(project.storeRepository.id, "specs");
-  assert.deepEqual(project.agents, ["codex"]);
+  assert.deepEqual(project.agents, ["qwen"]);
   assert.deepEqual(project.plugins, ["dependency-audit"]);
   assert.equal(project.isPluginConnected("dependency-audit", "frontend"), true);
   assert.equal(project.pluginDeclaration("dependency-audit").required, true);

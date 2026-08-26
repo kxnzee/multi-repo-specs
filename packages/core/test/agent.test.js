@@ -21,7 +21,7 @@ async function storeFixture(t) {
   await fs.writeFile(path.join(root, "openspec/config.yaml"), "schema: spec-driven\n");
   await fs.writeFile(path.join(root, "openspec-orch.yaml"), `version: 1
 strict: true
-agents: [codex]
+agents: [qwen]
 plugins:
   - id: sample
     source: "@test/plugin-sample@1.0.0"
@@ -38,7 +38,7 @@ repositories:
 test("AgentService resolves and executes a Plugin contribution through its context", async (t) => {
   const storeProject = await storeFixture(t);
   const calls = [];
-  const context = Object.freeze({ agent: Object.freeze({ id: "codex" }) });
+  const context = Object.freeze({ agent: Object.freeze({ id: "qwen" }) });
   const service = new AgentService({
     contextFactory: { async forRepositorySetup() { return context; } },
   });
@@ -58,7 +58,7 @@ test("AgentService resolves and executes a Plugin contribution through its conte
 
   const integration = await service.resolve(storeProject, loadedPlugin);
   assert.equal(integration instanceof AgentIntegration, true);
-  assert.equal(integration.agentId, "codex");
+  assert.equal(integration.agentId, "qwen");
   assert.equal(integration.pluginId, "sample");
   await service.install(storeProject, integration);
   await service.remove(storeProject, integration);
@@ -91,7 +91,7 @@ test("AgentService copies Plugin template into Store and only reports manual cle
   await fs.writeFile(skillSource, "plugin skill\n");
   await fs.writeFile(graphSource, "version: 1\n");
   await fs.writeFile(path.join(templateRoot, "template.yaml"), `agents:
-  codex:
+  qwen:
     copy:
       - from: openspec/graph.yaml
         to: openspec/graph.yaml
@@ -142,7 +142,7 @@ test("explicit declarative Agent API replaces automatic Plugin Template", async 
   await fs.mkdir(path.join(pluginRoot, "assets"));
   await fs.writeFile(path.join(pluginRoot, "template/ignored.txt"), "default\n");
   await fs.writeFile(path.join(pluginRoot, "assets/selected.txt"), "explicit\n");
-  const context = Object.freeze({ agent: Object.freeze({ id: "codex" }) });
+  const context = Object.freeze({ agent: Object.freeze({ id: "qwen" }) });
   const service = new AgentService({
     contextFactory: { async forRepositorySetup() { return context; } },
   });

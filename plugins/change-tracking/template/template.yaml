@@ -4,11 +4,6 @@ agents:
       - from: skills
         to: .claude/skills
 
-  codex:
-    copy:
-      - from: skills
-        to: .agents/skills
-
   gigacode:
     copy:
       - from: skills

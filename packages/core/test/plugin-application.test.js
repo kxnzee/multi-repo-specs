@@ -30,7 +30,7 @@ async function storeFixture(t) {
   await fs.writeFile(path.join(root, "openspec/config.yaml"), "schema: spec-driven\n");
   await fs.writeFile(path.join(root, "openspec-orch.yaml"), `version: 1
 strict: true
-agents: [codex]
+agents: [qwen]
 plugins: []
 repositories:
   - id: specs

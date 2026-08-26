@@ -27,7 +27,7 @@ async function commandWorkspace(t) {
   const project = createProject({
     version: 1,
     strict: true,
-    agents: ["codex"],
+    agents: ["qwen"],
     plugins: [{ id: "change-tracking", source: "@test/change-tracking@1.0.0" }],
     repositories: [
       {

@@ -73,8 +73,8 @@ Base Template требует OpenSpec Graph, поэтому Graph входит �
 
 Base Template принимает `--agent qwen`, `--agent gigacode` и `--agent claude`.
 Mapping определяет provider-specific каталоги, корневой файл инструкций, commands,
-skills и subagents. CodeGraph Plugin дополнительно умеет устанавливать интеграцию для
-Codex, но это не добавляет Codex в mappings Base Template.
+skills и subagents. Эти же три Agent поддерживаются Plugin Templates и CodeGraph
+integration.
 
 ## Важные ограничения
 

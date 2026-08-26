@@ -58,7 +58,7 @@ test("candidate Change Tracking completes a real multi-repository Cycle", async 
   const project = createProject({
     version: 1,
     strict: true,
-    agents: ["codex"],
+    agents: ["qwen"],
     plugins: [{ id: pluginId, source: pluginSource }],
     repositories: [
       repository({ id: "specs", role: "store", remote: store.remote }),

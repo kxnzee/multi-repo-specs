@@ -40,7 +40,7 @@ function projectConfig() {
   return {
     version: 1,
     strict: true,
-    agents: ["codex"],
+    agents: ["qwen"],
     plugins: [],
     repositories,
     storeRepository: repositories[0],

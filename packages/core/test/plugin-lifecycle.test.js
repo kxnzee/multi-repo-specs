@@ -28,7 +28,7 @@ async function createStoreFixture(t, { backendConnected = false, connected = fal
   const project = createProject({
     version: 1,
     strict: true,
-    agents: ["codex"],
+    agents: ["qwen"],
     plugins: [{ id: "sample", source: "@test/plugin-sample@1.0.0" }],
     repositories: [
       {

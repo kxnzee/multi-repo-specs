@@ -8,10 +8,9 @@ import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 
 const ADAPTERS = Object.freeze({
-  claude: Object.freeze({ mcpFormat: "json", mcpConfig: ".mcp.json", instructions: "CLAUDE.md" }),
-  qwen: Object.freeze({ mcpFormat: "json", mcpConfig: ".qwen/settings.json", instructions: "QWEN.md" }),
-  gigacode: Object.freeze({ mcpFormat: "json", mcpConfig: ".gigacode/settings.json", instructions: "GIGACODE.md" }),
-  codex: Object.freeze({ mcpFormat: "toml", mcpConfig: ".codex/config.toml", instructions: "AGENTS.md" }),
+  claude: Object.freeze({ mcpConfig: ".mcp.json", instructions: "CLAUDE.md" }),
+  qwen: Object.freeze({ mcpConfig: ".qwen/settings.json", instructions: "QWEN.md" }),
+  gigacode: Object.freeze({ mcpConfig: ".gigacode/settings.json", instructions: "GIGACODE.md" }),
 });
 const ENTRYPOINT = fileURLToPath(new URL("../bin/codegraph.js", import.meta.url));
 const INSTRUCTIONS = fileURLToPath(new URL("../instructions.md", import.meta.url));
@@ -19,10 +18,6 @@ const SERVER_NAME = "openspec-orch-codegraph";
 const INSTRUCTION_MARKERS = Object.freeze({
   start: "<!-- OPENSPEC_ORCH_PLUGIN_CODEGRAPH_START -->",
   end: "<!-- OPENSPEC_ORCH_PLUGIN_CODEGRAPH_END -->",
-});
-const TOML_MARKERS = Object.freeze({
-  start: "# OPENSPEC_ORCH_PLUGIN_CODEGRAPH_START",
-  end: "# OPENSPEC_ORCH_PLUGIN_CODEGRAPH_END",
 });
 
 /** Проверяет JSON object без массивов. */
@@ -166,23 +161,11 @@ function removeJsonServer(source) {
   return `${JSON.stringify(next, null, 2)}\n`;
 }
 
-/** Сериализует marker-fenced Codex MCP table. */
-function tomlServerBlock(server) {
-  return `${TOML_MARKERS.start}\n[mcp_servers.${JSON.stringify(SERVER_NAME)}]\n` +
-    `command = ${JSON.stringify(server.command)}\n` +
-    `args = ${JSON.stringify(server.args)}\n` +
-    `cwd = ${JSON.stringify(server.cwd)}\n${TOML_MARKERS.end}`;
-}
-
 /** Устанавливает либо удаляет MCP entry одного Agent. */
 async function updateMcp(root, adapter, remove) {
   const { target, source } = await readOptionalFile(root, adapter.mcpConfig);
   const server = mcpServer(root);
-  const next = adapter.mcpFormat === "json"
-    ? remove ? removeJsonServer(source) : installJsonServer(source, server)
-    : remove
-      ? removeMarkedBlock(source, TOML_MARKERS)
-      : replaceMarkedBlock(source, TOML_MARKERS, tomlServerBlock(server));
+  const next = remove ? removeJsonServer(source) : installJsonServer(source, server);
   if (next !== source) await writeAtomic(target, next);
 }
 

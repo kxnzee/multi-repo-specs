@@ -6,13 +6,6 @@ agents:
       - from: skills
         to: .claude/skills
 
-  codex:
-    copy:
-      - from: openspec/graph.yaml
-        to: openspec/graph.yaml
-      - from: skills
-        to: .agents/skills
-
   gigacode:
     copy:
       - from: openspec/graph.yaml
