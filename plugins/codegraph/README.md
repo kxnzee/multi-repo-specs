@@ -32,11 +32,11 @@ openspec-orch plugin status --plugin codegraph --repo frontend
 openspec-orch plugin exec codegraph --repo frontend -- explore "authentication flow"
 ```
 
-Если `--repo` не указан, команда выполняется во всех repositories, к которым
-подключён CodeGraph:
+Для выполнения во всех repositories, к которым подключён CodeGraph, укажите
+`--all` явно:
 
 ```bash
-openspec-orch plugin exec codegraph -- status --json
+openspec-orch plugin exec codegraph --all -- status --json
 ```
 
 Интерактивный `plugin init` показывает checkbox каталога, а `plugin connect codegraph`
@@ -44,7 +44,8 @@ openspec-orch plugin exec codegraph -- status --json
 `codegraph init .`, то есть первичная индексация выполняется сразу. Для явного
 обновления одного instance используйте
 `openspec-orch plugin sync codegraph --repo frontend`, а всех подключённых instances —
-`openspec-orch plugin sync codegraph`.
+`openspec-orch plugin sync codegraph --all`. Без `--repo` и `--all` интерактивный
+терминал показывает checkbox, а non-TTY вызов завершается ошибкой выбора.
 Любую другую native-команду bundled CodeGraph можно вызвать через `plugin exec`;
 Core выбирает подключённый Repository instance и без разбора передаёт Package весь
 argv после `--`.

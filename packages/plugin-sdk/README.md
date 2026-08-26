@@ -18,12 +18,15 @@ export default definePlugin({
 
 `definePlugin` проверяет definition и возвращает immutable доменную модель `Plugin`,
 но ничего не регистрирует и не запускает. Core работает с Plugin только через её
-публичные методы: `assertSupports`, `connect`, `status`, `sync`,
-`registerCommands` и `integrateAgent`. Loader проверяет этот API структурно и не
+публичные методы: `supportsRole`, `assertSupports`, `hasRepositoryContribution`,
+`connect`, `status`, `canSync`, `sync`, `canExec`, `exec`,
+`hasAgentContribution`, `integrateAgent`, `hasCommandContribution` и
+`registerCommands`. Loader проверяет этот API структурно и не
 зависит от `instanceof`, поэтому разные физические копии SDK не ломают загрузку.
 `exec` автоматически встроен для Plugin с `registerCommands` и использует
 зарегистрированную grammar. Объявлять одинаковый `repository.exec` в каждом Plugin
-не нужно. Этот optional hook требуется только для native passthrough, когда argv
+не нужно. Методы `canExec` и `exec` входят в публичную структурную границу, а
+optional contribution `repository.exec` требуется только для native passthrough, когда argv
 должен целиком уйти Package-owned runtime, как в CodeGraph. Plugin без
 `registerCommands` и `repository.exec` продолжает загружаться, но универсальный
 passthrough для него недоступен.
