@@ -33,7 +33,7 @@ Orchestrator, OpenSpec Graph, CodeGraph и Change Tracking ЗАПРЕЩЕНО и
 ### Роли
 
 - **Владелец** подтверждает intent, scope, критерии успеха и продуктовые решения.
-- **Аналитик** отвечает за Proposal, Specs и сквозную трассировку.
+- **Аналитик** отвечает за Intake, Proposal, Specs и сквозную трассировку.
 - **Разработчик** подтверждает реализуемость Design, Tasks и implementation evidence.
 - **Тестировщик** подтверждает проверяемость Scenarios и verification evidence.
 - **Лид** обязателен для breaking contract, security/compliance, миграции данных,
@@ -41,6 +41,37 @@ Orchestrator, OpenSpec Graph, CodeGraph и Change Tracking ЗАПРЕЩЕНО и
 
 Один человек может совмещать роли. Gate всегда является явным решением людей; skill,
 subagent, Graph или Change Tracking не принимают Gate автоматически.
+
+### Старт нового Change
+
+Каждый новый Change начинается с согласованного Intent, но это не означает
+обязательный повторный запуск `base-intent`. Intent считается уже переданным, если
+пользователь явно принимает Daily Intent Brief, Jira Story или другой источник, где
+определены изменение, Why Now, ожидаемое улучшение, критерии успеха и ограничения.
+Если этих элементов нет, до создания Change используется `base-intent`.
+
+`base-intent` — не artifact и не команда OpenSpec: он проводит фасилитацию, возвращает
+Daily Intent Brief и ничего не записывает. В той же сессии агент передаёт его смысл в
+Intake из диалога. В новой сессии пользователь передаёт сам Brief или доступное
+содержание принятой Jira Story; одна ссылка или номер без доступного содержания
+остаётся provenance, но не заменяет Intent.
+
+```text
+Intent уже согласован?
+  ├─ нет → base-intent → Daily Intent Brief
+  └─ да → принятый Brief / доступное содержание Jira Story
+                         ↓
+/openspec-base-intake <change-id>
+  ├─ ready_for_proposal → Proposal
+  ├─ explore_recommended → /opsx-explore → повторный Intake
+  └─ blocked → решение владельца или нормативный источник
+                         ↓
+Specs → Design → Tasks → Apply → Archive
+```
+
+Intake сначала использует подтверждённые выводы Intent и другие уже переданные ответы,
+а затем задаёт только первый отсутствующий или конфликтующий вопрос. Он не повторяет
+Intent-сессию и не заставляет пользователя вручную переносить ответы.
 
 ### Planning artifacts
 
@@ -60,9 +91,10 @@ subagent, Graph или Change Tracking не принимают Gate автома
 значимых error/degraded веток он содержит PlantUML sequence diagram; иначе раздел
 Interaction Diagram содержит краткое `Not applicable` с причиной.
 
-Канонический пользовательский вход — `/openspec-base-intake <change-id>`. Команда
-задаёт по одному адаптивному вопросу, учитывает уже переданные ответы и сама собирает
-их в template `intake.md`; участник команды не переносит ответы вручную. При повторном
+После согласования Intent канонический вход в Change —
+`/openspec-base-intake <change-id>`. Команда задаёт по одному адаптивному вопросу,
+учитывает Intent и уже переданные ответы и сама собирает их в template `intake.md`;
+участник команды не переносит ответы вручную. При повторном
 запуске команда продолжает существующий содержательный Intake, а не начинает анкету
 заново. Для нового Change она сначала получает выбранный пользователем kebab-case
 `change-id`, затем создаёт его по schema `base-v1`.
@@ -243,8 +275,11 @@ CodeGraph, текста Intake, Proposal, Design, Tasks или task checkbox с�
 До появления валидных Delta Specs используется preliminary phase:
 
 - capability candidates берутся из принятого intent и Proposal;
-- агент может выполнить только точный `graph inspect` уже существующей Master Spec;
-- `graph impact`, `graph check-scope` и объявление Cycle scope ЗАПРЕЩЕНЫ;
+- неизвестный capability path разрешается через `openspec list --specs --json`, после
+  чего агент читает только точную существующую Master Spec;
+- Graph recovery/build, `graph inspect`, `graph impact`, `graph check-scope` и
+  объявление Cycle scope ЗАПРЕЩЕНЫ;
+- `stale` или `unavailable` Graph не блокирует preliminary phase;
 - Graph не используется для угадывания будущего repository scope.
 
 После создания или изменения валидных Delta Specs агент ОБЯЗАН перейти в

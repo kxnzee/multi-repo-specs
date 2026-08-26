@@ -180,7 +180,7 @@ Plugin status и печатает подтверждённое состояни�
     └── backend/
 ```
 
-Минимальная конфигурация пилота:
+Минимальная конфигурация проекта:
 
 ```yaml
 version: 3
@@ -221,7 +221,7 @@ openspec-orch repository status
 `.openspec-orch/state.json`:
 
 ```bash
-openspec-orch connect --workspace /absolute/path/to/pilot-workspace
+openspec-orch connect --workspace /absolute/path/to/workspace
 ```
 
 `connect` может клонировать отсутствующие Code Repositories, но не обновляет уже
@@ -230,7 +230,13 @@ openspec-orch connect --workspace /absolute/path/to/pilot-workspace
 
 ## Минимальный поток одного Change
 
-Из корня Store запустите в агенте `/openspec-base-intake <change-id>`. Команда сама
+Сначала подтвердите Intent. Если уже есть принятый Daily Intent Brief или Jira Story
+с явными изменением, Why Now, ожидаемым улучшением, критериями успеха и ограничениями,
+повторно запускать `base-intent` не нужно. Иначе сначала пройдите `base-intent`; он
+ничего не записывает, поэтому при переходе в новую сессию передайте полученный Brief.
+
+Затем из корня Store запустите в агенте `/openspec-base-intake <change-id>`. Команда
+использует подтверждённый Intent, не переспрашивает уже закрытые вопросы и сама
 создаст или продолжит Change по schema `base-v1`, проведёт опрос и запишет
 содержательный `intake.md`. После `ready_for_proposal` продолжите штатным OpenSpec;
 при `explore_recommended` сначала выполните `/opsx-explore`, затем повторно запустите
@@ -239,7 +245,7 @@ Intake-команду для сохранения findings и пересмотр
 После принятия Proposal, Delta Specs, Design и Tasks убедитесь, что Store чист. Затем:
 
 ```bash
-cd /absolute/path/to/pilot-workspace/specs
+cd /absolute/path/to/workspace/specs
 openspec-orch assign checkout-flow --repo frontend --repo backend
 ```
 
@@ -257,8 +263,8 @@ openspec-orch status checkout-flow
 выполнить из Store либо из каталога Code Repository с подключённым OpenSpec pointer:
 
 ```bash
-FRONTEND_SHA=$(git -C /absolute/path/to/pilot-workspace/src/frontend rev-parse HEAD)
-BACKEND_SHA=$(git -C /absolute/path/to/pilot-workspace/src/backend rev-parse HEAD)
+FRONTEND_SHA=$(git -C /absolute/path/to/workspace/src/frontend rev-parse HEAD)
+BACKEND_SHA=$(git -C /absolute/path/to/workspace/src/backend rev-parse HEAD)
 
 openspec-orch record assignment checkout-flow \
   --repo frontend --commit "$FRONTEND_SHA" --status completed --source human
@@ -285,10 +291,8 @@ openspec-orch record verification checkout-flow --result pass --source human
 openspec-orch status checkout-flow
 ```
 
-Итоговый `status` показывает Cycle, результаты каждого репозитория, текущий
-Snapshot, Verification Receipt и следующее действие `готово`. Полный порядок,
-отрицательные проверки и восстановление после потери локального state приведены в
-[Pilot Runbook](docs/user/pilot-runbook.md).
+Итоговый `status` показывает Cycle, результаты каждого репозитория, текущий Snapshot,
+Verification Receipt и следующее действие `готово`.
 
 ## Хранение данных
 

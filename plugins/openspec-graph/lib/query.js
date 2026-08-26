@@ -284,6 +284,8 @@ export function checkChangeScope(graph, changeId, repositoryIds) {
   const missingDeltaSpecs = impact.delta_specs.length === 0;
   const state = missingDeltaSpecs
     || missingRequiredRepositoryIds.size > 0
+    || includedReviewRepositoryIds.size > 0
+    || extraRepositoryIds.size > 0
     || unmappedMasterIds.size > 0
     ? "invalid"
     : "ready";

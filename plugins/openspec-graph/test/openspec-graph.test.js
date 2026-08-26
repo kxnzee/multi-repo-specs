@@ -544,7 +544,7 @@ test("Scope check separates required, review and extra Cycle repositories", asyn
     ["qa", "web", "operations"],
   ), {
     change_id: "jit-100-promote",
-    state: "ready",
+    state: "invalid",
     proposed_repositories: ["operations", "qa", "web"],
     required_repositories: ["web"],
     review_repositories: ["control", "portal", "qa"],
@@ -555,6 +555,17 @@ test("Scope check separates required, review and extra Cycle repositories", asyn
     missing_delta_specs: false,
     unmapped_master_specs: [],
   });
+
+  assert.equal(
+    checkChangeScope(graph, "jit-100-promote", ["web", "qa"]).state,
+    "invalid",
+  );
+  assert.deepEqual(
+    checkChangeScope(graph, "jit-100-promote", ["web", "qa"])
+      .included_review_repositories,
+    ["qa"],
+  );
+  assert.equal(checkChangeScope(graph, "jit-100-promote", ["web"]).state, "ready");
 
   assert.equal(checkChangeScope(graph, "jit-100-promote", ["qa"]).state, "invalid");
   assert.deepEqual(

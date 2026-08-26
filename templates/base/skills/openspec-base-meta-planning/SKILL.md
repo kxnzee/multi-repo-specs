@@ -25,7 +25,8 @@ planning-review. Не создавать параллельный workflow и н
 
 Proposal и Specs являются Store-only стадиями. Code Repository, CodeGraph и
 repository evidence scout для них запрещены. На Design, Tasks, impact-review и
-planning-review код разрешён только через один ограниченный scout request.
+planning-review разрешён один ограниченный repository evidence pass: сначала через
+scout, а при его недоступности — тем же адресным read/search основного агента.
 
 ## Preflight
 
@@ -41,19 +42,20 @@ planning-review код разрешён только через один огр�
 
 ## Graph phase
 
-Перед graph query выполнить status → recovery → status по корневым инструкциям.
-Derived build не нарушает read-only границу Planning, потому что не меняет tracked
-product artifacts.
-
-До Delta Specs использовать phase preliminary:
+До валидных Delta Specs использовать phase preliminary:
 
 - capability candidates брать из Proposal;
-- неизвестный path находить через openspec list --specs --json;
-- для существующей capability разрешён точный graph inspect;
-- не вызывать impact/check-scope и не объявлять Cycle scope.
+- неизвестный path находить через openspec list --specs --json и читать только точную
+  Master Spec;
+- не выполнять Graph recovery/build и не вызывать inspect, impact или check-scope;
+- stale/unavailable Graph не является blocker этой фазы;
+- не объявлять Cycle scope.
 
 После валидных Delta Specs использовать phase authoritative:
 
+- перед первой graph query выполнить status → recovery → status по корневым
+  инструкциям; derived build не нарушает read-only границу Planning, потому что не
+  меняет tracked product artifacts;
 - вызвать graph impact <change-id>;
 - при заявленном implementation scope вызвать graph check-scope с отдельным --repo
   для каждого точного repository-id;
@@ -63,7 +65,8 @@ product artifacts.
   не требовать для него no-change row или отдельный artifact;
 - если проверка review Repository подтвердила необходимое изменение, вернуть Change
   в Planning и только тогда добавить его в impact и scope;
-- extra repository требует объяснённой роли;
+- included_review_repositories и extra_repositories являются blockers: объяснение без
+  обновления принятого Planning не делает их implementation scope;
 - не добавлять review repository в Cycle автоматически.
 
 ## Проверка
@@ -72,6 +75,9 @@ product artifacts.
 подтверждёнными зависимостями:
 
 - утверждение о целевом поведении проверяется по intent, Proposal и Specs;
+- на стадии specs каждый подтверждённый сценарий, access/error/degraded/data/security
+  constraint и публичное взаимодействие Intake либо покрыты Requirement/Scenario,
+  либо явно сохранены в ненормативной границе без молчаливой потери;
 - техническое решение трассируется к Requirement, Scenario или ограничению Proposal;
 - Task трассируется к принятому поведению/решению и плану evidence;
 - repository scope сопоставляется с authoritative Graph;

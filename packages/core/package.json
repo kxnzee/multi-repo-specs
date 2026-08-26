@@ -18,6 +18,9 @@
     "yaml": "2.9.0",
     "zod": "4.4.3"
   },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 test/*.test.js"
+  },
   "engines": {
     "node": ">=20.19.0"
   }

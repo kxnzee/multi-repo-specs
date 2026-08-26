@@ -75,9 +75,9 @@ Cycle. Не считать изменение текста, состава ил�
 4. Для явно принятого skip_specs без Delta Specs зафиксировать Graph impact и scope как
    not_applicable и проверить Repository Impact/Tasks напрямую. Не создавать фиктивную
    Delta Spec.
-5. missing required/delta specs, unmapped master specs, необъяснённый review outside
-   scope или extra repository блокируют Apply. Review repositories не добавлять в
-   Cycle или standard implementation scope автоматически.
+5. missing required/delta specs, unmapped master specs, included review repository,
+   extra repository или неразрешённый review outside scope блокируют Apply. Review
+   repositories не добавлять в Cycle или standard implementation scope автоматически.
 6. Классифицировать current repository как direct, review или extra, когда текущий
    контекст относится к зарегистрированному Code Repository.
 

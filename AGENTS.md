@@ -5,8 +5,8 @@
 Core is not frozen. Changes to `packages/core/` and `packages/plugin-sdk/` are allowed
 when their product intent and public contract are accepted, the smallest coherent
 implementation is chosen, and observable behavior is covered by regression tests.
-Unaccepted ideas remain in `BACKLOG.md`; pilot feedback is evidence for prioritization,
-not a prerequisite for every Core change.
+Unaccepted ideas remain in `BACKLOG.md`; confirmed usage evidence supports
+prioritization but is not a prerequisite for every Core change.
 
 ## Change ownership
 

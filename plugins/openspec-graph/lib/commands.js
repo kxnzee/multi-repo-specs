@@ -128,7 +128,9 @@ export function registerGraphCommands(
       const result = checkChangeScope(document, changeId, options.repo);
       output.log(JSON.stringify(result, null, 2));
       if (result.state === "invalid") {
-        throw new Error("OPENSPEC_GRAPH_SCOPE_INVALID: proposed Cycle scope is incomplete");
+        throw new Error(
+          "OPENSPEC_GRAPH_SCOPE_INVALID: proposed implementation scope does not match impact",
+        );
       }
     }, { scope: "store" });
 }

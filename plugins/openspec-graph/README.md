@@ -94,8 +94,11 @@ openspec-orch graph view
 точную следующую команду.
 
 `inspect` принимает только точный node ID и не выбирает fuzzy candidate. Если
-capability path неизвестен, сначала выполните `openspec list --specs --json`, выберите
-точный capability ID и затем вызовите `graph inspect master-spec:<capability-path>`.
+capability path неизвестен, сначала выполните `openspec list --specs --json` и
+выберите точный capability ID. При Intake/Proposal без валидных Delta Specs прочитайте
+точную Master Spec напрямую: Graph ещё не authoritative и не должен принуждать к
+преждевременному build. После появления валидных Delta Specs выполните build и только
+затем используйте `graph inspect master-spec:<capability-path>`.
 
 `impact` и `inspect` дают любому агенту provider-independent JSON из того же свежего
 индекса, который показывает UI. `impact` разделяет `direct_master_specs` — Master
@@ -136,8 +139,9 @@ Change dependencies возвращаются в обоих направлени�
 impact. Прямые репозитории обязательны; их отсутствие, Change без Delta Specs или
 непривязанная напрямую изменяемая Master Spec завершают команду ошибкой. Зависимые и
 review-репозитории выводятся для явного решения, но не включаются в Cycle
-автоматически. Дополнительные зарегистрированные репозитории разрешены и возвращаются
-отдельно, чтобы их назначение можно было обосновать в Planning.
+автоматически. Переданный review-only или не относящийся к impact дополнительный
+репозиторий также делает scope `invalid`: если в нём действительно требуется
+изменение, сначала обновите Repository Impact, Design, Tasks и Graph mapping.
 
 `build` сначала выполняет строгую валидацию OpenSpec, затем атомарно заменяет
 последний успешно собранный индекс в Plugin storage. `view` поднимает read-only UI

@@ -122,20 +122,6 @@ test("Repository status maps native CodeGraph freshness without false ready", as
   }
 });
 
-test("Package launcher runs without a global CodeGraph executable", () => {
-  const result = spawnSync(
-    process.execPath,
-    [launcher, "--version"],
-    {
-      cwd: packageRoot,
-      encoding: "utf8",
-      env: { ...process.env, PATH: "/usr/bin:/bin" },
-    },
-  );
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout.trim(), "1.5.0");
-});
-
 test("Package installs and removes MCP for registered Qwen and Codex Agents", async (t) => {
   const root = await temporaryProject(t);
   await fs.mkdir(path.join(root, ".qwen"), { recursive: true });

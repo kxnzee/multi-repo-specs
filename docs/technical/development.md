@@ -12,7 +12,11 @@
 - `plugins/codegraph/` — CodeGraph lifecycle, launcher, MCP и Agent instructions;
 - `plugins/openspec-graph/` — Store-only граф Store, Repository, Master Spec, Change и Delta Spec;
 - `templates/base/` — Project Template, используемый только при `init`;
-- `test/` — unit- и интеграционные проверки на временных Git-репозиториях.
+- `packages/*/test/` и `plugins/*/test/` — code tests, принадлежащие своим packages;
+- `test/` — только интеграционные проверки собранного distribution;
+- `checks/template/` — отдельный structural contract Template;
+- `checks/agent-artifacts/` — отдельные проверки формата skills,
+  commands и subagents.
 
 Пользовательская поверхность — CLI `openspec-orch`. Для авторов Plugin публичным
 контрактом является только `@openspec-orch/plugin-sdk`; импорт Core internals запрещён.
@@ -56,12 +60,20 @@ OpenSpec init. Их изменение считается изменением p
 ## Проверки
 
 ```bash
+npm test                         # только код packages, Plugins и integration
+npm run check:template           # отдельно Project Template
+npm run check:agent-artifacts    # отдельно skills, commands и subagents
 npm run check
 npm pack --dry-run
 npm pack --workspaces --dry-run
 git diff --check
 node bin/openspec-orch.js --help
 ```
+
+Документация не является входом test suite и не проверяется текстовыми assertions,
+списком файлов или link checker. Каждый Package запускает собственные tests через свой
+`package.json`; Plugin tests используют только публичный `@openspec-orch/plugin-sdk`
+и не импортируют Core.
 
 Core не заморожен. Условия принятия изменения определены в `AGENTS.md`, а идеи без
 принятого intent и публичного контракта остаются в `BACKLOG.md`.

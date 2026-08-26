@@ -106,7 +106,7 @@ export class ConnectionService {
     const storeProject = await this.#storeProjects.load(start);
     const { project, root: storeRoot, store: metadata } = storeProject;
     if (project.codeRepositories.length === 0) {
-      throw new Error("CONFIG_INVALID: для пилота нужен минимум один repository с roles: [code]");
+      throw new Error("CONFIG_INVALID: нужен минимум один repository с roles: [code]");
     }
     const executionMode = noStrict || !project.strict ? "relaxed" : "strict";
     const storeCheckout = storeProject.checkout;

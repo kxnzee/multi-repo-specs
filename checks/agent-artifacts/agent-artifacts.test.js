@@ -1,0 +1,80 @@
+/** @fileoverview Отдельные structural checks skills, commands и subagents Template. */
+
+import assert from "node:assert/strict";
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { parse } from "yaml";
+
+const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/base/", import.meta.url));
+
+/** Разбирает обязательный YAML frontmatter Markdown artifact. */
+function parseFrontmatter(source, artifact) {
+  assert.equal(source.startsWith("---\n"), true, `${artifact}: frontmatter is required`);
+  const end = source.indexOf("\n---\n", 4);
+  assert.notEqual(end, -1, `${artifact}: frontmatter is not closed`);
+  const metadata = parse(source.slice(4, end));
+  const body = source.slice(end + 5).trim();
+  assert.equal(metadata && typeof metadata === "object", true, artifact);
+  assert.equal(body.length > 0, true, `${artifact}: body is empty`);
+  return { metadata, body };
+}
+
+/** Возвращает отсортированные обычные entries одного directory. */
+async function entries(directory) {
+  return (await fs.readdir(directory, { withFileTypes: true }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+test("every skill and command is a self-describing standalone artifact", async () => {
+  const skillRoot = path.join(TEMPLATE_ROOT, "skills");
+  for (const entry of await entries(skillRoot)) {
+    assert.equal(entry.isDirectory(), true, `skills/${entry.name}`);
+    const relative = `skills/${entry.name}/SKILL.md`;
+    const source = await fs.readFile(path.join(TEMPLATE_ROOT, relative), "utf8");
+    const { metadata } = parseFrontmatter(source, relative);
+    assert.equal(metadata.name, entry.name, relative);
+    assert.equal(typeof metadata.description, "string", relative);
+    assert.equal(metadata.description.trim().length > 0, true, relative);
+  }
+
+  const commandRoot = path.join(TEMPLATE_ROOT, "commands");
+  for (const entry of await entries(commandRoot)) {
+    assert.equal(entry.isFile() && entry.name.endsWith(".md"), true, `commands/${entry.name}`);
+    const relative = `commands/${entry.name}`;
+    const source = await fs.readFile(path.join(TEMPLATE_ROOT, relative), "utf8");
+    const { metadata } = parseFrontmatter(source, relative);
+    assert.equal(typeof metadata.description, "string", relative);
+    assert.equal(metadata.description.trim().length > 0, true, relative);
+  }
+});
+
+test("subagent adapters preserve the canonical body and own only provider metadata", async () => {
+  const canonicalRoot = path.join(TEMPLATE_ROOT, "subagents");
+  const canonical = new Map();
+  for (const entry of await entries(canonicalRoot)) {
+    assert.equal(entry.isFile() && entry.name.endsWith(".md"), true, `subagents/${entry.name}`);
+    const relative = `subagents/${entry.name}`;
+    const source = await fs.readFile(path.join(TEMPLATE_ROOT, relative), "utf8");
+    const parsed = parseFrontmatter(source, relative);
+    assert.equal(parsed.metadata.name, path.basename(entry.name, ".md"), relative);
+    assert.equal(typeof parsed.metadata.description, "string", relative);
+    canonical.set(entry.name, parsed.body);
+  }
+
+  const adaptersRoot = path.join(TEMPLATE_ROOT, "adapters");
+  for (const adapter of await entries(adaptersRoot)) {
+    if (!adapter.isDirectory()) continue;
+    const subagentsRoot = path.join(adaptersRoot, adapter.name, "subagents");
+    for (const entry of await entries(subagentsRoot)) {
+      const relative = `adapters/${adapter.name}/subagents/${entry.name}`;
+      const source = await fs.readFile(path.join(TEMPLATE_ROOT, relative), "utf8");
+      const parsed = parseFrontmatter(source, relative);
+      assert.equal(canonical.has(entry.name), true, `${relative}: canonical subagent is missing`);
+      assert.equal(parsed.metadata.name, path.basename(entry.name, ".md"), relative);
+      assert.equal(parsed.body, canonical.get(entry.name), relative);
+    }
+  }
+});

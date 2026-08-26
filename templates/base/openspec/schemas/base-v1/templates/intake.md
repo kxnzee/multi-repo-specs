@@ -16,7 +16,13 @@
 
 ## 1. Jira Story and Sources
 
-<!-- Jira Story, переданные документы и относящийся к Change подтверждённый project context. -->
+<!--
+- Intent source: принятый Daily Intent Brief, содержимое Jira Story или другой
+  подтверждённый источник;
+- Jira Story и ссылка/номер как provenance;
+- переданные документы и относящийся к Change подтверждённый project context.
+Не считать одну только ссылку или номер Jira содержанием Intent.
+-->
 
 ## 2. Requirements — Analytical Context
 

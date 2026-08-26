@@ -19,9 +19,10 @@
 1. НЕ ОТКРЫВАЙ Code Repository или CodeGraph при создании Intent, Intake, Proposal,
    Requirements и Scenarios. Их источники — запрос и решения владельца, Master Specs
    и подтверждённый Store context.
-2. На Design, Tasks и Apply открывай Code Repository ТОЛЬКО для подтверждения или
-   опровержения одного заранее сформулированного current-state утверждения, проверки
-   совместимости либо реализуемости принятого решения.
+2. На Design, Tasks, Apply либо при точечной проверке current-state conflict из
+   context command открывай Code Repository ТОЛЬКО для подтверждения или опровержения
+   одного заранее сформулированного утверждения, проверки совместимости либо
+   реализуемости принятого решения.
 3. ЗАПРЕЩЕНО переносить в Store paths, symbols, модули, таблицы, библиотеки, локальную
    конфигурацию, build/test commands, code inventory и path:line. Код может подтвердить
    только constraint, conflict, implementation gap или unknown.
@@ -32,10 +33,15 @@
 
 ## Маршрутизация
 
-- Intent перед Planning: base-intent.
+- Каждый новый Change начинается с согласованного Intent. Если пользователь уже
+  передал принятый Daily Intent Brief, Jira Story или другой источник, в котором явно
+  определены изменение, Why Now, ожидаемое улучшение, критерии успеха и ограничения,
+  НЕ запускай base-intent повторно. Если такого Intent нет или он неполон, используй
+  base-intent до создания Change. base-intent не создаёт файл и не является artifact.
 - Опрос и сборка первого artifact Change со schema base-v1:
-  /openspec-base-intake <change-id>. Команда сама переносит ответы пользователя в
-  intake.md и при повторном запуске продолжает с уже подтверждённого контекста.
+  /openspec-base-intake <change-id>. Передай ей согласованный Intent; команда сама
+  переносит его и остальные ответы пользователя в intake.md, не задаёт повторно уже
+  закрытые вопросы и при повторном запуске продолжает с подтверждённого контекста.
   После Intake пользователь выбирает /opsx-explore, переход к Proposal или
   дополнительное уточнение; агент не запускает следующий маршрут автоматически.
 - Проверка Proposal, Specs, Design, Tasks, impact или полного Planning:
@@ -50,8 +56,10 @@
   и ADR: /openspec-base-context. После Archive context audit является необязательным
   promotion-механизмом и не изменяет Master Specs автоматически.
 
-Artifact rules Intake/Proposal/Specs/Design/Tasks находятся только в openspec/config.yaml.
-Не восстанавливай их по краткому описанию skills.
+Правила текущего artifact получай через `openspec instructions <artifact> --change
+<change-id> --json`: OpenSpec объединяет schema instructions и `openspec/config.yaml`.
+Не восстанавливай их по краткому описанию skills или пользовательской документации.
+Диалоговый flow Intake дополнительно задаёт `/openspec-base-intake`.
 
 Repository Impact — не инвентаризация registry. ОБЯЗАН указывать ТОЛЬКО Repository,
 где Change требует изменения кода, тестов, конфигурации или документации. ЗАПРЕЩЕНО
@@ -77,6 +85,11 @@ Store-level context и выполняет Planning review; отдельные co
 4. При invalid, отсутствующем binding или неготовом повторном status остановись.
    Last-known-good допустим только для диагностики.
 
+Исключение — Intake/Proposal до валидных Delta Specs: строгий build ещё не обязан
+проходить, поэтому не выполняй recovery и не блокируй preliminary Planning из-за
+stale/unavailable Graph. Разрешай capability через `openspec list --specs --json` и
+точную Master Spec; Graph queries начинаются после валидных Delta Specs.
+
 Graph build меняет только локальный производный Plugin index и является обычной
 частью pre-query workflow. После изменения Delta Spec, Master Spec, registry identity,
 openspec/graph.yaml или Archive выполни build и status. Изменение только кода или
@@ -89,9 +102,10 @@ directly changed Master Spec. Если подтверждённый постоя
 отсутствует, Graph handoff НЕ ЗАВЕРШЁН. Не добавляй review-only, verification-only,
 no-change или временно затронутый Repository.
 
-Если capability path неизвестен, получи список через openspec list --specs --json,
-выбери точный ID и только затем вызывай graph inspect. Не выбирай fuzzy candidate,
-не обращай направление relation и не достраивай отсутствующую связь.
+Если capability path неизвестен, получи список через openspec list --specs --json и
+выбери точный ID. До валидных Delta Specs прочитай точную Master Spec без Graph query;
+после перехода в authoritative phase используй точный graph inspect. Не выбирай fuzzy
+candidate, не обращай направление relation и не достраивай отсутствующую связь.
 
 ## Доступ к Code Repository
 
