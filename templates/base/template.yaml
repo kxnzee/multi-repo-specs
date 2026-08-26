@@ -12,6 +12,8 @@ agents:
         to: openspec/config.yaml
       - from: openspec/graph.yaml
         to: openspec/graph.yaml
+      - from: openspec/schemas
+        to: openspec/schemas
       - from: context
         to: openspec/context
       - from: commands
@@ -36,6 +38,8 @@ agents:
         to: openspec/config.yaml
       - from: openspec/graph.yaml
         to: openspec/graph.yaml
+      - from: openspec/schemas
+        to: openspec/schemas
       - from: context
         to: openspec/context
       - from: commands
@@ -60,6 +64,8 @@ agents:
         to: openspec/config.yaml
       - from: openspec/graph.yaml
         to: openspec/graph.yaml
+      - from: openspec/schemas
+        to: openspec/schemas
       - from: context
         to: openspec/context
       - from: commands

@@ -96,9 +96,18 @@ Store-only Planning.
 
 ### 2.2. Intent, Planning и authoritative impact
 
-Запустить агента из Store root и сформировать Intent через `base-intent`. До принятия
+Запустить агента из Store root и сформировать Intent через `base-intent`, затем создать
+Change со schema `base-v1` и запустить `/openspec-base-intake <change-id>`. Команда
+проводит опрос по одному вопросу и сама собирает первый artifact `intake.md`. После
+Intake Владелец явно выбирает `/opsx-explore`, переход к Proposal либо дополнительное
+уточнение. При Explore команду запускают повторно, чтобы сохранить findings в том же
+Intake и пересмотреть Planning Route. Пустой Intake не считается допустимым обходом
+этого решения. До принятия
 Proposal и Delta Specs агенту запрещено открывать frontend/backend или вызывать
-`codegraph_explore`. Если capability path неизвестен, использовать:
+`codegraph_explore`. Фактически выбранную схему проверять по `schemaName` из
+`openspec status --change <change-id> --json` и `schema` в `.openspec.yaml`, а не по
+upstream-полю `planningHome.defaultSchema`. Если capability path неизвестен,
+использовать:
 
 ```bash
 cd "$ORCH_STORE_ROOT"
@@ -106,7 +115,7 @@ openspec list --specs --json
 openspec-orch graph inspect "master-spec:$ORCH_CAPABILITY_ID"
 ```
 
-После подтверждения Владельцем intent создать Proposal и Delta Specs штатным OpenSpec
+После завершения выбранного маршрута создать Proposal и Delta Specs штатным OpenSpec
 workflow. Сразу после записи Delta Specs выполнить:
 
 ```bash
@@ -233,6 +242,21 @@ openspec-orch graph impact "$ORCH_CHANGE_ID"
 Ожидается `state: ready`; архивный Change остаётся доступен для impact, а active
 dependent Changes видны отдельно от prerequisites.
 
+Если прогон проверяет механизм актуализации долговечного context, после успешного
+Graph handoff запустить в агенте одну из команд:
+
+```text
+/openspec-base-context audit --change <change-id>
+/openspec-base-context audit --spec <capability-path>
+/openspec-base-context audit --domain <domain-path>
+```
+
+Ожидается `context_status: current`, `proposed`, `needs_confirmation` или `blocked`.
+Audit не изменяет файлы. При `proposed` отдельно запустить соответствующий `update`,
+проверить точный diff и подтвердить либо отклонить запись. Этот шаг необязателен для
+каждого Change: его пропуск или отложенный diff не изменяют Master Specs и не
+блокируют завершённый Archive.
+
 ## 6. Обязательные отрицательные проверки
 
 На отдельном тестовом Change или временных репозиториях проверить безопасные отказы:
@@ -279,7 +303,9 @@ state: Cycle восстанавливается из Git, а Receipts честн
 - чужой Cycle и несуществующий commit отклоняются;
 - одинаковый набор коммитов даёт одинаковый Snapshot;
 - Verification Receipt нельзя привязать к другому Snapshot;
-- Proposal и Delta Specs созданы без Code Repository/CodeGraph;
+- Intake, Proposal и Delta Specs созданы без Code Repository/CodeGraph;
+- Intake создан командой-опросником без ручного переноса ответов, а выбранный
+  Planning Route не запустился автоматически;
 - Graph после Delta Specs и Archive возвращает `ready` и детерминированный impact;
 - feedback содержит реальные наблюдения либо явно фиксирует, что повторяющейся боли
   не обнаружено.

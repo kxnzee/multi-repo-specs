@@ -9,9 +9,8 @@ const plugin = definePlugin({
   id: "openspec-graph",
   supports: ["store"],
   repository: {
-    async connect(context) {
-      const graph = await new OpenSpecGraphService(context).build();
-      return OpenSpecGraphService.summary(graph);
+    connect() {
+      return "OpenSpec Graph подключён; выполните openspec-orch graph build";
     },
     async status(context) {
       return new OpenSpecGraphService(context).status();

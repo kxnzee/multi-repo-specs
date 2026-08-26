@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { parse } from "yaml";
 
 import { ProjectTemplateService } from "@openspec-orch/core";
 
@@ -47,6 +48,7 @@ const STRICT_AGENT_ARTIFACTS = [
   "plugins/codegraph/instructions.md",
   "templates/base/adapters/claude/subagents/openspec-base-repository-evidence-scout.md",
   "templates/base/commands/openspec-base-context.md",
+  "templates/base/commands/openspec-base-intake.md",
   "templates/base/skills/openspec-base-apply-context/SKILL.md",
   "templates/base/skills/openspec-base-graph-maintenance/SKILL.md",
   "templates/base/skills/openspec-base-meta-planning/SKILL.md",
@@ -59,6 +61,7 @@ const AGENTS = [
     id: "claude",
     directory: ".claude",
     command: ".claude/commands/openspec-base-context.md",
+    intakeCommand: ".claude/commands/openspec-base-intake.md",
     generatedOfficialRelative: "commands/opsx/opsx-explore.md",
     officialCommand: ".claude/commands/opsx/opsx-explore.md",
     instructions: "CLAUDE.md",
@@ -67,6 +70,7 @@ const AGENTS = [
     id: "qwen",
     directory: ".qwen",
     command: ".qwen/commands/openspec-base-context.md",
+    intakeCommand: ".qwen/commands/openspec-base-intake.md",
     generatedOfficialRelative: "commands/opsx-explore.md",
     officialCommand: ".qwen/commands/opsx-explore.md",
     instructions: "QWEN.md",
@@ -75,6 +79,7 @@ const AGENTS = [
     id: "gigacode",
     directory: ".gigacode",
     command: ".gigacode/commands/openspec-base-context.md",
+    intakeCommand: ".gigacode/commands/openspec-base-intake.md",
     generatedOfficialRelative: "commands/opsx-explore.md",
     officialCommand: ".gigacode/commands/opsx-explore.md",
     instructions: "GIGACODE.md",
@@ -131,7 +136,10 @@ test("Project Template installs the same planning contract for every supported a
       `${agent.id}: official OpenSpec command must be preserved`,
     );
     await fs.access(path.join(targetRoot, agent.command));
+    await fs.access(path.join(targetRoot, agent.intakeCommand));
     await fs.access(path.join(targetRoot, agent.instructions));
+    await fs.access(path.join(targetRoot, "openspec/schemas/base-v1/schema.yaml"));
+    await fs.access(path.join(targetRoot, "openspec/schemas/base-v1/templates/intake.md"));
     const startHere = await fs.readFile(
       path.join(targetRoot, "openspec/context/00-start-here.md"),
       "utf8",
@@ -158,6 +166,40 @@ test("Project Template installs the same planning contract for every supported a
   }
 });
 
+test("base-v1 softly adds Intake before the preserved spec-driven workflow", async () => {
+  const [configuration, schemaSource, intakeTemplate] = await Promise.all([
+    fs.readFile(path.join(TEMPLATE_ROOT, "openspec/config.yaml"), "utf8"),
+    fs.readFile(path.join(TEMPLATE_ROOT, "openspec/schemas/base-v1/schema.yaml"), "utf8"),
+    fs.readFile(
+      path.join(TEMPLATE_ROOT, "openspec/schemas/base-v1/templates/intake.md"),
+      "utf8",
+    ),
+  ]);
+  const schema = parse(schemaSource);
+
+  assert.match(configuration, /^schema: base-v1$/mu);
+  assert.deepEqual(
+    schema.artifacts.map((artifact) => artifact.id),
+    ["intake", "proposal", "specs", "design", "tasks"],
+  );
+  assert.deepEqual(schema.artifacts[0].requires, []);
+  assert.equal(schema.artifacts[0].generates, "intake.md");
+  assert.deepEqual(schema.artifacts[1].requires, ["intake"]);
+  assert.deepEqual(schema.artifacts[2].requires, ["proposal"]);
+  assert.deepEqual(schema.artifacts[3].requires, ["proposal"]);
+  assert.deepEqual(schema.artifacts[4].requires, ["specs", "design"]);
+  assert.deepEqual(schema.apply.requires, ["tasks"]);
+  assert.equal(schema.apply.tracks, "tasks.md");
+  assert.match(intakeTemplate, /^## 0\. Change Profile$/mu);
+  assert.match(intakeTemplate, /^### 2\.5\. UI Section or Page$/mu);
+  assert.match(intakeTemplate, /^## 4\. Access Rights$/mu);
+  assert.match(intakeTemplate, /^## 5\. Interaction Diagram$/mu);
+  assert.match(intakeTemplate, /PlantUML sequence diagram/u);
+  assert.match(intakeTemplate, /^## 11\. Exploration$/mu);
+  assert.match(intakeTemplate, /^## 12\. Planning Route$/mu);
+  assert.doesNotMatch(intakeTemplate, /Owner Confirmation/u);
+});
+
 test("Claude adapter changes only subagent frontmatter", async () => {
   for (const name of REQUIRED_SUBAGENTS) {
     const [canonical, claude] = await Promise.all([
@@ -168,14 +210,14 @@ test("Claude adapter changes only subagent frontmatter", async () => {
   }
 });
 
-test("base Template exposes only the approved project skills, command and subagent", async () => {
+test("base Template exposes only the approved project skills, commands and subagent", async () => {
   assert.deepEqual(
     (await fs.readdir(path.join(TEMPLATE_ROOT, "skills"))).sort(),
     [...REQUIRED_SKILLS].sort(),
   );
   assert.deepEqual(
     (await fs.readdir(path.join(TEMPLATE_ROOT, "commands"))).sort(),
-    ["openspec-base-context.md"],
+    ["openspec-base-context.md", "openspec-base-intake.md"],
   );
   assert.deepEqual(
     (await fs.readdir(path.join(TEMPLATE_ROOT, "subagents"))).sort(),
@@ -185,6 +227,41 @@ test("base Template exposes only the approved project skills, command and subage
     (await fs.readdir(path.join(TEMPLATE_ROOT, "adapters/claude/subagents"))).sort(),
     [...REQUIRED_SUBAGENTS].sort(),
   );
+});
+
+test("intake command conducts and persists the base-v1 questionnaire", async () => {
+  const command = await fs.readFile(
+    path.join(TEMPLATE_ROOT, "commands/openspec-base-intake.md"),
+    "utf8",
+  );
+
+  assert.match(command, /ровно один следующий вопрос/u);
+  assert.match(command, /не обязан вручную переносить/u);
+  assert.match(command, /openspec instructions intake --change <change-id> --json/u);
+  assert.match(command, /сохрани все\s+подтверждённые ответы/u);
+  assert.match(command, /new_integration/u);
+  assert.match(command, /PlantUML sequence diagram/u);
+  assert.match(command, /ready_for_proposal/u);
+  assert.match(command, /explore_recommended/u);
+  assert.match(command, /Не выполняй `next_action`/u);
+  assert.doesNotMatch(command, /## Owner Confirmation/u);
+});
+
+test("context command supports scoped context and ADR promotion without automatic writes", async () => {
+  const command = await fs.readFile(
+    path.join(TEMPLATE_ROOT, "commands/openspec-base-context.md"),
+    "utf8",
+  );
+
+  assert.match(command, /--change <change-id>/u);
+  assert.match(command, /--spec <capability-path>/u);
+  assert.match(command, /--domain <domain-path>/u);
+  assert.match(command, /openspec list --specs --json/u);
+  assert.match(command, /Master Spec может подтвердить/u);
+  assert.match(command, /сама по себе не подтверждает ADR/u);
+  assert.match(command, /трудно отменить/u);
+  assert.match(command, /не блокирует завершённый Graph handoff/u);
+  assert.match(command, /После отдельного подтверждения записать только показанный блок/u);
 });
 
 test("Store planning contract uses Code Repositories only as current-state evidence", async () => {
@@ -300,4 +377,25 @@ test("current Markdown guidance has no broken local links", async () => {
 test("README documents the public JSON status option", async () => {
   const readme = await fs.readFile(path.join(ROOT, "README.md"), "utf8");
   assert.match(readme, /openspec-orch status <change-id> \[--json\]/);
+});
+
+test("current user documentation exposes the intake and scoped context commands", async () => {
+  const [readme, supportedAgents, projectTemplate, teamFlow, pilotRunbook] = await Promise.all([
+    fs.readFile(path.join(ROOT, "README.md"), "utf8"),
+    fs.readFile(path.join(ROOT, "docs/user/supported-agents.md"), "utf8"),
+    fs.readFile(path.join(ROOT, "docs/user/project-template.md"), "utf8"),
+    fs.readFile(path.join(ROOT, "docs/user/team-flow.md"), "utf8"),
+    fs.readFile(path.join(ROOT, "docs/user/pilot-runbook.md"), "utf8"),
+  ]);
+
+  for (const source of [readme, supportedAgents, projectTemplate, teamFlow, pilotRunbook]) {
+    assert.match(source, /\/openspec-base-intake/u);
+  }
+  for (const source of [readme, projectTemplate, teamFlow, pilotRunbook]) {
+    assert.match(source, /\/openspec-base-context audit --change <change-id>/u);
+  }
+  assert.match(supportedAgents, /две project commands/u);
+  assert.doesNotMatch(readme, /тремя ограниченными\s+read-only subagents/u);
+  assert.doesNotMatch(readme, /context researcher/u);
+  assert.doesNotMatch(supportedAgents, /единственная project command/u);
 });

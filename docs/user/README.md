@@ -14,6 +14,8 @@
 
 | Если вам нужно | Документ |
 |---|---|
+| Пройти опрос перед Proposal и выбрать Explore/Proposal | [Командный процесс — Intake](team-flow.md#planning-artifacts) |
+| Актуализировать context или ADR по Change/Spec/domain | [Командный процесс — Archive](team-flow.md#archive-и-внешние-интеграции) |
 | Провести пилот | [Pilot Runbook](pilot-runbook.md) |
 | Записать наблюдение пилота | [Pilot Feedback](pilot-feedback.md) |
 | Понять или проверить `openspec-orch.yaml` | [Конфигурация](configuration.md) |

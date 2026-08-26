@@ -24,8 +24,12 @@ Template отсутствует.
 templates/base/ устанавливает:
 
 - постоянный файл инструкций выбранного агента;
-- openspec/config.yaml, openspec/graph.yaml и openspec/context/;
-- command /openspec-base-context;
+- openspec/config.yaml, openspec/graph.yaml, openspec/context/ и project-local schema
+  base-v1 с первым artifact intake.md;
+- command-опросник /openspec-base-intake, который собирает ответы в intake.md и
+  выбирает маршрут Explore/Proposal/уточнение;
+- command /openspec-base-context для initialize/audit/update, включая необязательную
+  change/spec/domain-scoped актуализацию context и ADR после Archive;
 - skills base-intent, openspec-base-meta-planning, openspec-base-apply-context,
   openspec-base-graph-maintenance и openspec-base-test-cases;
 - один read-only subagent openspec-base-repository-evidence-scout.
@@ -33,12 +37,43 @@ templates/base/ устанавливает:
 Канонический смысл правил находится в самих установленных артефактах:
 
 - источник требований и доступ к Code Repositories — в корневых инструкциях агента;
-- правила Proposal/Specs/Design/Tasks — в openspec/config.yaml;
+- правила Intake/Proposal/Specs/Design/Tasks — в openspec/config.yaml;
 - Graph lifecycle и relation semantics — в документации OpenSpec Graph Plugin;
 - один repository evidence request — в профиле scout;
 - пользовательский процесс — в [командном процессе](team-flow.md).
 
 Этот документ не повторяет их исполняемые контракты.
+
+## Project commands
+
+Команды запускаются в агенте из корня Store и не являются командами
+`openspec-orch`:
+
+```text
+/openspec-base-intake <change-id>
+/openspec-base-context initialize
+/openspec-base-context audit [--change <change-id>] [--spec <capability-path>]... [--domain <domain-path>]...
+/openspec-base-context update [--change <change-id>] [--spec <capability-path>]... [--domain <domain-path>]...
+```
+
+Примеры адресного read-only аудита:
+
+```text
+/openspec-base-context audit --change <change-id>
+/openspec-base-context audit --spec <capability-path>
+/openspec-base-context audit --domain <domain-path>
+```
+
+`/openspec-base-intake` задаёт по одному адаптивному вопросу, учитывает уже
+полученные ответы и записывает единственный `intake.md` только после появления
+содержательного Planning Route. Команда не запускает Explore или Proposal сама.
+
+`/openspec-base-context audit` является read-only: пользователь задаёт scope, агент
+разрешает точные Master Specs и сам выбирает связанные context-файлы и ADR candidates.
+`update` сначала показывает конкретный diff и записывает только после отдельного
+подтверждения. Master Spec может подтвердить durable context, но ADR требует
+принятого источника WHY и реальных альтернатив. Post-Archive audit необязателен и не
+блокирует Archive.
 
 Code Repository используется агентом только для адресной сверки заранее
 сформулированного current-state утверждения. Найденные paths, symbols, модули,
@@ -114,6 +149,12 @@ adapter допустим только для provider frontmatter; его смы
 - добавить context files, commands, skills и subagents;
 - выбрать собственный namespace;
 - добавить provider adapter и copy operations.
+
+Для project-local схемы выбранный workflow определяется полями `schemaName` в выводе
+OpenSpec и `schema` в `.openspec.yaml` Change. В OpenSpec 1.10.0 диагностическое поле
+`planningHome.defaultSchema` для repo-local planning home всегда сообщает встроенный
+fallback `spec-driven` и не отражает `schema: base-v1` из `openspec/config.yaml`; его
+нельзя использовать для проверки фактически выбранной схемы.
 
 OpenSpec Graph строит типизированную Store-level модель из реестра, Specs и Changes.
 openspec/graph.yaml содержит только подтверждённые explicit relations с

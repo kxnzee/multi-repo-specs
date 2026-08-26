@@ -50,6 +50,12 @@ expected_source: Monitoring, runbooks, incidents, or maintainer confirmation
   Master Spec. Change-scoped `targets` НЕ ЗАМЕНЯЕТ постоянный
   `Master Spec → implemented_by → Repository`; отсутствующий подтверждённый mapping
   блокирует Graph handoff. Сам штатный Archive автоматически не откатывается.
+- После успешного Graph handoff при наличии долговечного domain/architecture/security
+  изменения можно выполнить `/openspec-base-context audit --change <change-id>` либо
+  передать точные `--spec`/`--domain`. Это необязательный context-promotion шаг:
+  `current`, отложенный proposed diff или пропуск аудита не изменяют Master Specs и не
+  блокируют Archive. Context и ADR обновляются только после показа diff и отдельного
+  подтверждения.
 - Если политика проекта требует Confluence, при Archive создаётся или обновляется одна
   производная копия.
 - Ключ идемпотентности публикации включает Store, `change-id` и archive revision.

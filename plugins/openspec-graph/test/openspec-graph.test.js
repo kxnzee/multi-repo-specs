@@ -709,7 +709,7 @@ test("Viewer serves graph and vendored vis-network only on loopback", async (t) 
   assert.equal((await fetch(`${viewer.url}/favicon.ico`)).status, 200);
 });
 
-test("Repository lifecycle validates OpenSpec and persists the last good graph", async () => {
+test("Repository connect is planning-safe and explicit sync validates and builds", async () => {
   const calls = [];
   let stored = null;
   const graph = {
@@ -738,7 +738,15 @@ test("Repository lifecycle validates OpenSpec and persists the last good graph",
     }),
   });
 
-  assert.equal(await plugin.connect(context), `1 nodes, 0 edges, digest ${"a".repeat(12)}`);
+  assert.equal(
+    await plugin.connect(context),
+    "OpenSpec Graph подключён; выполните openspec-orch graph build",
+  );
+  assert.equal(stored, null);
+  assert.deepEqual(calls, []);
+  assert.equal((await plugin.status(context)).state, "unavailable");
+
+  assert.equal(await plugin.sync(context), `1 nodes, 0 edges, digest ${"a".repeat(12)}`);
   assert.deepEqual(stored, graph);
   assert.equal(calls[0][0], "openspec");
   assert.deepEqual(calls[0][1], [
@@ -808,6 +816,8 @@ test("Repository status reports recovery guidance without exposing stale data as
   });
 
   await plugin.connect(context);
+  assert.equal((await plugin.status(context)).state, "unavailable");
+  await plugin.sync(context);
   const ready = await plugin.status(context);
   assert.equal(ready.state, "ready");
   assert.equal(ready.authoritative, true);
@@ -829,11 +839,11 @@ test("Repository status reports recovery guidance without exposing stale data as
   assert.equal(invalid.last_known_good_available, true);
   assert.equal(stored.source_digest, "a".repeat(64));
 
-  await assert.rejects(plugin.connect(context), /OPENSPEC_GRAPH_INVALID/u);
+  await assert.rejects(plugin.sync(context), /OPENSPEC_GRAPH_INVALID/u);
   assert.equal(stored.source_digest, "a".repeat(64));
 
   projectionError = null;
-  await plugin.connect(context);
+  await plugin.sync(context);
   const rebuilt = await plugin.status(context);
   assert.equal(rebuilt.state, "ready");
   assert.equal(rebuilt.authoritative, true);

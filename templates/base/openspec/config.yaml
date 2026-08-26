@@ -1,4 +1,4 @@
-schema: spec-driven
+schema: base-v1
 
 context: |
   Перед планированием прочитай openspec/context/00-start-here.md и только относящиеся
@@ -8,7 +8,7 @@ context: |
   openspec-orch.yaml, прочитай repositories с `roles: [code]` и используй их точные
   id.
   Связи репозиториев, Master Specs и Delta Specs проверяй по валидированному
-  `openspec/graph.yaml` через OpenSpec Graph Plugin. Intent, Proposal, Requirements и
+  `openspec/graph.yaml` через OpenSpec Graph Plugin. Intent, Intake, Proposal, Requirements и
   Scenarios формируй без чтения Code Repository и CodeGraph. ЖЁСТКИЙ ЗАПРЕТ: Code
   Repository разрешено открывать только для подтверждения или опровержения заранее сформулированного
   current-state утверждения на Design-, Tasks- или Apply-стадии. Результат такой
@@ -24,11 +24,19 @@ context: |
   превращай в fallback. Встроенный openspec-apply-change остаётся владельцем workflow.
 
 rules:
+  intake:
+    - "Канонический пользовательский вход — project command /openspec-base-intake <change-id>. Независимо от способа запуска собирать intake до Proposal в диалоге по одному вопросу и самостоятельно переносить ответы в итоговый intake.md. Когда контекст позволяет честно вывести варианты, предлагать 2–4 коротких взаимоисключающих ответа с пояснением различий; решение всегда оставлять пользователю."
+    - "Указать Jira Story или явно сообщить, что идентификатор исходной задачи не предоставлен; использовать только переданные материалы и относящийся к вопросу подтверждённый openspec/context. Не переносить неподтверждённый openspec/context/_raw/ как факт."
+    - "Зафиксировать проблему или возможность, затронутых пользователей или операторов, Why Now, текущее и целевое наблюдаемое поведение, предварительный scope и Non-Goals, ограничения, критерии успеха, известные сценарии, системные взаимодействия, доступ, security, данные, ошибки, деградацию и ожидаемую проверку. Неприменимые части отмечать кратким обоснованием, а не выдумывать содержание."
+    - "ЯВНО включить раздел Interaction Diagram. Для взаимодействия двух и более компонентов, внешней зависимости, асинхронного обмена либо значимых error/degraded веток привести PlantUML sequence diagram; иначе написать Not applicable и краткую причину."
+    - "Завершить одним Planning Route: ready_for_proposal, explore_recommended или blocked. Для explore_recommended перечислить точные вопросы Explore, способные изменить scope, наблюдаемое поведение или системную границу; неизвестные детали реализации сами по себе не требуют Explore."
+    - "В разделе Exploration использовать status not_required, pending или completed. После /opsx-explore обновить этот же intake.md, классифицировать findings как CONFIRMED, CONTRADICTED, UNKNOWN или MISSING и повторно выбрать Planning Route; не создавать отдельный exploration artifact и не переходить к Proposal автоматически."
+    - "intake.md является входным контекстом и provenance, но не Requirement, Scenario, Design decision, ADR, принятым Repository Impact или evidence реализации. Не читать Code Repository, CodeGraph, реализационные тесты или repository-specific configuration без отдельной явной просьбы пользователя. Не добавлять раздел Owner Confirmation и не создавать второй questionnaire-файл."
   proposal:
     - "Перед тем как считать Proposal завершённым, использовать project skill openspec-base-meta-planning для текущего Change и стадии proposal; устранить подтверждённые findings в текущем артефакте, а при needs_revision или blocked остановиться до исправления или решения владельца."
     - "Указать Jira Story или явно сообщить, что идентификатор исходной задачи не предоставлен."
     - "Сначала подтвердить продуктовую постановку: проблему или возможность, затронутых пользователей или операторов, текущее и целевое наблюдаемое поведение, доменные и бизнес-правила, scope, Non-Goals и критерии успеха. Для чисто технического Change вместо пользовательского сценария зафиксировать инженерную или эксплуатационную проблему и наблюдаемый результат."
-    - "Если обязательной информации для продуктовой постановки не хватает, задавать владельцу по одному отсутствующему вопросу и не завершать Proposal. Не читать Code Repository, CodeGraph, реализационные тесты или repository-specific configuration для создания Proposal; неизвестное текущее поведение уточнять у владельца либо оставлять открытым вопросом. Не создавать отдельный questionnaire-файл."
+    - "Сначала прочитать intake.md и переносить из него только подтверждённые выводы в границах Proposal, не копируя опросник целиком. Если обязательной информации для продуктовой постановки не хватает, задавать владельцу по одному отсутствующему вопросу и не завершать Proposal. Не читать Code Repository, CodeGraph, реализационные тесты или repository-specific configuration для создания Proposal; неизвестное текущее поведение уточнять у владельца либо оставлять открытым вопросом. Не создавать второй questionnaire-файл."
     - "Только после согласованной продуктовой постановки исследовать затронутые capability, системы, API или события, данные, security, совместимость, миграцию, rollout, rollback и проверку."
     - "Proposal описывает WHY и WHAT. Не включать внутренние имена файлов, классов и функций, построчные code evidence, предполагаемые точки реализации и выбранный технический способ. Принятые архитектурные решения относятся к Design, но внутренние детали текущего кода не переносятся ни в один артефакт центрального Store. Допустимо называть публичный контракт, систему или repository-id, когда это необходимо для границы Change."
     - "Перечислить каждую новую и изменяемую capability на её существующем вложенном пути domain/capability; не создавать versioned duplicate."
@@ -64,3 +72,4 @@ operations:
       - "Если Change Tracking объявлен и подключён для Store, выполнить openspec-orch status <change-id> --json. При Cycle передать каждый точный repository-id из repositories отдельным --repo в openspec-orch graph check-scope <change-id>; при CYCLE_NOT_FOUND использовать точные repository-id принятых Tasks sections, предусматривающих работу в Code Repository; любая другая ошибка status блокирует Archive. Если Change Tracking не подключён, не вызывать его команды и использовать те же принятые Tasks sections. Для явно принятого skip_specs без Delta Specs зафиксировать scope_check: not_applicable и проверить repository sections напрямую, не создавать фиктивный Delta Spec."
       - "До Archive устранить invalid scope, missing_required_repositories, missing_delta_specs для Change без принятого skip_specs, unmapped_master_specs и extra_repositories. review_repositories_outside_scope проверить как диагностические кандидаты: если проверка обнаружила реальное изменение, вернуть Change в Planning и добавить Repository; если изменения нет, не добавлять Repository в Impact/Cycle и не создавать no-change artifact."
       - "После успешного Archive снова выполнить openspec-orch graph build, потребовать graph status --json со state ready и проверить graph impact <change-id> уже для архивного Change. Не откатывать штатный Archive автоматически при ошибке post-build, но явно считать Graph handoff незавершённым до исправления и успешной пересборки."
+      - "После успешного Graph handoff не изменять openspec/context или ADR автоматически. Если пользователь запросил актуализацию либо Change содержит кандидат на долговечный domain/architecture/security context, предложить /openspec-base-context audit --change <change-id>; при необходимости пользователь может передать точные --spec/--domain. Этот audit и его proposed diff не блокируют Archive и не изменяют Master Specs."

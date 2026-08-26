@@ -21,7 +21,8 @@ OpenSpec. Code Repositories только реализуют принятый Cha
 
 Штатные OpenSpec workflows остаются владельцами операций:
 
-- Planning создаёт `proposal.md`, Delta Specs, `design.md` и `tasks.md`;
+- Planning по project-local schema `base-v1` создаёт `intake.md`, `proposal.md`,
+  Delta Specs, `design.md` и `tasks.md`;
 - штатный OpenSpec Apply реализует принятые Tasks;
 - `/opsx-archive <change-id>` синхронизирует Delta Specs с Master Specs и перемещает
   Change в архив.
@@ -45,11 +46,39 @@ subagent, Graph или Change Tracking не принимают Gate автома
 
 Полный Change включает:
 
+- `intake.md` — подтверждённый исходный контекст и решение о следующем маршруте;
 - `proposal.md` — зачем и что меняется;
 - `specs/<capability>/spec.md` — наблюдаемое поведение и Scenarios;
 - `design.md` — решения на уровне системных границ, публичных контрактов, рисков,
   миграции и rollback;
 - `tasks.md` — проверяемый план реализации по затронутым Code Repositories.
+
+`intake.md` является первым artifact `base-v1` и prerequisite для Proposal. Он
+сохраняет источники, проблему, ожидаемый результат, предварительные границы,
+ограничения, сценарии, взаимодействия, ошибки, проверку и открытые вопросы. Для
+взаимодействия двух и более компонентов, внешней зависимости, асинхронного обмена или
+значимых error/degraded веток он содержит PlantUML sequence diagram; иначе раздел
+Interaction Diagram содержит краткое `Not applicable` с причиной.
+
+Канонический пользовательский вход — `/openspec-base-intake <change-id>`. Команда
+задаёт по одному адаптивному вопросу, учитывает уже переданные ответы и сама собирает
+их в template `intake.md`; участник команды не переносит ответы вручную. При повторном
+запуске команда продолжает существующий содержательный Intake, а не начинает анкету
+заново. Для нового Change она сначала получает выбранный пользователем kebab-case
+`change-id`, затем создаёт его по schema `base-v1`.
+
+Intake не является Requirement, Scenario, Design decision, ADR, принятым Repository
+Impact или evidence реализации. После его завершения пользователь явно выбирает
+`/opsx-explore`, переход к Proposal либо дополнительное уточнение. Агент не запускает
+следующий маршрут автоматически. OpenSpec определяет завершённость artifact по
+наличию файла, поэтому пустой или предварительно созданный `intake.md` запрещён.
+
+При `explore_recommended` команда сохраняет в Intake точные исследуемые вопросы и
+status `pending`. После `/opsx-explore` её запускают повторно: findings добавляются в
+тот же Intake как `CONFIRMED`, `CONTRADICTED`, `UNKNOWN` или `MISSING`, после чего
+Planning Route выбирается заново. Отдельный обязательный exploration artifact не
+создаётся. Если требуется бизнес-решение или отсутствующий нормативный источник,
+маршрут — `blocked`, а не Explore.
 
 Proposal ОБЯЗАН содержать Repository Impact только для тех зарегистрированных
 `repository-id`, где из-за Change планируется изменение кода, тестов, конфигурации или
@@ -79,7 +108,7 @@ Retained Scenarios в `MODIFIED` сохраняют свои ID.
 
 ### Граница технических деталей
 
-Proposal, Specs, Design, Tasks и Store context ЗАПРЕЩЕНО превращать в inventory
+Intake, Proposal, Specs, Design, Tasks и Store context ЗАПРЕЩЕНО превращать в inventory
 текущей реализации. В центральный Store нельзя переносить внутренние пути, symbols,
 имена файлов, классов, функций, модулей, таблиц, библиотек, локальных config keys,
 команд сборки или построчное code evidence.
@@ -151,6 +180,11 @@ openspec-orch plugin connect openspec-graph --repo <store-id>
 openspec-orch graph build
 ```
 
+`plugin connect` только сохраняет binding. Он не запускает строгую OpenSpec validation
+и потому допустим при незавершённом Intake/Proposal; до первого явного `graph build`
+состояние Graph — `unavailable`. Пустой Store можно построить сразу; если уже существует
+Intake-only или Proposal-only Change, build выполняется после валидных Delta Specs.
+
 Агент ЗАПРЕЩЕНО молча устанавливать или подключать Plugin, менять Plugin declarations
 или выбирать Store. Он может выполнить эти команды только по явному запросу
 пользователя. После принятого подключения агент использует Graph как обязательную
@@ -181,8 +215,8 @@ Last known-good используется только для диагности�
 `source_digest` изменяют topology-входы: Store ID, `repository-id + role`, Master
 Specs, Delta Specs, активное или архивное состояние Changes, `openspec/graph.yaml` и
 файлы evidence явных связей. Обычное изменение кода в Code Repository, обновление
-CodeGraph, текста Proposal, Design, Tasks или task checkbox само по себе Graph stale
-не делает. Proposal, Design или Tasks попадают в digest только если конкретная строка
+CodeGraph, текста Intake, Proposal, Design, Tasks или task checkbox само по себе Graph stale
+не делает. Intake, Proposal, Design или Tasks попадают в digest только если конкретная строка
 используется как evidence явной связи.
 
 #### Что делает каждая команда
@@ -333,7 +367,7 @@ Repository. Он используется только для навигации
 как сформулировано точное current-state утверждение, которое требуется подтвердить
 или опровергнуть.
 
-На Proposal- и Specs-стадиях читать Code Repository или CodeGraph ЗАПРЕЩЕНО. На
+На Intake-, Proposal- и Specs-стадиях читать Code Repository или CodeGraph ЗАПРЕЩЕНО. На
 Design-, Tasks- и Apply-стадиях разрешена адресная проверка только выбранного
 Repository и только на подтверждённой Git revision. Если `.codegraph/` отсутствует,
 индекс stale или недоступен, используется адресный read/search; отсутствие CodeGraph
@@ -349,6 +383,8 @@ CodeGraph evidence подтверждает только текущую реал
 
 - Jira Story связана с `change-id` либо отсутствие Jira явно зафиксировано;
 - OpenSpec Change проходит строгую валидацию;
+- Intake завершён, его Planning Route разрешён и вопросы, меняющие scope или
+  наблюдаемое поведение, закрыты;
 - Proposal, Delta Specs, Design и Tasks согласованы между собой;
 - OpenSpec Graph свежий, а repository scope проверен после Delta Specs;
 - для каждой непосредственно изменяемой Master Spec подтверждена постоянная связь
@@ -372,7 +408,8 @@ CodeGraph evidence подтверждает только текущую реал
 
 ### Поток
 
-1. Владелец и команда формируют intent и Planning artifacts.
+1. Владелец и команда формируют intent, Intake и остальные Planning artifacts;
+   после Intake явно выбирают Explore либо переход к Proposal.
 2. OpenSpec Graph проверяет capability impact и согласованность Repository Impact.
 3. Люди принимают Gate 1.
 4. Разработчики запускают штатный OpenSpec Apply и реализуют принятые Tasks
@@ -473,7 +510,7 @@ Planning, ни OpenSpec Graph, ни Apply, ни внешние проверки.
 
 ### Planning integrity и инвалидация
 
-- Изменение Proposal, Specs, Design, текста или порядка Tasks после создания Cycle —
+- Изменение Intake, Proposal, Specs, Design, текста или порядка Tasks после создания Cycle —
   planning drift. Реализация блокируется, Change возвращается в Planning, Gate 1 и
   Cycle создаются заново.
 - Переключение существующего Task checkbox при подтверждённом task-level evidence —
@@ -543,6 +580,24 @@ Delta Specs и перемещения Change.
 её постоянные `implemented_by`. Пока `graph status --json` не вернул `ready`, impact
 архивного Change не прочитан и mapping не подтверждён, Graph handoff считается
 незавершённым. Ошибка post-build не откатывает уже выполненный штатный Archive.
+
+После успешного Graph handoff команда может выполнить необязательный context-promotion
+audit:
+
+```text
+/openspec-base-context audit --change <change-id>
+/openspec-base-context audit --spec <capability-path> [--spec <capability-path>...]
+/openspec-base-context audit --domain <domain-path>
+```
+
+Selectors объединяются; точный Change через ready Graph добавляет directly changed
+Master Specs, а `--spec` и `--domain` задают ручной или периодический scope. Агент сам
+выбирает связанные файлы `openspec/context/` и проверяет ADR candidates. Master Spec
+может подтвердить durable context, но ADR требует принятого Design, owner decision или
+другого источника WHY и альтернатив. Audit ничего не записывает. Update показывает
+точный diff и изменяет context/ADR только после отдельного подтверждения. Отсутствие
+кандидатов, отложенное обновление или пропуск этого шага не блокируют Archive и не
+изменяют Master Specs.
 
 Jira, CI, Zephyr, Confluence и другие внешние системы остаются adapters команды и не
 становятся источником требований. Если политика проекта требует публикацию архивной

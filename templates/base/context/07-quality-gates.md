@@ -7,7 +7,7 @@ Gate — явное решение людей по проверяемому evid
 
 - **Владелец** подтверждает intent, scope, критерии успеха и открытые продуктовые
   решения.
-- **Аналитик** отвечает за согласованность Proposal, Specs и трассировки.
+- **Аналитик** отвечает за согласованность Intake, Proposal, Specs и трассировки.
 - **Разработчик** подтверждает реализуемость Design, Tasks и implementation evidence.
 - **Тестировщик** подтверждает проверяемость Scenarios и verification evidence.
 - **Лид** рассматривает межсистемные, security, migration и необратимые риски.
@@ -20,7 +20,7 @@ approvals; базовая роль не означает фиксированн�
 | Evidence | Минимальное условие |
 |---|---|
 | Jira и Change | Jira Story связана с `change-id` |
-| OpenSpec | Proposal, Delta Specs, Design и Tasks согласованы и валидны |
+| OpenSpec | Intake завершён; его маршрут разрешён; Proposal, Delta Specs, Design и Tasks согласованы и валидны |
 | Scope | Capability, системы и Code Repositories определены |
 | Repository impact | Указаны только `repository-id` с планируемым изменением; для каждого согласованы impact, Design scope, Tasks и evidence |
 | Verification | Каждый новый или изменённый Scenario имеет план проверки |

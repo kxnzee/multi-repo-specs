@@ -16,7 +16,7 @@
 ЭТИ ПРАВИЛА ОБЯЗАТЕЛЬНЫ. Полнота ответа, удобство и желание «добавить контекст» не
 являются оправданием для нарушения.
 
-1. НЕ ОТКРЫВАЙ Code Repository или CodeGraph при создании Intent, Proposal,
+1. НЕ ОТКРЫВАЙ Code Repository или CodeGraph при создании Intent, Intake, Proposal,
    Requirements и Scenarios. Их источники — запрос и решения владельца, Master Specs
    и подтверждённый Store context.
 2. На Design, Tasks и Apply открывай Code Repository ТОЛЬКО для подтверждения или
@@ -33,6 +33,11 @@
 ## Маршрутизация
 
 - Intent перед Planning: base-intent.
+- Опрос и сборка первого artifact Change со schema base-v1:
+  /openspec-base-intake <change-id>. Команда сама переносит ответы пользователя в
+  intake.md и при повторном запуске продолжает с уже подтверждённого контекста.
+  После Intake пользователь выбирает /opsx-explore, переход к Proposal или
+  дополнительное уточнение; агент не запускает следующий маршрут автоматически.
 - Проверка Proposal, Specs, Design, Tasks, impact или полного Planning:
   openspec-base-meta-planning.
 - Preflight standard или repository-scoped штатного Apply:
@@ -41,9 +46,11 @@
   `implemented_by` для directly changed Master Specs перед Gate 1 и после Archive:
   openspec-base-graph-maintenance.
 - Трассируемые test cases: openspec-base-test-cases.
-- Инициализация, аудит и обновление Store context: /openspec-base-context.
+- Инициализация, общий или change/spec/domain-scoped аудит и обновление Store context
+  и ADR: /openspec-base-context. После Archive context audit является необязательным
+  promotion-механизмом и не изменяет Master Specs автоматически.
 
-Artifact rules Proposal/Specs/Design/Tasks находятся только в openspec/config.yaml.
+Artifact rules Intake/Proposal/Specs/Design/Tasks находятся только в openspec/config.yaml.
 Не восстанавливай их по краткому описанию skills.
 
 Repository Impact — не инвентаризация registry. ОБЯЗАН указывать ТОЛЬКО Repository,

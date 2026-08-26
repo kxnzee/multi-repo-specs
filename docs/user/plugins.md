@@ -56,6 +56,12 @@ openspec-orch graph inspect <node-id>
 openspec-orch graph view
 ```
 
+Подключение `openspec-graph` не строит индекс автоматически и не блокируется
+Intake-only или Proposal-only Change. До явного `graph build` статус Plugin ожидаемо
+равен `unavailable`; сам build по-прежнему требует строгой валидности OpenSpec. В
+пустом Store build допустим сразу, а незавершённый активный Change сначала должен
+дойти до валидных Delta Specs.
+
 Он строит типизированную Store-level модель: Store содержит Repository, Change
 содержит Delta Spec и влияет на Master Spec, Delta Spec изменяет Master Spec, а
 explicit relations связывают Specs и Repositories. Модель не пересекается с

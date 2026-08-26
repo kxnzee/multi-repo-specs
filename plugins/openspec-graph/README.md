@@ -85,6 +85,14 @@ openspec-orch graph inspect <node-id>
 openspec-orch graph view
 ```
 
+`plugin connect` только создаёт Store binding и не валидирует незавершённые Changes,
+поэтому его можно безопасно выполнить, когда Change находится на Intake или Proposal.
+Индекс при подключении не создаётся: первый `graph build` запускается явно и сохраняет
+прежний fail-closed контракт строгой валидации. Для Store без активных Changes его
+можно выполнить сразу; при Intake-only или Proposal-only Change нужно сначала создать
+валидные Delta Specs. До build `graph status` возвращает `unavailable` и предлагает
+точную следующую команду.
+
 `inspect` принимает только точный node ID и не выбирает fuzzy candidate. Если
 capability path неизвестен, сначала выполните `openspec list --specs --json`, выберите
 точный capability ID и затем вызовите `graph inspect master-spec:<capability-path>`.
