@@ -176,7 +176,6 @@ test("contract test kit validates command registration without running actions",
   let actionCalls = 0;
   const plugin = definePlugin({
     id: "commands-only",
-    supports: [],
     registerCommands(commands) {
       commands.command("hello")
         .description("Hello")
@@ -208,15 +207,10 @@ test("contract test kit validates command registration without running actions",
   );
 });
 
-test("repository exec falls back to the Plugin's registered command grammar", async () => {
+test("Plugin exec defaults to registered command grammar without Repository boilerplate", async () => {
   const calls = [];
   const plugin = definePlugin({
     id: "command-exec",
-    supports: ["code"],
-    repository: {
-      connect() {},
-      status() { return { state: "ready" }; },
-    },
     registerCommands(commands) {
       commands.command("inspect <target>")
         .description("Inspect target")

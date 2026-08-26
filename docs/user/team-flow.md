@@ -9,6 +9,12 @@ Plugins только добавляют проверки и контекст:
 2. **OpenSpec + Graphs + Change Tracking** — тот же процесс с дополнительно
    зафиксированными Cycle, planning revision, Result Receipts и Snapshot.
 
+Оба сценария содержат Graph, потому что текущий Base Project Template объявляет
+`openspec-graph` в `requires.plugins`. `openspec-orch init` устанавливает этот Plugin
+и фиксирует `required: true`; удалить его, пока действует этот Template, нельзя.
+Custom Project Template без такой зависимости обязан предоставить собственный flow
+без Graph-команд и не использует этот документ как исполняемую инструкцию.
+
 ЗАПРЕЩЕНО считать отсутствие Change Tracking ошибкой Standard OpenSpec flow.
 ЗАПРЕЩЕНО, наоборот, обходить существующий Cycle переходом в standard mode.
 
@@ -203,11 +209,10 @@ Graph НИЧЕГО не запускает сам при изменении фа
 
 #### Однократное подключение
 
-Решение установить Plugin и привязать его к Store принимает пользователь или
-администратор Store:
+Required Plugin устанавливается автоматически во время `openspec-orch init`.
+Пользователь или администратор Store один раз создаёт binding и первый индекс:
 
 ```bash
-openspec-orch plugin init --plugin openspec-graph
 openspec-orch plugin connect openspec-graph --repo <store-id>
 openspec-orch graph build
 ```
@@ -299,7 +304,7 @@ BLOCKER. `dependent_repositories` и `review_repositories` являются ка
 `publishes_to` описывает топологию event contract и сам по себе не добавляет
 Repository в impact или review.
 
-Перед Gate 1 агент вызывает `openspec-base-graph-maintenance` для КАЖДОЙ directly
+Перед Gate 1 агент вызывает Plugin-owned `openspec-graph-maintenance` для КАЖДОЙ directly
 changed Master Spec и сверяет её постоянные `implemented_by`. Если точное evidence
 уже существует и изменение разрешено, агент добавляет минимальную связь в
 `openspec/graph.yaml`, пересобирает Graph и повторяет проверки. Если владелец
@@ -459,12 +464,15 @@ CodeGraph evidence подтверждает только текущую реал
 
 ### Что именно означает Standard Apply
 
-Project skill `openspec-base-apply-context` сначала проверяет конфигурацию Plugins. Если
-Change Tracking не подключён для текущего workflow, выбирается Standard OpenSpec
-Apply без вызова его команд. Если Change Tracking подключён, skill выполняет
+Project skill `openspec-base-apply-context` является единым entrypoint и сначала
+проверяет конфигурацию Plugins. Если Change Tracking не подключён для текущего
+workflow, выбирается Standard OpenSpec Apply без вызова его команд или skill. Если
+Change Tracking подключён, Base передаёт `change-id`, исходные contextFiles и Tasks
+установленному plugin-owned skill `change-tracking-apply-context`. Именно он выполняет
 `openspec-orch status <change-id> --json`; только `CYCLE_NOT_FOUND` разрешает
 предложить Standard OpenSpec Apply или создание Cycle. Пользователь ОБЯЗАН явно
-выбрать режим; создавать Cycle автоматически ЗАПРЕЩЕНО.
+выбрать режим; создавать Cycle автоматически ЗАПРЕЩЕНО. После его handoff Base
+выполняет общий Graph preflight и передаёт готовый scope штатному Apply.
 
 Standard mode передаёт исходные OpenSpec contextFiles и Tasks встроенному Apply. Он не
 предоставляет:
@@ -602,7 +610,7 @@ Delta Specs и перемещения Change.
 4. устранить missing, unmapped и extra repositories;
 5. review-кандидата добавить в scope только после подтверждения реального изменения и
    повторного Planning/Gate 1;
-6. через `openspec-base-graph-maintenance` проверить КАЖДУЮ directly changed Master
+6. через `openspec-graph-maintenance` проверить КАЖДУЮ directly changed Master
    Spec: `targets` показывает scope этого Change, но НЕ ЯВЛЯЕТСЯ постоянным mapping.
    Подтверждённый Repository, который остаётся местом реализации capability, ОБЯЗАН
    иметь явную `Master Spec → implemented_by → Repository`. Временный target,

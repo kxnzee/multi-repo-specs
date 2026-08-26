@@ -47,7 +47,7 @@ test("PluginManager installs and restores one deterministic runtime per Plugin",
 
   const installed = await manager.install("sample", source);
   const project = createProject({
-    version: 3,
+    version: 1,
     strict: true,
     agents: ["codex"],
     plugins: [{ id: "sample", source: installed.declaration }],

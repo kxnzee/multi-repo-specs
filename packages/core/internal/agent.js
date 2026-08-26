@@ -1,12 +1,33 @@
-/** @fileoverview Общий coordinator Agent contributions через безопасный PluginContext. */
+/** @fileoverview Общий coordinator Agent contributions и Plugin Template. */
+
+import { promises as fs } from "node:fs";
+import path from "node:path";
 
 import { CORE_PATTERNS } from "./constants.js";
 import { pluginContexts } from "./plugin-context.js";
 import { StoreProject } from "./store-project.js";
+import { projectTemplates } from "./template.js";
 
 /** Завершает проверку стабильной Agent integration ошибкой. */
 function invalid(message) {
   throw new Error(`AGENT_INTEGRATION_INVALID: ${message}`);
+}
+
+/** Returns an optional ordinary Plugin Template directory. */
+async function findTemplateRoot(pluginRoot) {
+  if (typeof pluginRoot !== "string" || pluginRoot.length === 0) return null;
+  const candidate = path.join(pluginRoot, "template");
+  let stat;
+  try {
+    stat = await fs.lstat(candidate);
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    invalid("Plugin template должен быть обычным каталогом");
+  }
+  return candidate;
 }
 
 /** Immutable executable contribution одного Plugin для выбранного Agent. */
@@ -42,12 +63,24 @@ export class AgentIntegration {
 /** Разрешает и выполняет Agent contribution, не зная Plugin ID или provider format. */
 export class AgentService {
   #contexts;
+  #templates;
 
-  constructor({ contextFactory = pluginContexts } = {}) {
+  constructor({
+    contextFactory = pluginContexts,
+    templateService = projectTemplates,
+  } = {}) {
     if (typeof contextFactory?.forRepositorySetup !== "function") {
       invalid("contextFactory должен предоставлять forRepositorySetup");
     }
+    if (
+      typeof templateService?.plan !== "function" ||
+      typeof templateService?.planPlugin !== "function" ||
+      typeof templateService?.planOverlay !== "function"
+    ) {
+      invalid("templateService должен предоставлять plan, planPlugin и planOverlay");
+    }
     this.#contexts = contextFactory;
+    this.#templates = templateService;
     Object.freeze(this);
   }
 
@@ -61,17 +94,48 @@ export class AgentService {
     ) {
       invalid("требуется загруженный Plugin public API");
     }
-    if (!plugin.hasAgentContribution()) return null;
-    const context = await this.#contexts.forRepositorySetup({
-      loadedPlugin,
-      repositoryId: storeProject.store.id,
-      storeProject,
-    });
-    return new AgentIntegration({
-      ...(await plugin.integrateAgent(context)),
-      agentId: context.agent.id,
-      pluginId: plugin.id,
-    });
+    const hasContribution = plugin.hasAgentContribution();
+    if (hasContribution) {
+      const context = await this.#contexts.forRepositorySetup({
+        loadedPlugin,
+        repositoryId: storeProject.store.id,
+        storeProject,
+      });
+      const contribution = await plugin.integrateAgent(context);
+      let callbacks = contribution;
+      if (contribution && Object.keys(contribution).length === 1 && Array.isArray(contribution.copy)) {
+        const plan = await this.#templates.planOverlay({
+          sourceRoot: loadedPlugin.root,
+          targetRoot: storeProject.root,
+          copy: contribution.copy,
+        });
+        callbacks = Object.freeze({
+          install: () => plan.install(),
+          remove: () => Object.freeze({ cleanupPaths: plan.targetPaths }),
+        });
+      }
+      return new AgentIntegration({
+        ...callbacks,
+        agentId: context.agent.id,
+        pluginId: plugin.id,
+      });
+    }
+    const templateRoot = await findTemplateRoot(loadedPlugin.root);
+    if (templateRoot) {
+      const [agentId] = storeProject.project.agents;
+      const plan = await this.#templates.planPlugin({
+        templateRoot,
+        targetRoot: storeProject.root,
+        agentId,
+      });
+      return new AgentIntegration({
+        agentId,
+        pluginId: plugin.id,
+        install: () => plan.install(),
+        remove: () => Object.freeze({ cleanupPaths: plan.targetPaths }),
+      });
+    }
+    return null;
   }
 
   install(storeProject, integration) {

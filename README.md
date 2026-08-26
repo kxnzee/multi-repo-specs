@@ -183,10 +183,13 @@ Plugin status и печатает подтверждённое состояни�
 Минимальная конфигурация проекта:
 
 ```yaml
-version: 3
+version: 1
 strict: true
 agents: [qwen]
-plugins: []
+plugins:
+  - id: openspec-graph
+    source: "@openspec-orch/plugin-openspec-graph@1.0.0"
+    required: true
 
 repositories:
   - id: specs
@@ -205,6 +208,10 @@ repositories:
     default_branch: main
     plugins: []
 ```
+
+Base Project Template объявляет `openspec-graph` обязательным расширением. `init`
+разрешает его через distribution catalog, устанавливает обычным Plugin lifecycle и
+фиксирует `required: true`; Core при этом не содержит условий по Plugin ID.
 
 Точный формат описан в [справочнике `openspec-orch.yaml`](docs/user/configuration.md).
 Секреты в URL и поля предыдущего прототипа `role`, `url`, `agent`, `handoffs`

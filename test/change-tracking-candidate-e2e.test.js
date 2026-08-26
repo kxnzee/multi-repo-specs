@@ -56,7 +56,7 @@ test("candidate Change Tracking completes a real multi-repository Cycle", async 
     plugins: [pluginId],
   });
   const project = createProject({
-    version: 3,
+    version: 1,
     strict: true,
     agents: ["codex"],
     plugins: [{ id: pluginId, source: pluginSource }],

@@ -13,10 +13,8 @@ version: 1
 #   delta-spec -> repository:  targets
 #   delta-spec -> delta-spec:   depends_on
 #
-# `targets` описывает scope одного Change и НЕ ЗАМЕНЯЕТ постоянный
-# `master-spec -> repository: implemented_by`. Для каждой directly changed Master
-# Spec постоянный implementation mapping подтверждается отдельно; временные,
-# review-only и no-change repositories добавлять запрещено.
+# `targets` describes the scope of one Change and does not replace the persistent
+# `master-spec -> repository: implemented_by` relation.
 #
 # Delta Spec -> Master Spec `changes` edges and ADDED/MODIFIED/REMOVED/RENAMED
 # operations are derived automatically and must not be duplicated here.

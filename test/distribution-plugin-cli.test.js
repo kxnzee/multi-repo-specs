@@ -59,7 +59,7 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   await fs.mkdir(path.join(storeRoot, ".openspec-store"));
   await fs.mkdir(path.join(storeRoot, "openspec"));
   const project = createProject({
-    version: 3,
+    version: 1,
     strict: true,
     agents: ["codex"],
     plugins: [],
@@ -92,6 +92,8 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   await initializeGitRepository(storeRoot);
   await initializeGitRepository(codeRoot);
 
+  const graphSeed = path.join(storeRoot, "openspec/graph.yaml");
+  await assert.rejects(fs.access(graphSeed), { code: "ENOENT" });
   await runCli(storeRoot, "plugin", "init", "--plugin", "change-tracking");
   await runCli(storeRoot, "plugin", "init", "--plugin", "codegraph");
   await runCli(storeRoot, "plugin", "init", "--plugin", "openspec-graph");
@@ -111,6 +113,12 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     /\[mcp_servers\."openspec-orch-codegraph"\]/,
   );
   assert.match(await fs.readFile(path.join(storeRoot, "AGENTS.md"), "utf8"), /codegraph_explore/);
+  const graphSkill = path.join(
+    storeRoot,
+    ".agents/skills/openspec-graph-maintenance/SKILL.md",
+  );
+  assert.match(await fs.readFile(graphSkill, "utf8"), /name: openspec-graph-maintenance/u);
+  assert.match(await fs.readFile(graphSeed, "utf8"), /^version: 1$/mu);
   await runCli(
     storeRoot,
     "plugin", "connect", "codegraph", "--repo", "specs", "--repo", "frontend",
@@ -166,6 +174,17 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     /openspec-orch-codegraph/,
   );
   assert.doesNotMatch(await fs.readFile(path.join(storeRoot, "AGENTS.md"), "utf8"), /codegraph_explore/);
+  await fs.appendFile(graphSeed, "\n# durable project data\n");
+  const graphRemoval = await runCli(storeRoot, "plugin", "remove", "openspec-graph");
+  assert.match(graphRemoval.stdout, /Файлы Plugin оставлены в Store/u);
+  assert.match(graphRemoval.stdout, /\.agents\/skills\/openspec-graph-maintenance\/SKILL\.md/u);
+  assert.match(graphRemoval.stdout, /openspec\/graph\.yaml/u);
+  assert.match(await fs.readFile(graphSkill, "utf8"), /name: openspec-graph-maintenance/u);
+  assert.match(await fs.readFile(graphSeed, "utf8"), /durable project data/u);
+  const withoutGraph = configuration.parseProject(
+    await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
+  );
+  assert.deepEqual(withoutGraph.plugins, ["change-tracking"]);
 });
 
 test("candidate distribution completes Change Tracking through the public CLI", async (t) => {
@@ -196,7 +215,7 @@ test("candidate distribution completes Change Tracking through the public CLI", 
     plugins: [],
   });
   const project = createProject({
-    version: 3,
+    version: 1,
     strict: true,
     agents: ["codex"],
     plugins: [],
@@ -224,12 +243,17 @@ test("candidate distribution completes Change Tracking through the public CLI", 
   await commitFiles(store.checkout, {}, { message: "configure distribution Store" });
 
   await runCli(store.checkout, "plugin", "init", "--plugin", "change-tracking");
+  const applySkill = ".agents/skills/change-tracking-apply-context/SKILL.md";
+  assert.match(
+    await fs.readFile(path.join(store.checkout, applySkill), "utf8"),
+    /name: change-tracking-apply-context/u,
+  );
   await runCli(
     store.checkout,
     "plugin", "connect", "change-tracking",
     "--repo", "specs", "--repo", "frontend", "--repo", "backend",
   );
-  await runCommand("git", ["-C", store.checkout, "add", "openspec-orch.yaml"]);
+  await runCommand("git", ["-C", store.checkout, "add", "openspec-orch.yaml", applySkill]);
   await runCommand("git", ["-C", store.checkout, "commit", "-m", "enable change tracking"]);
 
   await confirmCli(

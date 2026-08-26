@@ -107,8 +107,12 @@ export class PluginLifecycleCommands {
       .description("создать самостоятельный Plugin Package с готовым entrypoint")
       .addOption(new Option("--name <display-name>", "читаемое имя Plugin")
         .argParser(singleValue))
-      .addOption(new Option("--support <role>", "роль Repository: store или code")
+      .addOption(new Option("--profile <profile>", "commands, repository или native")
+        .choices(["commands", "repository", "native"])
+        .default("commands"))
+      .addOption(new Option("--support <role>", "роль для repository/native: store или code")
         .argParser(collectValues))
+      .option("--template", "добавить пустой Plugin Template")
       .action((pluginId, target, options) => this.#register(pluginId, target, options));
     plugin.command("init")
       .description("выбрать Plugins из встроенного или пользовательского каталога")
@@ -178,13 +182,15 @@ export class PluginLifecycleCommands {
     return plugin;
   }
 
-  async #register(pluginId, target, { name, support }) {
+  async #register(pluginId, target, { name, profile, support, template }) {
     const targetRoot = target ?? path.join(process.cwd(), "plugins", pluginId);
     const result = await this.#scaffolds.register({
       pluginId,
       targetRoot,
       name,
+      profile,
       supports: support?.length ? support : undefined,
+      template: Boolean(template),
     });
     this.#output.log(`${pluginId}: registered at ${result.root}`);
     this.#output.log(`Entrypoint: ${result.entrypoint}`);
@@ -439,5 +445,9 @@ export class PluginLifecycleCommands {
     this.#output.log(result.removed
       ? `✓ ${pluginId} — удалён`
       : `• ${pluginId} — не был инициализирован`);
+    if (result.removed && result.cleanupPaths?.length > 0) {
+      this.#output.log("Файлы Plugin оставлены в Store. При необходимости удалите вручную:");
+      for (const relativePath of result.cleanupPaths) this.#output.log(`  - ${relativePath}`);
+    }
   }
 }

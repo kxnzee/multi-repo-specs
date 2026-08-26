@@ -62,6 +62,7 @@ function assertAcyclic(artifacts) {
 
 test("each declared agent installs every mapped Template file and remains extensible", async (t) => {
   const descriptor = parse(await fs.readFile(path.join(TEMPLATE_ROOT, "template.yaml"), "utf8"));
+  assert.deepEqual(descriptor.requires, { plugins: ["openspec-graph"] });
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-template-"));
   const temporaryRoot = await fs.realpath(temporary);
   t.after(() => fs.rm(temporaryRoot, { recursive: true, force: true }));

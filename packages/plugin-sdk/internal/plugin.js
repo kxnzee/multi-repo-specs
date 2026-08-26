@@ -121,13 +121,20 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
 
 /**
  * @typedef {object} AgentContribution
- * @property {(context: PluginContext) => unknown | Promise<unknown>} integration
+ * @property {(context: PluginContext) => (
+ *   {install: Function, remove: Function} |
+ *   {copy: readonly {from: string, to: string}[]} |
+ *   Promise<
+ *     {install: Function, remove: Function} |
+ *     {copy: readonly {from: string, to: string}[]}
+ *   >
+ * )} integration
  */
 
 /**
  * @typedef {object} PluginDefinition
  * @property {string} id
- * @property {readonly RepositoryRole[]} supports
+ * @property {readonly RepositoryRole[]} [supports]
  * @property {RepositoryContribution} [repository]
  * @property {AgentContribution} [agent]
  * @property {(commands: CommandRegistry) => void} [registerCommands]
@@ -206,8 +213,10 @@ export class Plugin {
     if (typeof definition.id !== "string" || !PLUGIN_ID_PATTERN.test(definition.id)) {
       invalid("id должен быть lowercase kebab-case");
     }
-    if (!Array.isArray(definition.supports)) invalid("supports должен быть массивом");
-    const supports = [...definition.supports];
+    if (definition.supports !== undefined && !Array.isArray(definition.supports)) {
+      invalid("supports должен быть массивом");
+    }
+    const supports = [...(definition.supports ?? [])];
     if (supports.some((role) => !REPOSITORY_ROLES.has(role))) {
       invalid("supports содержит неизвестную Repository role");
     }
@@ -288,7 +297,6 @@ export class Plugin {
   }
 
   exec(context, args) {
-    const repository = this.#requireRepositoryContribution("exec");
     if (
       !Array.isArray(args) ||
       args.length === 0 ||
@@ -297,7 +305,7 @@ export class Plugin {
       throw new Error("PLUGIN_EXEC_INVALID: args должен быть непустым массивом строк");
     }
     const immutableArgs = Object.freeze([...args]);
-    if (repository.exec) return repository.exec(context, immutableArgs);
+    if (this.#repository?.exec) return this.#repository.exec(context, immutableArgs);
     if (this.#commandRegistration) {
       return executePluginCommands(this.#commandRegistration, context, immutableArgs);
     }

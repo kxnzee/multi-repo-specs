@@ -15,7 +15,7 @@ import {
   storeProjects,
 } from "@openspec-orch/core";
 
-/** Создаёт минимальный существующий Store с project config version 3. */
+/** Создаёт минимальный существующий Store с project config version 1. */
 async function storeFixture(t) {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-plugin-app-"));
   const root = await fs.realpath(temporary);
@@ -28,7 +28,7 @@ async function storeFixture(t) {
     "version: 1\nid: specs\nremote: https://example.test/specs.git\n",
   );
   await fs.writeFile(path.join(root, "openspec/config.yaml"), "schema: spec-driven\n");
-  await fs.writeFile(path.join(root, "openspec-orch.yaml"), `version: 3
+  await fs.writeFile(path.join(root, "openspec-orch.yaml"), `version: 1
 strict: true
 agents: [codex]
 plugins: []
@@ -91,15 +91,31 @@ test("PluginApplicationService publishes config only after installation", async 
   assert.equal(result instanceof PluginApplicationResult, true);
   assert.equal(result.initialized, true);
   const current = await storeProjects.load(root);
-  assert.equal(current.project.version, 3);
+  assert.equal(current.project.version, 1);
   assert.equal(
     current.project.pluginDeclaration("sample").source,
     "@test/plugin-sample@1.0.0",
   );
   assert.equal(calls.length, 1);
   const projectSource = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
-  assert.match(projectSource, /version: 3/);
+  assert.match(projectSource, /version: 1/);
   assert.match(projectSource, /id: sample\n\s+source: "@test\/plugin-sample@1.0.0"/);
+});
+
+test("PluginApplicationService protects the exact required-by-Template set", async (t) => {
+  const { root, storeProject } = await storeFixture(t);
+  const service = new PluginApplicationService({ managerService: managerFixture([]) });
+  const source = PluginSource.parse(path.join(root, "local-plugin"), { cwd: root });
+
+  await service.install(storeProject, "sample", source, { required: true });
+  let current = await storeProjects.load(root);
+  assert.equal(current.project.pluginDeclaration("sample").required, true);
+  await assert.rejects(service.remove(current, "sample"), /PLUGIN_REQUIRED_BY_TEMPLATE/);
+
+  await service.setRequiredPlugins(current, []);
+  current = await storeProjects.load(root);
+  assert.equal(current.project.pluginDeclaration("sample").required, false);
+  assert.equal((await service.remove(current, "sample")).removed, true);
 });
 
 test("PluginApplicationService rejects an inconsistent installation before config publication", async (t) => {
@@ -173,7 +189,13 @@ test("PluginApplicationService leaves config unchanged when publication fails", 
 test("PluginApplicationService removes an unbound Plugin and its runtime", async (t) => {
   const { root, storeProject } = await storeFixture(t);
   const calls = [];
+  const integration = Object.freeze({});
   const service = new PluginApplicationService({
+    agentService: {
+      async resolve() { return integration; },
+      async install() {},
+      async remove() { return { cleanupPaths: ["openspec/plugin-data.yaml"] }; },
+    },
     managerService: managerFixture(calls),
   });
   const source = PluginSource.parse(path.join(root, "local-plugin"), { cwd: root });
@@ -184,7 +206,9 @@ test("PluginApplicationService removes an unbound Plugin and its runtime", async
 
   assert.equal(result instanceof PluginRemovalResult, true);
   assert.equal(result.removed, true);
+  assert.deepEqual(result.cleanupPaths, ["openspec/plugin-data.yaml"]);
   assert.equal(repeated.removed, false);
+  assert.deepEqual(repeated.cleanupPaths, []);
   assert.deepEqual(calls.map(({ operation }) => operation ?? "install"), ["install", "remove"]);
   const project = await storeProjects.load(root);
   assert.equal(project.project.hasPlugin("sample"), false);

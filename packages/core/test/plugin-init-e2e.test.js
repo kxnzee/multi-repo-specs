@@ -35,7 +35,7 @@ async function storeFixture(t) {
   await fs.writeFile(path.join(storeRoot, "openspec/config.yaml"), "schema: spec-driven\n");
   await fs.writeFile(path.join(storeRoot, "openspec-orch.yaml"), configuration.serializeProject(
     createProject({
-      version: 3,
+      version: 1,
       strict: true,
       agents: ["codex"],
       plugins: [],
@@ -75,7 +75,16 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
     "register",
     "sample",
     sourceRoot,
+    "--profile",
+    "repository",
   ]);
+  const entrypointPath = path.join(sourceRoot, "index.js");
+  const scaffold = await fs.readFile(entrypointPath, "utf8");
+  const implemented = scaffold
+    .replace('throw new Error("PLUGIN_CONNECT_NOT_IMPLEMENTED");', "return undefined;")
+    .replace('throw new Error("PLUGIN_STATUS_NOT_IMPLEMENTED");', 'return { state: "ready" };');
+  assert.notEqual(implemented, scaffold);
+  await fs.writeFile(entrypointPath, implemented);
   const managerService = new PluginManagerService({
     npmInstaller: createPluginMaterializer({ sourceRoot }),
   });

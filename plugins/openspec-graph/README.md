@@ -70,12 +70,24 @@ OpenSpec Graph отвечает на вопросы «какой Change меня
 затронуты внутри выбранного Code Repository». Plugins не читают индексы друг друга и
 могут использоваться независимо.
 
+## Plugin Template
+
+Plugin владеет skill `openspec-graph-maintenance` и начальным
+`openspec/graph.yaml`. Они находятся в `template/`, который Core автоматически
+применяет через общий `ProjectTemplateService` при `plugin init`; `index.js` не
+содержит Agent integration или copy rules. Поддерживаются Claude, Codex, GigaCode
+и Qwen.
+
+Отличающийся существующий файл блокирует установку, одинаковый пропускается.
+`plugin remove` не удаляет добавленные в Store файлы: CLI перечисляет пути skill и
+`openspec/graph.yaml` для ручной очистки. Base Template эти файлы не поставляет и
+не обновляет.
+
 ## Использование
 
 Из корня Store:
 
 ```bash
-openspec-orch plugin init --plugin openspec-graph
 openspec-orch plugin connect openspec-graph --repo <store-id>
 openspec-orch graph build
 openspec-orch graph status
@@ -84,6 +96,11 @@ openspec-orch graph check-scope <change-id> --repo <repository-id>...
 openspec-orch graph inspect <node-id>
 openspec-orch graph view
 ```
+
+Текущий Base Project Template объявляет `openspec-graph` обязательным, поэтому
+`openspec-orch init` уже устанавливает Package и сохраняет `required: true`.
+Для Custom Template без этой зависимости Plugin можно установить отдельно через
+`openspec-orch plugin init --plugin openspec-graph`.
 
 `plugin connect` только создаёт Store binding и не валидирует незавершённые Changes,
 поэтому его можно безопасно выполнить, когда Change находится на Intake или Proposal.

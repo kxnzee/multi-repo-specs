@@ -1,3 +1,7 @@
+requires:
+  plugins:
+    - openspec-graph
+
 agents:
   claude:
     openspec_adapter: claude
@@ -10,8 +14,6 @@ agents:
         to: .gitignore
       - from: openspec/config.yaml
         to: openspec/config.yaml
-      - from: openspec/graph.yaml
-        to: openspec/graph.yaml
       - from: openspec/schemas
         to: openspec/schemas
       - from: context
@@ -36,8 +38,6 @@ agents:
         to: .gitignore
       - from: openspec/config.yaml
         to: openspec/config.yaml
-      - from: openspec/graph.yaml
-        to: openspec/graph.yaml
       - from: openspec/schemas
         to: openspec/schemas
       - from: context
@@ -62,8 +62,6 @@ agents:
         to: .gitignore
       - from: openspec/config.yaml
         to: openspec/config.yaml
-      - from: openspec/graph.yaml
-        to: openspec/graph.yaml
       - from: openspec/schemas
         to: openspec/schemas
       - from: context

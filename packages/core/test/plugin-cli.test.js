@@ -59,7 +59,7 @@ function candidate({
   return new CandidateCli({ pluginLifecycleCommands }).createProgram();
 }
 
-test("plugin register preserves grammar and delegates native scaffold creation", async () => {
+test("plugin register delegates the selected profile and optional Template", async () => {
   const calls = [];
   const captured = outputCollector();
   const program = candidate({
@@ -88,17 +88,22 @@ test("plugin register preserves grammar and delegates native scaffold creation",
     "../sample-plugin",
     "--name",
     "Sample Plugin",
+    "--profile",
+    "native",
     "--support",
     "store",
     "--support",
     "code",
+    "--template",
   ]);
 
   assert.deepEqual(calls, [{
     pluginId: "sample",
     targetRoot: "../sample-plugin",
     name: "Sample Plugin",
+    profile: "native",
     supports: ["store", "code"],
+    template: true,
   }]);
   assert.deepEqual(captured.lines, [
     "sample: registered at /plugins/sample",
@@ -764,7 +769,7 @@ test("plugin lifecycle bulk commands preserve repeatable --repo and reject ambig
   );
 });
 
-test("plugin remove delegates to application facade and preserves current output", async () => {
+test("plugin remove delegates to application facade and prints manual Template cleanup", async () => {
   const calls = [];
   const captured = outputCollector();
   const storeProject = Object.freeze({ root: "/store" });
@@ -772,7 +777,10 @@ test("plugin remove delegates to application facade and preserves current output
     async install() {},
     async remove(current, pluginId) {
       calls.push({ current, pluginId });
-      return { removed: calls.length === 1 };
+      return {
+        removed: calls.length === 1,
+        cleanupPaths: calls.length === 1 ? ["openspec/graph.yaml"] : [],
+      };
     },
   };
   const lifecycleService = {
@@ -802,6 +810,8 @@ test("plugin remove delegates to application facade and preserves current output
   ]);
   assert.deepEqual(captured.lines, [
     "✓ sample — удалён",
+    "Файлы Plugin оставлены в Store. При необходимости удалите вручную:",
+    "  - openspec/graph.yaml",
     "• sample — не был инициализирован",
   ]);
 });

@@ -1,6 +1,6 @@
 # Конфигурация `openspec-orch.yaml`
 
-Справочник описывает текущий формат `version: 3`. Другие версии не мигрируются
+Справочник описывает текущий формат `version: 1`. Другие версии не мигрируются
 автоматически и отклоняются строгой схемой вместе с секциями `agent`/`handoffs`,
 старым `extensions` и полями `role`/`url` предыдущего прототипа.
 
@@ -9,7 +9,7 @@
 ## Полный пример
 
 ```yaml
-version: 3
+version: 1
 strict: true
 
 agents:
@@ -18,6 +18,7 @@ agents:
 plugins:
   - id: secret-scanner
     source: "@company/openspec-plugin-secret-scanner@1.0.0"
+    required: true
   - id: dependency-audit
     source: "@company/openspec-plugin-dependency-audit@1.2.0"
 
@@ -43,7 +44,7 @@ repositories:
 
 ## `version`
 
-Обязательное поле. Поддерживается только `version: 3`. Любое другое значение или
+Обязательное поле. Поддерживается только `version: 1`. Любое другое значение или
 отсутствие поля — ошибка `CONFIG_INVALID`; скрытой миграции прежних форматов нет.
 
 ## `strict`
@@ -92,16 +93,20 @@ Plugin с Agent integration использует его для установк�
 
 ## `plugins`
 
-Верхнеуровневый `plugins` — список деклараций `{ id, source }` для Plugin, выбранных
-через `plugin init`. `source` содержит точную package identity, которую Core использует
-для последующей загрузки. Декларация не связывает Plugin с Repository сама по себе.
+Верхнеуровневый `plugins` — список деклараций `{ id, source, required? }` для Plugin,
+выбранных через `plugin init` или объявленных Project Template. `source` содержит
+точную package identity, которую Core использует для последующей загрузки.
+`required: true` означает, что Plugin входит в `requires.plugins` активного Template;
+его нельзя удалить до повторного `init` с Template без этой зависимости. Для обычного
+Plugin поле отсутствует и считается `false`. Декларация не связывает Plugin с
+Repository сама по себе.
 Фактическая связь хранится в
 `repositories[].plugins`, поэтому один Plugin можно подключить к нескольким
 репозиториям, а к одному репозиторию — несколько Plugin.
 
-`extensions` в текущем формате не допускается. Template-данные здесь не хранятся:
-Project Template применяется
-один раз во время `init`, а Plugins имеют отдельный каталог и lifecycle.
+`extensions` в текущем формате не допускается. Полный Template здесь не хранится:
+конфигурация фиксирует только разрешённую package identity и признак обязательности.
+Plugin assets остаются в собственном Package и применяются отдельным lifecycle.
 
 ## Редактирование
 

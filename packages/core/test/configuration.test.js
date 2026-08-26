@@ -11,12 +11,13 @@ import {
   Store,
 } from "@openspec-orch/core";
 
-const CURRENT_CONFIG = `version: 3
+const CURRENT_CONFIG = `version: 1
 strict: true
 agents: [codex]
 plugins:
   - id: dependency-audit
     source: "@test/plugin-dependency-audit@1.0.0"
+    required: true
 repositories:
   - id: specs
     roles: [store]
@@ -30,7 +31,7 @@ repositories:
     plugins: [dependency-audit]
 `;
 
-test("configuration parses version 3 YAML directly into the public domain model", () => {
+test("configuration parses version 1 YAML directly into the public domain model", () => {
   assert.equal(configuration instanceof CoreConfiguration, true);
   const project = configuration.parseProject(CURRENT_CONFIG);
 
@@ -40,6 +41,7 @@ test("configuration parses version 3 YAML directly into the public domain model"
   assert.deepEqual(project.agents, ["codex"]);
   assert.deepEqual(project.plugins, ["dependency-audit"]);
   assert.equal(project.isPluginConnected("dependency-audit", "frontend"), true);
+  assert.equal(project.pluginDeclaration("dependency-audit").required, true);
 });
 
 test("configuration serializes Project and verifies its own output", () => {
@@ -49,6 +51,7 @@ test("configuration serializes Project and verifies its own output", () => {
 
   assert.deepEqual(restored.toConfig(), project.toConfig());
   assert.match(source, /default_branch: main/);
+  assert.match(source, /required: true/);
   assert.doesNotMatch(source, /storeRepository|codeRepositories/);
 });
 
@@ -60,13 +63,13 @@ test("configuration stores the package identity selected by Plugin Manager", () 
   assert.deepEqual(configuration.parseProject(configuration.serializeProject(project)).toConfig(), project.toConfig());
   assert.throws(
     () => configuration.parseProject(CURRENT_CONFIG.replace(
-      `plugins:\n  - id: dependency-audit\n    source: "@test/plugin-dependency-audit@1.0.0"`,
+      `plugins:\n  - id: dependency-audit\n    source: "@test/plugin-dependency-audit@1.0.0"\n    required: true`,
       "plugins: [dependency-audit]",
     )),
     /CONFIG_INVALID/,
   );
   assert.throws(
-    () => configuration.parseProject(CURRENT_CONFIG.replace("version: 3", "version: 2")),
+    () => configuration.parseProject(CURRENT_CONFIG.replace("version: 1", "version: 2")),
     /CONFIG_INVALID/,
   );
 });
@@ -81,7 +84,7 @@ test("configuration rejects invalid repository and Plugin bindings before domain
   );
   assert.throws(
     () => configuration.parseProject(CURRENT_CONFIG.replace(
-      `plugins:\n  - id: dependency-audit\n    source: "@test/plugin-dependency-audit@1.0.0"\nrepositories:`,
+      `plugins:\n  - id: dependency-audit\n    source: "@test/plugin-dependency-audit@1.0.0"\n    required: true\nrepositories:`,
       "plugins: []\nrepositories:",
     )),
     /необъявленный plugin-id/,

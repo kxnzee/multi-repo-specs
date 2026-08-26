@@ -12,6 +12,7 @@
     "bin",
     "index.js",
     "lib",
+    "template",
     "viewer"
   ],
   "openspecOrchestrator": {

@@ -48,6 +48,10 @@ export {
 export { NpmPackageInstaller, NpmPackageInstallResult, npmPackageInstaller } from "./internal/npm-package-installer.js";
 export { PluginPlatform } from "./internal/plugin-platform.js";
 export { PluginSource } from "./internal/plugin-source.js";
+export {
+  PluginRequirementsResult,
+  PluginRequirementsService,
+} from "./internal/plugin-requirements.js";
 export { PluginScaffoldService, pluginScaffolds } from "./internal/plugin-scaffold.js";
 export { PluginStorage, PluginStorageService, pluginStorage } from "./internal/plugin-storage.js";
 export { ProcessService, ScopedProcess, processes } from "./internal/process.js";
@@ -76,6 +80,7 @@ export async function createCandidateProgram({
   pluginCommandOptions,
   pluginContextFactory,
   pluginManagerService,
+  pluginRequirementService,
   rootCommands,
   start,
   storeProjectService,
@@ -88,6 +93,7 @@ export async function createCandidateProgram({
     loadedPlugins,
     managerService: pluginManagerService,
     pluginCommandOptions,
+    pluginRequirementService,
     rootCommands,
     start,
     storeProjectService,

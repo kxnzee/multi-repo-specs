@@ -13,12 +13,14 @@ import { PluginCommandMounter } from "./plugin-commands.js";
 import { PluginHost, PluginRegistry } from "./plugin-host.js";
 import { PluginLifecycleService } from "./plugin-lifecycle.js";
 import { PluginManagerService, pluginManagers } from "./plugin-manager.js";
+import { PluginRequirementsService } from "./plugin-requirements.js";
 import { storeProjects } from "./store-project.js";
 
 /** Собирает Loader output, Host, lifecycle и CLI adapters без знания Plugin IDs. */
 export class PluginPlatform {
   #commands;
   #lifecycleCommands;
+  #pluginRequirements;
 
   constructor({
     applicationService,
@@ -27,6 +29,7 @@ export class PluginPlatform {
     currentRepositoryService = currentRepositories,
     loadedPlugins = [],
     pluginCommandOptions = {},
+    pluginRequirementService,
     rootCommands = new Map(),
     start = process.cwd(),
     storeProjectService = storeProjects,
@@ -86,6 +89,7 @@ export class PluginPlatform {
       catalog,
       lifecycleService: lifecycle,
     });
+    this.#pluginRequirements = pluginRequirementService;
     Object.freeze(this);
   }
 
@@ -95,6 +99,7 @@ export class PluginPlatform {
     loadedPlugins,
     managerService,
     pluginCommandOptions = {},
+    pluginRequirementService,
     start = process.cwd(),
     ...options
   } = {}) {
@@ -116,6 +121,11 @@ export class PluginPlatform {
     const applicationService = new PluginApplicationService({
       managerService: resolvedManagerService,
     });
+    const resolvedPluginRequirementService = pluginRequirementService ?? new PluginRequirementsService({
+      applicationService,
+      catalog,
+      storeProjectService: storeProjects,
+    });
     const resolved = loadedPlugins ?? await PluginPlatform.#loadInstalled(
       start,
       resolvedManagerService,
@@ -126,6 +136,7 @@ export class PluginPlatform {
       catalog,
       loadedPlugins: resolved,
       pluginCommandOptions,
+      pluginRequirementService: resolvedPluginRequirementService,
       start,
     });
   }
@@ -135,6 +146,7 @@ export class PluginPlatform {
       ...options,
       pluginCommandMounter: this.#commands,
       pluginLifecycleCommands: this.#lifecycleCommands,
+      pluginRequirementService: this.#pluginRequirements,
     }).createProgram();
   }
 

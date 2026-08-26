@@ -22,7 +22,10 @@ function relativePathSchema(allowDot) {
 
 const RELATIVE_PATH_SCHEMA = relativePathSchema(true);
 const NON_ROOT_PATH_SCHEMA = relativePathSchema(false);
-const COPY_SCHEMA = z.strictObject({ from: RELATIVE_PATH_SCHEMA, to: RELATIVE_PATH_SCHEMA });
+const COPY_SCHEMA = z.strictObject({
+  from: RELATIVE_PATH_SCHEMA,
+  to: RELATIVE_PATH_SCHEMA,
+});
 const AGENT_SCHEMA = z.strictObject({
   openspec_adapter: ID_SCHEMA,
   generated_directory: NON_ROOT_PATH_SCHEMA,
@@ -32,12 +35,28 @@ const AGENT_SCHEMA = z.strictObject({
   handoffs: z.record(ID_SCHEMA, NON_ROOT_PATH_SCHEMA).default({}),
   copy: z.array(COPY_SCHEMA),
 });
+const REQUIRED_PLUGINS_SCHEMA = z.array(ID_SCHEMA).default([]).superRefine((plugins, context) => {
+  if (new Set(plugins).size !== plugins.length) {
+    context.addIssue({ code: "custom", message: "requires.plugins содержит повторяющийся plugin-id" });
+  }
+});
+const REQUIREMENTS_SCHEMA = z.strictObject({
+  plugins: REQUIRED_PLUGINS_SCHEMA,
+}).default({ plugins: [] });
 const TEMPLATE_SCHEMA = z.strictObject({
+  requires: REQUIREMENTS_SCHEMA,
   agents: z.record(ID_SCHEMA, AGENT_SCHEMA).refine(
     (agents) => Object.keys(agents).length > 0,
     `${CORE_FILES.templateDescriptor} должен содержать непустой agents`,
   ),
 });
+const PLUGIN_AGENT_SCHEMA = z.strictObject({
+  copy: z.array(COPY_SCHEMA),
+});
+const PLUGIN_TEMPLATE_SCHEMA = z.strictObject({
+  agents: z.record(ID_SCHEMA, PLUGIN_AGENT_SCHEMA).default({}),
+});
+const COPY_LIST_SCHEMA = z.array(COPY_SCHEMA).min(1);
 const PROTECTED_ROOTS = new Set([
   ".git",
   ".openspec-store",
@@ -55,14 +74,14 @@ async function lstatOrNull(target) {
 }
 
 /** Разбирает и строго проверяет Template descriptor. */
-function parseDescriptor(source) {
+function parseDescriptor(source, schema = TEMPLATE_SCHEMA) {
   let value;
   try {
     value = parse(source);
   } catch (error) {
     throw new Error(`Некорректный ${CORE_FILES.templateDescriptor}: ${error.message}`);
   }
-  const result = TEMPLATE_SCHEMA.safeParse(value);
+  const result = schema.safeParse(value);
   if (!result.success) {
     throw new Error(
       `Некорректный ${CORE_FILES.templateDescriptor}: ${z.prettifyError(result.error)}`,
@@ -82,6 +101,23 @@ async function resolveDirectoryRoot(requestedRoot, label) {
     throw new Error(`${label} должен быть существующим обычным каталогом: ${absolute}`);
   }
   return fs.realpath(absolute);
+}
+
+/** Reads one validated descriptor after checking the complete Template source tree. */
+async function readTemplateDescriptor(templateRoot, schema) {
+  await listSourceFiles(templateRoot, "", "Template root");
+  const descriptorStat = await inspectSourcePath(
+    templateRoot,
+    CORE_FILES.templateDescriptor,
+    "Template descriptor",
+  );
+  if (!descriptorStat.isFile()) {
+    throw new Error(`${CORE_FILES.templateDescriptor} должен быть обычным файлом`);
+  }
+  return parseDescriptor(
+    await fs.readFile(path.join(templateRoot, CORE_FILES.templateDescriptor), "utf8"),
+    schema,
+  );
 }
 
 /** Разрешает проверенный POSIX path относительно root текущей платформы. */
@@ -187,6 +223,59 @@ function assertNoPlanCollisions(files) {
   }
 }
 
+/** Builds one safe file-overlay plan from Template-compatible copy operations. */
+async function planCopyFiles(sourceRoot, targetRoot, copy, labelRoot) {
+  const files = [];
+  for (const [operationIndex, operation] of copy.entries()) {
+    assertNotProtected(operation.to, `${labelRoot}[${operationIndex}].to`);
+    const label = `${labelRoot}[${operationIndex}].from`;
+    const sourceStat = await inspectSourcePath(sourceRoot, operation.from, label);
+    const sourceFiles = sourceStat.isFile()
+      ? [{
+          absolute: resolveRelative(sourceRoot, operation.from),
+          relative: "",
+          mode: sourceStat.mode & 0o777,
+        }]
+      : sourceStat.isDirectory()
+        ? await listSourceFiles(
+            sourceRoot,
+            operation.from === "." ? "" : operation.from,
+            label,
+          )
+        : null;
+    if (!sourceFiles) throw new Error(`${label} должен быть обычным файлом или каталогом`);
+    for (const sourceFile of sourceFiles) {
+      const sourceRelative = sourceStat.isFile()
+        ? ""
+        : sourceFile.relative.slice(operation.from === "." ? 0 : operation.from.length + 1);
+      const targetRelative = !sourceRelative
+        ? operation.to
+        : operation.to === "."
+          ? sourceRelative
+          : `${operation.to}/${sourceRelative}`;
+      if (targetRelative === ".") {
+        throw new Error(`${labelRoot}[${operationIndex}].to не может заменить target root`);
+      }
+      assertNotProtected(targetRelative, `${labelRoot}[${operationIndex}]`);
+      const canonicalSource = await fs.realpath(sourceFile.absolute);
+      if (!isContainedPath(sourceRoot, canonicalSource, { allowRoot: true })) {
+        throw new Error(`${label} выходит за source root`);
+      }
+      files.push({
+        contents: await fs.readFile(canonicalSource),
+        source: canonicalSource,
+        target: resolveRelative(targetRoot, targetRelative),
+        targetRelative,
+        mode: sourceFile.mode,
+        operationIndex,
+      });
+    }
+  }
+  assertNoPlanCollisions(files);
+  for (const file of files) await inspectTemplateTarget(targetRoot, file.targetRelative);
+  return files;
+}
+
 /** Immutable agent mapping из Project Template. */
 export class TemplateAgent {
   #value;
@@ -238,18 +327,26 @@ export class TemplatePlan {
   #targetRoot;
   #agent;
   #files;
+  #requiredPluginIds;
 
-  constructor({ templateRoot, targetRoot, agent, files }) {
+  constructor({ templateRoot, targetRoot, agent, files, requiredPluginIds = [] }) {
     if (typeof templateRoot !== "string" || templateRoot.length === 0) {
       throw new Error("TEMPLATE_PLAN_INVALID: templateRoot обязателен");
     }
     this.#targetRoot = targetRoot;
     this.#agent = agent;
     this.#files = Object.freeze(files.map((file) => Object.freeze({ ...file })));
+    this.#requiredPluginIds = Object.freeze([...requiredPluginIds]);
     Object.freeze(this);
   }
 
   get agent() { return this.#agent; }
+  get requiredPluginIds() { return this.#requiredPluginIds; }
+
+  /** Relative Store paths delivered by this plan. */
+  get targetPaths() {
+    return deepFreeze([...new Set(this.#files.map(({ targetRelative }) => targetRelative))].sort());
+  }
 
   async inspectPreExistingFiles() {
     const finalFiles = new Map();
@@ -260,7 +357,7 @@ export class TemplatePlan {
       if (!stat) continue;
       const [actual, expected] = await Promise.all([
         fs.readFile(file.target),
-        fs.readFile(file.source),
+        Promise.resolve(file.contents),
       ]);
       if (!actual.equals(expected)) {
         throw new Error(
@@ -308,7 +405,7 @@ export class TemplatePlan {
       if (unchangedPreExisting.has(file.targetRelative)) continue;
       const targetStat = await inspectTemplateTarget(this.#targetRoot, file.targetRelative);
       await fs.mkdir(path.dirname(file.target), { recursive: true });
-      await fs.copyFile(file.source, file.target);
+      await fs.writeFile(file.target, file.contents);
       await fs.chmod(file.target, file.mode);
       if (!created.has(file.targetRelative) && !updated.has(file.targetRelative)) {
         if (targetStat) updated.add(file.targetRelative);
@@ -316,6 +413,11 @@ export class TemplatePlan {
       }
     }
     return deepFreeze({ created: [...created].sort(), updated: [...updated].sort() });
+  }
+
+  /** Applies this plan idempotently after the same conflict preflight as Template init. */
+  async install() {
+    return this.apply(await this.inspectPreExistingFiles());
   }
 
   async cleanupGeneratedAgentPack() {
@@ -339,18 +441,7 @@ export class ProjectTemplateService {
     ) {
       throw new Error("Template root и target root не должны пересекаться");
     }
-    await listSourceFiles(templateRoot, "", "Template root");
-    const descriptorStat = await inspectSourcePath(
-      templateRoot,
-      CORE_FILES.templateDescriptor,
-      "Template descriptor",
-    );
-    if (!descriptorStat.isFile()) {
-      throw new Error(`${CORE_FILES.templateDescriptor} должен быть обычным файлом`);
-    }
-    const descriptor = parseDescriptor(
-      await fs.readFile(path.join(templateRoot, CORE_FILES.templateDescriptor), "utf8"),
-    );
+    const descriptor = await readTemplateDescriptor(templateRoot, TEMPLATE_SCHEMA);
     const supportedAgentIds = Object.keys(descriptor.agents).sort();
     const value = descriptor.agents[agentId];
     if (!value) {
@@ -372,54 +463,59 @@ export class ProjectTemplateService {
       assertNotProtected(relativePath, label);
       await assertNoTargetSymlink(targetRoot, relativePath);
     }
-    const files = [];
-    for (const [operationIndex, operation] of agent.copy.entries()) {
-      assertNotProtected(operation.to, `agents.${agent.id}.copy[${operationIndex}].to`);
-      const label = `agents.${agent.id}.copy[${operationIndex}].from`;
-      const sourceStat = await inspectSourcePath(templateRoot, operation.from, label);
-      const sourceFiles = sourceStat.isFile()
-        ? [{
-            absolute: resolveRelative(templateRoot, operation.from),
-            relative: "",
-            mode: sourceStat.mode & 0o777,
-          }]
-        : sourceStat.isDirectory()
-          ? await listSourceFiles(
-              templateRoot,
-              operation.from === "." ? "" : operation.from,
-              label,
-            )
-          : null;
-      if (!sourceFiles) throw new Error(`${label} должен быть обычным файлом или каталогом`);
-      for (const sourceFile of sourceFiles) {
-        const sourceRelative = sourceStat.isFile()
-          ? ""
-          : sourceFile.relative.slice(operation.from === "." ? 0 : operation.from.length + 1);
-        const targetRelative = !sourceRelative
-          ? operation.to
-          : operation.to === "."
-            ? sourceRelative
-            : `${operation.to}/${sourceRelative}`;
-        if (targetRelative === ".") {
-          throw new Error(`agents.${agent.id}.copy[${operationIndex}].to не может заменить target root`);
-        }
-        assertNotProtected(targetRelative, `agents.${agent.id}.copy[${operationIndex}]`);
-        const canonicalSource = await fs.realpath(sourceFile.absolute);
-        if (!isContainedPath(templateRoot, canonicalSource, { allowRoot: true })) {
-          throw new Error(`${label} выходит за Template root`);
-        }
-        files.push({
-          source: canonicalSource,
-          target: resolveRelative(targetRoot, targetRelative),
-          targetRelative,
-          mode: sourceFile.mode,
-          operationIndex,
-        });
-      }
+    const files = await planCopyFiles(
+      templateRoot,
+      targetRoot,
+      agent.copy,
+      `agents.${agent.id}.copy`,
+    );
+    return new TemplatePlan({
+      templateRoot,
+      targetRoot,
+      agent,
+      files,
+      requiredPluginIds: descriptor.requires.plugins,
+    });
+  }
+
+  /** Builds the automatic Plugin Template overlay for the Store Agent. */
+  async planPlugin({ templateRoot: requestedTemplateRoot, targetRoot: requestedTargetRoot, agentId }) {
+    const templateRoot = await resolveDirectoryRoot(requestedTemplateRoot, "Plugin Template root");
+    const targetRoot = await resolveDirectoryRoot(requestedTargetRoot, "Target root");
+    if (isContainedPath(templateRoot, targetRoot, { allowRoot: true })) {
+      throw new Error("Target root не должен находиться внутри Plugin Template root");
     }
-    assertNoPlanCollisions(files);
-    for (const file of files) await inspectTemplateTarget(targetRoot, file.targetRelative);
-    return new TemplatePlan({ templateRoot, targetRoot, agent, files });
+    const descriptor = await readTemplateDescriptor(templateRoot, PLUGIN_TEMPLATE_SCHEMA);
+    const supportedAgentIds = Object.keys(descriptor.agents).sort();
+    if (supportedAgentIds.length > 0 && !descriptor.agents[agentId]) {
+      throw new Error(
+        `Plugin Template не поддерживает agent '${agentId ?? ""}'. ` +
+          `Доступны: ${supportedAgentIds.join(", ")}`,
+      );
+    }
+    const copy = descriptor.agents[agentId]?.copy ?? [];
+    const files = await planCopyFiles(
+      templateRoot,
+      targetRoot,
+      copy,
+      `agents.${agentId}.copy`,
+    );
+    return new TemplatePlan({ templateRoot, targetRoot, agent: null, files });
+  }
+
+  /** Builds a safe Plugin-owned file overlay through the same copy contract as Template. */
+  async planOverlay({ sourceRoot: requestedSourceRoot, targetRoot: requestedTargetRoot, copy }) {
+    const sourceRoot = await resolveDirectoryRoot(requestedSourceRoot, "Source root");
+    const targetRoot = await resolveDirectoryRoot(requestedTargetRoot, "Target root");
+    if (isContainedPath(sourceRoot, targetRoot, { allowRoot: true })) {
+      throw new Error("Target root не должен находиться внутри source root");
+    }
+    const result = COPY_LIST_SCHEMA.safeParse(copy);
+    if (!result.success) {
+      throw new Error(`Некорректный file overlay: ${z.prettifyError(result.error)}`);
+    }
+    const files = await planCopyFiles(sourceRoot, targetRoot, result.data, "copy");
+    return new TemplatePlan({ templateRoot: sourceRoot, targetRoot, agent: null, files });
   }
 }
 

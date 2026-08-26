@@ -64,14 +64,20 @@ export class PluginApplicationResult {
 
 /** Immutable результат удаления Plugin declaration. */
 export class PluginRemovalResult {
+  #cleanupPaths;
   #removed;
 
-  constructor({ removed }) {
+  constructor({ removed, cleanupPaths = [] }) {
     if (typeof removed !== "boolean") invalid("removed должен быть boolean");
+    if (!Array.isArray(cleanupPaths) || cleanupPaths.some((value) => typeof value !== "string")) {
+      invalid("cleanupPaths должен быть массивом строк");
+    }
+    this.#cleanupPaths = Object.freeze([...cleanupPaths]);
     this.#removed = removed;
     Object.freeze(this);
   }
 
+  get cleanupPaths() { return this.#cleanupPaths; }
   get removed() { return this.#removed; }
 }
 
@@ -138,7 +144,7 @@ export class PluginApplicationService {
   }
 
   /** Устанавливает Plugin и только затем публикует его lock и project declaration. */
-  async install(storeProject, pluginId, source) {
+  async install(storeProject, pluginId, source, { required } = {}) {
     if (!(storeProject instanceof StoreProject)) invalid("требуется StoreProject");
     if (!(source instanceof PluginSource)) {
       invalid("требуется PluginSource");
@@ -146,7 +152,24 @@ export class PluginApplicationService {
     await ensureLockDirectory(storeProject.root);
     return this.#lock.run(
       path.join(storeProject.root, CORE_SERVICE_PATHS.projectConfigLock),
-      () => this.#installUnlocked(storeProject.root, pluginId, source),
+      () => this.#installUnlocked(storeProject.root, pluginId, source, required),
+      { busyCode: "PLUGIN_APPLICATION_BUSY" },
+    );
+  }
+
+  /** Synchronizes the exact required-by-Template set without removing Plugin packages. */
+  async setRequiredPlugins(storeProject, pluginIds) {
+    if (!(storeProject instanceof StoreProject)) invalid("требуется StoreProject");
+    if (!Array.isArray(pluginIds)) invalid("pluginIds должен быть массивом");
+    await ensureLockDirectory(storeProject.root);
+    return this.#lock.run(
+      path.join(storeProject.root, CORE_SERVICE_PATHS.projectConfigLock),
+      async () => {
+        const current = await this.#storeProjects.load(storeProject.root);
+        const changed = current.project.setRequiredPlugins(pluginIds);
+        if (changed) await this.#writeProject(current);
+        return changed;
+      },
       { busyCode: "PLUGIN_APPLICATION_BUSY" },
     );
   }
@@ -229,7 +252,7 @@ export class PluginApplicationService {
     );
   }
 
-  async #installUnlocked(root, pluginId, source) {
+  async #installUnlocked(root, pluginId, source, required) {
     const current = await this.#storeProjects.load(root);
     const previousProjectSource = this.#configuration.serializeProject(current.project);
     let result;
@@ -245,7 +268,11 @@ export class PluginApplicationService {
         ) {
           invalid("Plugin Manager вернул несогласованный installation");
         }
-        const initialized = current.project.declarePlugin(pluginId, installation.declaration);
+        const initialized = current.project.declarePlugin(
+          pluginId,
+          installation.declaration,
+          { required },
+        );
         const integration = await this.#agents.resolve(current, installation.loadedPlugin);
         await this.#writeProject(current);
         try {
@@ -271,13 +298,17 @@ export class PluginApplicationService {
     const installation = await manager.resolve(declaration);
     const integration = await this.#agents.resolve(current, installation.loadedPlugin);
     const previousProjectSource = this.#configuration.serializeProject(current.project);
+    let cleanupPaths = [];
     current.project.removePlugin(pluginId);
     await manager.remove(
       pluginId,
       async () => {
         await this.#writeProject(current);
         try {
-          if (integration) await this.#agents.remove(current, integration);
+          if (integration) {
+            const cleanup = await this.#agents.remove(current, integration);
+            cleanupPaths = cleanup?.cleanupPaths ?? [];
+          }
         } catch (error) {
           await this.#writeProjectSource(current, previousProjectSource);
           throw error;
@@ -285,6 +316,7 @@ export class PluginApplicationService {
       },
     );
     return new PluginRemovalResult({
+      cleanupPaths,
       removed: true,
     });
   }

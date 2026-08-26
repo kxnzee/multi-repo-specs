@@ -8,7 +8,7 @@ import process from "node:process";
 import test from "node:test";
 
 import { execa } from "execa";
-import { PluginLoader, PluginScaffoldService } from "@openspec-orch/core";
+import { PluginLoader, PluginScaffoldService, ProjectTemplateService } from "@openspec-orch/core";
 
 import { createDirectoryLink } from "../fixtures/filesystem.js";
 import { PLUGIN_SDK_ROOT } from "./helpers/plugin-materializer.js";
@@ -20,43 +20,123 @@ async function linkSdk(packageRoot) {
   await createDirectoryLink(PLUGIN_SDK_ROOT, path.join(scope, "plugin-sdk"));
 }
 
-test("PluginScaffoldService creates a native SDK package without legacy files", async (t) => {
+test("PluginScaffoldService creates convention-first commands, repository and native profiles", async (t) => {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-scaffold-"));
-  const targetRoot = path.join(temporary, "dependency-audit");
   t.after(() => fs.rm(temporary, { recursive: true, force: true }));
+  const cases = [
+    {
+      profile: "commands",
+      inputProfile: undefined,
+      supports: undefined,
+      template: false,
+      expectedSupports: [],
+    },
+    {
+      profile: "repository",
+      inputProfile: "repository",
+      supports: ["store", "code", "code"],
+      template: false,
+      expectedSupports: ["store", "code"],
+    },
+    {
+      profile: "native",
+      inputProfile: "native",
+      supports: ["code"],
+      template: true,
+      expectedSupports: ["code"],
+    },
+  ];
+  for (const candidate of cases) {
+    await t.test(candidate.profile, async () => {
+      const pluginId = `${candidate.profile}-plugin`;
+      const targetRoot = path.join(temporary, pluginId);
+      const result = await new PluginScaffoldService().register({
+        pluginId,
+        targetRoot,
+        name: `${candidate.profile} Plugin`,
+        profile: candidate.inputProfile,
+        supports: candidate.supports,
+        template: candidate.template,
+      });
+      const canonicalRoot = await fs.realpath(targetRoot);
+      assert.equal(result.root, canonicalRoot);
+      assert.equal(result.entrypoint, path.join(canonicalRoot, "index.js"));
+      const expectedFiles = [
+        "README.md",
+        ...(candidate.profile === "native" ? ["bin"] : []),
+        "index.js",
+        "package.json",
+        ...(candidate.template ? ["template"] : []),
+        "test",
+      ].sort();
+      assert.deepEqual((await fs.readdir(targetRoot)).sort(), expectedFiles);
+      const manifest = JSON.parse(await fs.readFile(path.join(targetRoot, "package.json"), "utf8"));
+      assert.equal(manifest.exports, "./index.js");
+      assert.deepEqual(manifest.openspecOrchestrator, { apiVersion: 1, plugin: "./index.js" });
+      assert.equal(manifest.peerDependencies["@openspec-orch/plugin-sdk"], "^0.1.0");
+      assert.deepEqual(manifest.files, [
+        "index.js",
+        "README.md",
+        ...(candidate.profile === "native" ? ["bin"] : []),
+        ...(candidate.template ? ["template"] : []),
+      ]);
+      const [entrypoint, readme] = await Promise.all([
+        fs.readFile(path.join(targetRoot, "index.js"), "utf8"),
+        fs.readFile(path.join(targetRoot, "README.md"), "utf8"),
+      ]);
+      assert.match(readme, new RegExp(`Профиль: .${candidate.profile}.`, "u"));
+      if (candidate.profile === "commands") {
+        assert.doesNotMatch(entrypoint, /repository:/u);
+        assert.match(entrypoint, /registerCommands/u);
+      } else {
+        assert.match(entrypoint, /PLUGIN_STATUS_NOT_IMPLEMENTED/u);
+        assert.equal(entrypoint.includes("registerCommands"), candidate.profile === "repository");
+        assert.equal(entrypoint.includes("context.process.run"), candidate.profile === "native");
+        assert.match(readme, /Реализуйте .*connect\/status.* перед установкой/u);
+      }
+      if (candidate.template) {
+        assert.match(
+          await fs.readFile(path.join(targetRoot, "template/template.yaml"), "utf8"),
+          /^agents: \{\}\n$/u,
+        );
+        const templateTarget = path.join(temporary, `${pluginId}-template-target`);
+        await fs.mkdir(templateTarget);
+        const plan = await new ProjectTemplateService().planPlugin({
+          agentId: "codex",
+          targetRoot: templateTarget,
+          templateRoot: path.join(targetRoot, "template"),
+        });
+        assert.deepEqual(plan.targetPaths, []);
+      }
+      await linkSdk(targetRoot);
+      const loaded = await new PluginLoader().load({
+        packageRoot: await fs.realpath(targetRoot),
+        pluginId,
+      });
+      assert.deepEqual(loaded.supports, candidate.expectedSupports);
+      const contract = await execa(process.execPath, ["--test"], { cwd: targetRoot, reject: false });
+      assert.equal(contract.exitCode, 0, contract.stderr || contract.stdout);
+    });
+  }
+});
 
-  const result = await new PluginScaffoldService().register({
-    pluginId: "dependency-audit",
-    targetRoot,
-    name: "Dependency Audit",
-    supports: ["store", "code", "code"],
-  });
+test("ProjectTemplateService rejects Base Agent metadata in a Plugin Template", async (t) => {
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-plugin-template-"));
+  t.after(() => fs.rm(temporary, { recursive: true, force: true }));
+  const templateRoot = path.join(temporary, "template");
+  const targetRoot = path.join(temporary, "store");
+  await fs.mkdir(templateRoot);
+  await fs.mkdir(targetRoot);
+  await fs.writeFile(path.join(templateRoot, "template.yaml"), `agents:
+  codex:
+    openspec_adapter: codex
+    copy: []
+`);
 
-  const canonicalRoot = await fs.realpath(targetRoot);
-  assert.equal(result.root, canonicalRoot);
-  assert.equal(result.entrypoint, path.join(canonicalRoot, "index.js"));
-  assert.deepEqual((await fs.readdir(targetRoot)).sort(), [
-    "README.md",
-    "index.js",
-    "package.json",
-    "test",
-  ]);
-  assert.equal(await fs.lstat(path.join(targetRoot, "plugin.yaml")).catch((error) => error.code), "ENOENT");
-  assert.equal(await fs.lstat(path.join(targetRoot, "bin")).catch((error) => error.code), "ENOENT");
-
-  const manifest = JSON.parse(await fs.readFile(path.join(targetRoot, "package.json"), "utf8"));
-  assert.equal(manifest.exports, "./index.js");
-  assert.deepEqual(manifest.openspecOrchestrator, { apiVersion: 1, plugin: "./index.js" });
-  assert.equal(manifest.peerDependencies["@openspec-orch/plugin-sdk"], "^0.1.0");
-
-  await linkSdk(targetRoot);
-  const loaded = await new PluginLoader().load({
-    packageRoot: await fs.realpath(targetRoot),
-    pluginId: "dependency-audit",
-  });
-  assert.deepEqual(loaded.supports, ["store", "code"]);
-  const contract = await execa(process.execPath, ["--test"], { cwd: targetRoot, reject: false });
-  assert.equal(contract.exitCode, 0, contract.stderr || contract.stdout);
+  await assert.rejects(
+    new ProjectTemplateService().planPlugin({ agentId: "codex", targetRoot, templateRoot }),
+    /openspec_adapter/u,
+  );
 });
 
 test("PluginScaffoldService rejects invalid, reserved and existing targets", async (t) => {
@@ -71,6 +151,23 @@ test("PluginScaffoldService rejects invalid, reserved and existing targets", asy
   await assert.rejects(
     scaffolds.register({ pluginId: "plugin", targetRoot: path.join(temporary, "reserved") }),
     /PLUGIN_ID_RESERVED/,
+  );
+  await assert.rejects(
+    scaffolds.register({
+      pluginId: "sample",
+      profile: "unknown",
+      targetRoot: path.join(temporary, "unknown-profile"),
+    }),
+    /PLUGIN_PROFILE_INVALID/,
+  );
+  await assert.rejects(
+    scaffolds.register({
+      pluginId: "sample",
+      profile: "commands",
+      supports: ["code"],
+      targetRoot: path.join(temporary, "commands-support"),
+    }),
+    /PLUGIN_SUPPORT_INVALID/,
   );
   await fs.mkdir(path.join(temporary, "existing"));
   await assert.rejects(

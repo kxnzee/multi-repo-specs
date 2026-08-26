@@ -65,7 +65,7 @@ async function connectionScenario(t, { pointer = false, strict = true } = {}) {
   await execa("git", ["clone", "--bare", codeSource, codeRemotePath]);
   const configuration = new CoreConfiguration();
   const project = new Project({
-    version: 3,
+    version: 1,
     strict,
     agents: ["claude"],
     plugins: [],

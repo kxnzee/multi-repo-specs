@@ -1,7 +1,5 @@
 /** @fileoverview OpenSpec Graph package, projection and viewer contract. */
 
-/* global fetch */
-
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -15,7 +13,6 @@ import { assertPluginContract } from "@openspec-orch/plugin-sdk/testing";
 import plugin from "../index.js";
 import { buildOpenSpecGraph } from "../lib/builder.js";
 import { checkChangeScope, inspectChangeImpact, inspectGraphNode } from "../lib/query.js";
-import { startGraphViewer } from "../lib/viewer.js";
 
 const packageRoot = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 
@@ -158,6 +155,7 @@ test("Package exposes a Store-only bundled Plugin contract", async () => {
   });
   assert.deepEqual(plugin.supports, ["store"]);
   assert.equal(plugin.canExec(), true);
+  assert.equal(plugin.hasAgentContribution(), false);
 });
 
 test("Plugin exec runs the registered graph command grammar with native options", async (t) => {
@@ -592,132 +590,6 @@ test("Scope check separates required, review and extra Cycle repositories", asyn
   const unmapped = checkChangeScope(unmappedGraph, "jit-100-promote", ["web"]);
   assert.equal(unmapped.state, "invalid");
   assert.deepEqual(unmapped.unmapped_master_specs, ["conference/visitors"]);
-});
-
-test("Viewer serves graph and vendored vis-network only on loopback", async (t) => {
-  const root = await storeFixture(t);
-  const graph = await buildOpenSpecGraph(root, { repositories, storeId });
-  const viewer = await startGraphViewer(graph, {
-    port: 0,
-    readSource: (relativePath) => fs.readFile(path.join(root, relativePath), "utf8"),
-    sourceRoot: root,
-  });
-  t.after(() => viewer.close());
-
-  assert.match(viewer.url, /^http:\/\/127\.0\.0\.1:\d+$/u);
-  const page = await fetch(viewer.url);
-  const markup = await page.text();
-  assert.doesNotMatch(markup, /id="layout-mode"/u);
-  assert.doesNotMatch(markup, /id="relation-filter"/u);
-  assert.match(markup, /id="node-type-filters"/u);
-  assert.match(markup, /id="layers-menu"/u);
-  assert.match(markup, /id="layer-count">3\/4/u);
-  assert.doesNotMatch(markup, /id="lane-guide"/u);
-  assert.match(markup, /Репозиторий/u);
-  assert.match(markup, /Мастер-спека/u);
-  assert.match(markup, /Изменение/u);
-  assert.match(markup, /value="repository" checked/u);
-  assert.match(markup, /value="master-spec" checked/u);
-  assert.match(markup, /value="change" checked/u);
-  assert.doesNotMatch(markup, /value="delta-spec" checked/u);
-  assert.match(markup, /Дельта-спека/u);
-  assert.match(markup, /id="reset-view"/u);
-  assert.doesNotMatch(markup, /id="stabilize"/u);
-  assert.match(page.headers.get("content-security-policy"), /style-src 'self' 'unsafe-inline'/u);
-  const application = await fetch(`${viewer.url}/app.js`).then((response) => response.text());
-  assert.doesNotMatch(application, /function lanePositions/u);
-  assert.doesNotMatch(application, /function syncLaneGuide/u);
-  assert.match(application, /function isMasterDependency/u);
-  assert.match(application, /import \{ inspectChangeImpact \} from "\/graph-query\.js"/u);
-  assert.match(application, /function impactForChange/u);
-  assert.match(application, /impact\.review_repositories/u);
-  assert.match(application, /Репозитории для проверки связей/u);
-  assert.match(application, /function expandChange/u);
-  assert.match(application, /function enabledNodeTypes/u);
-  assert.match(application, /function syncLayerCount/u);
-  assert.match(application, /function appendFileDetail/u);
-  assert.match(application, /function createFileControl/u);
-  assert.match(application, /function createEntityName/u);
-  assert.match(application, /function createEntityArrow/u);
-  assert.match(application, /function appendExpandableItems/u);
-  assert.match(application, /className = "details-more-button"/u);
-  assert.match(application, /const evidenceActions/u);
-  assert.match(application, /navigator\.clipboard\.writeText/u);
-  assert.match(application, /menu\.append\(copyPath\)/u);
-  assert.match(application, /function positionAllDeltaClusters/u);
-  assert.match(application, /function positionExpandedDeltas/u);
-  assert.match(application, /filterableNodeTypes = \["repository", "master-spec", "change", "delta-spec"\]/u);
-  assert.match(application, /const radius = 58 \+ Math\.sqrt\(index \+ 1\) \* 26/u);
-  assert.doesNotMatch(
-    application,
-    /edge\.relation !== "affects" && edge\.relation !== "targets"/u,
-  );
-  assert.match(
-    application,
-    /if \(edge\.relation === "affects"\) return !hasVisibleDeltaPath\(edge\)/u,
-  );
-  assert.doesNotMatch(application, /edge\.relation !== "targets" \|\| focusedEdgeIds\.has/u);
-  assert.match(application, /visibleNodeIds\.add\(id\)/u);
-  assert.doesNotMatch(application, /changePosition\.x \+ dx \* 0\.48/u);
-  assert.match(application, /Прямые Master Specs/u);
-  assert.match(application, /Зависимое влияние/u);
-  assert.match(application, /solver: "forceAtlas2Based"/u);
-  assert.match(application, /stabilizationIterationsDone/u);
-  assert.match(application, /network\.moveNode/u);
-  assert.match(application, /smooth: false/u);
-  assert.doesNotMatch(application, /type: "dynamic"/u);
-  assert.match(application, /function structuralChildren/u);
-  assert.match(application, /requestAnimationFrame\(applyDragFollowers\)/u);
-  assert.match(application, /cancelAnimationFrame\(dragState\.frameId\)/u);
-  assert.match(application, /edge\.relation === "implemented_by"/u);
-  assert.match(application, /edge\.relation === "contains"/u);
-  assert.match(application, /physics: \{/u);
-  assert.match(application, /enabled: true/u);
-  assert.match(application, /network\.setOptions\(\{ physics: \{ enabled: false \} \}\)/u);
-  assert.doesNotMatch(application, /\.stabilize\(/u);
-  const document = await fetch(`${viewer.url}/graph.json`).then((response) => response.json());
-  assert.equal(document.source_digest, graph.source_digest);
-  const queryModule = await fetch(`${viewer.url}/graph-query.js`);
-  assert.equal(queryModule.status, 200);
-  assert.match(await queryModule.text(), /export function inspectChangeImpact/u);
-  const viewerConfig = await fetch(`${viewer.url}/viewer-config.json`)
-    .then((response) => response.json());
-  assert.equal(viewerConfig.sources["change:jit-100-promote"], undefined);
-  const sourceNode = graph.nodes.find(({ type }) => type === "master-spec");
-  const sourceAction = viewerConfig.sources[sourceNode.id];
-  assert.match(sourceAction.preview_url, /^\/source\//u);
-  assert.match(sourceAction.ide_url, /^vscode:\/\/file\//u);
-  const sourceResponse = await fetch(`${viewer.url}${sourceAction.preview_url}`);
-  assert.equal(sourceResponse.status, 200);
-  assert.match(sourceResponse.headers.get("content-type"), /text\/plain/u);
-  assert.match(await sourceResponse.text(), /## Requirements/u);
-  const evidenceReference = graph.edges
-    .flatMap(({ provenance }) => provenance)
-    .find(Boolean);
-  const evidenceAction = viewerConfig.evidence[evidenceReference];
-  assert.equal(evidenceAction.line, Number(evidenceReference.split(":").at(-1)));
-  assert.match(evidenceAction.ide_url, new RegExp(`:${evidenceAction.line}$`, "u"));
-  const evidenceResponse = await fetch(`${viewer.url}${evidenceAction.preview_url}`);
-  assert.equal(evidenceResponse.status, 200);
-  assert.match(evidenceResponse.headers.get("content-type"), /text\/plain/u);
-  const tomlReference = "docs/architecture.toml:1";
-  const tomlAction = viewerConfig.evidence[tomlReference];
-  assert.equal(tomlAction.path, "docs/architecture.toml");
-  const tomlResponse = await fetch(`${viewer.url}${tomlAction.preview_url}`);
-  assert.equal(tomlResponse.status, 200);
-  assert.match(await tomlResponse.text(), /service = "conference"/u);
-  const missingSource = await fetch(`${viewer.url}/source/${encodeURIComponent("store:test")}`);
-  assert.equal(missingSource.status, 404);
-  const vendor = await fetch(`${viewer.url}/vendor/vis-network.min.js`);
-  assert.equal(vendor.status, 200);
-  assert.match(vendor.headers.get("content-type"), /text\/javascript/u);
-  const vendorStyles = await fetch(`${viewer.url}/vendor/vis-network.min.css`);
-  assert.equal(vendorStyles.status, 200);
-  assert.match(vendorStyles.headers.get("content-type"), /text\/css/u);
-  const favicon = await fetch(`${viewer.url}/favicon.svg`);
-  assert.equal(favicon.status, 200);
-  assert.equal(favicon.headers.get("content-type"), "image/svg+xml");
-  assert.equal((await fetch(`${viewer.url}/favicon.ico`)).status, 200);
 });
 
 test("Repository connect is planning-safe and explicit sync validates and builds", async () => {

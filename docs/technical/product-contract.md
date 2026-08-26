@@ -110,16 +110,26 @@ v1 предполагает **одного пользователя и одну 
 ### 2.5. Plugin Platform
 
 Core владеет только общим lifecycle `plugin register/init/connect/status/sync/disconnect/remove`,
-загрузкой Package, Repository bindings, scoped context и монтированием команд. Бизнес-
+загрузкой Package, разрешением Template requirements, Repository bindings, scoped
+context, монтированием команд и безопасным применением объявленных file overlays. Бизнес-
 логика Cycle/Receipts/Snapshot находится в bundled Plugin `change-tracking`; CodeGraph
 находится в отдельном bundled Plugin `codegraph`. Оба Package поставляются как
 dependencies Orchestrator, а внешний Plugin подключается как npm-compatible source.
 
 Plugin является самостоятельным ESM Package с одним entrypoint в `package.json` и
-использует только публичный `@openspec-orch/plugin-sdk`. Template и Plugin не зависят
-друг от друга. Core не содержит условий по Plugin ID; имена bundled Plugins и список
+использует только публичный `@openspec-orch/plugin-sdk`. Project Template может
+объявить Plugin ID в `requires.plugins`, а Plugin Package может владеть собственным
+Plugin Template. Base Template не содержит Plugin assets и не импортирует Package;
+Core разрешает ID через Plugin Catalog и применяет оба Template через общий generic
+движок. Core не содержит условий по Plugin ID; имена bundled Plugins и список
 разрешённых root-команд известны только distribution composition root. Порядок загрузки
 Plugins не специфицирован, и Plugin не должен зависеть от загрузки другого Plugin.
+
+Project skill может быть единым entrypoint общей операции и условно передавать
+plugin-specific часть установленному skill по известному Plugin ID. Это интеграционный
+handoff, а не владение asset: Base сохраняет полноценный режим без Plugin, не копирует
+его правила и блокируется, если конфигурация объявляет Plugin подключённым, но его
+Template установлен неполно.
 
 Добавление следующего Plugin не требует изменения Core. Публичный контракт автора,
 scoped facades и contract test kit описаны в
@@ -136,7 +146,7 @@ scoped facades и contract test kit описаны в
 | `.openspec-orch/state.json` (локальный workspace) | только локальная машина, в `.gitignore` | Core |
 | `.openspec-orch/plugins/change-tracking/state.json` (Receipts, Snapshots) | только локальная машина, в `.gitignore` | Change Tracking Plugin через Core storage |
 | `.openspec-orch/cache/plugin-runtimes/<plugin-id>/` | только локальная машина, в `.gitignore` | Plugin manager |
-| `openspec/…` | Git, Store | OpenSpec — Core не читает внутреннюю структуру и не пишет туда |
+| `openspec/…` | Git, Store | OpenSpec и Plugin владеют содержимым; Core может материализовать только явно объявленный Template asset, не интерпретируя его |
 
 Receipts и Snapshots **никогда** не попадают в Git в текущей версии. Cycle Record
 **никогда** не хранится только в локальном Plugin state.
@@ -147,7 +157,7 @@ Receipts и Snapshots **никогда** не попадают в Git в тек�
 
 1. **`version`, `contract_version` или `storage_version`** в каждом файловом формате.
    Неподдерживаемая версия при чтении — ошибка, а не тихая интерпретация.
-   `openspec-orch.yaml` поддерживается только в текущем формате v3; скрытой миграции нет.
+   `openspec-orch.yaml` поддерживается только в текущем формате v1; скрытой миграции нет.
 2. **Версия алгоритма внутри вычисления `snapshot_id`**: версия входит в хешируемые данные, чтобы бета могла расширить проекцию (например, отпечатком договора проверки) без коллизий со старыми идентификаторами.
 
 Будущее расширение добавляет поля через инкремент версии соответствующего формата.
@@ -155,12 +165,13 @@ Receipts и Snapshots **никогда** не попадают в Git в тек�
 ### 3.2. `openspec-orch.yaml`
 
 ```yaml
-version: 3
+version: 1
 strict: true
 agents: [qwen]
 plugins:
   - id: dependency-audit
     source: "@company/openspec-plugin-dependency-audit@1.2.0"
+    required: true
 
 repositories:
   - id: specs
@@ -178,22 +189,29 @@ repositories:
 Правила:
 
 - обязательное поле `version`; неподдерживаемая версия — ошибка;
-- в v3 неизвестные поля вне `version`, `strict`, `agents`, `plugins`, `repositories` — ошибка; секции `agent`, `handoffs` и старый `extensions` не допускаются;
+- в v1 неизвестные поля вне `version`, `strict`, `agents`, `plugins`, `repositories` — ошибка; секции `agent`, `handoffs` и старый `extensions` не допускаются;
 - `agents` содержит уникальные Agent ID, зарегистрированные успешным `init`;
 - каждый элемент `plugins` содержит Plugin ID и точную package identity в `source`;
+  `required: true` фиксирует зависимость активного Project Template и запрещает удаление Plugin;
 - ровно один репозиторий с ролью `store`;
 - без секретов и локальных абсолютных путей;
 - каждый `repositories[].plugins` ссылается только на ID из верхнеуровневого `plugins`;
 - перечитывается при каждой операции.
 
-Plugin Package не является частью Template. `plugin init` загружает bundled Package
+Plugin Package не является частью Base Template, но может содержать собственный каталог
+`template/`. Project Template объявляет обязательные расширения через
+`requires.plugins`; успешный `openspec-orch init` разрешает их через каталог, вызывает
+обычный Plugin lifecycle и сохраняет точную package identity с `required: true`.
+`plugin init` загружает bundled Package
 из установленного дистрибутива либо materialize внешний npm-compatible source и его
 production dependencies в локальный cache Store, после чего сохраняет ID и точную
 package identity в проекте. `plugin connect` выполняет setup в точном Repository и
 только после успеха сохраняет связь. Core импортирует обязательный ESM entrypoint,
 объявленный в `package.json`, без shell и без отдельного descriptor.
-`plugin register` создаёт самостоятельный исходный Package с `package.json` и entrypoint;
-он не меняет Store, Template или Plugin-specific код в Core.
+`plugin register` создаёт самостоятельный исходный Package с `package.json`,
+entrypoint и одним из профилей `commands`, `repository`, `native`; optional
+`--template` добавляет каркас Plugin Template. Команда не меняет Store или
+Plugin-specific код в Core.
 Необязательные Agent hooks позволяют Package установить и удалить собственные MCP и
 инструкции для каждого зарегистрированного агента; Core не знает их provider formats.
 

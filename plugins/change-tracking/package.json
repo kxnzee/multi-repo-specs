@@ -9,7 +9,8 @@
   },
   "files": [
     "index.js",
-    "lib"
+    "lib",
+    "template"
   ],
   "openspecOrchestrator": {
     "apiVersion": 1,

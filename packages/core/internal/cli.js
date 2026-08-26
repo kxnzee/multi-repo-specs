@@ -57,6 +57,7 @@ export class CandidateCli {
   #initialization;
   #pluginCommands;
   #pluginLifecycleCommands;
+  #pluginRequirements;
   #progress;
   #repositoryStatuses;
   #templateRoot;
@@ -66,6 +67,7 @@ export class CandidateCli {
     initializationService = initialization,
     pluginCommandMounter,
     pluginLifecycleCommands,
+    pluginRequirementService,
     progress = createCliProgress(),
     repositoryStatusService = repositoryStatuses,
     templateRoot,
@@ -80,6 +82,10 @@ export class CandidateCli {
       throw new Error("CLI_INVALID: pluginLifecycleCommands должен предоставлять mount");
     }
     this.#pluginLifecycleCommands = pluginLifecycleCommands;
+    if (pluginRequirementService && typeof pluginRequirementService.reconcile !== "function") {
+      throw new Error("CLI_INVALID: pluginRequirementService должен предоставлять reconcile");
+    }
+    this.#pluginRequirements = pluginRequirementService;
     if (
       !progress ||
       ["fail", "run", "start", "succeed", "update", "warn"].some((method) => (
@@ -111,18 +117,38 @@ export class CandidateCli {
       .action(async (target = ".", options) => {
         const result = await this.#progress.run(
           "Инициализация Store и Project Template...",
-          () => this.#initialization.initialize({
-            target,
-            storeId: options.store,
-            agentId: options.agent,
-            templateRoot: options.template ?? this.#templateRoot,
-            repositories: options.repo ?? [],
-            noStrict: options.strict === false,
-          }),
+          async () => {
+            const initialized = await this.#initialization.initialize({
+              target,
+              storeId: options.store,
+              agentId: options.agent,
+              templateRoot: options.template ?? this.#templateRoot,
+              repositories: options.repo ?? [],
+              noStrict: options.strict === false,
+            });
+            if (!this.#pluginRequirements || !Array.isArray(initialized.requiredPluginIds)) {
+              return initialized;
+            }
+            const requirements = await this.#pluginRequirements.reconcile(
+              initialized.target,
+              initialized.requiredPluginIds,
+            );
+            return Object.freeze({
+              ...initialized,
+              initializedRequiredPlugins: requirements.initialized,
+              requiredPluginIds: requirements.required,
+            });
+          },
           { success: "Store и Project Template проверены" },
         );
+        if (result.requiredPluginIds?.length > 0) {
+          console.log(`Required Plugins: ${result.requiredPluginIds.join(", ")}`);
+        }
         if (result.alreadyInitialized) {
-          console.log(`Store ${result.storeId} уже инициализирован; файлы не изменены.`);
+          const pluginSuffix = result.initializedRequiredPlugins?.length > 0
+            ? `; установлены обязательные Plugins: ${result.initializedRequiredPlugins.join(", ")}`
+            : "; обязательные Plugins проверены";
+          console.log(`Store ${result.storeId} уже инициализирован${pluginSuffix}.`);
           console.log(`Execution mode: ${result.executionMode}`);
           console.log(buildConnectHint(result.target, result.storeId));
           return;

@@ -8,14 +8,6 @@ import { definePlugin } from "@openspec-orch/plugin-sdk";
 
 export default definePlugin({
   id: "demo",
-  supports: ["code"],
-  repository: {
-    async connect(context) {},
-    async status(context) {
-      return { state: "ready" };
-    },
-    async exec(context, args) {},
-  },
   registerCommands(commands) {
     commands.command("hello")
       .description("Demo command")
@@ -29,9 +21,27 @@ export default definePlugin({
 публичные методы: `assertSupports`, `connect`, `status`, `sync`,
 `registerCommands` и `integrateAgent`. Loader проверяет этот API структурно и не
 зависит от `instanceof`, поэтому разные физические копии SDK не ломают загрузку.
-Опциональный `repository.exec` добавляет native passthrough. Если его нет, `exec`
-автоматически использует grammar из `registerCommands`. Старый Plugin без обоих
-contributions продолжает загружаться, но универсальный passthrough для него недоступен.
+`exec` автоматически встроен для Plugin с `registerCommands` и использует
+зарегистрированную grammar. Объявлять одинаковый `repository.exec` в каждом Plugin
+не нужно. Этот optional hook требуется только для native passthrough, когда argv
+должен целиком уйти Package-owned runtime, как в CodeGraph. Plugin без
+`registerCommands` и `repository.exec` продолжает загружаться, но универсальный
+passthrough для него недоступен.
+
+`supports` можно не указывать для commands-only Plugin: SDK использует пустой
+список. Если объявлен `repository`, требуется хотя бы одна role в `supports` и
+обязательные callbacks `connect/status`.
+
+Необязательный `agent.integration(context)` предоставляет два публичных варианта:
+
+- `{ install, remove }` — imperative lifecycle для provider-specific merge или MCP;
+- `{ copy: [{ from, to }] }` — declarative file overlay из корня Plugin Package.
+
+Declarative `copy` применяет тот же безопасный copy contract, что и Template, и
+заменяет автоматический `template/` этого Plugin. Если `agent` contribution не
+объявлен, Core автоматически ищет `template/template.yaml` и применяет
+`agents.<current-agent>.copy`. Удаление не стирает доставленные файлы: `remove`
+возвращает их Store-relative paths для ручной очистки.
 
 Порядок загрузки Plugins не специфицирован. Plugin не должен полагаться на то, что
 другой Plugin загружен или зарегистрирован раньше.

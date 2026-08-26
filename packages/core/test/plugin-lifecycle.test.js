@@ -26,7 +26,7 @@ async function createStoreFixture(t, { backendConnected = false, connected = fal
   await fs.mkdir(path.join(storeRoot, ".openspec-store"), { recursive: true });
   await fs.mkdir(path.join(storeRoot, "openspec"));
   const project = createProject({
-    version: 3,
+    version: 1,
     strict: true,
     agents: ["codex"],
     plugins: [{ id: "sample", source: "@test/plugin-sample@1.0.0" }],

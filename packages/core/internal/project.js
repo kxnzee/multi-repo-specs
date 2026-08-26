@@ -122,15 +122,39 @@ export class Project {
     return pluginId;
   }
 
-  declarePlugin(pluginId, source) {
-    const declaration = new PluginDeclaration({ id: pluginId, source });
+  declarePlugin(pluginId, source, { required } = {}) {
+    const current = this.pluginDeclaration(pluginId);
+    const declaration = new PluginDeclaration({
+      id: pluginId,
+      source,
+      required: required ?? current?.required ?? false,
+    });
     const next = [
       ...this.#plugins.filter(({ id }) => id !== pluginId),
       declaration,
     ].sort((left, right) => left.id.localeCompare(right.id));
-    const current = this.pluginDeclaration(pluginId);
-    const changed = current?.source !== source;
+    const changed = current?.source !== source || current?.required !== declaration.required;
     this.#plugins = Object.freeze(next);
+    return changed;
+  }
+
+  setRequiredPlugins(pluginIds) {
+    if (!Array.isArray(pluginIds) || new Set(pluginIds).size !== pluginIds.length) {
+      throw new Error("PROJECT_INVALID: required plugin IDs должны быть уникальным массивом");
+    }
+    const required = new Set(pluginIds);
+    for (const pluginId of required) this.requirePlugin(pluginId);
+    let changed = false;
+    this.#plugins = Object.freeze(this.#plugins.map((declaration) => {
+      const nextRequired = required.has(declaration.id);
+      if (declaration.required === nextRequired) return declaration;
+      changed = true;
+      return new PluginDeclaration({
+        id: declaration.id,
+        source: declaration.source,
+        required: nextRequired,
+      });
+    }));
     return changed;
   }
 
@@ -160,7 +184,11 @@ export class Project {
     if (this.#repositories.some((repository) => repository.hasPlugin(pluginId))) {
       throw new Error(`PLUGIN_CONNECTED: сначала отключите ${pluginId} от всех repositories`);
     }
-    if (!this.hasPlugin(pluginId)) return false;
+    const declaration = this.pluginDeclaration(pluginId);
+    if (!declaration) return false;
+    if (declaration.required) {
+      throw new Error(`PLUGIN_REQUIRED_BY_TEMPLATE: ${pluginId} обязателен для Project Template`);
+    }
     this.#plugins = Object.freeze(this.#plugins.filter(({ id }) => id !== pluginId));
     return true;
   }

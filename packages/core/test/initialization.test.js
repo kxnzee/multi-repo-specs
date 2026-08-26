@@ -122,6 +122,7 @@ test("InitializationService creates Store through domain and public facade contr
   assert.equal(result.executionMode, "strict");
   assert.equal(Object.isFrozen(result), true);
   assert.equal(result.agent.id, "claude");
+  assert.deepEqual(result.requiredPluginIds, ["openspec-graph"]);
   assert.equal(result.created[0], ".openspec-store/store.yaml");
   assert.equal(result.created.includes("openspec-orch.yaml"), true);
   const project = configurationService.parseProject(
@@ -145,6 +146,7 @@ test("InitializationService creates Store through domain and public facade contr
     templateRoot: TEMPLATE_ROOT,
   });
   assert.equal(repeated.alreadyInitialized, true);
+  assert.deepEqual(repeated.requiredPluginIds, ["openspec-graph"]);
   assert.deepEqual(repeated.created, []);
   assert.equal(fake.calls.length, callCount);
 });
@@ -226,6 +228,7 @@ test("InitializationService rolls generated files back when setup fails before m
 
 test("CandidateCli preserves init grammar and passes normalized domain input", async () => {
   const calls = [];
+  const requirementCalls = [];
   const cli = new CandidateCli({
     templateRoot: TEMPLATE_ROOT,
     initializationService: {
@@ -238,7 +241,14 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
           executionMode: "strict",
           created: [],
           updated: [],
+          requiredPluginIds: ["openspec-graph"],
         };
+      },
+    },
+    pluginRequirementService: {
+      async reconcile(root, pluginIds) {
+        requirementCalls.push({ root, pluginIds });
+        return { initialized: [], required: pluginIds };
       },
     },
   });
@@ -262,4 +272,8 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
   assert.equal(calls[0].templateRoot, TEMPLATE_ROOT);
   assert.equal(calls[0].repositories[0].id, "frontend");
   assert.equal(calls[0].noStrict, true);
+  assert.deepEqual(requirementCalls, [{
+    root: "/workspace/payments-specs",
+    pluginIds: ["openspec-graph"],
+  }]);
 });

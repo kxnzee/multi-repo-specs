@@ -13,7 +13,7 @@ import {
 /** Создаёт Project с Store и несколькими Code Repositories. */
 function projectFixture() {
   return createProject({
-    version: 3,
+    version: 1,
     strict: true,
     agents: ["codex"],
     plugins: [],

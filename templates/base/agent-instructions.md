@@ -6,8 +6,9 @@
   принадлежат каталогу openspec/; Code Repositories только реализуют принятые Changes.
 - openspec/context/ содержит подтверждённый долговечный контекст, но не заменяет
   Requirements. Его обновляет только команда /openspec-base-context.
-- openspec-orch.yaml — реестр точных repository-id. openspec/graph.yaml содержит
-  только explicit relations; типизированную модель читать через OpenSpec Graph Plugin.
+- openspec-orch.yaml — реестр точных repository-id. Plugin-owned
+  openspec/graph.yaml содержит только explicit relations, а типизированную модель
+  нужно читать через обязательный OpenSpec Graph Plugin.
 - Локальное устройство, test/build commands и implementation evidence принадлежат
   конкретному Code Repository и не копируются в Store context.
 
@@ -46,11 +47,13 @@
   дополнительное уточнение; агент не запускает следующий маршрут автоматически.
 - Проверка Proposal, Specs, Design, Tasks, impact или полного Planning:
   openspec-base-meta-planning.
-- Preflight standard или repository-scoped штатного Apply:
-  openspec-base-apply-context.
-- Аудит или точечное изменение explicit edge, а также обязательная сверка
-  `implemented_by` для directly changed Master Specs перед Gate 1 и после Archive:
-  openspec-base-graph-maintenance.
+- Единый entrypoint preflight штатного Apply: openspec-base-apply-context. Без Change
+  Tracking он готовит standard mode; при подключённом Plugin передаёт его часть
+  установленному plugin-owned skill change-tracking-apply-context, затем продолжает
+  общий Graph preflight.
+- Plugin-owned skill `openspec-graph-maintenance` выполняет аудит или точечное
+  изменение explicit edge и сверку `implemented_by` для directly changed Master
+  Specs перед Gate 1 и после Archive.
 - Трассируемые test cases: openspec-base-test-cases.
 - Инициализация, общий или change/spec/domain-scoped аудит и обновление Store context
   и ADR: /openspec-base-context. После Archive context audit является необязательным
@@ -76,6 +79,11 @@ Store-level context и выполняет Planning review; отдельные co
 
 ## OpenSpec Graph lifecycle
 
+Текущий Project Template объявляет OpenSpec Graph Plugin обязательным. Он ДОЛЖЕН
+присутствовать в openspec-orch.yaml с `required: true` и быть подключён к Store.
+Если declaration отсутствует, остановись и предложи повторить `openspec-orch init`;
+не обходи Graph workflow как опциональный.
+
 Перед inspect, impact, check-scope или view:
 
 1. Выполни openspec-orch graph status --json.
@@ -96,8 +104,8 @@ openspec/graph.yaml или Archive выполни build и status. Измене�
 CodeGraph не требует OpenSpec Graph build.
 
 `Delta Spec → targets → Repository` фиксирует scope только одного Change и
-ЗАПРЕЩЕНО считать её заменой `Master Spec → implemented_by → Repository`. Перед Gate
-1 и после Archive ОБЯЗАН проверить через openspec-base-graph-maintenance каждую
+ЗАПРЕЩЕНО считать её заменой `Master Spec → implemented_by → Repository`. Перед
+Gate 1 и после Archive ОБЯЗАН проверить через `openspec-graph-maintenance` каждую
 directly changed Master Spec. Если подтверждённый постоянный implementation mapping
 отсутствует, Graph handoff НЕ ЗАВЕРШЁН. Не добавляй review-only, verification-only,
 no-change или временно затронутый Repository.

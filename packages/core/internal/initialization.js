@@ -156,6 +156,7 @@ export class InitializationService {
       created: [],
       updated,
       agent: templatePlan.agent,
+      requiredPluginIds: templatePlan.requiredPluginIds,
     });
   }
 
@@ -230,6 +231,7 @@ export class InitializationService {
       ],
       updated: installed.updated,
       agent: templatePlan.agent,
+      requiredPluginIds: templatePlan.requiredPluginIds,
     });
   }
 
@@ -285,7 +287,15 @@ export class InitializationService {
     }
   }
 
-  #result({ storeTarget, alreadyInitialized, strict, created, updated, agent }) {
+  #result({
+    storeTarget,
+    alreadyInitialized,
+    strict,
+    created,
+    updated,
+    agent,
+    requiredPluginIds,
+  }) {
     return deepFreeze({
       target: storeTarget.root,
       storeId: storeTarget.id,
@@ -294,6 +304,7 @@ export class InitializationService {
       created: [...created],
       updated: [...updated],
       agent: agent.snapshot(),
+      requiredPluginIds: [...requiredPluginIds],
     });
   }
 }

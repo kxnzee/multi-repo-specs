@@ -39,7 +39,8 @@ expected_source: Monitoring, runbooks, incidents, or maintainer confirmation
 - Штатный OpenSpec Archive остаётся владельцем применения Delta Specs к Master Specs
   и перемещения Change.
 - До изменения Master Specs требуется свежий OpenSpec Graph, проверка impact, порядка
-  зависимых Changes и repository scope через `graph check-scope`. При подключённом
+  зависимых Changes и repository scope через `graph check-scope`. Отсутствующий
+  Store binding блокирует Archive. При подключённом
   Change Tracking используется набор repositories Cycle; `CYCLE_NOT_FOUND` разрешает
   проверить scope по принятым Tasks sections с работой в Code Repository. Если Change
   Tracking не подключён, его команды не вызываются, а scope сразу берётся из тех же
@@ -50,7 +51,8 @@ expected_source: Monitoring, runbooks, incidents, or maintainer confirmation
   Master Spec. Change-scoped `targets` НЕ ЗАМЕНЯЕТ постоянный
   `Master Spec → implemented_by → Repository`; отсутствующий подтверждённый mapping
   блокирует Graph handoff. Сам штатный Archive автоматически не откатывается.
-- После успешного Graph handoff при наличии долговечного domain/architecture/security
+- После Archive и успешного Graph handoff при наличии долговечного
+  domain/architecture/security
   изменения можно выполнить `/openspec-base-context audit --change <change-id>` либо
   передать точные `--spec`/`--domain`. Это необязательный context-promotion шаг:
   `current`, отложенный proposed diff или пропуск аудита не изменяют Master Specs и не

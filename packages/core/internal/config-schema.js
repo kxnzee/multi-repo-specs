@@ -24,6 +24,7 @@ const REPOSITORY_SCHEMA = z.strictObject({
 const PLUGIN_DECLARATION_SCHEMA = z.strictObject({
   id: ID_SCHEMA,
   source: z.string().min(1),
+  required: z.boolean().default(false),
 });
 const PROJECT_CONFIG_SCHEMA = z.strictObject({
   version: z.literal(CORE_CONTRACT_VERSIONS.project),

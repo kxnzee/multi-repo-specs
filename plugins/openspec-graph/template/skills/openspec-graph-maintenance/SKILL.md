@@ -1,14 +1,13 @@
 ---
-name: openspec-base-graph-maintenance
-description: Проверить или точечно обновить подтверждённые явные связи OpenSpec Graph в центральном Store, включая обязательную сверку persistent implementation mapping для одного точного Change перед Gate 1 и после Archive. Использовать для аудита, добавления, изменения или удаления explicit edges в openspec/graph.yaml. Не использовать как общий способ routine refresh и не редактировать Master Specs, Delta Specs, Cycle или внутренние связи CodeGraph.
+name: openspec-graph-maintenance
+description: Проверить или точечно обновить подтверждённые explicit edges OpenSpec Graph в Store. Использовать для bounded audit, добавления, изменения или удаления явных связей в openspec/graph.yaml. Не использовать как routine refresh и не редактировать Master Specs, Delta Specs, процессные артефакты или внутренние связи CodeGraph.
 ---
 
 # Обслуживание OpenSpec Graph
 
-- ОБЯЗАН работать либо с одной явно запрошенной explicit edge, либо с ограниченным
-  набором `implemented_by` для непосредственно изменяемых Master Specs одного точного
-  `change-id`. Для каждой entry ОБЯЗАТЕЛЬНО отдельное подтверждённое Store-relative
-  evidence.
+- ОБЯЗАН работать с одной явно запрошенной explicit edge или с точным bounded
+  набором edges. Для каждой entry ОБЯЗАТЕЛЬНО отдельное подтверждённое
+  Store-relative evidence.
 - ЗАПРЕЩЕНО угадывать relation, автоматически расширять scope, открывать Code
   Repository или исправлять соседние данные ради успешного build.
 - Нет точного node ID, evidence, ready/authoritative Graph или разрешённого edit — это
@@ -23,8 +22,8 @@ agents. Работать только в центральном Store и не о
 
 ## Границы
 
-- Не изменять `openspec/specs/`, `openspec/changes/`, `openspec-orch.yaml`, Cycle
-  Records, Plugin packages, CodeGraph indexes и встроенные `openspec-*` skills или
+- Не изменять `openspec/specs/`, `openspec/changes/`, `openspec-orch.yaml`, процессные
+  артефакты, Plugin packages, CodeGraph indexes и встроенные `openspec-*` skills или
   `opsx-*` commands.
 - Не добавлять relationship по совпадению имён, расположению файлов, предполагаемой
   архитектуре или ребру CodeGraph. Требовать существующие точные node IDs и
@@ -82,31 +81,6 @@ agents. Работать только в центральном Store и не о
    либо подтверждения, что её evidence больше не поддерживает утверждение; не
    удалять соседние edges.
 
-## Обязательная сверка implementation mapping для Change
-
-Перед Gate 1 и повторно после Archive для одного точного `change-id` ОБЯЗАН:
-
-1. Выполнить `graph impact <change-id>` и получить полный список
-   `direct_master_specs`, `delta_specs` и `direct_repositories`.
-2. Для КАЖДОЙ directly changed Master Spec выполнить `graph inspect <node-id>` и
-   перечислить существующие `implemented_by`. Наличие `targets` НЕ ЗАСЧИТЫВАТЬ как
-   implementation mapping.
-3. Сопоставить только репозитории, где принятые Repository Impact и Tasks требуют
-   реального изменения. Review-only, verification-only, соседние и строки без
-   изменений ЗАПРЕЩЕНО превращать в `implemented_by`.
-4. Если подтверждено, что Repository остаётся местом реализации capability, а
-   `implemented_by` отсутствует, найти уже существующее evidence в Proposal, Design,
-   принятом Store context или другом Store artifact. Добавить точную edge в рамках
-   того же bounded edit. ЗАПРЕЩЕНО дописывать технические детали в Master Spec или
-   создавать evidence-файл ради Graph build.
-5. Если постоянный владелец реализации не подтверждён либо Change затрагивает
-   Repository только временно, НЕМЕДЛЕННО вернуть BLOCKER владельцу решения. Не
-   угадывать mapping и не считать Graph handoff завершённым.
-6. После Archive повторить build/status/impact/inspect по архивному Change. Для каждой
-   текущей directly changed Master Spec ОБЯЗАТЕЛЬНА хотя бы одна подтверждённая
-   `implemented_by`, кроме явно принятого owner decision о capability без Code
-   Repository. Такое исключение ОБЯЗАНО иметь причину, владельца и evidence.
-
 ## Изменение и пересборка
 
 В `edit` применить минимальный patch только к `openspec/graph.yaml`. Сохранять
@@ -122,13 +96,8 @@ agents. Работать только в центральном Store и не о
    повторный build. Иначе отменить только собственный patch этой сессии, сохранить
    чужие изменения и вернуть blocker.
 3. Выполнить `openspec-orch graph status --json` и требовать `state: ready`.
-4. Для изменённых endpoints выполнить `graph inspect`. Если пользователь указал
-   активный Change, дополнительно выполнить `graph impact <change-id>` и показать
-   изменение Repository impact. Если Change Tracking объявлен и подключён, при
-   существующем Cycle проверить его точный набор repositories через
-   `graph check-scope`; `CYCLE_NOT_FOUND` только зафиксировать. Если Change Tracking не
-   подключён, не вызывать его команды и не считать отсутствие Cycle ошибкой.
-   Не создавать и не заменять Cycle автоматически.
+4. Для изменённых endpoints выполнить `graph inspect`. Если пользователь явно указал
+   Change, дополнительно выполнить `graph impact <change-id>` и показать изменение impact.
 5. Перед завершением показать tracked diff `openspec/graph.yaml` и отдельно назвать,
    что Plugin index является локальным производным состоянием и не входит в commit.
 
@@ -146,7 +115,6 @@ graph_maintenance:
   build: not_run | passed | failed
   status_after: ready | stale | invalid | unavailable | not_configured | not_checked
   affected_changes: []
-  implementation_mappings_checked: []
   blockers: []
 ```
 
