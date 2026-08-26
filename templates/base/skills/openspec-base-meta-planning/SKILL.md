@@ -1,6 +1,6 @@
 ---
 name: openspec-base-meta-planning
-description: Единая read-only проверка Proposal, Specs, Design, Tasks, impact или полного Planning OpenSpec Change. Использует фактические artifact rules, Graph queries и при необходимости один repository evidence scout; не изменяет артефакты и не принимает Gate.
+description: Единая read-only проверка Proposal, Specs, Design, Tasks, impact или полного Planning OpenSpec Change. Использует фактические artifact rules, Graph queries и адресные вызовы repository evidence scout по правилу «один вопрос — один subagent»; не изменяет артефакты и не принимает Gate.
 ---
 
 # Meta Planning
@@ -25,8 +25,9 @@ planning-review. Не создавать параллельный workflow и н
 
 Proposal и Specs являются Store-only стадиями. Code Repository, CodeGraph и
 repository evidence scout для них запрещены. На Design, Tasks, impact-review и
-planning-review разрешён один ограниченный repository evidence pass: сначала через
-scout, а при его недоступности — тем же адресным read/search основного агента.
+planning-review разрешены только адресные repository evidence requests: сначала через
+scout, а при его недоступности — тем же адресным read/search основного агента. Каждый
+request проверяет один вопрос в одном Repository.
 
 ## Preflight
 
@@ -105,9 +106,19 @@ Requirement/Scenario или path:line и отделить факт, вывод, 
 ## Repository evidence
 
 Если на разрешённой стадии нужен current-state факт, вызвать только
-openspec-base-repository-evidence-scout. Передать полный входной контракт его профиля:
-один claim, why_code_needed, evidence_kind, один repository-id, проверенный checkout,
-полный revision, anchors и stop_condition.
+openspec-base-repository-evidence-scout.
+
+- Один вопрос — один новый subagent. После декомпозиции N вопросов означают
+  ровно N независимых вызовов: пять вопросов — пять subagents. Не передавать список
+  вопросов и не переиспользовать завершённый или продолжающийся контекст.
+- Общий или межрепозиторный вопрос сначала разложить на независимые
+  repository-specific вопросы. Для каждого подготовить собственные question_id,
+  полный входной контракт и отдельный результат.
+- Передать question_id, question, один repository-id, проверенный checkout, полный
+  revision и anchors. Identity, revision и чистоту worktree проверить до вызова.
+- Для каждого вызова принять только один YAML-объект `repository_evidence` с тем же
+  question_id и полями status, answer и evidence. Текст до или после YAML
+  считать нарушением контракта и не использовать как evidence.
 
 Не просить scout делать межрепозиторный вывод или собирать общий обзор. Если scout
 недоступен, выполнить такой же адресный read/search самостоятельно с теми же

@@ -79,6 +79,41 @@ test("subagent adapters preserve the canonical body and own only provider metada
   }
 });
 
+test("repository evidence delegation keeps one question per subagent invocation", async () => {
+  const artifacts = [
+    "agent-instructions.md",
+    "skills/openspec-base-meta-planning/SKILL.md",
+    "subagents/openspec-base-repository-evidence-scout.md",
+  ];
+  for (const relative of artifacts) {
+    const source = await fs.readFile(path.join(TEMPLATE_ROOT, relative), "utf8");
+    assert.match(source, /Один вопрос — один новый subagent/u, relative);
+    assert.match(source, /пять вопросов — пять subagents/u, relative);
+  }
+
+  const scout = await fs.readFile(
+    path.join(TEMPLATE_ROOT, "subagents/openspec-base-repository-evidence-scout.md"),
+    "utf8",
+  );
+  assert.match(scout, /несколько вопросов[\s\S]*`status: blocked`/u);
+  assert.match(scout, /Новый или уточнённый вопрос требует нового subagent/u);
+  assert.match(scout, /question_id: <переданный question_id>/u);
+  assert.match(scout, /status: answered \| partial \| unanswered \| blocked/u);
+  assert.match(scout, /answer: <краткий вывод без paths, symbols и code inventory>/u);
+  assert.match(scout, /без Markdown и текста до или после него/u);
+  const contracts = [...scout.matchAll(/~~~yaml\n([\s\S]*?)\n~~~/gu)]
+    .map(([, contract]) => parse(contract));
+  assert.equal(contracts.length, 2);
+  assert.deepEqual(
+    Object.keys(contracts[0].repository_evidence_request),
+    ["question_id", "question", "repository_id", "checkout_path", "revision", "anchors"],
+  );
+  assert.deepEqual(
+    Object.keys(contracts[1].repository_evidence),
+    ["question_id", "status", "answer", "evidence"],
+  );
+});
+
 test("Apply context uses the exact OpenSpec Graph scope blocker contract", async () => {
   const relative = "skills/openspec-base-apply-context/SKILL.md";
   const source = await fs.readFile(path.join(TEMPLATE_ROOT, relative), "utf8");

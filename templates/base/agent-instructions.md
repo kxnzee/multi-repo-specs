@@ -72,10 +72,28 @@ Planning ТОЛЬКО после подтверждения, что в нём д
 
 Единственный project subagent — openspec-base-repository-evidence-scout. Он разрешён
 только на Design, Tasks, Apply или при явной проверке current-state conflict из
-context command. Передавай один repository-id, полный Git SHA, один claim,
-why_code_needed, непустые anchors и stop_condition. Основной агент сам читает
-Store-level context и выполняет Planning review; отдельные context/planning subagents
-не используются.
+context command.
+
+- Один вопрос — один новый subagent: после декомпозиции N вопросов ОБЯЗАНЫ создать
+  ровно N независимых вызовов. Например, пять вопросов — пять subagents.
+  Не объединяй вопросы в одном prompt и не продолжай тот же subagent-контекст со
+  следующим вопросом.
+- До запуска основной агент обязан разложить общий запрос на независимые технические
+  repository-specific вопросы. Межрепозиторный вопрос сначала раздели на отдельный
+  вопрос для каждого Repository и только затем считай число требуемых вызовов.
+- Каждый вызов получает question_id, один вопрос, один repository-id, проверенный
+  checkout, полный Git SHA и непустые anchors. Identity, revision и чистоту worktree
+  основной агент проверяет до вызова, а не передаёт как декларативные флаги.
+- Новый или уточнённый вопрос всегда требует нового вызова. Независимые вызовы можно
+  выполнять параллельно только после подготовки полного входного контракта для каждого.
+- Каждый subagent ОБЯЗАН вернуть только один YAML-объект `repository_evidence` с
+  полями question_id, status, answer и evidence, без текста до или после YAML.
+  Paths, symbols и code inventory допустимы только в evidence; в Change основной
+  агент переносит только синтезированный constraint, conflict, implementation gap
+  или unknown.
+
+Основной агент сам читает Store-level context, выполняет Planning review и проверяет
+результаты scout. Отдельные context/planning subagents не используются.
 
 ## OpenSpec Graph lifecycle
 
