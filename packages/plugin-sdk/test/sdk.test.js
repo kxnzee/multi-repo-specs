@@ -306,6 +306,8 @@ test("contract validation uses the public Plugin API instead of instanceof", () 
     status: plugin.status.bind(plugin),
     canSync: plugin.canSync.bind(plugin),
     sync: plugin.sync.bind(plugin),
+    canExec: plugin.canExec.bind(plugin),
+    exec: plugin.exec.bind(plugin),
     hasAgentContribution: plugin.hasAgentContribution.bind(plugin),
     integrateAgent: plugin.integrateAgent.bind(plugin),
     hasCommandContribution: plugin.hasCommandContribution.bind(plugin),
@@ -315,5 +317,15 @@ test("contract validation uses the public Plugin API instead of instanceof", () 
   assert.deepEqual(
     assertPluginContract({ plugin: externalPlugin, packageManifest: SAMPLE_MANIFEST }),
     { id: "sample", commands: ["hello"] },
+  );
+  const withoutExec = Object.freeze(Object.fromEntries(
+    Object.entries(externalPlugin).filter(([method]) => method !== "exec"),
+  ));
+  assert.throws(
+    () => assertPluginContract({
+      plugin: withoutExec,
+      packageManifest: SAMPLE_MANIFEST,
+    }),
+    /не предоставляет метод exec/,
   );
 });

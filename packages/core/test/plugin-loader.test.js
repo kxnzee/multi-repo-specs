@@ -49,6 +49,8 @@ function externalPlugin(id = "external", calls = []) {
     status: untouched("status"),
     canSync: untouched("canSync"),
     sync: untouched("sync"),
+    canExec: untouched("canExec"),
+    exec: untouched("exec"),
     hasAgentContribution: untouched("hasAgentContribution"),
     integrateAgent: untouched("integrateAgent"),
     hasCommandContribution: untouched("hasCommandContribution"),
@@ -115,6 +117,26 @@ test("PluginLoader rejects invalid API and mismatched Plugin identity", async (t
       pluginId: "external",
     }),
     /не предоставляет метод supportsRole/,
+  );
+  const withoutCanExec = Object.freeze(Object.fromEntries(
+    Object.entries(externalPlugin()).filter(([method]) => method !== "canExec"),
+  ));
+  await assert.rejects(
+    new PluginLoader(async () => ({ default: withoutCanExec })).load({
+      packageRoot: root,
+      pluginId: "external",
+    }),
+    /не предоставляет метод canExec/,
+  );
+  const withoutExec = Object.freeze(Object.fromEntries(
+    Object.entries(externalPlugin()).filter(([method]) => method !== "exec"),
+  ));
+  await assert.rejects(
+    new PluginLoader(async () => ({ default: withoutExec })).load({
+      packageRoot: root,
+      pluginId: "external",
+    }),
+    /не предоставляет метод exec/,
   );
   await assert.rejects(
     new PluginLoader(async () => ({ default: { ...externalPlugin("external") } })).load({

@@ -78,3 +78,11 @@ test("subagent adapters preserve the canonical body and own only provider metada
     }
   }
 });
+
+test("Apply context uses the exact OpenSpec Graph scope blocker contract", async () => {
+  const relative = "skills/openspec-base-apply-context/SKILL.md";
+  const source = await fs.readFile(path.join(TEMPLATE_ROOT, relative), "utf8");
+
+  assert.match(source, /`missing_required_repositories`/, relative);
+  assert.doesNotMatch(source, /`missing_required`/, relative);
+});

@@ -53,7 +53,7 @@ Snapshot. Вернуть встроенному Apply исходные contextFi
 4. Для явно принятого `skip_specs` без Delta Specs зафиксировать Graph impact и scope как
    `not_applicable` и проверить Repository Impact/Tasks напрямую. Не создавать фиктивную
    Delta Spec.
-5. `missing_required`, `missing_delta_specs`, `unmapped_master_specs`,
+5. `missing_required_repositories`, `missing_delta_specs`, `unmapped_master_specs`,
    `included_review_repositories`, `extra_repositories` или неразрешённый review outside
    scope блокируют Apply. Review repositories не добавлять в implementation scope
    автоматически.

@@ -8,6 +8,7 @@
   ],
   "openspecOrchestrator": {
     "bundledPlugins": [
+      "@openspec-orch/plugin-change-tracking",
       "@openspec-orch/plugin-codegraph",
       "@openspec-orch/plugin-openspec-graph"
     ]
