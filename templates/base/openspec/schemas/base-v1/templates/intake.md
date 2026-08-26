@@ -106,11 +106,7 @@ PlantUML sequence diagram обязателен, когда взаимодейс�
 основание такого предположения. Нормативный Repository Impact принимается в Proposal.
 -->
 
-## 9. Verification Expectations
-
-<!-- Как команда продемонстрирует ожидаемый результат, включая применимые автотесты. Это не Tasks. -->
-
-## 10. Facts, Assumptions, Conflicts, and Open Questions
+## 9. Facts, Assumptions, Conflicts, and Open Questions
 
 ### Confirmed Facts
 
@@ -120,7 +116,7 @@ PlantUML sequence diagram обязателен, когда взаимодейс�
 
 ### Open Questions
 
-## 11. Exploration
+## 10. Exploration
 
 ### Status
 
@@ -142,7 +138,7 @@ PlantUML sequence diagram обязателен, когда взаимодейс�
 
 <!-- Источники, использованные именно во время Explore. -->
 
-## 12. Planning Route
+## 11. Planning Route
 
 <!--
 Ровно одно значение: ready_for_proposal | explore_recommended | blocked.

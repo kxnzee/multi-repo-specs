@@ -72,7 +72,7 @@ Intent уже согласован?
   ├─ explore_recommended → /opsx-explore → повторный Intake
   └─ blocked → решение владельца или нормативный источник
                          ↓
-Specs → Design → Tasks → Apply → Archive
+Specs → Design → Tasks → Apply → проверка текущей версии → Release → Archive
 ```
 
 Intake сначала использует подтверждённые выводы Intent и другие уже переданные ответы,
@@ -88,11 +88,12 @@ Intent-сессию и не заставляет пользователя вру
 - `specs/<capability>/spec.md` — наблюдаемое поведение и Scenarios;
 - `design.md` — решения на уровне системных границ, публичных контрактов, рисков,
   миграции и rollback;
-- `tasks.md` — проверяемый план реализации по затронутым Code Repositories.
+- `tasks.md` — проверяемый план реализации по затронутым Code Repositories и один
+  финальный checkpoint проверки текущей версии изменения.
 
 `intake.md` является первым artifact `base-v1` и prerequisite для Proposal. Он
 сохраняет источники, проблему, ожидаемый результат, предварительные границы,
-ограничения, сценарии, взаимодействия, ошибки, проверку и открытые вопросы. Для
+ограничения, сценарии, взаимодействия, ошибки и открытые вопросы. Для
 взаимодействия двух и более компонентов, внешней зависимости, асинхронного обмена или
 значимых error/degraded веток он содержит PlantUML sequence diagram; иначе раздел
 Interaction Diagram содержит краткое `Not applicable` с причиной.
@@ -433,6 +434,9 @@ CodeGraph evidence подтверждает только текущую реал
 - Repository Impact, Design и Tasks содержат одинаковый набор `repository-id` только
   для репозиториев с планируемыми изменениями;
 - каждый новый или изменённый Scenario имеет план проверки;
+- `tasks.md` завершается общей section `Проверка реализованного изменения` с
+  подтверждённым ответственным участником; её checkbox остаётся открытым до
+  фактической проверки текущей версии в целевом окружении;
 - закрыты решения, меняющие scope, Specs, Design или Tasks;
 - Владелец, Аналитик, Разработчик и Тестировщик приняли Planning; Лид подключён по
   риск-триггерам.
@@ -458,7 +462,9 @@ CodeGraph evidence подтверждает только текущую реал
 5. PR Review и repository-local CI проверяют код, тесты и соответствие принятому
    Change.
 6. Команда своим действующим процессом фиксирует точные implementation commits,
-   поставляемый artifact и результаты IFT/QA.
+   поставляемый artifact и результаты IFT/QA. После явного подтверждения ответственного
+   участника закрывается финальный checkpoint проверки в `tasks.md`; новый deployment
+   или новая версия снова делают его незавершённым до повторной проверки.
 7. Люди принимают Gate 2 и Gate 3 на подтверждённом evidence.
 8. Выполняются Release и штатный OpenSpec Archive.
 
@@ -547,6 +553,10 @@ Planning, ни OpenSpec Graph, ни Apply, ни внешние проверки.
      --result <pass|fail> --source <human|agent|ci>
    ```
 
+   После успешного результата ответственный участник явно подтверждает завершение
+   финального checkpoint проверки в `tasks.md`. Один только Snapshot или вызов
+   `verify` не закрывает этот checkbox.
+
 10. `openspec-orch status <change-id>` ОБЯЗАН показать текущий Cycle, Results,
     Snapshot, Verification Receipt и следующее действие. После этого люди принимают
     соответствующие Gate и Release-решение.
@@ -599,18 +609,21 @@ Delta Specs и перемещения Change.
 
 Перед Archive ОБЯЗАТЕЛЬНО:
 
-1. получить свежий authoritative OpenSpec Graph;
-2. выполнить `graph impact <change-id>` и проверить prerequisite Changes;
-3. проверить repository scope через `graph check-scope`:
+1. проверить, что финальный checkbox section `Проверка реализованного изменения`
+   завершён по явному подтверждению ответственного участника именно для текущей
+   версии, а блокирующие дефекты устранены и повторно проверены;
+2. получить свежий authoritative OpenSpec Graph;
+3. выполнить `graph impact <change-id>` и проверить prerequisite Changes;
+4. проверить repository scope через `graph check-scope`:
    - при существующем Cycle использовать точный набор его repositories;
    - при `CYCLE_NOT_FOUND` использовать только repository sections принятых Tasks,
      предусматривающие реальное изменение;
    - при принятом `skip_specs` пометить scope check как `not_applicable` и проверить
      repository sections напрямую;
-4. устранить missing, unmapped и extra repositories;
-5. review-кандидата добавить в scope только после подтверждения реального изменения и
+5. устранить missing, unmapped и extra repositories;
+6. review-кандидата добавить в scope только после подтверждения реального изменения и
    повторного Planning/Gate 1;
-6. через `openspec-graph-maintenance` проверить КАЖДУЮ directly changed Master
+7. через `openspec-graph-maintenance` проверить КАЖДУЮ directly changed Master
    Spec: `targets` показывает scope этого Change, но НЕ ЯВЛЯЕТСЯ постоянным mapping.
    Подтверждённый Repository, который остаётся местом реализации capability, ОБЯЗАН
    иметь явную `Master Spec → implemented_by → Repository`. Временный target,

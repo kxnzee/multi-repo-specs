@@ -37,7 +37,7 @@ artifacts:
       - the problem or opportunity, affected actors, Why Now, current observable
         behavior, expected outcome, scope, constraints, and success criteria;
       - known user and system scenarios, public interactions, access/security/data
-        constraints, failure and degraded behavior, and verification expectations;
+        constraints, and failure and degraded behavior;
       - a PlantUML sequence diagram when the Change involves two or more interacting
         components, an external dependency, asynchronous messaging, or meaningful
         error branches. Otherwise retain the Interaction Diagram section with a
@@ -235,7 +235,7 @@ artifacts:
 
   - id: tasks
     generates: tasks.md
-    description: Implementation checklist with trackable tasks
+    description: Implementation checklist with a final verification checkpoint
     template: tasks.md
     instruction: |
       Create the task list that breaks down the implementation work.
@@ -250,13 +250,23 @@ artifacts:
       Guidelines:
       - Group related tasks under ## numbered headings
       - Each task MUST be a checkbox: `- [ ] X.Y Task description`
-      - Tasks should be small enough to complete in one session
+      - Implementation tasks should be small enough to complete in one session
       - Order tasks by dependency (what must be done first?)
-      - Each task MUST state how to verify completion (a test, command,
-        observable behavior, or delivered artifact). Put the verification in
-        that task's checkbox description. Use a separate verification task only
-        when it checks broader integration or system behavior that spans
+      - Each implementation task MUST state how to verify completion (a test,
+        command, observable behavior, or delivered artifact). Put that check in
+        the task's checkbox description. Add any other separate verification task
+        only when it checks broader integration or system behavior that spans
         multiple implementation tasks.
+      - Finish every task list with exactly one shared, numbered section named
+        `Проверка реализованного изменения`. Its only checkbox MUST use this text,
+        with the next numeric task identifier:
+        `Получить подтверждение, что текущая версия изменения успешно проверена в
+        целевом окружении по принятым сценариям, а все блокирующие дефекты устранены
+        и повторно проверены.` Assign the section to the responsible participant
+        confirmed during Planning. This is an external checkpoint, not an
+        implementation action: never mark it complete in advance or solely from
+        agent reasoning. A new version or deployment after confirmation makes the
+        checkpoint incomplete again until that version is verified.
 
       Example:
       ```
@@ -269,6 +279,10 @@ artifacts:
 
       - [ ] 2.1 Implement data export function and verify the export test passes
       - [ ] 2.2 Add CSV formatting utilities and verify unit tests cover quoting and delimiters
+
+      ## 3. Проверка реализованного изменения — Ответственный: <подтверждённый участник>
+
+      - [ ] 3.1 Получить подтверждение, что текущая версия изменения успешно проверена в целевом окружении по принятым сценариям, а все блокирующие дефекты устранены и повторно проверены.
       ```
 
       Reference specs for what needs to be built, design for how to build it.
@@ -281,4 +295,6 @@ apply:
   tracks: tasks.md
   instruction: |
     Read context files, work through pending tasks, mark complete as you go.
-    Pause if you hit blockers or need clarification.
+    Pause if you hit blockers or need clarification. Never perform or complete
+    the final external verification checkpoint on behalf of its responsible
+    participant; leave it pending until explicit confirmation is supplied.

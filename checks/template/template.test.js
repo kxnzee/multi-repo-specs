@@ -122,3 +122,19 @@ test("configured OpenSpec schema has a closed acyclic artifact graph", async () 
   }
   assertAcyclic(schema.artifacts);
 });
+
+test("base-v1 keeps verification as one final external task checkpoint", async () => {
+  const schemaRoot = path.join(TEMPLATE_ROOT, "openspec/schemas/base-v1");
+  const schema = parse(await fs.readFile(path.join(schemaRoot, "schema.yaml"), "utf8"));
+  const intake = await fs.readFile(path.join(schemaRoot, "templates/intake.md"), "utf8");
+  const tasks = await fs.readFile(path.join(schemaRoot, "templates/tasks.md"), "utf8");
+  const taskInstruction = schema.artifacts.find(({ id }) => id === "tasks")?.instruction ?? "";
+
+  assert.equal(intake.includes("Verification Expectations"), false);
+  assert.match(taskInstruction, /Проверка реализованного изменения/);
+  assert.equal(tasks.match(/^## \d+\. Проверка реализованного изменения/gmu)?.length, 1);
+  assert.equal(
+    tasks.match(/^- \[ \] \d+\.\d+ Получить подтверждение, что текущая версия изменения успешно проверена/gmu)?.length,
+    1,
+  );
+});
