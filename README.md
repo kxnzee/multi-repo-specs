@@ -301,7 +301,6 @@ relaxed behavior описаны в [справочнике конфигурац�
 - [пользовательская документация](docs/user/README.md);
 - [командный процесс](docs/user/team-flow.md);
 - [техническая документация](docs/technical/README.md);
-- [текущий backlog](BACKLOG.md);
 - [исторический reference](docs/archive/README.md).
 
 Проверки разделены по владельцам:

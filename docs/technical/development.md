@@ -21,13 +21,12 @@ Non-code suite обнаруживается по `checks/<suite>/*.test.js` в r
 
 ## Правила изменения Core
 
-Core не заморожен. Изменение допустимо, если:
+Изменение Core должно сохранять его generic boundary:
 
 - принят product intent и public contract;
 - выбран минимальный coherent implementation;
 - generic Core не получает Plugin-specific grammar или методы;
-- observable behavior защищено regression tests;
-- идеи без принятого решения остаются в `BACKLOG.md`.
+- observable behavior защищено regression tests.
 
 Новый first-party Plugin регистрируется в composition root, но его domain остается в
 собственном package. Изменение Plugin lifecycle или public SDK требует проверки Core
