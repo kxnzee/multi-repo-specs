@@ -1,107 +1,69 @@
 # OpenSpec Orchestrator
 
-OpenSpec Orchestrator сохраняет два факта multi-repo Change:
+OpenSpec Orchestrator — локальный CLI для подготовки OpenSpec Store, подключения
+нескольких Code Repositories и установки проектного процесса и Plugins без переноса
+их логики в Core.
 
-- Cycle — какая версия планирования и какие Code Repositories приняты в работу;
-- Snapshot — какой точный набор коммитов был проверен вместе.
+## Архитектура
 
-## Что это за приложение
+| Слой | Ответственность |
+|---|---|
+| OpenSpec | Changes, Specs, schema, Planning artifacts, Apply и Archive |
+| Orchestrator Core | `init`, `connect`, repository routing, Git/OpenSpec checks и Plugin lifecycle |
+| Project Template | Проектные правила, schema, context, agent commands, skills и required Plugins |
+| Plugin | Собственные CLI-команды, repository lifecycle, MCP/agent integration и Plugin Template |
 
-OpenSpec Orchestrator — локальный CLI для координации одного изменения сразу в
-нескольких репозиториях. Он работает поверх OpenSpec и Git: связывает центральный
-Store со спецификациями и Code Repositories, фиксирует принятую версию планирования,
-результаты реализации и проверенный набор коммитов.
+Core не планирует Change, не интерпретирует требования и не запускает Jira, Zephyr,
+CI, deployment или ручное тестирование. Он также не выполняет `git add`, `commit`,
+`push`, `merge` или `rebase`. Эти действия остаются в действующем процессе команды.
 
-## Чем оно поможет команде
+## Base Project Template
 
-- все участники работают от одной принятой версии Change и одного списка затронутых
-  репозиториев;
-- для каждого репозитория сохраняется точный коммит результата, поэтому реализацию
-  можно однозначно сопоставить с планированием;
-- общий Snapshot показывает, какие версии нескольких репозиториев были проверены
-  вместе, и снижает риск проверить или выпустить несовместимую комбинацию;
-- `status` даёт воспроизводимую картину прогресса и следующего действия после смены
-  сессии или перезапуска процесса;
-- проверки конфигурации, Git-состояния и OpenSpec Store раньше обнаруживают ошибки
-  подключения и рассинхронизацию рабочего окружения.
+Без `--template` команда `openspec-orch init` использует
+[`templates/base/`](templates/base/). Template устанавливает:
 
-## Базовый Project Template
+- agent mappings для Qwen, GigaCode и Claude;
+- project-local schema `base-v1`:
+  `intake → proposal → specs → design → tasks`;
+- опросник `/openspec-base-intake`, который сам собирает `intake.md` и после него
+  предлагает Explore, Proposal либо дополнительное уточнение;
+- project context в `openspec/context/` и команду `/openspec-base-context` для
+  `initialize`, read-only `audit` и подтверждаемого `update`;
+- skills `base-intent`, `openspec-base-meta-planning`,
+  `openspec-base-apply-context` и `openspec-base-test-cases`;
+- один ограниченный read-only subagent
+  `openspec-base-repository-evidence-scout`;
+- обязательный Plugin `openspec-graph` через `requires.plugins`.
 
-Встроенный Template из `templates/base/` задаёт единый стартовый процесс команды и
-применяется командой `openspec-orch init`, если не передан собственный `--template`.
-Он дополняет официальный agent pack OpenSpec проектными файлами:
+`openspec-base-test-cases` может сформировать тест-кейсы из принятых Requirements и
+Scenarios, в том числе нейтральную структуру для последующего переноса в Zephyr. Он
+ничего не загружает и не считает проверку выполненной без внешнего evidence.
 
-- инструкциями и нативными mapping для Qwen, GigaCode и Claude;
-- project-local schema `base-v1`, которая мягко расширяет штатный `spec-driven`
-  обязательным `intake.md` перед Proposal;
-- командой-опросником `/openspec-base-intake`, которая собирает ответы в `intake.md`
-  и предлагает Explore только при исследуемом недостатке контекста;
-- правилами подготовки и проверки Intake, Proposal, Delta Specs, Design и Tasks;
-- единым meta-skill `openspec-base-meta-planning`, четырьмя leaf-skills для Intent,
-  Apply-контекста, обслуживания OpenSpec Graph и тест-кейсов, одним ограниченным
-  read-only subagent и project commands `/openspec-base-intake` и
-  `/openspec-base-context`;
-- структурой долговечного контекста проекта: продукт, доменная модель, архитектура,
-  безопасность, quality gates и release process;
-- командой обновления проектного контекста без переноса прикладного кода в Store.
+Каждый `tasks.md` завершается общим checkpoint:
 
-Это даёт команде одинаковые правила планирования и реализации во всех новых Store,
-оставляя их обычными версионируемыми Markdown/YAML-файлами. Template используется
-только во время `init`: после установки Core не зависит от его исходного каталога и
-не изменяет встроенные команды или skills OpenSpec. Заготовки контекста нужно
-заполнить фактами конкретного проекта до использования в рабочем Change.
+```markdown
+## N. Проверка реализованного изменения — Ответственный: <участник>
 
-Единственный project subagent — `openspec-base-repository-evidence-scout`.
-`openspec-base-meta-planning` и `/openspec-base-context` могут вызвать только его и
-только для одного точного current-state claim в одном `repository-id` на проверенной
-Git revision. Остальные skills являются leaf-артефактами. Агент не ищет репозитории
-за пределами переданного workspace. Иерархию Store, Repository, Master Spec, Change
-и Delta Spec строит отдельный Store-only OpenSpec Graph Plugin; в строгом
-`openspec/graph.yaml` объявляются только связи, которые нельзя вывести из OpenSpec.
-Plugin не пересекается с CodeGraph. Новые Scenario ID имеют формат
-`<change-id>-<index>`.
-
-Основные project commands запускаются в агенте из корня Store:
-
-```text
-/openspec-base-intake <change-id>
-/openspec-base-context audit --change <change-id>
-/openspec-base-context audit --spec <capability-path>
-/openspec-base-context audit --domain <domain-path>
+- [ ] N.1 Получить подтверждение, что текущая версия изменения успешно проверена в целевом окружении по принятым сценариям, а все блокирующие дефекты устранены и повторно проверены.
 ```
 
-Intake-команда задаёт по одному вопросу и сама собирает `intake.md`. Context-команда
-в режиме audit ничего не записывает: она разрешает точные Master Specs, предлагает
-context/ADR candidates и показывает, требуется ли отдельный update с подтверждением.
-Post-Archive context audit является необязательным и не изменяет Master Specs.
+Агент не закрывает этот пункт самостоятельно. Новая версия или deployment после
+подтверждения снова делают его незавершённым. Archive дополнительно требует
+фактический Release; отдельный verification artifact в schema не создаётся.
 
-Текущая версия рассчитана на одного инженера, одну машину, один Store и локальные checkout
-Code Repositories. Она не планирует Change, не запускает агента или тесты, не делает
-checkout и не выполняет `git add`, `commit`, `push`, `merge` или `rebase`.
-
-Документация:
-
-- [пользователям](docs/user/README.md) — что читать и как пройти командный процесс;
-- [разработчикам Orchestrator](docs/technical/README.md) — контракт и устройство текущей версии;
-- [архив](docs/archive/README.md) — единственный защищённый исторический reference;
-  остальные неактуальные материалы доступны только в Git history.
-
-Нормативный [контракт Core и Change Tracking](docs/technical/product-contract.md)
-находится в технической документации. Кандидаты развития
-собраны в [BACKLOG.md](BACKLOG.md).
+Base Template применяется только во время `init`. Установленные файлы принадлежат
+Store и не обновляются из исходного каталога автоматически. Custom Project Template
+полностью заменяет Base Template, а не сливается с ним.
 
 ## Требования и локальная установка
 
 - Node.js `20.19.0+`;
-- npm (для установки dependencies пользовательских Plugin Packages);
+- npm;
 - Git;
-- OpenSpec CLI `1.10.0` для `init` и `connect`.
+- OpenSpec CLI, чей `--version` возвращает semantic version; minimum и exact pin Core
+  не задаёт.
 
-Пакеты стандартной поставки устанавливаются как dependencies Orchestrator и владеют
-собственными runtime dependencies. Их исходники и документация находятся в
-каталоге [`plugins/`](plugins/).
-
-Из корня этого репозитория:
+Из корня репозитория:
 
 ```bash
 npm install
@@ -111,76 +73,188 @@ openspec-orch --help
 ```
 
 После смены активной версии Node.js через NVM выполните `npm link` повторно. Без
-регистрации в `PATH` CLI можно запустить как
-`node /absolute/path/to/multi-repo-specs/bin/openspec-orch.js`.
+регистрации в `PATH` CLI можно вызвать так:
 
-## Публичный CLI
+```bash
+node /absolute/path/to/multi-repo-specs/bin/openspec-orch.js --help
+```
+
+## Инициализация проекта
+
+Пример создания Store с двумя Code Repositories:
+
+```bash
+openspec-orch init /absolute/path/to/workspace/specs \
+  --store specs \
+  --agent qwen \
+  --repo frontend=ssh://git.example.org/product/frontend.git#main \
+  --repo backend=ssh://git.example.org/product/backend.git#main
+
+cd /absolute/path/to/workspace/specs
+openspec-orch connect
+openspec-orch repository status
+```
+
+Base Template устанавливает required Plugin `openspec-graph`, но binding с Store и
+первый индекс создаются явно:
+
+```bash
+openspec-orch plugin connect openspec-graph --repo specs
+openspec-orch graph build
+openspec-orch graph status --json
+```
+
+`plugin connect` не строит Graph автоматически. Последующие Graph-dependent шаги
+сначала проверяют status и при необходимости явно перестраивают индекс.
+
+Для нестандартной раскладки workspace задаётся один раз:
+
+```bash
+openspec-orch connect --workspace /absolute/path/to/workspace
+```
+
+Локальный путь сохраняется в `.openspec-orch/state.json`. `connect` может клонировать
+отсутствующие Code Repositories в strict mode, но не обновляет существующие checkout.
+`repository status` ничего не исправляет и не выполняет сетевых операций.
+
+## Пользовательский путь Change
+
+```text
+согласованный Intent
+→ Intake
+→ при необходимости Explore
+→ Proposal → Specs → Design → Tasks
+→ Gate 1
+→ Apply
+→ PR → Review → Merge → Deploy
+→ проверка текущей версии и закрытие финального checkpoint в tasks.md
+→ Release
+→ Archive
+→ необязательный context/ADR audit
+```
+
+### 1. Intent и Intake
+
+Если Jira Story или другой принятый источник уже содержит изменение, Why Now,
+ожидаемый результат, критерии успеха и ограничения, повторно проходить `base-intent`
+не нужно. Иначе сначала сформируйте с ним Daily Intent Brief.
+
+Из корня Store запустите в агенте:
+
+```text
+/openspec-base-intake <change-id>
+```
+
+Команда задаёт по одному недостающему вопросу и сама создаёт или продолжает
+`intake.md`. Результат Intake содержит один маршрут:
+
+- `ready_for_proposal` — продолжить штатное OpenSpec Planning;
+- `explore_recommended` — выполнить `/opsx-explore`, затем повторить Intake для
+  сохранения findings и нового решения;
+- `blocked` — получить недостающее решение или нормативный источник.
+
+### 2. Planning и Apply
+
+Proposal, Delta Specs, Design и Tasks создаются штатным OpenSpec workflow. Перед
+встроенным Apply агент использует `openspec-base-apply-context`: проверяет Graph и
+Repository Impact, затем передаёт управление OpenSpec Apply.
+
+Без Change Tracking используется Standard Apply. Его отсутствие не является ошибкой
+и не приводит к автоматической установке Plugin.
+
+### 3. Проверка, Release и Archive
+
+PR, deployment, Jira/Zephyr, QA и работа с дефектами выполняются внешним процессом
+команды. После проверки текущей версии ответственный участник явно подтверждает
+финальный checkpoint в `tasks.md`. Пока он открыт, блокирующие дефекты не устранены
+или была развёрнута новая непроверенная версия, Archive запрещён.
+
+После фактического Release выполняется штатный `/opsx-archive`. Затем можно запустить
+необязательный read-only audit долговечного контекста:
+
+```text
+/openspec-base-context audit --change <change-id>
+/openspec-base-context audit --spec <capability-path>
+/openspec-base-context audit --domain <domain-path>
+```
+
+Запись context или ADR выполняется только режимом `update`, после показа конкретного
+diff и отдельного подтверждения пользователя.
+
+## Plugins
+
+Стандартная поставка содержит три независимых Plugin:
+
+| Plugin | Назначение | Scope |
+|---|---|---|
+| `openspec-graph` | Store-level связи Repository, Master Spec, Change и Delta Spec | Store |
+| `codegraph` | Локальная навигация по файлам и symbols реализации | Code Repository |
+| `change-tracking` | Cycle, Result Receipts, Snapshot и Verification Receipt | Store и выбранные Code Repositories |
+
+OpenSpec Graph обязателен только для Base Template. CodeGraph и Change Tracking
+подключаются по решению команды. Template и Core продолжают работать без них в
+доступном Standard flow.
+
+```bash
+openspec-orch plugin init --plugin codegraph
+openspec-orch plugin connect codegraph --repo frontend --repo backend
+openspec-orch plugin status --plugin codegraph
+openspec-orch plugin sync codegraph --all
+```
+
+Если Plugin содержит `template/`, Core автоматически применяет его тем же безопасным
+copy engine во время `plugin init`. Plugin не обязан реализовывать точечное копирование
+в `index.js`. При `plugin remove` доставленные файлы не удаляются автоматически: CLI
+показывает пользователю их paths для ручной очистки при необходимости.
+
+Change Tracking является необязательным расширением Apply. После его установки и
+подключения Base skill передаёт plugin-owned `change-tracking-apply-context` проверки
+Cycle, а затем продолжает общий Graph preflight. Команды расширения:
+
+```text
+openspec-orch assign <change-id> --repo <repository-id>...
+openspec-orch status <change-id> [--json]
+openspec-orch record assignment <change-id> --repo <repository-id> --commit <sha> --status <completed|failed|blocked> --source <human|agent|ci>
+openspec-orch verify <change-id>
+openspec-orch record verification <change-id> --result <pass|fail> --source <human|agent|ci>
+```
+
+`verify` вычисляет точный Snapshot, но не запускает тесты. Результат внешней проверки
+записывается отдельно и не заменяет человеческое подтверждение финального checkpoint
+в `tasks.md`.
+
+Подробнее: [Plugins](docs2/user/plugins.md),
+[OpenSpec Graph](plugins/openspec-graph/README.md) и
+[Project Template](docs2/user/project-template.md).
+
+## Публичный Core CLI
 
 ```text
 openspec-orch init [path] --store <id> --agent <id> [--template <path>] [--repo <id=remote#branch>]...
 openspec-orch connect [--workspace <path>]
-openspec-orch plugin init [--plugin <plugin-id>]... [--from <source>]...
+openspec-orch repository status [--repo <repository-id>]...
+
+openspec-orch plugin register <plugin-id> [path] [--profile <commands|repository|native>] [--support <store|code>]... [--template]
+openspec-orch plugin init [--plugin <plugin-id>] [--from <source>] [--all]
 openspec-orch plugin connect <plugin-id> [--repo <repository-id>]... [--all]
 openspec-orch plugin status [--plugin <plugin-id>] [--repo <repository-id>] [--json]
 openspec-orch plugin sync <plugin-id> [--repo <repository-id>]... [--all]
 openspec-orch plugin exec <plugin-id> [--repo <repository-id>]... [--all] -- <command> [args...]
 openspec-orch plugin disconnect <plugin-id> [--repo <repository-id>]... [--all]
 openspec-orch plugin remove <plugin-id>
-openspec-orch plugin register <plugin-id> [path]
-openspec-orch <plugin-id> <plugin-command> [args...]
-openspec-orch graph build
-openspec-orch graph status [--json]
-openspec-orch graph impact <change-id>
-openspec-orch graph check-scope <change-id> --repo <repository-id>...
-openspec-orch graph inspect <node-id>
-openspec-orch graph view [--port <port>]
-openspec-orch repository status [--repo <repository-id>]...
-openspec-orch assign <change-id> --repo <repository-id>...
-openspec-orch status <change-id> [--json]
-openspec-orch record assignment <change-id> --repo <repository-id> --commit <sha> --status <completed|failed|blocked> --source <human|agent|ci> [--note <text>]
-openspec-orch verify <change-id>
-openspec-orch record verification <change-id> --result <pass|fail> --source <human|agent|ci> [--note <text>]
 ```
 
-`init` использует необязательный `--template` для начальной установки проектных
-файлов. Agent mapping принадлежит Template; Core сохраняет в `openspec-orch.yaml`
-только зарегистрированный Agent ID, необходимый Plugin для установки MCP и
-инструкций. Handoff Core не хранит и не выполняет.
-Поддерживаемые значения `--agent` и их нативные пути перечислены в едином
-[справочнике агентов](docs/user/supported-agents.md).
+Plugin может добавить собственный namespace, например `openspec-orch graph ...` или
+`openspec-orch <plugin-id> <command>`. Фактическую grammar показывает `--help` после
+установки Plugin.
 
-Команды `assign`, `record assignment` и `record verification` сначала показывают
-preview и требуют интерактивного подтверждения. Отказ пользователя ничего не
-записывает. Единая JSON-оболочка всех команд и неинтерактивные confirmation token в
-текущую версию не входят; read-only `status` и `plugin status` имеют собственный
-`--json`. Без него status-команды показывают компактный человекочитаемый отчёт с
-маркерами `✓`, `⚠` и `✗`; JSON предназначен для CI и агентной обработки.
+Progress пишется в `stderr`, поэтому не загрязняет JSON и raw stdout. Exit codes:
+`0` — успех или отказ от подтверждаемой записи, `1` — ошибка выполнения/проверки,
+`2` — неверный вызов CLI.
 
-Долгие операции показывают progress сразу: в интерактивном терминале это spinner,
-а при перенаправлении и в CI — обычные строки. Progress и диагностические статусы
-пишутся в `stderr`, поэтому не загрязняют `stdout` команд с `--json` и raw-вывод
-`plugin exec`. После `plugin connect` и `plugin sync` CLI повторно вызывает текущий
-Plugin status и печатает подтверждённое состояние для каждого выбранного repository.
+## Конфигурация
 
-Коды завершения: `0` — успех или отказ от preview, `1` — ошибка проверки или
-выполнения, `2` — неверный вызов CLI.
-
-## Workspace и конфигурация
-
-Стандартная раскладка:
-
-```text
-<workspace>/
-├── <store-id>/
-│   ├── openspec-orch.yaml
-│   ├── openspec/
-│   └── .openspec-orch/
-└── src/
-    ├── frontend/
-    └── backend/
-```
-
-Минимальная конфигурация проекта:
+Минимальный `openspec-orch.yaml` после `init`:
 
 ```yaml
 version: 1
@@ -202,121 +276,43 @@ repositories:
     remote: ssh://git.example.org/product/frontend.git
     default_branch: main
     plugins: []
-  - id: backend
-    roles: [code]
-    remote: ssh://git.example.org/product/backend.git
-    default_branch: main
-    plugins: []
 ```
 
-Base Project Template объявляет `openspec-graph` обязательным расширением. `init`
-разрешает его через distribution catalog, устанавливает обычным Plugin lifecycle и
-фиксирует `required: true`; Core при этом не содержит условий по Plugin ID.
+Binding Plugin записывается в `repositories[].plugins`. Точный контракт и strict/
+relaxed behavior описаны в [справочнике конфигурации](docs2/user/configuration.md).
 
-Точный формат описан в [справочнике `openspec-orch.yaml`](docs/user/configuration.md).
-Секреты в URL и поля предыдущего прототипа `role`, `url`, `agent`, `handoffs`
-отклоняются строгой схемой.
-
-Для стандартной раскладки выполните из Store:
-
-```bash
-openspec-orch connect
-openspec-orch repository status
-```
-
-Для нестандартной раскладки путь задаётся один раз и сохраняется только локально в
-`.openspec-orch/state.json`:
-
-```bash
-openspec-orch connect --workspace /absolute/path/to/workspace
-```
-
-`connect` может клонировать отсутствующие Code Repositories, но не обновляет уже
-существующие checkout. `repository status` только читает локальное состояние и не
-выполняет сетевых или исправляющих операций.
-
-## Минимальный поток одного Change
-
-Сначала подтвердите Intent. Если уже есть принятый Daily Intent Brief или Jira Story
-с явными изменением, Why Now, ожидаемым улучшением, критериями успеха и ограничениями,
-повторно запускать `base-intent` не нужно. Иначе сначала пройдите `base-intent`; он
-ничего не записывает, поэтому при переходе в новую сессию передайте полученный Brief.
-
-Затем из корня Store запустите в агенте `/openspec-base-intake <change-id>`. Команда
-использует подтверждённый Intent, не переспрашивает уже закрытые вопросы и сама
-создаст или продолжит Change по schema `base-v1`, проведёт опрос и запишет
-содержательный `intake.md`. После `ready_for_proposal` продолжите штатным OpenSpec;
-при `explore_recommended` сначала выполните `/opsx-explore`, затем повторно запустите
-Intake-команду для сохранения findings и пересмотра Planning Route.
-
-После принятия Proposal, Delta Specs, Design и Tasks убедитесь, что Store чист. Затем:
-
-```bash
-cd /absolute/path/to/workspace/specs
-openspec-orch assign checkout-flow --repo frontend --repo backend
-```
-
-Проверьте preview и подтвердите запись. CLI создаст только Cycle Record. Его нужно
-закоммитить обычным процессом команды:
-
-```bash
-git status --short
-git add .openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json
-git commit -m "openspec: assign checkout-flow cycle"
-openspec-orch status checkout-flow
-```
-
-После появления чистых коммитов реализации запишите Result Receipts. Команду можно
-выполнить из Store либо из каталога Code Repository с подключённым OpenSpec pointer:
-
-```bash
-FRONTEND_SHA=$(git -C /absolute/path/to/workspace/src/frontend rev-parse HEAD)
-BACKEND_SHA=$(git -C /absolute/path/to/workspace/src/backend rev-parse HEAD)
-
-openspec-orch record assignment checkout-flow \
-  --repo frontend --commit "$FRONTEND_SHA" --status completed --source human
-openspec-orch record assignment checkout-flow \
-  --repo backend --commit "$BACKEND_SHA" --status completed --source human
-```
-
-`record assignment` проверяет текущий закоммиченный Cycle, принадлежность
-repository-id и существование commit в локальном checkout. Повторная запись той же
-пары заменяет текущий Receipt после предупреждения, сохраняя предыдущий в локальной
-истории.
-
-Когда каждый репозиторий имеет текущий `completed` Receipt, вычислите Snapshot:
-
-```bash
-openspec-orch verify checkout-flow
-```
-
-CLI выведет `snapshot_id` и точные SHA. Он не запускал проверки: выполните их вне
-Orchestrator именно на этих версиях, затем зафиксируйте результат:
-
-```bash
-openspec-orch record verification checkout-flow --result pass --source human
-openspec-orch status checkout-flow
-```
-
-Итоговый `status` показывает Cycle, результаты каждого репозитория, текущий Snapshot,
-Verification Receipt и следующее действие `готово`.
-
-## Хранение данных
+## Локальные и версионируемые данные
 
 | Данные | Расположение | Git |
 |---|---|---|
-| Config | `openspec-orch.yaml` | да |
-| Cycle Records | `.openspec-orch/changes/<base64url-change-id>.json` | да |
-| Локальный workspace Core | `.openspec-orch/state.json` | нет, mode `0600` |
-| Receipts и Snapshots Change Tracking | `.openspec-orch/plugins/change-tracking/state.json` | нет, mode `0600` |
+| Project config | `openspec-orch.yaml` | да |
+| Specs, Changes и установленный Template | `openspec/`, agent files | да |
+| Cycle Records Change Tracking | `.openspec-orch/changes/*.json` | да |
+| Локальный workspace Core | `.openspec-orch/state.json` | нет |
+| Plugin state | `.openspec-orch/plugins/<plugin-id>/state.json` | нет |
 | Runtime внешних Plugins | `.openspec-orch/cache/plugin-runtimes/<plugin-id>/` | нет |
-| Specs и Changes | `openspec/` | да, владелец — OpenSpec |
 
-Core state и Plugin state проверяются при каждом чтении и записываются атомарно.
-Изменяющие их команды используют локальные межпроцессные locks и безопасно отказывают
-при конкурирующей записи. Повреждённое или неподдерживаемое состояние не
-перезаписывается автоматически. Потеря Change Tracking state не уничтожает Cycle:
-`status` восстановит его из Git и честно покажет результаты как `missing`.
+Локальное состояние валидируется при чтении и записывается атомарно. Повреждённое
+состояние не исправляется и не перезаписывается автоматически.
 
-Разработка и устройство Core описаны отдельно в
-[технической документации](docs/technical/development.md).
+## Документация и разработка
+
+- [вся актуальная документация](docs2/README.md);
+- [пользовательская документация](docs2/user/README.md);
+- [командный процесс](docs2/user/team-flow.md);
+- [техническая документация](docs2/technical/README.md);
+- [текущий backlog](BACKLOG.md);
+- [исторический reference](docs/archive/README.md).
+
+Проверки разделены по владельцам:
+
+```bash
+npm run lint
+npm run test:code
+npm run check:template
+npm run check:agent-artifacts
+npm run check
+```
+
+`test:code` проверяет Core, SDK, Plugins и integration-код. Template и agent artifacts
+проверяются отдельными suites и не связывают расширяемый Template с Core tests.
