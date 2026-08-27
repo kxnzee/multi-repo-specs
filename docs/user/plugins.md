@@ -11,8 +11,9 @@ CLI grammar, Agent integration и собственный Template, не изме
 | `openspec-graph` | Store | Required в Base Template | Компилирует и проверяет текущий граф Store/Repositories/Master Specs/Changes/Delta Specs |
 | `change-tracking` | Store | Опциональный | Фиксирует Cycle, Results, Snapshot и результат проверки точного multi-repository candidate |
 | `codegraph` | Code Repository | Опциональный | Управляет repository-local CodeGraph index, native CLI passthrough и MCP/agent integration для навигации по коду |
+| `mcp-connector` | Store/Agent | Опциональный | Декларативно синхронизирует MCP servers с settings зарегистрированного Agent |
 
-Все три package поставляются как dependencies дистрибутива. Required означает
+Все четыре package поставляются как dependencies дистрибутива. Required означает
 зависимость активного Project Template, а не встроенную бизнес-логику Core.
 
 ## OpenSpec Graph
@@ -91,6 +92,52 @@ argv native runtime через package-owned launcher в cwd выбранног�
 изменяется.
 
 Plugin умеет устанавливать integration для Qwen, Claude и GigaCode.
+
+## MCP Connector
+
+MCP Connector нужен, когда новый MCP следует добавить только в settings Agent. Один
+Plugin обслуживает любое количество серверов: для следующего MCP добавляется запись в
+`mcp-connector.yaml`, новый npm package и Plugin-код не нужны.
+Готовая заготовка находится в
+[`plugins/mcp-connector/examples/mcp-connector.yaml`](../../plugins/mcp-connector/examples/mcp-connector.yaml).
+
+```yaml
+version: 1
+servers:
+  company-search:
+    agents: [qwen, gigacode, claude]
+    settings:
+      command: company-search-mcp
+      args: [--stdio]
+    context: |
+      Используй `company-search` для поиска внутренних сервисов.
+      Не изменяй данные без явного запроса пользователя.
+  internal-docs:
+    settings:
+      url: http://mcp.internal.example/mcp
+```
+
+`settings` — непрозрачный JSON-совместимый object. Его формат определяет Agent/MCP,
+поэтому Connector одинаково переносит stdio, HTTP и дополнительные поля. Необязательный
+`context` содержит Markdown-инструкцию по использованию server. `agents` необязателен;
+без него server и context применяются ко всем зарегистрированным Agent.
+
+```bash
+openspec-orch plugin init --plugin mcp-connector
+openspec-orch mcp status
+openspec-orch mcp apply
+openspec-orch plugin remove mcp-connector
+```
+
+`plugin init` сразу выполняет apply. Для Qwen используется `.qwen/settings.json`, для
+GigaCode — `.gigacode/settings.json`, для Claude — `.mcp.json`. Connector сохраняет
+остальные поля и чужие `mcpServers`, владеет только записанными им entries и не
+перезаписывает конфликт или ручное изменение. Удаление server из YAML и последующий
+`mcp apply` удаляют его owned entry; `plugin remove` удаляет все owned entries текущего
+Agent. Ownership state хранится локально в Plugin storage, а status не печатает
+`settings` и secrets. Context собирается в отдельный managed block в `QWEN.md`,
+`GIGACODE.md` или `CLAUDE.md`; остальной текст сохраняется, а изменённый вручную block
+не перезаписывается.
 
 ## Общий lifecycle
 

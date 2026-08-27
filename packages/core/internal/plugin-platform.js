@@ -71,11 +71,19 @@ export class PluginPlatform {
         if (scope === "current" && !invocation) {
           throw new Error("PLUGIN_COMMAND_CONTEXT_UNAVAILABLE: текущий Repository не определён");
         }
+        const loadedPlugin = registry.require(pluginId);
+        if (
+          !requireBinding &&
+          scope === "store" &&
+          !loadedPlugin.plugin.hasRepositoryContribution()
+        ) {
+          return contextFactory.forStoreSetup({ loadedPlugin, storeProject });
+        }
         const createContext = requireBinding
           ? contextFactory.forRepository.bind(contextFactory)
           : contextFactory.forRepositorySetup.bind(contextFactory);
         return createContext({
-          loadedPlugin: registry.require(pluginId),
+          loadedPlugin,
           storeProject,
           repositoryId: scope === "store" ? storeProject.store.id : invocation.id,
           invocation,

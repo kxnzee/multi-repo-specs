@@ -89,12 +89,29 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     configuration.serializeProject(project),
   );
   await fs.writeFile(path.join(storeRoot, "openspec/config.yaml"), "schema: spec-driven\n");
+  await fs.writeFile(path.join(storeRoot, "mcp-connector.yaml"), [
+    "version: 1",
+    "servers:",
+    "  company-search:",
+    "    agents: [qwen]",
+    "    settings:",
+    "      command: company-search-mcp",
+    "      args: [--stdio]",
+    "    context: Use company-search for internal service discovery.",
+    "",
+  ].join("\n"));
+  await fs.mkdir(path.join(storeRoot, ".qwen"));
+  await fs.writeFile(path.join(storeRoot, ".qwen/settings.json"), `${JSON.stringify({
+    theme: "dark",
+    mcpServers: { existing: { command: "existing-mcp" } },
+  }, null, 2)}\n`);
   await initializeGitRepository(storeRoot);
   await initializeGitRepository(codeRoot);
 
   const graphSeed = path.join(storeRoot, "openspec/graph.yaml");
   await assert.rejects(fs.access(graphSeed), { code: "ENOENT" });
   await runCli(storeRoot, "plugin", "init", "--plugin", "change-tracking");
+  await runCli(storeRoot, "plugin", "init", "--plugin", "mcp-connector");
   await runCli(storeRoot, "plugin", "init", "--plugin", "codegraph");
   await runCli(storeRoot, "plugin", "init", "--plugin", "openspec-graph");
   await runCli(storeRoot, "plugin", "connect", "openspec-graph", "--repo", "specs");
@@ -108,7 +125,12 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
   );
 
-  assert.deepEqual(configured.plugins, ["change-tracking", "codegraph", "openspec-graph"]);
+  assert.deepEqual(configured.plugins, [
+    "change-tracking",
+    "codegraph",
+    "mcp-connector",
+    "openspec-graph",
+  ]);
   assert.deepEqual(graphInspection.summary, {
     nodes: 2,
     edges: 1,
@@ -124,10 +146,47 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   assert.doesNotMatch(graphHelp.stdout, /\bstatus\b/);
   assert.doesNotMatch(graphHelp.stdout, /\bimpact\b/);
   assert.doesNotMatch(graphHelp.stdout, /check-scope/);
-  assert.match(
+  let qwenSettings = JSON.parse(
     await fs.readFile(path.join(storeRoot, ".qwen/settings.json"), "utf8"),
-    /"openspec-orch-codegraph"/,
   );
+  assert.equal(qwenSettings.theme, "dark");
+  assert.deepEqual(qwenSettings.mcpServers.existing, { command: "existing-mcp" });
+  assert.deepEqual(qwenSettings.mcpServers["company-search"], {
+    command: "company-search-mcp",
+    args: ["--stdio"],
+  });
+  assert.ok(qwenSettings.mcpServers["openspec-orch-codegraph"]);
+  const mcpStatus = JSON.parse((await runCli(storeRoot, "mcp", "status", "--json")).stdout);
+  assert.equal(mcpStatus.state, "ready");
+  assert.equal(mcpStatus.context, "ready");
+  assert.deepEqual(mcpStatus.servers, [{ id: "company-search", status: "ready" }]);
+  assert.match(
+    await fs.readFile(path.join(storeRoot, "QWEN.md"), "utf8"),
+    /### company-search\n\nUse company-search for internal service discovery\./u,
+  );
+  await fs.writeFile(path.join(storeRoot, "mcp-connector.yaml"), [
+    "version: 1",
+    "servers:",
+    "  internal-docs:",
+    "    settings:",
+    "      url: http://mcp.internal.example/mcp",
+    "    context: Use internal-docs for project documentation.",
+    "",
+  ].join("\n"));
+  await runCli(storeRoot, "mcp", "apply");
+  qwenSettings = JSON.parse(
+    await fs.readFile(path.join(storeRoot, ".qwen/settings.json"), "utf8"),
+  );
+  assert.equal(qwenSettings.mcpServers["company-search"], undefined);
+  assert.deepEqual(qwenSettings.mcpServers["internal-docs"], {
+    url: "http://mcp.internal.example/mcp",
+  });
+  assert.deepEqual(qwenSettings.mcpServers.existing, { command: "existing-mcp" });
+  assert.ok(qwenSettings.mcpServers["openspec-orch-codegraph"]);
+  let qwenInstructions = await fs.readFile(path.join(storeRoot, "QWEN.md"), "utf8");
+  assert.doesNotMatch(qwenInstructions, /### company-search/u);
+  assert.match(qwenInstructions, /### internal-docs/u);
+  assert.match(qwenInstructions, /codegraph_explore/u);
   assert.match(await fs.readFile(path.join(storeRoot, "QWEN.md"), "utf8"), /codegraph_explore/);
   await assert.rejects(fs.access(
     path.join(storeRoot, ".qwen/skills/openspec-graph-maintenance/SKILL.md"),
@@ -173,11 +232,23 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   for (const command of ["assign", "status", "record", "verify"]) {
     assert.match(stdout, new RegExp(`\\b${command}\\b`));
   }
+  assert.match(stdout, /\bmcp\b/);
   assert.doesNotMatch(stdout, /change-tracking\s+Команды Plugin/);
 
   const disconnectAll = await runCli(storeRoot, "plugin", "disconnect", "codegraph", "--all");
   assert.match(disconnectAll.stdout, /✓ codegraph → specs — отключён/);
   assert.match(disconnectAll.stdout, /✓ codegraph → frontend — отключён/);
+  await runCli(storeRoot, "plugin", "remove", "mcp-connector");
+  qwenSettings = JSON.parse(
+    await fs.readFile(path.join(storeRoot, ".qwen/settings.json"), "utf8"),
+  );
+  assert.equal(qwenSettings.mcpServers["internal-docs"], undefined);
+  assert.deepEqual(qwenSettings.mcpServers.existing, { command: "existing-mcp" });
+  assert.ok(qwenSettings.mcpServers["openspec-orch-codegraph"]);
+  qwenInstructions = await fs.readFile(path.join(storeRoot, "QWEN.md"), "utf8");
+  assert.doesNotMatch(qwenInstructions, /openspec-orch:mcp-connector:context/u);
+  assert.doesNotMatch(qwenInstructions, /### internal-docs/u);
+  assert.match(qwenInstructions, /codegraph_explore/u);
   await runCli(storeRoot, "plugin", "remove", "codegraph");
   const removed = configuration.parseProject(
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),

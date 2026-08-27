@@ -8,13 +8,14 @@ bin/openspec-orch.js                  composition root
 ├── @openspec-orch/plugin-sdk         public extension API
 ├── @openspec-orch/plugin-change-tracking
 ├── @openspec-orch/plugin-codegraph
+├── @openspec-orch/plugin-mcp-connector
 ├── @openspec-orch/plugin-openspec-graph
 └── templates/base/                   default Project Template
 ```
 
 Composition root проверяет Node.js, собирает каталог bundled Plugins и задает только
 distribution policy: package sources и разрешенные root commands. Core не содержит
-ветвлений по `change-tracking`, `codegraph` или `openspec-graph`.
+ветвлений по `change-tracking`, `codegraph`, `mcp-connector` или `openspec-graph`.
 
 ## Границы компонентов
 
@@ -70,7 +71,7 @@ Relaxed mode требует готовый локальный каталог и 
 plugin init
 → resolve bundled или materialize external package
 → validate package manifest и structural export
-→ применить Agent contribution или Plugin Template
+→ применить Agent contribution через Store setup context или Plugin Template
 → сохранить exact declaration
 
 plugin connect
@@ -86,11 +87,20 @@ plugin connect
 declaration/runtime только после проверки required/bindings и возвращает paths для
 ручной очистки delivered assets.
 
+Agent-only Plugin не обязан объявлять фиктивный repository contribution или
+`supports`: Store setup context не создаёт binding и не смешивает Agent integration с
+Repository lifecycle.
+
 ## Команды Plugins
 
 Plugin command grammar строится ограниченным SDK builder и монтируется по умолчанию в
 `openspec-orch <plugin-id>`. Composition root может разрешить точный набор root command
 paths first-party Plugin, например `graph` или `assign/status/record/verify`.
+
+MCP Connector получает root namespace `mcp`, но Core не интерпретирует MCP transport
+или settings schema. Plugin читает `mcp-connector.yaml`, reconciles только owned
+`mcpServers` entries и managed context block через safe files/storage facades, выбирая
+settings и instruction paths по Agent.
 
 Универсальный `plugin exec` выбирает Plugin instance и Repository context, но Core не
 понимает native grammar. Если существует `repository.exec`, argv передается ему.

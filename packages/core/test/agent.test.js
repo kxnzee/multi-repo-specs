@@ -40,7 +40,7 @@ test("AgentService resolves and executes a Plugin contribution through its conte
   const calls = [];
   const context = Object.freeze({ agent: Object.freeze({ id: "qwen" }) });
   const service = new AgentService({
-    contextFactory: { async forRepositorySetup() { return context; } },
+    contextFactory: { async forStoreSetup() { return context; } },
   });
   const loadedPlugin = {
     plugin: {
@@ -68,7 +68,7 @@ test("AgentService resolves and executes a Plugin contribution through its conte
 test("AgentService skips a Plugin without Agent contribution", async (t) => {
   const storeProject = await storeFixture(t);
   const service = new AgentService({
-    contextFactory: { async forRepositorySetup() { throw new Error("unexpected context"); } },
+    contextFactory: { async forStoreSetup() { throw new Error("unexpected context"); } },
   });
   const integration = await service.resolve(storeProject, {
     plugin: {
@@ -99,7 +99,7 @@ test("AgentService copies Plugin template into Store and only reports manual cle
         to: .agents/skills
 `);
   const service = new AgentService({
-    contextFactory: { async forRepositorySetup() { throw new Error("unexpected context"); } },
+    contextFactory: { async forStoreSetup() { throw new Error("unexpected context"); } },
   });
   const loadedPlugin = {
     root: pluginRoot,
@@ -144,7 +144,7 @@ test("explicit declarative Agent API replaces automatic Plugin Template", async 
   await fs.writeFile(path.join(pluginRoot, "assets/selected.txt"), "explicit\n");
   const context = Object.freeze({ agent: Object.freeze({ id: "qwen" }) });
   const service = new AgentService({
-    contextFactory: { async forRepositorySetup() { return context; } },
+    contextFactory: { async forStoreSetup() { return context; } },
   });
   const integration = await service.resolve(storeProject, {
     root: pluginRoot,

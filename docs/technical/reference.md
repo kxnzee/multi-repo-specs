@@ -12,12 +12,14 @@
 | Plugin SDK | `definePlugin`, contributions, command builder, progress и contract test kit | `packages/plugin-sdk/` |
 | Change Tracking | Cycle Record, Result/Verification Receipts и Snapshot | `plugins/change-tracking/` |
 | CodeGraph | Repository lifecycle, launcher нативного CLI и agent integration | `plugins/codegraph/` |
+| MCP Connector | Декларативная синхронизация MCP servers и managed context с Agent files | `plugins/mcp-connector/` |
 | OpenSpec Graph | Компиляция и проверка Store-level графа OpenSpec, локальный viewer | `plugins/openspec-graph/` |
 | Base Template | OpenSpec schema, project instructions, skills и provider mappings | `templates/base/` |
 
-Composition root фактически регистрирует все три Plugin packages. Change Tracking и
-OpenSpec Graph получают разрешённые root namespaces (`assign/status/record/verify` и
-`graph`); остальные команды внешнего Plugin монтируются под его ID.
+Composition root фактически регистрирует все четыре Plugin packages. Change Tracking,
+MCP Connector и OpenSpec Graph получают разрешённые root namespaces
+(`assign/status/record/verify`, `mcp` и `graph`); остальные команды внешнего Plugin
+монтируются под его ID.
 
 ## Требования запуска
 
@@ -40,7 +42,7 @@ openspec-orch repository status [--repo <id>]...
 openspec-orch plugin register|init|connect|status|sync|exec|disconnect|remove ...
 ```
 
-Команды `assign`, `status`, `record`, `verify` и `graph` появляются только после
+Команды `assign`, `status`, `record`, `verify`, `mcp` и `graph` появляются только после
 загрузки соответствующих установленных Plugin declarations. Статический `--help` в
 неинициализированном checkout поэтому показывает только Core namespaces.
 
@@ -113,6 +115,9 @@ Plugin — ESM package с `package.json`:
   универсальный `plugin exec`;
 - `agent`: install/remove либо декларативный copy;
 - `template/`: безопасный overlay, если явной Agent contribution нет.
+
+Agent contribution получает Store-scoped setup context независимо от repository
+`supports`, поэтому agent-only Plugin не требует фиктивного lifecycle и bindings.
 
 `plugin init --from` материализует npm-compatible source без lifecycle scripts.
 `plugin connect` сохраняет binding только после успешного setup. `plugin remove`

@@ -69,8 +69,8 @@ export class AgentService {
     contextFactory = pluginContexts,
     templateService = projectTemplates,
   } = {}) {
-    if (typeof contextFactory?.forRepositorySetup !== "function") {
-      invalid("contextFactory должен предоставлять forRepositorySetup");
+    if (typeof contextFactory?.forStoreSetup !== "function") {
+      invalid("contextFactory должен предоставлять forStoreSetup");
     }
     if (
       typeof templateService?.plan !== "function" ||
@@ -96,9 +96,8 @@ export class AgentService {
     }
     const hasContribution = plugin.hasAgentContribution();
     if (hasContribution) {
-      const context = await this.#contexts.forRepositorySetup({
+      const context = await this.#contexts.forStoreSetup({
         loadedPlugin,
-        repositoryId: storeProject.store.id,
         storeProject,
       });
       const contribution = await plugin.integrateAgent(context);

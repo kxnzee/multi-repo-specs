@@ -1,0 +1,12 @@
+version: 1
+servers:
+  my-mcp:
+    # Удалите agents, чтобы применить server ко всем поддерживаемым Agent.
+    agents: [qwen, gigacode, claude]
+    # Connector переносит settings как есть: замените содержимое этого object.
+    settings:
+      command: /path/to/my-mcp
+      args: [--stdio]
+    context: |
+      Используй `my-mcp` только для задач, связанных с внутренней документацией.
+      Не изменяй данные без явного запроса пользователя.

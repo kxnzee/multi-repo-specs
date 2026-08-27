@@ -267,10 +267,28 @@ export class PluginContextFactory {
       repositoryId,
       invocation,
       requireBinding: false,
+      requireSupport: true,
     });
   }
 
-  async #create({ loadedPlugin, storeProject, repositoryId, invocation, requireBinding }) {
+  async forStoreSetup({ loadedPlugin, storeProject } = {}) {
+    return this.#create({
+      loadedPlugin,
+      storeProject,
+      repositoryId: storeProject?.store?.id,
+      requireBinding: false,
+      requireSupport: false,
+    });
+  }
+
+  async #create({
+    loadedPlugin,
+    storeProject,
+    repositoryId,
+    invocation,
+    requireBinding,
+    requireSupport = true,
+  }) {
     if (!(loadedPlugin instanceof LoadedPlugin) || !(storeProject instanceof StoreProject)) {
       throw new Error("PLUGIN_CONTEXT_INVALID: требуются LoadedPlugin и StoreProject");
     }
@@ -292,7 +310,7 @@ export class PluginContextFactory {
     if (requireBinding) {
       [repository] = repositories.requireConnected([repositoryId]);
     } else {
-      plugin.assertSupports(repositoryModel);
+      if (requireSupport) plugin.assertSupports(repositoryModel);
       repository = repositories.require(repositoryId);
     }
     const checkout = await this.#resolveCheckout(storeProject, repositoryModel);

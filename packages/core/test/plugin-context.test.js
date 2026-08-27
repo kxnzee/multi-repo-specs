@@ -156,6 +156,19 @@ test("PluginContextFactory creates a new immutable scoped context without exposi
   assert.deepEqual(messages, [["info", "[plugin:sample][repository:frontend] ready"]]);
 });
 
+test("PluginContextFactory creates Store context for Agent contribution without repository scope", async (t) => {
+  const scenario = await contextScenario(t);
+  const factory = contextFactory([], { info() {}, warn() {}, error() {} });
+
+  const context = await factory.forStoreSetup({
+    loadedPlugin: scenario.loadedPlugin,
+    storeProject: scenario.storeProject,
+  });
+
+  assert.deepEqual(context.repository, { id: "specs", role: "store" });
+  assert.equal(context.agent.id, "qwen");
+});
+
 test("PluginContextFactory rejects bindings before resolving an unavailable checkout", async (t) => {
   const scenario = await contextScenario(t);
   const factory = contextFactory([], { info() {}, warn() {}, error() {} });

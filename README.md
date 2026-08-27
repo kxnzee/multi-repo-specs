@@ -181,23 +181,34 @@ diff и отдельного подтверждения пользователя
 
 ## Plugins
 
-Стандартная поставка содержит три независимых Plugin:
+Стандартная поставка содержит четыре независимых Plugin:
 
 | Plugin | Назначение | Scope |
 |---|---|---|
 | `openspec-graph` | Store-level связи Repository, Master Spec, Change и Delta Spec | Store |
 | `codegraph` | Локальная навигация по файлам и symbols реализации | Code Repository |
 | `change-tracking` | Cycle, Result Receipts, Snapshot и Verification Receipt | Store и выбранные Code Repositories |
+| `mcp-connector` | Декларативная синхронизация MCP servers с settings Agent | Store/Agent |
 
-OpenSpec Graph обязателен только для Base Template. CodeGraph и Change Tracking
-подключаются по решению команды. Template и Core продолжают работать без них в
-доступном Standard flow.
+OpenSpec Graph обязателен только для Base Template. CodeGraph, Change Tracking и MCP
+Connector подключаются по решению команды. Template и Core продолжают работать без
+них в доступном Standard flow.
 
 ```bash
 openspec-orch plugin init --plugin codegraph
 openspec-orch plugin connect codegraph --repo frontend --repo backend
 openspec-orch plugin status --plugin codegraph
 openspec-orch plugin sync codegraph --all
+```
+
+MCP Connector подключается один раз, а новые MCP добавляются как записи в
+`mcp-connector.yaml` без создания новых packages. Необязательное поле `context`
+добавляет управляемую инструкцию в файл текущего Agent:
+
+```bash
+openspec-orch plugin init --plugin mcp-connector
+openspec-orch mcp status
+openspec-orch mcp apply
 ```
 
 Если Plugin содержит `template/`, Core автоматически применяет его тем же безопасным

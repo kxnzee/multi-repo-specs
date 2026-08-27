@@ -39,10 +39,11 @@ const templateRoot = fileURLToPath(new URL("../templates/base/", import.meta.url
 try {
   assertNodeVersion();
   const [{ BundledPluginPackage, BundledPluginProvider, createCandidateProgram },
-    changeTracking, codeGraph, openSpecGraph] = await Promise.all([
+    changeTracking, codeGraph, mcpConnector, openSpecGraph] = await Promise.all([
     import("@openspec-orch/core"),
     resolvePluginPackage("@openspec-orch/plugin-change-tracking"),
     resolvePluginPackage("@openspec-orch/plugin-codegraph"),
+    resolvePluginPackage("@openspec-orch/plugin-mcp-connector"),
     resolvePluginPackage("@openspec-orch/plugin-openspec-graph"),
   ]);
   const bundledProvider = new BundledPluginProvider([
@@ -61,6 +62,13 @@ try {
       version: codeGraph.manifest.version,
     }),
     new BundledPluginPackage({
+      id: "mcp-connector",
+      name: "MCP Connector",
+      packageName: mcpConnector.manifest.name,
+      packageRoot: mcpConnector.root,
+      version: mcpConnector.manifest.version,
+    }),
+    new BundledPluginPackage({
       id: "openspec-graph",
       name: "OpenSpec Graph",
       packageName: openSpecGraph.manifest.name,
@@ -72,6 +80,7 @@ try {
     bundledProvider,
     rootCommands: new Map([
       ["change-tracking", ["assign", "status", "record", "verify"]],
+      ["mcp-connector", ["mcp"]],
       ["openspec-graph", ["graph"]],
     ]),
     templateRoot,

@@ -9,6 +9,7 @@
 | `packages/plugin-sdk/` | Единственный публичный API для Plugins |
 | `plugins/change-tracking/` | Cycle/Receipts/Snapshot |
 | `plugins/codegraph/` | CodeGraph adapter, launcher и Agent integration |
+| `plugins/mcp-connector/` | Декларативный MCP settings reconciler для Agents |
 | `plugins/openspec-graph/` | Store graph, queries и viewer |
 | `templates/base/` | Default Project Template |
 | `test/` | Distribution integration tests |

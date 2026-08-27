@@ -10,6 +10,7 @@
     "bundledPlugins": [
       "@openspec-orch/plugin-change-tracking",
       "@openspec-orch/plugin-codegraph",
+      "@openspec-orch/plugin-mcp-connector",
       "@openspec-orch/plugin-openspec-graph"
     ]
   },
@@ -24,6 +25,7 @@
     "@openspec-orch/core": "0.1.0",
     "@openspec-orch/plugin-change-tracking": "1.0.0",
     "@openspec-orch/plugin-codegraph": "1.0.0",
+    "@openspec-orch/plugin-mcp-connector": "1.0.0",
     "@openspec-orch/plugin-openspec-graph": "1.0.0"
   },
   "scripts": {
