@@ -120,5 +120,5 @@ Repository Impact — строгая таблица `Repository | Capabilities` 
 
 Архивная Delta Spec обязана иметь соответствующую текущую Master Spec. При её
 отсутствии компилятор сохраняет placeholder-ноду для диагностики и возвращает
-`ARCHIVED_MASTER_SPEC_MISSING`. Graph Report содержит ноды, связи, diagnostics и
-summary; persisted index, digest и last-known-good отсутствуют.
+`ARCHIVED_MASTER_SPEC_MISSING`. Каждый Graph Report содержит ноды, связи, diagnostics
+и summary, вычисленные из текущих файлов Store.

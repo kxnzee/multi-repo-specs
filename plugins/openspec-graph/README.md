@@ -4,8 +4,8 @@ Store-only Plugin, который автоматически строит гра
 показывает структуру Store, зарегистрированные Code Repositories, Master Specs,
 активные и архивные Changes, Delta Specs и связи Repository–Master Spec.
 
-OpenSpec Graph является компиляцией Store, а не отдельной базой знаний. Агент не
-заполняет и не обслуживает граф, ручная graph metadata отсутствует.
+OpenSpec Graph является компиляцией Store, а не отдельной базой знаний. Ноды и связи
+выводятся только из файлов Store; отдельная ручная graph metadata отсутствует.
 
 ## Назначение и границы
 
@@ -59,9 +59,8 @@ openspec-orch.yaml + openspec/**
 7. Ошибка строгой OpenSpec validation добавляется в тот же report как
    `OPENSPEC_VALIDATION_FAILED`, не уничтожая уже построенную частичную модель.
 
-Граф не читает и не пишет persisted index, digest, freshness state или
-last-known-good snapshot. Команды `build`, `status`, `impact`, `check-scope` и Plugin
-`sync` не входят в контракт.
+Каждый вызов компилирует независимый Graph Report из текущих входных файлов и не
+использует результат предыдущего вызова.
 
 ## Архитектура Plugin
 
@@ -172,8 +171,8 @@ aliases и продолжает строить частичный граф на 
 установленный OpenSpec CLI не принимает альтернативный синтаксис, report дополнительно
 получит `OPENSPEC_VALIDATION_FAILED`.
 
-Файл не создаётся Plugin автоматически, не является состоянием графа и не требует
-обслуживания агентом. Для стандартного OpenSpec Store он не нужен.
+Файл не создаётся Plugin автоматически и не является состоянием графа. Для
+стандартного OpenSpec Store он не нужен.
 
 ## Ноды
 
@@ -382,7 +381,7 @@ capability, нода получает `UNLINKED_MASTER_SPEC`.
   подтверждает соответствие реализации спецификации.
 - Plugin не выводит ownership, runtime calls, зависимости между capabilities или
   зависимости между Changes.
-- Нет persisted cache или last-known-good fallback: сломанный текущий Store создаёт
-  текущий invalid report, а не показывает предыдущий успешный граф.
+- Ошибки текущего Store всегда отражаются в текущем report и не маскируются ранее
+  успешным результатом.
 - Viewer доступен только локально через loopback, является read-only и живёт только
   в процессе команды `graph view`.

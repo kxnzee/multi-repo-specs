@@ -56,7 +56,7 @@ Intent
   → Intake
   → Explore при необходимости
   → Proposal → Delta Specs → Design → Tasks
-  → Graph impact/scope
+  → Graph inspection и проверка scope
   → Gate 1
   → Standard Apply или Cycle + Apply
   → PR / checks / merge / deployment
@@ -83,6 +83,6 @@ integration.
 - Change Tracking v1 хранит Receipts и Snapshots локально; между машинами через Git
   переносится только Cycle Record.
 - `verify` вычисляет Snapshot, но не делает checkout и не запускает тесты.
-- OpenSpec Graph индексирует Store topology; CodeGraph индексирует файлы и symbols
-  одного Code Repository. Это разные модели.
+- OpenSpec Graph компилирует модель Store из OpenSpec-артефактов; CodeGraph индексирует
+  файлы и symbols одного Code Repository. Это разные модели.
 - Jira, Zephyr, Confluence, CI и deployment не интегрированы в текущем репозитории.

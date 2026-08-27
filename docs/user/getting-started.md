@@ -82,9 +82,9 @@ openspec-orch plugin connect openspec-graph --repo specs
 openspec-orch graph inspect --json
 ```
 
-`plugin connect` только создаёт binding. `graph inspect` компилирует текущий Store без
-локального индекса. Intake-only или Proposal-only Change может дать warning об
-отсутствующих Delta Specs, но не требует отдельного recovery lifecycle.
+`plugin connect` только создаёт binding. `graph inspect` компилирует текущий Store
+непосредственно из файлов. Intake-only или Proposal-only Change может дать warning об
+отсутствующих Delta Specs.
 
 ## Минимальная проверка готовности
 
@@ -94,8 +94,8 @@ openspec-orch plugin status --plugin openspec-graph
 openspec-orch graph inspect --json
 ```
 
-Ожидаемый результат — `errors: 0`. Warnings нужно разобрать, но stale/unavailable и
-last-known-good состояний у Graph больше нет.
+Ожидаемый результат — `errors: 0`. Каждый warning нужно разобрать до продолжения
+workflow.
 
 ## Следующий шаг
 

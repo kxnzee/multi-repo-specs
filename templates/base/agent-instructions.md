@@ -100,18 +100,16 @@ context command.
 Если declaration отсутствует, остановись и предложи повторить `openspec-orch init`;
 не обходи Graph workflow как опциональный.
 
-OpenSpec Graph не имеет build, freshness status, persisted index или maintenance
-skill. Он компилирует текущий Store при каждом вызове:
+OpenSpec Graph компилирует текущий Store при каждом вызове:
 
 - `openspec-orch graph inspect` печатает каждую ноду, связь и diagnostics;
 - `openspec-orch graph inspect --json` возвращает тот же полный report;
 - `openspec-orch graph view [--port 0]` компилирует тот же report и запускает viewer.
 
 После создания или изменения Delta Specs, Repository Impact, Master Specs, registry
-или Archive выполни `graph inspect --json`. Любая error блокирует переход; warning
-требует явного разбора, но не означает stale state и не требует recovery. Intake и
-Proposal до валидных Delta Specs можно проверять без Graph, используя точные данные
-Store.
+или Archive выполни `graph inspect --json`. Любая error блокирует переход, каждый
+warning требует явного разбора. Intake и Proposal до валидных Delta Specs можно
+проверять без Graph, используя точные данные Store.
 
 Связь `Repository — linked — Master Spec` нейтральна: Repository был указан в Change,
 затрагивающем capability. Она не доказывает владение, runtime-вызов или техническую

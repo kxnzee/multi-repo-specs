@@ -12,7 +12,7 @@
 | Plugin SDK | `definePlugin`, contributions, command builder, progress и contract test kit | `packages/plugin-sdk/` |
 | Change Tracking | Cycle Record, Result/Verification Receipts и Snapshot | `plugins/change-tracking/` |
 | CodeGraph | Repository lifecycle, launcher нативного CLI и agent integration | `plugins/codegraph/` |
-| OpenSpec Graph | Store-level граф OpenSpec, impact/scope queries и локальный viewer | `plugins/openspec-graph/` |
+| OpenSpec Graph | Компиляция и проверка Store-level графа OpenSpec, локальный viewer | `plugins/openspec-graph/` |
 | Base Template | OpenSpec schema, project instructions, skills и provider mappings | `templates/base/` |
 
 Composition root фактически регистрирует все три Plugin packages. Change Tracking и

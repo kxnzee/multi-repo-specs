@@ -124,3 +124,25 @@ test("Apply context uses the stateless OpenSpec Graph inspection contract", asyn
   assert.doesNotMatch(source, /graph check-scope/u, relative);
   assert.doesNotMatch(source, /missing_required_repositories/u, relative);
 });
+
+test("Base agent artifacts do not reference the removed OpenSpec Graph lifecycle", async () => {
+  const artifacts = [
+    "agent-instructions.md",
+    "openspec/config.yaml",
+    "skills/openspec-base-apply-context/SKILL.md",
+    "skills/openspec-base-meta-planning/SKILL.md",
+  ];
+  const removedContract = /graph (?:build|status|impact|check-scope|sync)|graph_phase|scope_check|stale \| unavailable/iu;
+
+  for (const relative of artifacts) {
+    const source = await fs.readFile(path.join(TEMPLATE_ROOT, relative), "utf8");
+    assert.doesNotMatch(source, removedContract, relative);
+  }
+
+  const metaPlanning = await fs.readFile(
+    path.join(TEMPLATE_ROOT, "skills/openspec-base-meta-planning/SKILL.md"),
+    "utf8",
+  );
+  assert.match(metaPlanning, /graph_check: not_run \| ready \| invalid \| not_configured/u);
+  assert.match(metaPlanning, /scope_status: not_applicable \| ready \| invalid/u);
+});

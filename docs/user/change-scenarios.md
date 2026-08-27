@@ -49,8 +49,9 @@ Explore не заменяет решение Владельца. Если тре
 
 Proposal перечисляет новую capability, Delta Spec описывает наблюдаемое поведение и
 Scenarios, Design фиксирует системные границы, Tasks — реализацию по Repository.
-После валидного Delta Spec выполните Graph build/impact/check-scope. Не создавайте
-capability на основании имени модуля или структуры текущего кода.
+После валидного Delta Spec выполните `openspec-orch graph inspect --json` и сверьте
+Repository Impact с capabilities текущего Change. Не создавайте capability на
+основании имени модуля или структуры текущего кода.
 
 ## 4. Изменение существующей capability
 
@@ -80,7 +81,7 @@ ID retained Scenarios. Ambiguity операции разрешает Владе�
 1. остановите Apply;
 2. добавьте Repository в Proposal Impact, Design и Tasks;
 3. обновите Delta Specs, если изменилось поведение/capability;
-4. пересоберите Graph и повторите scope check;
+4. повторите `openspec-orch graph inspect --json` и сверку scope;
 5. получите новый Gate 1;
 6. при Change Tracking создайте новый Cycle.
 
@@ -149,9 +150,9 @@ Change A остается активным. Sync делает принятое �
 ## 12. Archive
 
 До Archive должны быть завершены все реализации, ручная проверка текущей версии,
-Release и обязательные Gates. Проверьте Graph scope и prerequisite Changes. После
-`/opsx-archive` обязательно пересоберите Graph и проверьте directly changed Master
-Specs. Зависимые Changes архивируются в dependency order.
+Release и обязательные Gates. Проверьте Graph Report и prerequisite Changes. После
+`/opsx-archive` снова выполните `openspec-orch graph inspect --json` и проверьте
+Master Specs и Repository-связи. Зависимые Changes архивируются в dependency order.
 
 ## 13. CodeGraph отсутствует или stale
 

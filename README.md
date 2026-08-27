@@ -103,8 +103,7 @@ openspec-orch plugin connect openspec-graph --repo specs
 openspec-orch graph inspect --json
 ```
 
-`graph inspect` каждый раз компилирует текущий Store; отдельный индекс и Graph sync
-не используются.
+`graph inspect` каждый раз компилирует текущий Store непосредственно из его файлов.
 
 Для нестандартной раскладки workspace задаётся один раз:
 
@@ -155,8 +154,8 @@ openspec-orch connect --workspace /absolute/path/to/workspace
 ### 2. Planning и Apply
 
 Proposal, Delta Specs, Design и Tasks создаются штатным OpenSpec workflow. Перед
-встроенным Apply агент использует `openspec-base-apply-context`: проверяет Graph и
-Repository Impact, затем передаёт управление OpenSpec Apply.
+встроенным Apply `openspec-base-apply-context` проверяет Graph и Repository Impact,
+затем передаёт управление OpenSpec Apply.
 
 Без Change Tracking используется Standard Apply. Его отсутствие не является ошибкой
 и не приводит к автоматической установке Plugin.
@@ -299,8 +298,7 @@ relaxed behavior описаны в [справочнике конфигурац�
 - [вся актуальная документация](docs/README.md);
 - [пользовательская документация](docs/user/README.md);
 - [командный процесс](docs/user/team-flow.md);
-- [техническая документация](docs/technical/README.md);
-- [исторический reference](docs/archive/README.md).
+- [техническая документация](docs/technical/README.md).
 
 Проверки разделены по владельцам:
 

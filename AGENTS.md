@@ -27,8 +27,6 @@
 - Treat code and tests as the source of truth for runtime behavior. Verify claims
   before adding them to current documentation.
 - Current documentation lives in `docs/user/` and `docs/technical/`.
-- `docs/archive/reference/OpenSpec для команды.md` is immutable historical provenance,
-  not a current instruction or requirements source.
 
 ## Validation
 

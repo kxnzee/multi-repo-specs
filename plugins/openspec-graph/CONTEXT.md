@@ -52,6 +52,6 @@ active or archived Changes. It remains a graph node and produces the
 
 The immutable result of compiling the current Store for `graph inspect` or
 `graph view`. It contains nodes, edges, diagnostics and summary counts. The report may
-be `ready` or `invalid`; the graph itself has no persisted freshness state. Every edge
-contains structured `{ path, line, field }` provenance. Recoverable diagnostics without
-an affected node or edge are displayed in the viewer as graph-level diagnostics.
+be `ready` or `invalid`. Every edge contains structured `{ path, line, field }`
+provenance. Recoverable diagnostics without an affected node or edge are displayed in
+the viewer as graph-level diagnostics.

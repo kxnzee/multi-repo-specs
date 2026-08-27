@@ -27,10 +27,10 @@ openspec-orch graph view
 openspec-orch graph view --port 0
 ```
 
-`inspect` и `view` каждый раз компилируют текущий Store без локального индекса,
-freshness status и Plugin sync. Прямые Repository–Master Spec связи выводятся из
-строгой таблицы `Repository | Capabilities` в Proposal и Delta Specs того же активного
-или архивного Change. Связь нейтральна и не утверждает владение или dependency.
+`inspect` и `view` каждый раз компилируют текущий Store непосредственно из файлов.
+Прямые Repository–Master Spec связи выводятся из строгой таблицы
+`Repository | Capabilities` в Proposal и Delta Specs того же активного или архивного
+Change. Связь нейтральна и не утверждает владение или dependency.
 
 Graph не читает файлы Code Repositories, не вызывает CodeGraph, не редактирует Change
 и не запускается фоном.
@@ -72,8 +72,8 @@ Cycle Record tracked в Store. Results, Snapshots и Verification Receipts ло�
 не переносятся через Git. `verify` только вычисляет идентичность набора версий и не
 проводит проверку.
 
-Change Tracking не вычисляет Graph impact и не заменяет OpenSpec Apply, PR, CI,
-deployment, QA, Release или Archive.
+Change Tracking не компилирует и не проверяет OpenSpec Graph и не заменяет OpenSpec
+Apply, PR, CI, deployment, QA, Release или Archive.
 
 ## CodeGraph
 

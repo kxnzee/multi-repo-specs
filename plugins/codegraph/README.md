@@ -1,8 +1,8 @@
 # CodeGraph Plugin Package
 
-[`colbymchenry/codegraph`](https://github.com/colbymchenry/codegraph) создаёт локальный
-семантический граф кода и предоставляет его агенту через CLI и MCP. Orchestrator
-поставляет отдельный CodeGraph Plugin; он не связан с Project Template.
+Пакет `@colbymchenry/codegraph` создаёт локальный семантический граф кода и
+предоставляет его агенту через CLI и MCP. Orchestrator поставляет отдельный CodeGraph
+Plugin; он не связан с Project Template.
 
 ## Граница ответственности
 

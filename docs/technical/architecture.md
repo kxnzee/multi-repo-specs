@@ -127,10 +127,10 @@ Change Tracking не вызывает Graph и не запускает реал�
 
 ### OpenSpec Graph
 
-Store-level builder читает registry, Master/Delta Specs, active/archive Changes и
-explicit relations. Индекс — локальная воспроизводимая проекция. Query service
-возвращает direct/downstream impact и scope differences. Viewer читает тот же свежий
-index и не изменяет модель.
+Store-level compiler читает registry, Master/Delta Specs, active/archive Changes и
+структурированный Repository Impact. Каждый `inspect` и `view` формирует новый
+детерминированный Graph Report с нодами, связями, diagnostics и summary. Viewer
+показывает этот report и не изменяет модель.
 
 ### CodeGraph
 
