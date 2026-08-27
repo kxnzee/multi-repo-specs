@@ -1,15 +1,11 @@
-/** @fileoverview Human-facing OpenSpec Graph commands. */
+/** @fileoverview Human-facing stateless OpenSpec Graph commands. */
 
 import { createCliProgress } from "@openspec-orch/plugin-sdk";
 
 import { OpenSpecGraphService } from "./service.js";
-import { checkChangeScope, inspectChangeImpact, inspectGraphNode } from "./query.js";
 import { startGraphViewer } from "./viewer.js";
 
-/** Collects a repeatable repository option. */
-function collectValues(value, previous = []) {
-  return [...previous, value];
-}
+const MARKERS = Object.freeze({ ok: "[✓]", warning: "[!]", error: "[✗]" });
 
 /** Parses a loopback HTTP port. */
 function port(value) {
@@ -20,117 +16,130 @@ function port(value) {
   return parsed;
 }
 
-/** Prints graph freshness for a person while JSON remains available for automation. */
-function printGraphStatus(status, write) {
-  const presentation = {
-    invalid: ["✗", "текущие данные некорректны"],
-    ready: ["✓", "готов и актуален"],
-    stale: ["⚠", "требует обновления"],
-    unavailable: ["✗", "ещё не построен"],
-  }[status.state] ?? ["•", status.state];
-  write(`${presentation[0]} OpenSpec Graph — ${presentation[1]}`);
-  write(`  Узлы: ${status.nodes}  Рёбра: ${status.edges}`);
-  if (status.current_digest) write(`  Текущий digest: ${status.current_digest.slice(0, 12)}`);
-  if (status.stored_digest) write(`  Сохранённый digest: ${status.stored_digest.slice(0, 12)}`);
-  if (status.last_known_good_available && !status.authoritative) {
-    write("  ⚠ Доступен последний успешно построенный граф, но он не считается актуальным");
-  }
-  if (status.reason) write(`  Причина: ${status.reason}`);
-  if (status.next_command) write(`  → Далее: ${status.next_command}`);
+/** Formats one machine-readable diagnostic source for a person. */
+function sourceLabel(source) {
+  if (!source) return "";
+  return ` (${source.path}:${source.line}${source.field ? `, ${source.field}` : ""})`;
 }
 
-/** Registers the Store-scoped graph CLI without exposing Commander. */
+/** Prints all diagnostics first encountered on one element. */
+function printElementDiagnostics(report, elementId, shown, write) {
+  for (const value of report.diagnostics) {
+    if (shown.has(value.id) || !value.elements.includes(elementId)) continue;
+    shown.add(value.id);
+    write(`    ${value.code}: ${value.message}${sourceLabel(value.source)}`);
+  }
+}
+
+/** Prints the detailed inspection contract with one row per node and edge. */
+function printInspection(report, write) {
+  const shown = new Set();
+  write("OpenSpec Graph inspection");
+  write("");
+  write("Nodes");
+  for (const value of report.nodes) {
+    write(`${MARKERS[value.status]} ${value.id}`);
+    printElementDiagnostics(report, value.id, shown, write);
+  }
+  write("");
+  write("Edges");
+  for (const value of report.edges) {
+    write(`${MARKERS[value.status]} ${value.source} → ${value.relation} → ${value.target}`);
+    printElementDiagnostics(report, value.id, shown, write);
+  }
+  const graphDiagnostics = report.diagnostics.filter(({ id }) => !shown.has(id));
+  if (graphDiagnostics.length > 0) {
+    write("");
+    write("Graph");
+    for (const value of graphDiagnostics) {
+      write(`${MARKERS[value.severity]} ${value.code}: ${value.message}${sourceLabel(value.source)}`);
+    }
+  }
+  write("");
+  printSummary(report, write);
+}
+
+/** Prints the common four-counter summary. */
+function printSummary(report, write) {
+  write("Summary");
+  write(`  nodes: ${report.summary.nodes}`);
+  write(`  edges: ${report.summary.edges}`);
+  write(`  errors: ${report.summary.errors}`);
+  write(`  warnings: ${report.summary.warnings}`);
+}
+
+/** Converts an invalid report into a non-zero command result after printing it. */
+function assertSuccessful(report) {
+  if (report.summary.errors === 0) return;
+  throw Object.assign(
+    new Error(`OPENSPEC_GRAPH_INSPECTION_FAILED: ${report.summary.errors} error(s)`),
+    { code: "OPENSPEC_GRAPH_INSPECTION_FAILED" },
+  );
+}
+
+/** Compiles and serves one current report, including recoverable diagnostics. */
+export async function runGraphView(
+  context,
+  options = {},
+  {
+    output = console,
+    progress = createCliProgress(),
+    startViewer = startGraphViewer,
+  } = {},
+) {
+  const report = await progress.run(
+    "Компиляция OpenSpec Graph и запуск viewer...",
+    () => new OpenSpecGraphService(context).compile(),
+    { success: "OpenSpec Graph скомпилирован" },
+  );
+  const sourceRoot = context.invocation?.role === "store"
+    ? context.invocation.path
+    : undefined;
+  const viewer = await startViewer(report, {
+    port: options.port ?? 4177,
+    readSource: (relativePath) => context.files.read(relativePath),
+    sourceRoot,
+  });
+  output.log("OpenSpec Graph");
+  output.log(`  nodes: ${report.summary.nodes}`);
+  output.log(`  edges: ${report.summary.edges}`);
+  output.log(`  errors: ${report.summary.errors}`);
+  output.log(`  warnings: ${report.summary.warnings}`);
+  output.log("");
+  output.log(`Viewer: ${viewer.url}`);
+  output.log("Press Ctrl+C to stop.");
+  await viewer.wait();
+  return report;
+}
+
+/** Registers the two Store-scoped graph commands without exposing Commander. */
 export function registerGraphCommands(
   commands,
   { output = console, progress = createCliProgress() } = {},
 ) {
   const graph = commands.command("graph")
-    .description("build and inspect the OpenSpec repository/spec graph");
+    .description("inspect and view the current OpenSpec Store graph");
 
-  graph.command("build")
-    .description("validate OpenSpec and rebuild the graph")
-    .actionWithContext(async (context) => {
-      const built = await progress.run(
-        "Проверка OpenSpec и построение Graph...",
-        () => new OpenSpecGraphService(context).build(),
-        { success: "OpenSpec Graph построен" },
-      );
-      output.log(OpenSpecGraphService.summary(built));
-    }, { scope: "store" });
-
-  graph.command("status")
-    .description("show graph freshness")
-    .option("--json", "print machine-readable status")
+  graph.command("inspect")
+    .description("compile and validate the complete current Store graph")
+    .option("--json", "print the full machine-readable report")
     .actionWithContext(async (context, options) => {
-      const status = await progress.run(
-        "Проверка актуальности OpenSpec Graph...",
-        () => new OpenSpecGraphService(context).status(),
-        { success: "Актуальность OpenSpec Graph проверена" },
+      const report = await progress.run(
+        "Компиляция и проверка OpenSpec Graph...",
+        () => new OpenSpecGraphService(context).compile(),
+        { success: "OpenSpec Graph проверен" },
       );
-      if (options.json) output.log(JSON.stringify(status, null, 2));
-      else printGraphStatus(status, (message) => output.log(message));
+      if (options.json) output.log(JSON.stringify(report, null, 2));
+      else printInspection(report, (message) => output.log(message));
+      assertSuccessful(report);
     }, { scope: "store" });
 
   graph.command("view")
-    .description("serve the local read-only graph UI")
+    .description("compile the current Store and serve the local read-only graph UI")
     .option("--port <port>", "loopback port; 0 selects a free port", { parser: port })
-    .actionWithContext(async (context, options) => {
-      const viewer = await progress.run("Запуск OpenSpec Graph viewer...", async () => {
-        const document = await new OpenSpecGraphService(context).readFresh();
-        const sourceRoot = context.invocation?.role === "store"
-          ? context.invocation.path
-          : undefined;
-        return startGraphViewer(document, {
-          port: options.port ?? 4177,
-          readSource: (relativePath) => context.files.read(relativePath),
-          sourceRoot,
-        });
-      }, { success: "OpenSpec Graph viewer запущен" });
-      output.log(`OpenSpec Graph: ${viewer.url}`);
-      output.log("Press Ctrl+C to stop.");
-      await viewer.wait();
-    }, { scope: "store" });
-
-  graph.command("inspect <node-id>")
-    .description("show one node and its direct evidenced neighborhood as JSON")
-    .actionWithContext(async (context, nodeId) => {
-      const document = await progress.run(
-        "Проверка графа перед inspect...",
-        () => new OpenSpecGraphService(context).readFresh(),
-        { success: "OpenSpec Graph актуален" },
-      );
-      output.log(JSON.stringify(inspectGraphNode(document, nodeId), null, 2));
-    }, { scope: "store" });
-
-  graph.command("impact <change-id>")
-    .description("show direct capability and repository impact for one Change as JSON")
-    .actionWithContext(async (context, changeId) => {
-      const document = await progress.run(
-        "Проверка графа перед impact analysis...",
-        () => new OpenSpecGraphService(context).readFresh(),
-        { success: "OpenSpec Graph актуален" },
-      );
-      output.log(JSON.stringify(inspectChangeImpact(document, changeId), null, 2));
-    }, { scope: "store" });
-
-  graph.command("check-scope <change-id>")
-    .description("check proposed Cycle repositories against one Change impact")
-    .option("--repo <repository-id>", "proposed Cycle repository-id", {
-      parser: collectValues,
-      required: true,
-    })
-    .actionWithContext(async (context, changeId, options) => {
-      const document = await progress.run(
-        "Проверка графа перед scope check...",
-        () => new OpenSpecGraphService(context).readFresh(),
-        { success: "OpenSpec Graph актуален" },
-      );
-      const result = checkChangeScope(document, changeId, options.repo);
-      output.log(JSON.stringify(result, null, 2));
-      if (result.state === "invalid") {
-        throw new Error(
-          "OPENSPEC_GRAPH_SCOPE_INVALID: proposed implementation scope does not match impact",
-        );
-      }
-    }, { scope: "store" });
+    .actionWithContext((context, options) => runGraphView(
+      context,
+      options,
+      { output, progress },
+    ), { scope: "store" });
 }

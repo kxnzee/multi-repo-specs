@@ -157,12 +157,10 @@ Snapshot.
 
 ## OpenSpec Graph и CodeGraph
 
-OpenSpec Graph поддерживает `graph build/status/view/inspect/impact/check-scope`.
-`connect` не строит граф; authoritative queries читают только fresh graph. Source digest
-учитывает registry, Master/Delta Specs и explicit `openspec/graph.yaml`. `check-scope`
-возвращает поля `missing_required_repositories`, `included_review_repositories`,
-`review_repositories_outside_scope`, `extra_repositories`, `missing_delta_specs` и
-`unmapped_master_specs`.
+OpenSpec Graph поддерживает только `graph inspect [--json]` и
+`graph view [--port <port>]`. Каждая команда компилирует текущий Store без persisted
+index. Repository–Master Spec связи выводятся из структурированного Repository Impact
+и Delta Specs активных и архивных Changes; errors и warnings входят в единый report.
 
 CodeGraph работает только с Code Repository. `connect` вызывает `codegraph init .`,
 `sync` — `codegraph index .`, `exec` передаёт произвольную native-команду через

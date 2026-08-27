@@ -42,23 +42,20 @@ Snapshot. Вернуть встроенному Apply исходные contextFi
 
 ## Graph и repository scope
 
-1. Выполнить status → recovery → status OpenSpec Graph и требовать `ready` и
-   `authoritative`.
-2. Для Change с Delta Specs выполнить `graph impact <change-id>`.
-3. Выполнить `graph check-scope <change-id>`:
-   - в orchestrated mode передать каждый repository-id из `repositories`, возвращённых
-     Change Tracking, отдельным `--repo`;
-   - в standard mode передать каждый repository-id принятого Repository Impact и
-     repository sections Tasks отдельным `--repo`.
-4. Для явно принятого `skip_specs` без Delta Specs зафиксировать Graph impact и scope как
-   `not_applicable` и проверить Repository Impact/Tasks напрямую. Не создавать фиктивную
-   Delta Spec.
-5. `missing_required_repositories`, `missing_delta_specs`, `unmapped_master_specs`,
-   `included_review_repositories`, `extra_repositories` или неразрешённый review outside
-   scope блокируют Apply. Review repositories не добавлять в implementation scope
-   автоматически.
-6. Классифицировать current repository как direct, review или extra, когда текущий
-   контекст относится к зарегистрированному Code Repository.
+1. Выполнить `openspec-orch graph inspect --json` и требовать `errors: 0`.
+2. Проверить, что Repository Impact использует строгую таблицу
+   `Repository | Capabilities`, все repository-id зарегистрированы, а capability paths
+   имеют Delta Specs текущего Change.
+3. В orchestrated mode сравнить `repositories`, возвращённые Change Tracking, с
+   Repository Impact и repository sections Tasks. В standard mode сравнить эти два
+   Planning-источника напрямую.
+4. Для явно принятого `skip_specs` без Delta Specs проверить Repository Impact и Tasks
+   напрямую; не создавать фиктивную Delta Spec.
+5. Любая Graph error, неизвестный Repository/capability или расхождение принятого
+   implementation scope блокирует Apply. `UNLINKED_MASTER_SPEC` остаётся warning и
+   требует явного review, но не создаёт Repository автоматически.
+6. Классифицировать current repository как входящий или не входящий в принятый
+   Repository Impact, когда текущий контекст относится к Code Repository.
 
 В orchestrated mode использовать только selected Tasks, возвращённые Change Tracking.
 В standard mode не вводить repository filtering: передать встроенному Apply исходный

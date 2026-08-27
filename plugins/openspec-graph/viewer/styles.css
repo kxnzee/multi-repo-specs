@@ -298,6 +298,25 @@ aside { min-width: 0; overflow: auto; padding: 18px; background: #f8fafc; }
 .details-sources ul { margin: 0; padding-left: 18px; }
 .details-sources li { margin: 5px 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
 .details-sources .file-detail { align-items: center; }
+.details-diagnostics { margin: 16px 0 0; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+.details-diagnostics h3 { margin: 0 0 8px; font-size: 12px; }
+.details-diagnostics ul { margin: 0; padding: 0; display: grid; gap: 8px; list-style: none; }
+.details-diagnostics li {
+  padding: 9px;
+  display: grid;
+  gap: 4px;
+  border: 1px solid #e2e8f0;
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 11px;
+}
+.details-diagnostics li.diagnostic-warning { border-left-color: #d97706; background: #fffbeb; }
+.details-diagnostics li.diagnostic-error { border-left-color: #dc2626; background: #fef2f2; }
+.details-diagnostics strong { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.details-diagnostics small { color: #64748b; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.graph-diagnostics[hidden] { display: none; }
+.graph-diagnostics { margin-top: 14px; padding: 0 0 14px; border-top: 0; border-bottom: 1px solid #e2e8f0; }
 .details-connections { margin: 16px 0 0; padding-top: 12px; border-top: 1px solid #e2e8f0; }
 .details-connections h3 { margin: 0 0 8px; font-size: 12px; }
 .details-connections ul { margin: 0; padding: 0; display: grid; gap: 7px; list-style: none; }
@@ -333,17 +352,4 @@ aside { min-width: 0; overflow: auto; padding: 18px; background: #f8fafc; }
   font-style: italic;
 }
 .details-more-button:hover { color: #1e293b; background: #f8fafc; }
-.dependency-list li[data-direction="outgoing"] { border-left: 3px solid #7c3aed; }
-.dependency-list li[data-direction="incoming"] {
-  border-left: 3px dashed #0f766e;
-  background: #f0fdfa;
-}
 .change-impact-list li[data-impact="direct"] { border-left: 3px solid #7c3aed; }
-.change-impact-list li[data-impact="dependent"] {
-  border-left: 3px dashed #0f766e;
-  background: #f0fdfa;
-}
-.change-impact-list li[data-impact="review"] {
-  border-left: 3px dashed #d97706;
-  background: #fffbeb;
-}

@@ -11,7 +11,7 @@ scope, Аналитик формирует Planning, Разработчик ре
 
 ```bash
 openspec-orch repository status
-openspec-orch graph status --json
+openspec-orch graph inspect --json
 ```
 
 Если Graph еще не связан, выполните однократное подключение из
@@ -63,24 +63,21 @@ Intent должен содержать:
 
 Repository Impact содержит только зарегистрированные Code Repositories, где реально
 меняются код, тесты, конфигурация или документация. Не добавляйте весь registry,
-review-only репозитории и строки `no-change`.
+review-only репозитории и строки `no-change`. Заполняйте строгую таблицу
+`Repository | Capabilities`, сопоставляя каждый repository-id с точными capability
+paths текущего Change.
 
-## Шаг 4. Проверить Graph scope
+## Шаг 4. Проверить Graph
 
 После валидных Delta Specs:
 
 ```bash
-openspec-orch graph build
-openspec-orch graph status --json
-openspec-orch graph impact <change-id>
-openspec-orch graph check-scope <change-id> --repo <repository-id>...
+openspec-orch graph inspect --json
 ```
 
-Остановитесь при `missing_required_repositories`, `missing_delta_specs` или
-`unmapped_master_specs`. Review/dependent repositories — кандидаты на адресную
-проверку, а не автоматическое расширение scope. Для каждой непосредственно
-изменяемой Master Spec подтвердите постоянную связь `implemented_by`; временный
-`targets` ее не заменяет.
+Остановитесь при любой error. Проверьте warnings и убедитесь, что Repository Impact,
+Design и Tasks описывают один scope. Graph автоматически выводит нейтральные
+Repository–Master Spec связи; `UNLINKED_MASTER_SPEC` не расширяет scope.
 
 ## Шаг 5. Принять Gate 1
 
@@ -163,7 +160,7 @@ openspec-orch record verification <change-id> \
 
 ## Шаг 8. Archive
 
-Перед Archive повторите Graph preflight и scope check. Затем после явного решения:
+Перед Archive повторите `graph inspect --json`. Затем после явного решения:
 
 ```text
 /opsx-archive <change-id>
@@ -172,13 +169,12 @@ openspec-orch record verification <change-id> \
 После штатного Archive:
 
 ```bash
-openspec-orch graph build
-openspec-orch graph status --json
-openspec-orch graph impact <change-id>
+openspec-orch graph inspect --json
 ```
 
-Проверьте напрямую измененные Master Specs и их `implemented_by`. Ошибка post-Archive
-Graph handoff не отменяет уже выполненный Archive, но handoff остается незавершенным.
+Проверьте, что архивный Change сохранил Repository–Master Spec связи. Ошибка
+post-Archive inspect не отменяет уже выполненный Archive, но handoff остается
+незавершенным.
 
 Необязательно проведите read-only audit долговечного context/ADR:
 

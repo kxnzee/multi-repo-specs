@@ -40,12 +40,23 @@ function isSourcePath(value) {
     && !normalized.includes("/../");
 }
 
-/** Splits a validated provenance reference into Store path and line. */
+/** Validates one structured provenance source. */
 function evidenceReference(value) {
-  if (typeof value !== "string") return undefined;
-  const match = value.match(/^(.*):([1-9]\d*)$/u);
-  if (!match || !isSourcePath(match[1])) return undefined;
-  return Object.freeze({ path: match[1], line: Number(match[2]) });
+  if (
+    !value
+    || typeof value !== "object"
+    || !isSourcePath(value.path)
+    || !Number.isInteger(value.line)
+    || value.line < 1
+    || typeof value.field !== "string"
+    || value.field.length === 0
+  ) return undefined;
+  return Object.freeze({ path: value.path, line: value.line, field: value.field });
+}
+
+/** Creates the stable browser lookup key for one source location. */
+function evidenceKey(value) {
+  return JSON.stringify([value.path, value.line, value.field]);
 }
 
 /** Builds one allowlisted browser action for a Store file. */
@@ -87,15 +98,27 @@ function graphSources(graph, { readSource, sourceRoot }) {
     routes.set(node.id, action);
   }
   for (const edge of graph.edges) {
-    for (const reference of edge.provenance ?? []) {
-      if (evidence.has(reference)) continue;
-      const parsed = evidenceReference(reference);
+    for (const location of edge.provenance ?? []) {
+      const parsed = evidenceReference(location);
       if (!parsed) continue;
+      const reference = evidenceKey(parsed);
+      if (evidence.has(reference)) continue;
       const routeKey = `evidence:${reference}`;
       const action = sourceAction(parsed.path, routeKey, root, parsed.line);
       evidence.set(reference, action);
       routes.set(routeKey, action);
     }
+  }
+  for (const diagnostic of graph.diagnostics ?? []) {
+    const parsed = evidenceReference(diagnostic.source);
+    if (!parsed) continue;
+    const { path: relativePath, line } = parsed;
+    const reference = evidenceKey(parsed);
+    if (evidence.has(reference)) continue;
+    const routeKey = `evidence:${reference}`;
+    const action = sourceAction(relativePath, routeKey, root, line);
+    evidence.set(reference, action);
+    routes.set(routeKey, action);
   }
   return Object.freeze({ nodes, evidence, routes });
 }
@@ -103,7 +126,7 @@ function graphSources(graph, { readSource, sourceRoot }) {
 /** Starts a server that never binds outside loopback. */
 export async function startGraphViewer(
   graph,
-  { port = 4177, readSource, sourceRoot } = {},
+  { port = 4177, readSource, sourceRoot, createServer = http.createServer } = {},
 ) {
   const graphSource = `${JSON.stringify(graph)}\n`;
   const sourceActions = graphSources(graph, { readSource, sourceRoot });
@@ -111,7 +134,7 @@ export async function startGraphViewer(
     sources: Object.fromEntries(sourceActions.nodes),
     evidence: Object.fromEntries(sourceActions.evidence),
   })}\n`;
-  const server = http.createServer(async (request, response) => {
+  const server = createServer(async (request, response) => {
     try {
       const pathname = new URL(request.url, "http://127.0.0.1").pathname;
       if (request.method !== "GET") {

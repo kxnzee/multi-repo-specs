@@ -24,6 +24,14 @@
      satisfy validation. -->
 - `<existing-capability-path>`: <what requirement is changing>
 
+## Repository Impact
+
+<!-- List only registered Code Repositories that this Change modifies. Every capability
+     must be an exact path from New Capabilities or Modified Capabilities above. -->
+| Repository | Capabilities |
+| --- | --- |
+| `<repository-id>` | `<capability-path>` |
+
 ## Impact
 
 <!-- Affected code, APIs, dependencies, systems -->

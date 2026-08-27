@@ -47,9 +47,9 @@ Cycle. Не считать изменение текста, состава ил�
 
 ## Repository scope
 
-Вернуть полный список repository-id Cycle для последующего `graph check-scope`, но
-выбрать Tasks только из section с точным current repository-id. Общая section требует
-явного owner либо однозначного primary solution owner из Design.
+Вернуть полный список repository-id Cycle для последующей сверки с принятым
+Repository Impact, но выбрать Tasks только из section с точным current repository-id.
+Общая section требует явного owner либо однозначного primary solution owner из Design.
 
 Не выполнять и не отмечать Tasks другого Repository. Не добавлять review Repository в
 Cycle автоматически и не объявлять весь Change реализованным по завершению одного

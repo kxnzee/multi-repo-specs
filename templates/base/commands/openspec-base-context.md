@@ -103,9 +103,9 @@ openspec-base-repository-evidence-scout с полным входным конт�
 2. Получить точный список Master Specs через `openspec list --specs --json`. Разрешить
    каждый `--spec` как точный capability path, каждый `--domain` как точный directory
    prefix и не расширять scope за его пределы.
-3. Если передан `--change`, при доступном OpenSpec Graph выполнить status → recovery
-   → status, продолжить только при ready/authoritative и получить directly changed
-   Master Specs через `graph impact <change-id>`. Добавить их к scope. Если Graph не
+3. Если передан `--change`, при доступном OpenSpec Graph выполнить
+   `graph inspect --json`, потребовать `errors: 0` и получить напрямую изменяемые
+   Master Specs из Delta Specs точного Change. Добавить их к scope. Если Graph не
    подключён или exact Change не разрешён, продолжить только при наличии точных
    `--spec`/`--domain`; иначе вернуть BLOCKER, не искать Change или checkout обходом
    файловой системы.

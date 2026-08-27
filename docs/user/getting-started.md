@@ -74,31 +74,28 @@ OpenSpec pointer. Существующий checkout не получает `pull`
 
 ## Первичное подключение OpenSpec Graph
 
-Base Template устанавливает `openspec-graph` как required Plugin, но binding и индекс
-создаются явно:
+Base Template устанавливает `openspec-graph` как required Plugin, а binding создаётся
+явно:
 
 ```bash
 openspec-orch plugin connect openspec-graph --repo specs
-openspec-orch graph build
-openspec-orch graph status --json
+openspec-orch graph inspect --json
 ```
 
-`plugin connect` только создает binding. `graph build` выполняется отдельно и требует
-валидные OpenSpec topology inputs. Если в Store уже есть Intake-only или
-Proposal-only Change без валидных Delta Specs, завершите Planning до первого build.
+`plugin connect` только создаёт binding. `graph inspect` компилирует текущий Store без
+локального индекса. Intake-only или Proposal-only Change может дать warning об
+отсутствующих Delta Specs, но не требует отдельного recovery lifecycle.
 
 ## Минимальная проверка готовности
 
 ```bash
 openspec-orch repository status
 openspec-orch plugin status --plugin openspec-graph
-openspec-orch graph status --json
+openspec-orch graph inspect --json
 ```
 
-Ожидаемый Graph status перед `impact`, `inspect`, `check-scope` или `view`:
-`state: ready` и `authoritative: true`. При `stale` или `unavailable` выполните
-`next_command` из JSON и повторите status. `invalid` означает ошибку входных данных,
-которую нельзя обходить last-known-good индексом.
+Ожидаемый результат — `errors: 0`. Warnings нужно разобрать, но stale/unavailable и
+last-known-good состояний у Graph больше нет.
 
 ## Следующий шаг
 

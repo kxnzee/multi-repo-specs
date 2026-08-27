@@ -6,9 +6,8 @@
   принадлежат каталогу openspec/; Code Repositories только реализуют принятые Changes.
 - openspec/context/ содержит подтверждённый долговечный контекст, но не заменяет
   Requirements. Его обновляет только команда /openspec-base-context.
-- openspec-orch.yaml — реестр точных repository-id. Plugin-owned
-  openspec/graph.yaml содержит только explicit relations, а типизированную модель
-  нужно читать через обязательный OpenSpec Graph Plugin.
+- openspec-orch.yaml — реестр точных repository-id. OpenSpec Graph автоматически
+  компилирует структуру Store и Repository Impact активных и архивных Changes.
 - Локальное устройство, test/build commands и implementation evidence принадлежат
   конкретному Code Repository и не копируются в Store context.
 
@@ -51,9 +50,6 @@
   Tracking он готовит standard mode; при подключённом Plugin передаёт его часть
   установленному plugin-owned skill change-tracking-apply-context, затем продолжает
   общий Graph preflight.
-- Plugin-owned skill `openspec-graph-maintenance` выполняет аудит или точечное
-  изменение explicit edge и сверку `implemented_by` для directly changed Master
-  Specs перед Gate 1 и после Archive.
 - Трассируемые test cases: openspec-base-test-cases.
 - Инициализация, общий или change/spec/domain-scoped аудит и обновление Store context
   и ADR: /openspec-base-context. После Archive context audit является необязательным
@@ -67,8 +63,10 @@
 Repository Impact — не инвентаризация registry. ОБЯЗАН указывать ТОЛЬКО Repository,
 где Change требует изменения кода, тестов, конфигурации или документации. ЗАПРЕЩЕНО
 добавлять остальные зарегистрированные, соседние, verification или review-only
-repositories и создавать для них строки no-change. Graph review-кандидат входит в
-Planning ТОЛЬКО после подтверждения, что в нём действительно требуется изменение.
+repositories и создавать для них строки no-change. Используй только таблицу
+`Repository | Capabilities`: точный repository-id и точные capability paths из
+Proposal/Delta Specs, разделённые запятыми. Свободный список не является источником
+Repository–Master Spec связей.
 
 Единственный project subagent — openspec-base-repository-evidence-scout. Он разрешён
 только на Design, Tasks, Apply или при явной проверке current-state conflict из
@@ -102,36 +100,24 @@ context command.
 Если declaration отсутствует, остановись и предложи повторить `openspec-orch init`;
 не обходи Graph workflow как опциональный.
 
-Перед inspect, impact, check-scope или view:
+OpenSpec Graph не имеет build, freshness status, persisted index или maintenance
+skill. Он компилирует текущий Store при каждом вызове:
 
-1. Выполни openspec-orch graph status --json.
-2. При ready и authoritative продолжай.
-3. При stale или unavailable выполни точный next_command, повтори status и продолжай
-   только при ready.
-4. При invalid, отсутствующем binding или неготовом повторном status остановись.
-   Last-known-good допустим только для диагностики.
+- `openspec-orch graph inspect` печатает каждую ноду, связь и diagnostics;
+- `openspec-orch graph inspect --json` возвращает тот же полный report;
+- `openspec-orch graph view [--port 0]` компилирует тот же report и запускает viewer.
 
-Исключение — Intake/Proposal до валидных Delta Specs: строгий build ещё не обязан
-проходить, поэтому не выполняй recovery и не блокируй preliminary Planning из-за
-stale/unavailable Graph. Разрешай capability через `openspec list --specs --json` и
-точную Master Spec; Graph queries начинаются после валидных Delta Specs.
+После создания или изменения Delta Specs, Repository Impact, Master Specs, registry
+или Archive выполни `graph inspect --json`. Любая error блокирует переход; warning
+требует явного разбора, но не означает stale state и не требует recovery. Intake и
+Proposal до валидных Delta Specs можно проверять без Graph, используя точные данные
+Store.
 
-Graph build меняет только локальный производный Plugin index и является обычной
-частью pre-query workflow. После изменения Delta Spec, Master Spec, registry identity,
-openspec/graph.yaml или Archive выполни build и status. Изменение только кода или
-CodeGraph не требует OpenSpec Graph build.
-
-`Delta Spec → targets → Repository` фиксирует scope только одного Change и
-ЗАПРЕЩЕНО считать её заменой `Master Spec → implemented_by → Repository`. Перед
-Gate 1 и после Archive ОБЯЗАН проверить через `openspec-graph-maintenance` каждую
-directly changed Master Spec. Если подтверждённый постоянный implementation mapping
-отсутствует, Graph handoff НЕ ЗАВЕРШЁН. Не добавляй review-only, verification-only,
-no-change или временно затронутый Repository.
-
-Если capability path неизвестен, получи список через openspec list --specs --json и
-выбери точный ID. До валидных Delta Specs прочитай точную Master Spec без Graph query;
-после перехода в authoritative phase используй точный graph inspect. Не выбирай fuzzy
-candidate, не обращай направление relation и не достраивай отсутствующую связь.
+Связь `Repository — linked — Master Spec` нейтральна: Repository был указан в Change,
+затрагивающем capability. Она не доказывает владение, runtime-вызов или техническую
+зависимость. Источниками являются структурированный Repository Impact и Delta Specs
+одного активного или архивного Change. Если Master Spec не имеет такой связи, Graph
+оставляет её видимой и возвращает `UNLINKED_MASTER_SPEC` warning.
 
 ## Доступ к Code Repository
 

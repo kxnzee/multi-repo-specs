@@ -68,14 +68,14 @@ ID retained Scenarios. Ambiguity операции разрешает Владе�
 
 - не создавайте фиктивную Delta Spec;
 - зафиксируйте принятое обоснование;
-- пометьте Graph impact/check-scope как `not_applicable`;
+- выполните общий `graph inspect`; отсутствие Delta Specs принято для этого Change;
 - напрямую сверьте Repository Impact, Design и repository sections Tasks;
 - сохраните обычные Gate, implementation и verification требования.
 
 ## 6. Review-кандидат стал implementation scope
 
-Graph может вернуть dependent/review Repository. Не добавляйте его автоматически.
-Сначала выполните адресную проверку. Если подтверждено реальное изменение:
+Не добавляйте новый Repository автоматически. Сначала выполните адресную проверку.
+Если подтверждено реальное изменение:
 
 1. остановите Apply;
 2. добавьте Repository в Proposal Impact, Design и Tasks;

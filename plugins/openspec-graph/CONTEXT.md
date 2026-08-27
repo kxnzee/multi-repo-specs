@@ -4,63 +4,54 @@
 
 ### Store
 
-The single OpenSpec requirements repository that owns the graph. Its Orchestrator
+The single OpenSpec requirements repository compiled by the graph. Its Orchestrator
 Store ID is the stable root identity.
 
 ### Repository
 
-A registered Code Repository that implements or verifies behavior. Files, symbols
-and calls inside it belong to CodeGraph rather than OpenSpec Graph.
+A registered Code Repository from `openspec-orch.yaml`. Files, symbols and runtime
+calls inside it belong to CodeGraph rather than OpenSpec Graph.
 
 ### Master Spec
 
 The current normative capability under `openspec/specs/`. A planned Master Spec may
-exist before Archive when an active Delta Spec introduces a new capability.
+exist before Archive when an active Delta Spec introduces a new capability. It remains
+visible even when no active Change affects it.
 
 ### Change
 
-One active or archived OpenSpec Change. It groups its Delta Specs and represents
-planned requirement movement, not proof of implementation, deployment or Archive.
+One active or archived OpenSpec Change. It groups Delta Specs and contains the
+Repository Impact used to relate exact Repositories to exact capabilities.
 
 ### Delta Spec
 
 One capability-specific specification inside a Change. Its standard sections carry
 the exact `ADDED`, `MODIFIED`, `REMOVED` and `RENAMED` operations.
 
-### Directly Changed Master Spec
+### Repository Impact
 
-A Master Spec whose capability has a Delta Spec inside the selected Change. This is
-direct planned scope, regardless of how many other Master Specs depend on it.
+The strict `Repository | Capabilities` table in a Change Proposal. Every row maps one
+registered Repository to one or more exact capability paths that have Delta Specs in
+the same Change. A free-form Repository list is not Repository Impact for graph
+compilation.
 
-### Dependent Master Spec
+### Repository–Master Spec relation
 
-A Master Spec that directly or transitively `depends_on` a Directly Changed Master
-Spec. Dependency impact follows the reverse direction of `depends_on`: if A depends
-on B and B changes, A is potentially affected. B is not inferred to be affected when
-only A changes.
+A neutral relation derived when the same Change maps a Repository in Repository Impact
+and affects a Master Spec through a Delta Spec. It means only that the Repository
+participated in a Change affecting the capability. It does not assert ownership,
+implementation, runtime calls or technical dependency.
 
-### Total Impact
+### Unlinked Master Spec
 
-The union of Directly Changed Master Specs and Dependent Master Specs, without
-duplicates. Total Impact is potential requirement impact based only on explicit,
-evidenced dependencies; it is not proof that implementation work is required.
+A Master Spec for which no valid Repository–Master Spec relation can be derived from
+active or archived Changes. It remains a graph node and produces the
+`UNLINKED_MASTER_SPEC` warning.
 
-### Direct Repository
+### Graph Report
 
-A Repository targeted by a Delta Spec in the selected Change or implementing a
-Directly Changed Master Spec.
-
-### Dependent Repository
-
-A Repository implementing a Dependent Master Spec. A Repository present in both
-groups remains part of the direct group and appears once in the total Repository set.
-
-### Repository relation direction
-
-- `source depends_on target`: a change to `target` reviews `source`; a change to
-  `source` does not review `target` automatically.
-- `source calls target`: `source` is the caller and `target` provides the named
-  contract; a provider change reviews the caller, not the reverse automatically.
-- `source publishes_to target`: `source` publishes the named event contract and
-  `target` is its direct consumer Repository. This is topology evidence only; it does
-  not add either Repository to impact or review automatically.
+The immutable result of compiling the current Store for `graph inspect` or
+`graph view`. It contains nodes, edges, diagnostics and summary counts. The report may
+be `ready` or `invalid`; the graph itself has no persisted freshness state. Every edge
+contains structured `{ path, line, field }` provenance. Recoverable diagnostics without
+an affected node or edge are displayed in the viewer as graph-level diagnostics.

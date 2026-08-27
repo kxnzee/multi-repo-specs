@@ -95,17 +95,16 @@ openspec-orch connect
 openspec-orch repository status
 ```
 
-Base Template устанавливает required Plugin `openspec-graph`, но binding с Store и
-первый индекс создаются явно:
+Base Template устанавливает required Plugin `openspec-graph`, но binding с Store
+создаётся явно:
 
 ```bash
 openspec-orch plugin connect openspec-graph --repo specs
-openspec-orch graph build
-openspec-orch graph status --json
+openspec-orch graph inspect --json
 ```
 
-`plugin connect` не строит Graph автоматически. Последующие Graph-dependent шаги
-сначала проверяют status и при необходимости явно перестраивают индекс.
+`graph inspect` каждый раз компилирует текущий Store; отдельный индекс и Graph sync
+не используются.
 
 Для нестандартной раскладки workspace задаётся один раз:
 

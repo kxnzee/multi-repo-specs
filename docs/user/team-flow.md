@@ -59,9 +59,8 @@ Orchestrator. Один человек может совмещать нескол
 - завершенный Intake с разрешенным Planning Route;
 - согласованные Proposal, Delta Specs, Design и Tasks;
 - строгую OpenSpec validation;
-- свежий authoritative Graph после Delta Specs;
-- одинаковый Repository Impact в Proposal, Design, Tasks и scope check;
-- постоянный `implemented_by` для каждой directly changed Master Spec;
+- `graph inspect --json` без errors после Delta Specs;
+- одинаковый Repository Impact в Proposal, Design, Tasks и при наличии Cycle;
 - план проверки каждого нового/измененного Scenario;
 - назначенного владельца финального verification checkpoint;
 - закрытые продуктовые и риск-решения.

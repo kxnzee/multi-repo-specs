@@ -80,7 +80,7 @@ selector в интерактивном терминале открывает che
 
 Для Repository Plugin без `repository.exec` тот же вызов исполняет зарегистрированные
 команды внутри SDK. В этом случае argv должен включать полный command path Plugin,
-например `graph status --json` для OpenSpec Graph. `scope: "store"` требует выбрать
+например `graph inspect --json` для OpenSpec Graph. `scope: "store"` требует выбрать
 Store через `--repo`, когда Plugin связан и с Code Repositories; SDK не подменяет
 выбранные Plugin instances другим context.
 

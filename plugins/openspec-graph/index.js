@@ -10,14 +10,10 @@ const plugin = definePlugin({
   supports: ["store"],
   repository: {
     connect() {
-      return "OpenSpec Graph подключён; выполните openspec-orch graph build";
+      return "OpenSpec Graph подключён; граф компилируется командами graph inspect и graph view";
     },
-    async status(context) {
+    status(context) {
       return new OpenSpecGraphService(context).status();
-    },
-    async sync(context) {
-      const graph = await new OpenSpecGraphService(context).build();
-      return OpenSpecGraphService.summary(graph);
     },
   },
   registerCommands: registerGraphCommands,

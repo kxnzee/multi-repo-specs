@@ -1,4 +1,4 @@
-/** @fileoverview OpenSpec Graph package, projection and viewer contract. */
+/** @fileoverview Stateless OpenSpec Graph compiler and Plugin command contract. */
 
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
@@ -11,597 +11,536 @@ import { fileURLToPath } from "node:url";
 import { assertPluginContract } from "@openspec-orch/plugin-sdk/testing";
 
 import plugin from "../index.js";
-import { buildOpenSpecGraph } from "../lib/builder.js";
-import { checkChangeScope, inspectChangeImpact, inspectGraphNode } from "../lib/query.js";
+import { compileOpenSpecGraph } from "../lib/builder.js";
+import { runGraphView } from "../lib/commands.js";
+import { inspectChangeImpact, inspectGraphNode } from "../lib/query.js";
+import { startGraphViewer } from "../lib/viewer.js";
 
 const packageRoot = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
-
-/** Creates a disposable Store-like tree. */
-async function storeFixture(t) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-graph-"));
-  t.after(() => fs.rm(root, { recursive: true, force: true }));
-  const files = {
-    "openspec/specs/conference/visitors/spec.md": [
-      "## Purpose",
-      "",
-      "Visitor behavior.",
-      "",
-      "## Requirements",
-      "",
-      "### Requirement: Existing behavior",
-      "The system SHALL preserve it.",
-      "",
-      "#### Scenario: Existing behavior",
-      "- **WHEN** it runs",
-      "- **THEN** it remains",
-      "",
-    ].join("\n"),
-    "openspec/specs/conference/agenda/spec.md": [
-      "## Purpose",
-      "",
-      "Conference agenda behavior.",
-      "",
-      "## Requirements",
-      "",
-      "### Requirement: Publish an agenda",
-      "The system SHALL publish an agenda for registered visitors.",
-      "",
-      "#### Scenario: Published agenda",
-      "- **WHEN** a visitor opens the conference",
-      "- **THEN** the agenda is available",
-      "",
-    ].join("\n"),
-    "openspec/changes/jit-100-promote/specs/conference/visitors/spec.md": [
-      "## MODIFIED Requirements",
-      "",
-      "### Requirement: Existing behavior",
-      "The system SHALL extend it.",
-      "",
-      "#### Scenario: Extended behavior",
-      "- **WHEN** it runs",
-      "- **THEN** it extends",
-      "",
-    ].join("\n"),
-    "openspec/graph.yaml": [
-      "version: 1",
-      "edges:",
-      "  - source: repository:web",
-      "    relation: depends_on",
-      "    target: repository:control",
-      "    contract: Conference control",
-      "    sources:",
-      "      - docs/architecture.md:12",
-      "      - docs/architecture.toml:1",
-      "  - source: repository:portal",
-      "    relation: calls",
-      "    target: repository:web",
-      "    contract: Visitor API",
-      "    sources:",
-      "      - docs/architecture.md:13",
-      "  - source: repository:web",
-      "    relation: publishes_to",
-      "    target: repository:notifications",
-      "    contract: Visitor events",
-      "    sources:",
-      "      - docs/architecture.md:14",
-      "  - source: master-spec:conference/visitors",
-      "    relation: implemented_by",
-      "    target: repository:web",
-      "    sources:",
-      "      - openspec/specs/conference/visitors/spec.md:1",
-      "  - source: repository:qa",
-      "    relation: verifies",
-      "    target: master-spec:conference/visitors",
-      "    sources:",
-      "      - docs/architecture.md:15",
-      "  - source: master-spec:conference/agenda",
-      "    relation: depends_on",
-      "    target: master-spec:conference/visitors",
-      "    sources:",
-      "      - docs/architecture.md:2",
-      "  - source: master-spec:conference/agenda",
-      "    relation: implemented_by",
-      "    target: repository:control",
-      "    sources:",
-      "      - openspec/specs/conference/agenda/spec.md:1",
-      "  - source: delta-spec:jit-100-promote/conference/visitors",
-      "    relation: targets",
-      "    target: repository:web",
-      "    sources:",
-      "      - openspec/changes/jit-100-promote/design.md:20",
-      "",
-    ].join("\n"),
-    "docs/architecture.md": Array.from(
-      { length: 24 },
-      (_, index) => `Architecture evidence ${index + 1}`,
-    ).join("\n"),
-    "docs/architecture.toml": "service = \"conference\"\n",
-    "openspec/changes/jit-100-promote/design.md": Array.from(
-      { length: 24 },
-      (_, index) => `Design evidence ${index + 1}`,
-    ).join("\n"),
-    "openspec/changes/empty-change/proposal.md": "# Empty Change\n",
-  };
-  for (const [relativePath, source] of Object.entries(files)) {
-    const target = path.join(root, relativePath);
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.writeFile(target, source);
-  }
-  return root;
-}
-
 const repositories = [
   { id: "control", role: "code" },
-  { id: "notifications", role: "code" },
-  { id: "portal", role: "code" },
-  { id: "qa", role: "code" },
   { id: "web", role: "code" },
 ];
 const storeId = "specs";
 
-test("Package exposes a Store-only bundled Plugin contract", async () => {
+/** Writes one Store-relative file and its parents. */
+async function write(root, relativePath, source) {
+  const target = path.join(root, relativePath);
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.writeFile(target, source);
+}
+
+/** Creates a disposable Store tree with one linked and one unlinked capability. */
+async function storeFixture(t) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-graph-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  await write(root, "openspec-orch.yaml", [
+    "version: 1",
+    "repositories:",
+    "  - id: control",
+    "    roles: [code]",
+    "  - id: web",
+    "    roles: [code]",
+    "",
+  ].join("\n"));
+  await write(root, "openspec/specs/conference/visitors/spec.md", [
+    "## Purpose",
+    "",
+    "Visitor behavior.",
+    "",
+    "## Requirements",
+    "",
+  ].join("\n"));
+  await write(root, "openspec/specs/conference/agenda/spec.md", [
+    "## Purpose",
+    "",
+    "Agenda behavior.",
+    "",
+    "## Requirements",
+    "",
+  ].join("\n"));
+  await write(root, "openspec/changes/jit-100-promote/specs/conference/visitors/spec.md", [
+    "## MODIFIED Requirements",
+    "",
+    "### Requirement: Existing behavior",
+    "The system SHALL extend it.",
+    "",
+  ].join("\n"));
+  await write(root, "openspec/changes/jit-100-promote/proposal.md", [
+    "# Promote visitors",
+    "",
+    "## Repository Impact",
+    "",
+    "| Repository | Capabilities |",
+    "| --- | --- |",
+    "| `web` | `conference/visitors` |",
+    "",
+  ].join("\n"));
+  await write(root, "openspec/changes/empty-change/.openspec.yaml", "skip_specs: true\n");
+  await write(root, "openspec/changes/empty-change/proposal.md", "# Tooling-only Change\n");
+  return root;
+}
+
+/** Returns all diagnostic codes in deterministic report order. */
+function codes(report) {
+  return report.diagnostics.map(({ code }) => code);
+}
+
+test("Package exposes a Store-only Plugin with graph commands and no sync", async () => {
   const packageManifest = JSON.parse(await fs.readFile(
     path.join(packageRoot, "package.json"),
     "utf8",
   ));
-  assert.equal(packageManifest.name, "@openspec-orch/plugin-openspec-graph");
-  assert.deepEqual(packageManifest.openspecOrchestrator, {
-    apiVersion: 1,
-    plugin: "./index.js",
-  });
   assert.deepEqual(assertPluginContract({ plugin, packageManifest }), {
     id: "openspec-graph",
     commands: ["graph"],
   });
   assert.deepEqual(plugin.supports, ["store"]);
   assert.equal(plugin.canExec(), true);
+  assert.equal(plugin.canSync(), false);
   assert.equal(plugin.hasAgentContribution(), false);
 });
 
-test("Plugin exec runs the registered graph command grammar with native options", async (t) => {
-  const output = [];
-  t.mock.method(console, "log", (value) => output.push(value));
-  const graph = {
-    graph_version: 1,
-    source_digest: "a".repeat(64),
-    nodes: [{ id: "store:specs" }],
-    edges: [],
-  };
-  const context = Object.freeze({
-    repository: Object.freeze({ id: "specs", role: "store" }),
-    project: Object.freeze({
-      id: "specs",
-      repositories: Object.freeze([Object.freeze({ id: "specs", role: "store" })]),
-    }),
-    process: Object.freeze({
-      run() { return Promise.resolve(JSON.stringify(graph)); },
-    }),
-    storage: Object.freeze({
-      read() { return Promise.resolve(graph); },
-    }),
-  });
+test("Empty Store compiles without OpenSpec Graph config or OpenSpec content", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-graph-empty-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const report = await compileOpenSpecGraph(root, { repositories, storeId });
 
-  await plugin.exec(context, ["graph", "status", "--json"]);
-  await plugin.exec(context, ["graph", "status"]);
-
-  assert.equal(output.length, 5);
-  assert.equal(JSON.parse(output[0]).state, "ready");
-  assert.deepEqual(output.slice(1), [
-    "✓ OpenSpec Graph — готов и актуален",
-    "  Узлы: 1  Рёбра: 0",
-    `  Текущий digest: ${"a".repeat(12)}`,
-    `  Сохранённый digest: ${"a".repeat(12)}`,
+  assert.equal(report.state, "ready");
+  assert.deepEqual(report.summary, { nodes: 3, edges: 2, errors: 0, warnings: 0 });
+  assert.deepEqual(report.nodes.map(({ id, status }) => [id, status]), [
+    ["repository:control", "ok"],
+    ["repository:web", "ok"],
+    ["store:specs", "ok"],
   ]);
+  assert.equal(report.edges.every(({ relation }) => relation === "contains"), true);
 });
 
-test("Builder projects the Store hierarchy and strict graph edges", async (t) => {
+test("Compiler derives exact Repository and Master Spec links from Repository Impact", async (t) => {
   const root = await storeFixture(t);
-  const first = await buildOpenSpecGraph(root, { repositories, storeId });
-  const second = await buildOpenSpecGraph(root, { repositories, storeId });
+  const first = await compileOpenSpecGraph(root, { repositories, storeId });
+  const second = await compileOpenSpecGraph(root, { repositories, storeId });
 
   assert.deepEqual(second, first);
-  assert.equal(first.graph_version, 1);
-  assert.equal(first.nodes.length, 11);
-  assert.deepEqual(first.nodes.map(({ id }) => id), [
-    "change:empty-change",
-    "change:jit-100-promote",
-    "delta-spec:jit-100-promote/conference/visitors",
-    "master-spec:conference/agenda",
-    "master-spec:conference/visitors",
-    "repository:control",
-    "repository:notifications",
-    "repository:portal",
-    "repository:qa",
-    "repository:web",
-    "store:specs",
-  ].sort());
-  assert.equal(first.edges.length, 16);
+  assert.equal(first.state, "ready");
+  assert.deepEqual(first.summary, { nodes: 8, edges: 11, errors: 0, warnings: 1 });
+  assert.deepEqual(codes(first), ["UNLINKED_MASTER_SPEC"]);
   assert.deepEqual(
-    first.edges.filter(({ relation }) => relation === "contains")
-      .map(({ source, target }) => [source, target]),
+    first.edges.filter(({ relation }) => ["changes_in", "linked"].includes(relation))
+      .map(({ source, relation, target, via_changes, provenance, status }) => ({
+        source, relation, target, via_changes, provenance, status,
+      })),
     [
-      ["change:jit-100-promote", "delta-spec:jit-100-promote/conference/visitors"],
-      ["store:specs", "repository:control"],
-      ["store:specs", "repository:notifications"],
-      ["store:specs", "repository:portal"],
-      ["store:specs", "repository:qa"],
-      ["store:specs", "repository:web"],
+      {
+        source: "change:jit-100-promote",
+        relation: "changes_in",
+        target: "repository:web",
+        via_changes: ["jit-100-promote"],
+        provenance: [{
+          path: "openspec/changes/jit-100-promote/proposal.md",
+          line: 7,
+          field: "repository-impact[0].repository",
+        }],
+        status: "ok",
+      },
+      {
+        source: "repository:web",
+        relation: "linked",
+        target: "master-spec:conference/visitors",
+        via_changes: ["jit-100-promote"],
+        provenance: [{
+          path: "openspec/changes/jit-100-promote/proposal.md",
+          line: 7,
+          field: "repository-impact[0].capabilities[0]",
+        }],
+        status: "ok",
+      },
     ],
   );
-  assert.deepEqual(
-    first.edges.find(({ relation }) => relation === "affects"),
-    {
-      id: "derived:change:jit-100-promote:affects:master-spec:conference/visitors",
-      source: "change:jit-100-promote",
-      relation: "affects",
-      target: "master-spec:conference/visitors",
-      operations: ["MODIFIED"],
-      provenance: [
-        "openspec/changes/jit-100-promote/specs/conference/visitors/spec.md:1",
-      ],
-      derived: true,
-    },
-  );
-  assert.deepEqual(
-    first.edges.find(({ relation }) => relation === "changes"),
-    {
-      id: "derived:delta-spec:jit-100-promote/conference/visitors:MODIFIED:1",
-      source: "delta-spec:jit-100-promote/conference/visitors",
-      relation: "changes",
-      target: "master-spec:conference/visitors",
-      operation: "MODIFIED",
-      provenance: [
-        "openspec/changes/jit-100-promote/specs/conference/visitors/spec.md:1",
-      ],
-      derived: true,
-    },
+  assert.equal(
+    first.nodes.find(({ id }) => id === "master-spec:conference/agenda").status,
+    "warning",
   );
 });
 
-test("Builder fails closed for dangling graph references", async (t) => {
+test("Plugin config maps localized Delta headings to canonical operations", async (t) => {
   const root = await storeFixture(t);
-  const graphPath = path.join(root, "openspec/graph.yaml");
-  await fs.writeFile(graphPath, [
+  await write(root, "openspec-graph.yaml", [
     "version: 1",
-    "edges:",
-    "  - source: repository:missing",
-    "    relation: depends_on",
-    "    target: repository:web",
-    "    sources: [docs/architecture.md:1]",
+    "operation_headings:",
+    "  ADDED:",
+    "    - '### Добавленные требования'",
+    "  MODIFIED:",
+    "    - '## Требования изменены'",
+    "  REMOVED:",
+    "    - '#### Удалённые требования'",
+    "  RENAMED:",
+    "    - '## Переименованные требования'",
     "",
   ].join("\n"));
-  await assert.rejects(
-    buildOpenSpecGraph(root, { repositories, storeId }),
-    /source does not exist: repository:missing/,
+  await write(
+    root,
+    "openspec/changes/jit-100-promote/specs/conference/visitors/spec.md",
+    [
+      "### Добавленные требования",
+      "",
+      "## требования   ИЗМЕНЕНЫ",
+      "",
+      "#### Удалённые требования",
+      "",
+      "## Переименованные требования",
+      "",
+    ].join("\n"),
   );
-});
 
-test("Builder rejects unverifiable explicit-edge provenance", async (t) => {
-  const root = await storeFixture(t);
-  const graphPath = path.join(root, "openspec/graph.yaml");
-  await fs.writeFile(graphPath, [
-    "version: 1",
-    "edges:",
-    "  - source: repository:control",
-    "    relation: depends_on",
-    "    target: repository:web",
-    "    sources: [docs/missing.md:1]",
-    "",
-  ].join("\n"));
-  await assert.rejects(
-    buildOpenSpecGraph(root, { repositories, storeId }),
-    /source does not exist: docs\/missing.md/,
-  );
-});
+  const report = await compileOpenSpecGraph(root, { repositories, storeId });
+  const changes = report.edges.filter(({ relation }) => relation === "changes");
+  const affects = report.edges.find(({ relation }) => relation === "affects");
 
-test("Source digest tracks topology inputs rather than every Change file", async (t) => {
-  const root = await storeFixture(t);
-  const initial = await buildOpenSpecGraph(root, { repositories, storeId });
+  assert.deepEqual(changes.map(({ operation }) => operation), [
+    "ADDED",
+    "MODIFIED",
+    "REMOVED",
+    "RENAMED",
+  ]);
+  assert.deepEqual(affects.operations, ["ADDED", "MODIFIED", "REMOVED", "RENAMED"]);
+  assert.equal(codes(report).includes("DELTA_OPERATIONS_MISSING"), false);
 
-  await fs.writeFile(
-    path.join(root, "openspec/changes/empty-change/proposal.md"),
-    "# Revised proposal without topology changes\n",
-  );
-  await fs.writeFile(
-    path.join(root, "openspec/changes/empty-change/tasks.md"),
-    "- [x] Documentation-only task state\n",
-  );
-  const planningOnly = await buildOpenSpecGraph(root, { repositories, storeId });
-  assert.equal(planningOnly.source_digest, initial.source_digest);
-
-  await fs.appendFile(
-    path.join(root, "openspec/specs/conference/visitors/spec.md"),
-    "\nTopology input changed.\n",
-  );
-  const changedMasterSpec = await buildOpenSpecGraph(root, { repositories, storeId });
-  assert.notEqual(changedMasterSpec.source_digest, initial.source_digest);
-});
-
-test("Builder projects an archived Change without retaining an active duplicate", async (t) => {
-  const root = await storeFixture(t);
   const activePath = path.join(root, "openspec/changes/jit-100-promote");
-  const archivePath = path.join(root, "openspec/changes/archive/2026-08-25-jit-100-promote");
+  const archivePath = path.join(root, "openspec/changes/archive/2026-08-27-jit-100-promote");
   await fs.mkdir(path.dirname(archivePath), { recursive: true });
   await fs.rename(activePath, archivePath);
+  const archivedReport = await compileOpenSpecGraph(root, { repositories, storeId });
 
-  const graph = await buildOpenSpecGraph(root, { repositories, storeId });
-  const changes = graph.nodes.filter(({ id }) => id === "change:jit-100-promote");
-  assert.equal(changes.length, 1);
-  assert.equal(changes[0].state, "archived");
-  assert.equal(changes[0].path, "openspec/changes/archive/2026-08-25-jit-100-promote");
+  assert.deepEqual(
+    archivedReport.edges.filter(({ relation }) => relation === "changes")
+      .map(({ operation }) => operation),
+    ["ADDED", "MODIFIED", "REMOVED", "RENAMED"],
+  );
   assert.equal(
-    graph.nodes.find(({ id }) => (
-      id === "delta-spec:jit-100-promote/conference/visitors"
-    )).state,
+    archivedReport.nodes.find(({ id }) => id === "change:jit-100-promote").state,
     "archived",
   );
 });
 
-test("Read queries separate direct and downstream Change impact", async (t) => {
+test("Invalid operation heading config falls back atomically to built-ins", async (t) => {
+  const scenarios = [
+    [
+      "version: 1",
+      "operation_headings:",
+      "  ADDED: ['## Общие требования']",
+      "  MODIFIED: ['## Общие требования']",
+      "",
+    ].join("\n"),
+    [
+      "version: 2",
+      "operation_headings:",
+      "  ADDED: ['## Общие требования']",
+      "",
+    ].join("\n"),
+  ];
+
+  for (const config of scenarios) {
+    const root = await storeFixture(t);
+    await write(root, "openspec-graph.yaml", config);
+    await write(
+      root,
+      "openspec/changes/jit-100-promote/specs/conference/visitors/spec.md",
+      "## Общие требования\n",
+    );
+
+    const report = await compileOpenSpecGraph(root, { repositories, storeId });
+
+    assert.equal(report.state, "invalid");
+    assert.equal(codes(report).includes("OPERATION_HEADINGS_CONFIG_INVALID"), true);
+    assert.equal(codes(report).includes("DELTA_OPERATIONS_MISSING"), true);
+    assert.equal(report.edges.some(({ relation }) => relation === "changes"), false);
+  }
+});
+
+test("Archive preserves and aggregates the neutral Repository relation", async (t) => {
   const root = await storeFixture(t);
-  const graph = await buildOpenSpecGraph(root, { repositories, storeId });
-  const nodeView = inspectGraphNode(graph, "master-spec:conference/visitors");
-  assert.equal(nodeView.node.type, "master-spec");
-  assert.deepEqual(nodeView.neighbors.map(({ id }) => id), [
+  const activePath = path.join(root, "openspec/changes/jit-100-promote");
+  const archivePath = path.join(root, "openspec/changes/archive/2026-08-27-jit-100-promote");
+  await fs.mkdir(path.dirname(archivePath), { recursive: true });
+  await fs.rename(activePath, archivePath);
+
+  const report = await compileOpenSpecGraph(root, { repositories, storeId });
+  const change = report.nodes.find(({ id }) => id === "change:jit-100-promote");
+  const link = report.edges.find(({ relation }) => relation === "linked");
+  assert.equal(change.state, "archived");
+  assert.equal(link.source, "repository:web");
+  assert.equal(link.target, "master-spec:conference/visitors");
+  assert.deepEqual(link.via_changes, ["jit-100-promote"]);
+  assert.deepEqual(link.provenance, [
+    {
+      path: "openspec/changes/archive/2026-08-27-jit-100-promote/proposal.md",
+      line: 7,
+      field: "repository-impact[0].capabilities[0]",
+    },
+  ]);
+});
+
+test("Archived Delta reports a missing current Master Spec", async (t) => {
+  const root = await storeFixture(t);
+  await fs.rm(path.join(root, "openspec/specs/conference/visitors"), { recursive: true });
+  const activePath = path.join(root, "openspec/changes/jit-100-promote");
+  const archivePath = path.join(root, "openspec/changes/archive/2026-08-27-jit-100-promote");
+  await fs.mkdir(path.dirname(archivePath), { recursive: true });
+  await fs.rename(activePath, archivePath);
+
+  const report = await compileOpenSpecGraph(root, { repositories, storeId });
+  const master = report.nodes.find(({ id }) => id === "master-spec:conference/visitors");
+  assert.equal(report.state, "invalid");
+  assert.equal(codes(report).includes("ARCHIVED_MASTER_SPEC_MISSING"), true);
+  assert.equal(master.state, "missing");
+  assert.equal(master.placeholder, true);
+  assert.equal(master.status, "error");
+});
+
+test("Unknown Repository remains visible as a recoverable error", async (t) => {
+  const root = await storeFixture(t);
+  const proposal = path.join(root, "openspec/changes/jit-100-promote/proposal.md");
+  await fs.writeFile(proposal, (await fs.readFile(proposal, "utf8")).replace("`web`", "`missing`"));
+
+  const report = await compileOpenSpecGraph(root, { repositories, storeId });
+  assert.equal(report.state, "invalid");
+  assert.equal(report.summary.errors, 1);
+  assert.equal(codes(report).includes("GRAPH_UNKNOWN_REPOSITORY"), true);
+  assert.deepEqual(
+    report.nodes.find(({ id }) => id === "repository:missing"),
+    {
+      id: "repository:missing",
+      type: "repository",
+      label: "missing",
+      repository_id: "missing",
+      state: "missing",
+      placeholder: true,
+      status: "error",
+    },
+  );
+  assert.equal(
+    report.edges.find(({ relation }) => relation === "linked").status,
+    "error",
+  );
+});
+
+test("Repository Impact cannot create a cross-product with undeclared capabilities", async (t) => {
+  const root = await storeFixture(t);
+  const proposal = path.join(root, "openspec/changes/jit-100-promote/proposal.md");
+  await fs.writeFile(proposal, (await fs.readFile(proposal, "utf8")).replace(
+    "`conference/visitors`",
+    "`conference/visitors`, `conference/agenda`",
+  ));
+
+  const report = await compileOpenSpecGraph(root, { repositories, storeId });
+  assert.equal(report.state, "invalid");
+  assert.equal(codes(report).includes("REPOSITORY_IMPACT_UNKNOWN_CAPABILITY"), true);
+  assert.equal(
+    report.edges.some(({ relation, target }) => (
+      relation === "linked" && target === "master-spec:conference/agenda"
+    )),
+    false,
+  );
+});
+
+test("Change impact contains only linked relations declared by that Change", async (t) => {
+  const root = await storeFixture(t);
+  await write(
+    root,
+    "openspec/changes/jit-100-promote/specs/conference/agenda/spec.md",
+    "## MODIFIED Requirements\n\n### Requirement: Agenda\nThe system SHALL update it.\n",
+  );
+  await write(root, "openspec/changes/jit-100-promote/proposal.md", [
+    "# Promote visitors",
+    "",
+    "## Repository Impact",
+    "",
+    "| Repository | Capabilities |",
+    "| --- | --- |",
+    "| `web` | `conference/visitors` |",
+    "| `control` | `conference/agenda` |",
+    "",
+  ].join("\n"));
+  await write(
+    root,
+    "openspec/changes/jit-200-agenda/specs/conference/agenda/spec.md",
+    "## MODIFIED Requirements\n\n### Requirement: Agenda\nThe system SHALL refine it.\n",
+  );
+  await write(root, "openspec/changes/jit-200-agenda/proposal.md", [
+    "# Refine agenda",
+    "",
+    "## Repository Impact",
+    "",
+    "| Repository | Capabilities |",
+    "| --- | --- |",
+    "| `web` | `conference/agenda` |",
+    "",
+  ].join("\n"));
+
+  const report = await compileOpenSpecGraph(root, { repositories, storeId });
+  const impact = inspectChangeImpact(report, "jit-100-promote");
+  const linked = impact.edges.filter(({ relation }) => relation === "linked");
+  assert.deepEqual(linked.map(({ source, target }) => [source, target]), [
+    ["repository:control", "master-spec:conference/agenda"],
+    ["repository:web", "master-spec:conference/visitors"],
+  ]);
+  assert.equal(linked.every(({ via_changes: changes }) => changes.includes("jit-100-promote")), true);
+});
+
+test("Every graph edge exposes structured machine-readable provenance", async (t) => {
+  const root = await storeFixture(t);
+  const report = await compileOpenSpecGraph(root, { repositories, storeId });
+
+  for (const value of report.edges) {
+    assert.equal(value.provenance.length > 0, true, value.id);
+    for (const source of value.provenance) {
+      assert.equal(typeof source.path, "string", value.id);
+      assert.equal(Number.isInteger(source.line), true, value.id);
+      assert.equal(typeof source.field, "string", value.id);
+    }
+  }
+  assert.deepEqual(
+    report.edges.find(({ relation, target }) => (
+      relation === "contains" && target === "repository:web"
+    )).provenance,
+    [{ path: "openspec-orch.yaml", line: 5, field: "repositories[1].id" }],
+  );
+});
+
+test("Duplicate Delta operations are reported and projected only once", async (t) => {
+  const root = await storeFixture(t);
+  const delta = path.join(
+    root,
+    "openspec/changes/jit-100-promote/specs/conference/visitors/spec.md",
+  );
+  await fs.appendFile(delta, [
+    "",
+    "## MODIFIED Requirements",
+    "",
+    "### Requirement: Duplicate section",
+    "The system SHALL reject it.",
+    "",
+  ].join("\n"));
+
+  const report = await compileOpenSpecGraph(root, { repositories, storeId });
+  assert.equal(report.state, "invalid");
+  assert.equal(codes(report).includes("DELTA_OPERATION_DUPLICATE"), true);
+  assert.equal(report.edges.filter(({ relation }) => relation === "changes").length, 1);
+});
+
+test("Repository Impact and Change metadata diagnostics cover malformed declarations", async (t) => {
+  const scenarios = [
+    {
+      code: "REPOSITORY_IMPACT_DUPLICATE_SECTION",
+      mutate: async (root) => fs.appendFile(
+        path.join(root, "openspec/changes/jit-100-promote/proposal.md"),
+        "\n## Repository Impact\n",
+      ),
+    },
+    {
+      code: "REPOSITORY_IMPACT_DUPLICATE_MAPPING",
+      mutate: async (root) => fs.appendFile(
+        path.join(root, "openspec/changes/jit-100-promote/proposal.md"),
+        "| `web` | `conference/visitors` |\n",
+      ),
+    },
+    {
+      code: "REPOSITORY_IMPACT_ROW_INVALID",
+      mutate: async (root) => fs.appendFile(
+        path.join(root, "openspec/changes/jit-100-promote/proposal.md"),
+        "| `web` | |\n",
+      ),
+    },
+    {
+      code: "REPOSITORY_IMPACT_EMPTY",
+      mutate: async (root) => fs.writeFile(
+        path.join(root, "openspec/changes/jit-100-promote/proposal.md"),
+        [
+          "## Repository Impact",
+          "",
+          "| Repository | Capabilities |",
+          "| --- | --- |",
+          "",
+        ].join("\n"),
+      ),
+    },
+    {
+      code: "CHANGE_METADATA_INVALID",
+      mutate: async (root) => fs.writeFile(
+        path.join(root, "openspec/changes/empty-change/.openspec.yaml"),
+        "skip_specs: [\n",
+      ),
+    },
+    {
+      code: "REPOSITORY_IMPACT_MISSING",
+      mutate: async (root) => fs.rm(
+        path.join(root, "openspec/changes/jit-100-promote/proposal.md"),
+      ),
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const root = await storeFixture(t);
+    await scenario.mutate(root);
+    const report = await compileOpenSpecGraph(root, { repositories, storeId });
+    assert.equal(codes(report).includes(scenario.code), true, scenario.code);
+  }
+});
+
+test("Malformed Repository Impact and Delta operations are report diagnostics", async (t) => {
+  const root = await storeFixture(t);
+  await fs.writeFile(
+    path.join(root, "openspec/changes/jit-100-promote/proposal.md"),
+    "## Repository Impact\n\n- web\n",
+  );
+  await fs.writeFile(
+    path.join(root, "openspec/changes/jit-100-promote/specs/conference/visitors/spec.md"),
+    "## Requirements\n",
+  );
+
+  const report = await compileOpenSpecGraph(root, { repositories, storeId });
+  assert.equal(report.state, "invalid");
+  assert.equal(codes(report).includes("REPOSITORY_IMPACT_TABLE_INVALID"), true);
+  assert.equal(codes(report).includes("DELTA_OPERATIONS_MISSING"), true);
+  assert.equal(report.nodes.length > 0, true);
+  assert.equal(report.edges.length > 0, true);
+});
+
+test("Structural Change impact query uses affects, changes_in and linked edges only", async (t) => {
+  const root = await storeFixture(t);
+  const report = await compileOpenSpecGraph(root, { repositories, storeId });
+  const impact = inspectChangeImpact(report, "jit-100-promote");
+  const view = inspectGraphNode(report, "master-spec:conference/visitors");
+
+  assert.deepEqual(impact.master_specs.map(({ id }) => id), [
+    "master-spec:conference/visitors",
+  ]);
+  assert.deepEqual(impact.repositories.map(({ id }) => id), ["repository:web"]);
+  assert.equal(impact.edges.some(({ relation }) => relation === "linked"), true);
+  assert.deepEqual(view.neighbors.map(({ id }) => id), [
     "change:jit-100-promote",
     "delta-spec:jit-100-promote/conference/visitors",
-    "master-spec:conference/agenda",
-    "repository:qa",
     "repository:web",
+    "store:specs",
   ]);
-
-  const impact = inspectChangeImpact(graph, "jit-100-promote");
-  assert.equal(impact.change.id, "change:jit-100-promote");
-  assert.deepEqual(impact.direct_master_specs.map(({ id }) => id), [
-    "master-spec:conference/visitors",
-  ]);
-  assert.deepEqual(impact.dependent_master_specs.map(({ id }) => id), [
-    "master-spec:conference/agenda",
-  ]);
-  assert.deepEqual(impact.total_master_specs.map(({ id }) => id), [
-    "master-spec:conference/agenda",
-    "master-spec:conference/visitors",
-  ]);
-  assert.deepEqual(impact.direct_repositories.map(({ id }) => id), ["repository:web"]);
-  assert.deepEqual(impact.dependent_repositories.map(({ id }) => id), [
-    "repository:control",
-  ]);
-  assert.deepEqual(impact.repositories.map(({ id }) => id), [
-    "repository:control",
-    "repository:web",
-  ]);
-  assert.deepEqual(impact.verification_repositories.map(({ id }) => id), [
-    "repository:qa",
-  ]);
-  assert.deepEqual(impact.related_repositories.map(({ id }) => id), [
-    "repository:portal",
-  ]);
-  assert.deepEqual(impact.review_repositories.map(({ id }) => id), [
-    "repository:portal",
-    "repository:qa",
-  ]);
-  assert.deepEqual(impact.all_repositories.map(({ id }) => id), [
-    "repository:control",
-    "repository:portal",
-    "repository:qa",
-    "repository:web",
-  ]);
-  assert.deepEqual(impact.edges.map(({ relation }) => relation), [
-    "affects",
-    "contains",
-    "changes",
-    "depends_on",
-    "calls",
-    "implemented_by",
-    "verifies",
-    "depends_on",
-    "implemented_by",
-    "targets",
-  ]);
-  assert.throws(() => inspectChangeImpact(graph, "missing"), /CHANGE_NOT_FOUND/);
-  const emptyImpact = inspectChangeImpact(graph, "empty-change");
-  assert.deepEqual(emptyImpact.delta_specs, []);
-  assert.deepEqual(emptyImpact.direct_master_specs, []);
-  assert.deepEqual(emptyImpact.dependent_master_specs, []);
-  assert.deepEqual(emptyImpact.total_master_specs, []);
-  assert.deepEqual(emptyImpact.verification_repositories, []);
-  assert.deepEqual(emptyImpact.related_repositories, []);
-  assert.deepEqual(emptyImpact.review_repositories, []);
-  assert.deepEqual(emptyImpact.all_repositories, []);
 });
 
-test("Repository impact follows the declared direction of each relation", () => {
-  const impactFor = (relation, implementationRepository) => inspectChangeImpact({
-    nodes: [
-      { id: "change:direction", type: "change", change_id: "direction" },
-      {
-        id: "delta-spec:direction/example",
-        type: "delta-spec",
-        change_id: "direction",
-      },
-      { id: "master-spec:example", type: "master-spec", capability: "example" },
-      { id: "repository:source", type: "repository", repository_id: "source" },
-      { id: "repository:target", type: "repository", repository_id: "target" },
-    ],
-    edges: [
-      {
-        id: "contains",
-        source: "change:direction",
-        relation: "contains",
-        target: "delta-spec:direction/example",
-      },
-      {
-        id: "changes",
-        source: "delta-spec:direction/example",
-        relation: "changes",
-        target: "master-spec:example",
-      },
-      {
-        id: "implements",
-        source: "master-spec:example",
-        relation: "implemented_by",
-        target: `repository:${implementationRepository}`,
-      },
-      {
-        id: relation,
-        source: "repository:source",
-        relation,
-        target: "repository:target",
-      },
-    ],
-  }, "direction").related_repositories.map(({ repository_id: repositoryId }) => repositoryId);
-
-  assert.deepEqual(impactFor("depends_on", "source"), []);
-  assert.deepEqual(impactFor("depends_on", "target"), ["source"]);
-  assert.deepEqual(impactFor("calls", "source"), []);
-  assert.deepEqual(impactFor("calls", "target"), ["source"]);
-  assert.deepEqual(impactFor("publishes_to", "source"), []);
-  assert.deepEqual(impactFor("publishes_to", "target"), []);
-});
-
-test("Change impact separates direct and transitive prerequisites and dependents", () => {
-  const changeIds = ["a", "b", "c", "d", "e"];
-  const graph = {
-    nodes: [
-      ...changeIds.flatMap((changeId) => [
-        { id: `change:${changeId}`, type: "change", change_id: changeId },
-        {
-          id: `delta-spec:${changeId}/example`,
-          type: "delta-spec",
-          change_id: changeId,
-        },
-      ]),
-      { id: "master-spec:example", type: "master-spec", capability: "example" },
-    ],
-    edges: [
-      ...changeIds.map((changeId) => ({
-        id: `contains:${changeId}`,
-        source: `change:${changeId}`,
-        relation: "contains",
-        target: `delta-spec:${changeId}/example`,
-      })),
-      {
-        id: "changes:a",
-        source: "delta-spec:a/example",
-        relation: "changes",
-        target: "master-spec:example",
-      },
-      {
-        id: "a-needs-b",
-        source: "delta-spec:a/example",
-        relation: "depends_on",
-        target: "delta-spec:b/example",
-      },
-      {
-        id: "b-needs-d",
-        source: "delta-spec:b/example",
-        relation: "depends_on",
-        target: "delta-spec:d/example",
-      },
-      {
-        id: "c-needs-a",
-        source: "delta-spec:c/example",
-        relation: "depends_on",
-        target: "delta-spec:a/example",
-      },
-      {
-        id: "e-needs-c",
-        source: "delta-spec:e/example",
-        relation: "depends_on",
-        target: "delta-spec:c/example",
-      },
-    ],
-  };
-
-  const impact = inspectChangeImpact(graph, "a");
-  assert.deepEqual(impact.prerequisite_changes.direct.map(({ change_id: id }) => id), ["b"]);
-  assert.deepEqual(impact.prerequisite_changes.transitive.map(({ change_id: id }) => id), ["d"]);
-  assert.deepEqual(impact.dependent_changes.direct.map(({ change_id: id }) => id), ["c"]);
-  assert.deepEqual(impact.dependent_changes.transitive.map(({ change_id: id }) => id), ["e"]);
-});
-
-test("Scope check separates required, review and extra Cycle repositories", async (t) => {
-  const root = await storeFixture(t);
-  const graph = await buildOpenSpecGraph(root, { repositories, storeId });
-  const graphWithExtraRepository = Object.freeze({
-    ...graph,
-    nodes: Object.freeze([
-      ...graph.nodes,
-      Object.freeze({
-        id: "repository:operations",
-        type: "repository",
-        label: "operations",
-        repository_id: "operations",
-      }),
-    ].sort((left, right) => left.id.localeCompare(right.id))),
-  });
-
-  assert.deepEqual(checkChangeScope(
-    graphWithExtraRepository,
-    "jit-100-promote",
-    ["qa", "web", "operations"],
-  ), {
-    change_id: "jit-100-promote",
-    state: "invalid",
-    proposed_repositories: ["operations", "qa", "web"],
-    required_repositories: ["web"],
-    review_repositories: ["control", "portal", "qa"],
-    missing_required_repositories: [],
-    included_review_repositories: ["qa"],
-    review_repositories_outside_scope: ["control", "portal"],
-    extra_repositories: ["operations"],
-    missing_delta_specs: false,
-    unmapped_master_specs: [],
-  });
-
-  assert.equal(
-    checkChangeScope(graph, "jit-100-promote", ["web", "qa"]).state,
-    "invalid",
-  );
-  assert.deepEqual(
-    checkChangeScope(graph, "jit-100-promote", ["web", "qa"])
-      .included_review_repositories,
-    ["qa"],
-  );
-  assert.equal(checkChangeScope(graph, "jit-100-promote", ["web"]).state, "ready");
-
-  assert.equal(checkChangeScope(graph, "jit-100-promote", ["qa"]).state, "invalid");
-  assert.deepEqual(
-    checkChangeScope(graph, "jit-100-promote", ["qa"]).missing_required_repositories,
-    ["web"],
-  );
-  assert.equal(checkChangeScope(graph, "empty-change", ["web"]).state, "invalid");
-  assert.equal(checkChangeScope(graph, "empty-change", ["web"]).missing_delta_specs, true);
-  assert.throws(
-    () => checkChangeScope(graph, "jit-100-promote", ["missing"]),
-    /REPOSITORY_NOT_FOUND: missing/u,
-  );
-  assert.throws(
-    () => checkChangeScope(graph, "jit-100-promote", ["web", "web"]),
-    /SCOPE_INVALID.*duplicate/u,
-  );
-
-  const unmappedGraph = Object.freeze({
-    ...graph,
-    edges: Object.freeze(graph.edges.filter(({ relation }) => (
-      relation !== "implemented_by" && relation !== "targets"
-    ))),
-  });
-  const unmapped = checkChangeScope(unmappedGraph, "jit-100-promote", ["web"]);
-  assert.equal(unmapped.state, "invalid");
-  assert.deepEqual(unmapped.unmapped_master_specs, ["conference/visitors"]);
-});
-
-test("Repository connect is planning-safe and explicit sync validates and builds", async () => {
-  const calls = [];
-  let stored = null;
-  const graph = {
+test("Plugin lifecycle is stateless and inspect compiles without storage", async (t) => {
+  const output = [];
+  t.mock.method(console, "log", (value) => output.push(value));
+  const report = {
+    report_version: 1,
     graph_version: 1,
-    source_digest: "a".repeat(64),
-    nodes: [{ id: "repository:web" }],
+    state: "ready",
+    nodes: [{ id: "store:specs", status: "ok" }],
     edges: [],
+    diagnostics: [],
+    summary: { nodes: 1, edges: 0, errors: 0, warnings: 0 },
   };
+  const calls = [];
   const context = Object.freeze({
+    repository: Object.freeze({ id: "specs", role: "store" }),
     project: Object.freeze({
       id: "specs",
       repositories: Object.freeze([
@@ -612,124 +551,181 @@ test("Repository connect is planning-safe and explicit sync validates and builds
     process: Object.freeze({
       run(executable, args) {
         calls.push([executable, args]);
-        return Promise.resolve(executable === process.execPath ? JSON.stringify(graph) : "{}");
+        return Promise.resolve(executable === process.execPath ? JSON.stringify(report) : "{}");
       },
     }),
     storage: Object.freeze({
-      read() { return Promise.resolve(stored); },
-      write(value) { stored = value; return Promise.resolve(value); },
+      read() { throw new Error("storage must not be read"); },
+      write() { throw new Error("storage must not be written"); },
     }),
   });
 
   assert.equal(
     await plugin.connect(context),
-    "OpenSpec Graph подключён; выполните openspec-orch graph build",
+    "OpenSpec Graph подключён; граф компилируется командами graph inspect и graph view",
   );
-  assert.equal(stored, null);
-  assert.deepEqual(calls, []);
-  assert.equal((await plugin.status(context)).state, "unavailable");
-
-  assert.equal(await plugin.sync(context), `1 nodes, 0 edges, digest ${"a".repeat(12)}`);
-  assert.deepEqual(stored, graph);
-  assert.equal(calls[0][0], "openspec");
-  assert.deepEqual(calls[0][1], [
-    "validate", "--all", "--strict", "--no-interactive", "--json",
-  ]);
-  assert.equal(calls[1][0], process.execPath);
-  assert.deepEqual(calls[1][1].slice(0, 5), [
-    calls[1][1][0], "build", ".", "--store-id", "specs",
-  ]);
   assert.deepEqual(await plugin.status(context), {
     state: "ready",
-    authoritative: true,
-    reason: null,
-    stored_digest: graph.source_digest,
-    current_digest: graph.source_digest,
-    last_known_good_available: true,
-    nodes: 1,
-    edges: 0,
-    next_command: null,
-    details: JSON.stringify({
-      stored_digest: graph.source_digest,
-      current_digest: graph.source_digest,
-      nodes: 1,
-      edges: 0,
-    }),
+    details: JSON.stringify({ mode: "compile_on_demand", command: "openspec-orch graph inspect" }),
   });
+  await plugin.exec(context, ["graph", "inspect", "--json"]);
+  assert.deepEqual(JSON.parse(output.at(-1)), report);
+  assert.equal(calls[0][0], process.execPath);
+  assert.deepEqual(calls[0][1].slice(1, 5), ["compile", ".", "--store-id", "specs"]);
+  assert.equal(calls[1][0], "openspec");
+  await assert.rejects(plugin.exec(context, ["graph", "build"]));
+  assert.throws(() => plugin.sync(context), /PLUGIN_SYNC_UNSUPPORTED/u);
 });
 
-test("Repository status reports recovery guidance without exposing stale data as authoritative", async () => {
-  let stored = null;
-  let projectedDigest = "a".repeat(64);
-  let projectionError = null;
+test("Strict OpenSpec validation failure is folded into an invalid report", async (t) => {
+  const output = [];
+  t.mock.method(console, "log", (value) => output.push(value));
+  const report = {
+    report_version: 1,
+    graph_version: 1,
+    state: "ready",
+    nodes: [{ id: "store:specs", status: "ok" }],
+    edges: [],
+    diagnostics: [],
+    summary: { nodes: 1, edges: 0, errors: 0, warnings: 0 },
+  };
   const context = Object.freeze({
-    project: Object.freeze({
-      id: "specs",
-      repositories: Object.freeze([Object.freeze({ id: "web", role: "code" })]),
-    }),
+    repository: Object.freeze({ id: "specs", role: "store" }),
+    project: Object.freeze({ id: "specs", repositories: Object.freeze([]) }),
     process: Object.freeze({
       run(executable) {
-        if (executable === "openspec") return Promise.resolve("{}");
-        if (projectionError) return Promise.reject(projectionError);
-        return Promise.resolve(JSON.stringify({
-          graph_version: 1,
-          source_digest: projectedDigest,
-          nodes: [{ id: "repository:web" }],
-          edges: [],
-        }));
+        if (executable === process.execPath) return Promise.resolve(JSON.stringify(report));
+        return Promise.reject(new Error("strict validation failed"));
       },
     }),
-    storage: Object.freeze({
-      read() { return Promise.resolve(stored); },
-      write(value) { stored = value; return Promise.resolve(value); },
+  });
+
+  await assert.rejects(
+    plugin.exec(context, ["graph", "inspect", "--json"]),
+    /OPENSPEC_GRAPH_INSPECTION_FAILED/u,
+  );
+  const inspected = JSON.parse(output.at(-1));
+  assert.equal(inspected.state, "invalid");
+  assert.equal(inspected.summary.errors, 1);
+  assert.equal(inspected.diagnostics[0].code, "OPENSPEC_VALIDATION_FAILED");
+});
+
+test("graph view serves a recoverable invalid report and prints only its summary", async () => {
+  const output = [];
+  const baseReport = {
+    report_version: 1,
+    graph_version: 1,
+    state: "ready",
+    nodes: [{ id: "store:specs", status: "ok" }],
+    edges: [],
+    diagnostics: [],
+    summary: { nodes: 1, edges: 0, errors: 0, warnings: 0 },
+  };
+  const context = Object.freeze({
+    invocation: Object.freeze({ role: "store", path: "/tmp/specs" }),
+    project: Object.freeze({ id: "specs", repositories: Object.freeze([]) }),
+    process: Object.freeze({
+      run(executable) {
+        if (executable === process.execPath) return Promise.resolve(JSON.stringify(baseReport));
+        return Promise.reject(new Error("strict validation failed"));
+      },
     }),
+    files: Object.freeze({ read: () => Promise.resolve("") }),
+  });
+  let served;
+  const report = await runGraphView(context, { port: 0 }, {
+    output: { log: (value) => output.push(value) },
+    progress: { run: (_message, operation) => operation() },
+    startViewer: (candidate, options) => {
+      served = { candidate, options };
+      return Promise.resolve({
+        url: "http://127.0.0.1:12345",
+        wait: () => Promise.resolve(),
+      });
+    },
   });
 
-  assert.deepEqual(await plugin.status(context), {
-    state: "unavailable",
-    authoritative: false,
-    reason: "GRAPH_NOT_BUILT",
-    stored_digest: null,
-    current_digest: null,
-    last_known_good_available: false,
-    nodes: 0,
-    edges: 0,
-    next_command: "openspec-orch graph build",
-    details: JSON.stringify({ reason: "GRAPH_NOT_BUILT" }),
+  assert.equal(report.state, "invalid");
+  assert.equal(served.candidate, report);
+  assert.equal(served.options.port, 0);
+  assert.deepEqual(output.slice(0, 5), [
+    "OpenSpec Graph",
+    "  nodes: 1",
+    "  edges: 0",
+    "  errors: 1",
+    "  warnings: 0",
+  ]);
+  assert.equal(output.some((value) => String(value).includes("OPENSPEC_VALIDATION_FAILED")), false);
+});
+
+test("viewer serves graph diagnostics and structured evidence from loopback", async (t) => {
+  const report = {
+    report_version: 1,
+    graph_version: 1,
+    state: "invalid",
+    nodes: [{ id: "store:specs", type: "store", status: "ok" }],
+    edges: [{
+      id: "derived:test",
+      source: "store:specs",
+      relation: "contains",
+      target: "repository:web",
+      provenance: [{ path: "openspec-orch.yaml", line: 2, field: "repositories.web" }],
+      status: "ok",
+    }],
+    diagnostics: [{
+      id: "diagnostic:1",
+      code: "OPENSPEC_VALIDATION_FAILED",
+      severity: "error",
+      message: "strict validation failed",
+      elements: [],
+    }],
+    summary: { nodes: 1, edges: 1, errors: 1, warnings: 0 },
+  };
+  let handleRequest;
+  const fakeServer = {
+    once() {},
+    listen(_port, _host, resolve) { resolve(); },
+    address() { return { port: 12345 }; },
+    close(resolve) { resolve(); },
+  };
+  const viewer = await startGraphViewer(report, {
+    port: 0,
+    readSource: (relativePath) => Promise.resolve(`source:${relativePath}`),
+    createServer(handler) {
+      handleRequest = handler;
+      return fakeServer;
+    },
   });
+  t.after(() => viewer.close());
 
-  await plugin.connect(context);
-  assert.equal((await plugin.status(context)).state, "unavailable");
-  await plugin.sync(context);
-  const ready = await plugin.status(context);
-  assert.equal(ready.state, "ready");
-  assert.equal(ready.authoritative, true);
-  assert.equal(ready.next_command, null);
+  /** Executes one viewer route without binding a network socket. */
+  async function request(pathname) {
+    let status;
+    let body = "";
+    await handleRequest(
+      { method: "GET", url: pathname },
+      {
+        writeHead(value) { status = value; },
+        end(value = "") { body += value; },
+      },
+    );
+    assert.equal(status, 200);
+    return body;
+  }
 
-  projectedDigest = "b".repeat(64);
-  const stale = await plugin.status(context);
-  assert.equal(stale.state, "stale");
-  assert.equal(stale.authoritative, false);
-  assert.equal(stale.reason, "SOURCE_DIGEST_CHANGED");
-  assert.equal(stale.last_known_good_available, true);
-  assert.equal(stale.next_command, "openspec-orch graph build");
-
-  projectionError = new Error("OPENSPEC_GRAPH_INVALID: broken inputs");
-  const invalid = await plugin.status(context);
-  assert.equal(invalid.state, "invalid");
-  assert.equal(invalid.authoritative, false);
-  assert.equal(invalid.reason, "CURRENT_INPUTS_INVALID");
-  assert.equal(invalid.last_known_good_available, true);
-  assert.equal(stored.source_digest, "a".repeat(64));
-
-  await assert.rejects(plugin.sync(context), /OPENSPEC_GRAPH_INVALID/u);
-  assert.equal(stored.source_digest, "a".repeat(64));
-
-  projectionError = null;
-  await plugin.sync(context);
-  const rebuilt = await plugin.status(context);
-  assert.equal(rebuilt.state, "ready");
-  assert.equal(rebuilt.authoritative, true);
-  assert.equal(rebuilt.stored_digest, "b".repeat(64));
-  assert.equal(rebuilt.current_digest, "b".repeat(64));
+  const [html, app, reportSource, configSource] = await Promise.all([
+    request("/"),
+    request("/app.js"),
+    request("/graph.json"),
+    request("/viewer-config.json"),
+  ]);
+  const servedReport = JSON.parse(reportSource);
+  const config = JSON.parse(configSource);
+  assert.match(html, /id="graph-diagnostics"/u);
+  assert.match(app, /renderGraphDiagnostics\(\)/u);
+  assert.deepEqual(servedReport, report);
+  const evidence = Object.values(config.evidence);
+  assert.equal(evidence.length, 1);
+  const preview = await request(evidence[0].preview_url);
+  assert.equal(preview, "source:openspec-orch.yaml");
 });

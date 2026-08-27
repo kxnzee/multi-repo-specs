@@ -1,30 +1,53 @@
-/** @fileoverview Store-scoped graph lifecycle through public PluginContext facades. */
+/** @fileoverview Store-scoped stateless graph compilation through PluginContext facades. */
 
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const launcher = fileURLToPath(new URL("../bin/openspec-graph.js", import.meta.url));
 
-/** Parses launcher JSON without accepting malformed or partial graphs. */
-function parseGraph(source) {
-  let graph;
+/** Parses compiler JSON without accepting malformed or partial reports. */
+function parseReport(source) {
+  let report;
   try {
-    graph = JSON.parse(source);
+    report = JSON.parse(source);
   } catch (error) {
     throw new Error(`OPENSPEC_GRAPH_OUTPUT_INVALID: ${error.message}`, { cause: error });
   }
   if (
-    graph?.graph_version !== 1 ||
-    typeof graph.source_digest !== "string" ||
-    !Array.isArray(graph.nodes) ||
-    !Array.isArray(graph.edges)
+    report?.report_version !== 1
+    || report?.graph_version !== 1
+    || !["ready", "invalid"].includes(report.state)
+    || !Array.isArray(report.nodes)
+    || !Array.isArray(report.edges)
+    || !Array.isArray(report.diagnostics)
+    || !report.summary
   ) {
-    throw new Error("OPENSPEC_GRAPH_OUTPUT_INVALID: incomplete graph document");
+    throw new Error("OPENSPEC_GRAPH_OUTPUT_INVALID: incomplete graph report");
   }
-  return graph;
+  return report;
 }
 
-/** Owns deterministic graph build, persistence and freshness checks. */
+/** Adds a graph-level OpenSpec validation error without discarding the partial graph. */
+function withValidationFailure(report, error) {
+  const validationDiagnostic = Object.freeze({
+    id: `diagnostic:${report.diagnostics.length + 1}`,
+    code: "OPENSPEC_VALIDATION_FAILED",
+    severity: "error",
+    message: error instanceof Error ? error.message : String(error),
+    elements: Object.freeze([]),
+  });
+  return Object.freeze({
+    ...report,
+    state: "invalid",
+    diagnostics: Object.freeze([...report.diagnostics, validationDiagnostic]),
+    summary: Object.freeze({
+      ...report.summary,
+      errors: report.summary.errors + 1,
+    }),
+  });
+}
+
+/** Owns deterministic on-demand compilation without Plugin storage. */
 export class OpenSpecGraphService {
   #context;
 
@@ -33,85 +56,26 @@ export class OpenSpecGraphService {
     Object.freeze(this);
   }
 
-  /** Validates OpenSpec before replacing the last known-good graph. */
-  async build() {
-    await this.#context.process.run(
-      "openspec",
-      ["validate", "--all", "--strict", "--no-interactive", "--json"],
-    );
-    const graph = await this.#project();
-    await this.#context.storage.write(graph);
-    return graph;
-  }
-
-  /** Returns Plugin repository status without changing Store or Plugin state. */
-  async status() {
-    const stored = await this.#context.storage.read();
-    if (!stored) {
-      return Object.freeze({
-        state: "unavailable",
-        authoritative: false,
-        reason: "GRAPH_NOT_BUILT",
-        stored_digest: null,
-        current_digest: null,
-        last_known_good_available: false,
-        nodes: 0,
-        edges: 0,
-        next_command: "openspec-orch graph build",
-        details: JSON.stringify({ reason: "GRAPH_NOT_BUILT" }),
-      });
-    }
-    let current;
+  /** Compiles the current Store and folds strict OpenSpec validation into diagnostics. */
+  async compile() {
+    const report = await this.#project();
     try {
-      current = await this.#project();
+      await this.#context.process.run(
+        "openspec",
+        ["validate", "--all", "--strict", "--no-interactive", "--json"],
+      );
+      return report;
     } catch (error) {
-      return Object.freeze({
-        state: "invalid",
-        authoritative: false,
-        reason: "CURRENT_INPUTS_INVALID",
-        stored_digest: stored.source_digest,
-        current_digest: null,
-        last_known_good_available: true,
-        nodes: stored.nodes?.length ?? 0,
-        edges: stored.edges?.length ?? 0,
-        next_command: "openspec-orch graph build",
-        details: JSON.stringify({
-          reason: "CURRENT_INPUTS_INVALID",
-          error: error instanceof Error ? error.message : String(error),
-        }),
-      });
+      return withValidationFailure(report, error);
     }
-    const ready = stored.source_digest === current.source_digest;
-    const detail = {
-      ...(ready ? {} : { reason: "SOURCE_DIGEST_CHANGED" }),
-      stored_digest: stored.source_digest,
-      current_digest: current.source_digest,
-      nodes: stored.nodes?.length ?? 0,
-      edges: stored.edges?.length ?? 0,
-    };
-    return Object.freeze({
-      state: ready ? "ready" : "stale",
-      authoritative: ready,
-      reason: ready ? null : "SOURCE_DIGEST_CHANGED",
-      stored_digest: stored.source_digest,
-      current_digest: current.source_digest,
-      last_known_good_available: true,
-      nodes: stored.nodes?.length ?? 0,
-      edges: stored.edges?.length ?? 0,
-      next_command: ready ? null : "openspec-orch graph build",
-      details: JSON.stringify(detail),
-    });
   }
 
-  /** Returns the graph only when it still matches all current projection inputs. */
-  async readFresh() {
-    const graph = await this.#context.storage.read();
-    if (!graph) throw new Error("OPENSPEC_GRAPH_NOT_BUILT: run graph build");
-    const current = await this.#project();
-    if (graph.source_digest !== current.source_digest) {
-      throw new Error("OPENSPEC_GRAPH_STALE: run graph build");
-    }
-    return graph;
+  /** Reports only the stateless Plugin lifecycle; graph health belongs to graph inspect. */
+  status() {
+    return Object.freeze({
+      state: "ready",
+      details: JSON.stringify({ mode: "compile_on_demand", command: "openspec-orch graph inspect" }),
+    });
   }
 
   async #project() {
@@ -122,7 +86,7 @@ export class OpenSpecGraphService {
       process.execPath,
       [
         launcher,
-        "build",
+        "compile",
         ".",
         "--store-id",
         this.#context.project.id,
@@ -130,11 +94,6 @@ export class OpenSpecGraphService {
         JSON.stringify(repositories),
       ],
     );
-    return parseGraph(output);
-  }
-
-  static summary(graph) {
-    return `${graph.nodes.length} nodes, ${graph.edges.length} edges, ` +
-      `digest ${graph.source_digest.slice(0, 12)}`;
+    return parseReport(output);
   }
 }

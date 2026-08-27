@@ -26,12 +26,8 @@ const relationNames = {
   contains: "Содержит",
   affects: "Затрагивает",
   changes: "Изменяет",
-  implemented_by: "Реализуется в",
-  targets: "Затрагивает",
-  depends_on: "Зависит от",
-  calls: "Вызывает",
-  publishes_to: "Публикует в",
-  verifies: "Проверяет",
+  changes_in: "Изменяет в",
+  linked: "Связана с",
 };
 
 const operationNames = {
@@ -46,6 +42,8 @@ const stateNames = {
   planned: "Планируется",
   active: "Активная",
   archived: "Архивная",
+  registered: "Зарегистрирован",
+  missing: "Отсутствует в registry",
 };
 
 const [graph, viewerConfig] = await Promise.all([
@@ -64,6 +62,15 @@ const overviewScale = graph.nodes.length > 800 ? 0.3 : graph.nodes.length > 300 
 
 const graphNodes = new Map(graph.nodes.map((node) => [node.id, node]));
 const graphEdges = new Map(graph.edges.map((edge) => [edge.id, edge]));
+const diagnosticsByElement = new Map();
+const graphLevelDiagnostics = [];
+for (const value of graph.diagnostics ?? []) {
+  if ((value.elements ?? []).length === 0) graphLevelDiagnostics.push(value);
+  for (const elementId of value.elements ?? []) {
+    if (!diagnosticsByElement.has(elementId)) diagnosticsByElement.set(elementId, []);
+    diagnosticsByElement.get(elementId).push(value);
+  }
+}
 const filterableNodeTypes = ["repository", "master-spec", "change", "delta-spec"];
 const defaultVisibleNodeTypes = new Set(["repository", "master-spec", "change"]);
 const defaultNodeIds = new Set(graph.nodes
@@ -139,40 +146,17 @@ function friendlyEdgeLabel(edge) {
     ?? humanizeSegment(edge.relation);
 }
 
-/** Identifies a dependency between two Master Specs. */
-function isMasterDependency(edge) {
-  return edge.relation === "depends_on"
-    && graphNodes.get(edge.source)?.type === "master-spec"
-    && graphNodes.get(edge.target)?.type === "master-spec";
-}
-
-const masterDependencyEdges = graph.edges.filter(isMasterDependency);
-const dependencyCounts = new Map(graph.nodes
-  .filter(({ type }) => type === "master-spec")
-  .map(({ id }) => [id, { incoming: 0, outgoing: 0 }]));
-for (const edge of masterDependencyEdges) {
-  dependencyCounts.get(edge.source).outgoing += 1;
-  dependencyCounts.get(edge.target).incoming += 1;
-}
-
 /** Adapts the shared Change impact query to browser visibility sets. */
 function impactForChange(changeNodeId) {
   const change = graphNodes.get(changeNodeId);
   const impact = inspectChangeImpact(graph, change?.change_id);
   const deltaIds = new Set(impact.delta_specs.map(({ id }) => id));
-  const directMasterIds = new Set(impact.direct_master_specs.map(({ id }) => id));
-  const dependentMasterIds = new Set(impact.dependent_master_specs.map(({ id }) => id));
-  const totalMasterIds = new Set(impact.total_master_specs.map(({ id }) => id));
+  const masterIds = new Set(impact.master_specs.map(({ id }) => id));
   return Object.freeze({
     deltaIds,
-    directMasterIds,
-    dependentMasterIds,
-    totalMasterIds,
-    directMasters: impact.direct_master_specs,
-    dependentMasters: impact.dependent_master_specs,
-    directRepositories: impact.direct_repositories,
-    dependentRepositories: impact.dependent_repositories,
-    reviewRepositories: impact.review_repositories,
+    masterIds,
+    masters: impact.master_specs,
+    repositories: impact.repositories,
     focusEdgeIds: new Set(impact.edges.map(({ id }) => id)),
     focusNodeIds: new Set([
       changeNodeId,
@@ -208,11 +192,11 @@ function graphSeedPositions() {
   });
   const repositoryByMaster = new Map();
   for (const edge of graph.edges) {
-    if (edge.relation !== "implemented_by") continue;
-    if (graphNodes.get(edge.source)?.type !== "master-spec") continue;
-    const current = repositoryByMaster.get(edge.source);
-    if (!current || edge.target.localeCompare(current) < 0) {
-      repositoryByMaster.set(edge.source, edge.target);
+    if (edge.relation !== "linked") continue;
+    if (graphNodes.get(edge.source)?.type !== "repository") continue;
+    const current = repositoryByMaster.get(edge.target);
+    if (!current || edge.source.localeCompare(current) < 0) {
+      repositoryByMaster.set(edge.target, edge.source);
     }
   }
   const groupedMasters = new Map(repositories.map(({ id }) => [id, []]));
@@ -267,7 +251,7 @@ function viewerNode(node) {
     id: node.id,
     label: ["repository", "change"].includes(node.type) ? friendlyNodeLabel(node) : "",
     group: node.type,
-    title: `${typeNames[node.type]}: ${friendlyNodeLabel(node)}`,
+    title: `${typeNames[node.type]}: ${friendlyNodeLabel(node)} · ${node.status}`,
     hidden: !visible,
     physics: visible,
     ...(seed ? { x: seed.x, y: seed.y } : {}),
@@ -280,28 +264,21 @@ function viewerNode(node) {
 
 /** Projects one graph edge into compact force-directed data. */
 function viewerEdge(edge) {
-  const dependency = isMasterDependency(edge);
-  const operation = edge.relation === "affects" || edge.relation === "changes";
+  const operation = ["affects", "changes", "changes_in"].includes(edge.relation);
   return {
     id: edge.id,
     from: edge.source,
     to: edge.target,
     fullLabel: friendlyEdgeLabel(edge),
     label: "",
-    arrows: dependency || operation || ["calls", "publishes_to"].includes(edge.relation)
-      ? "to"
-      : "",
-    dashes: dependency,
+    arrows: operation ? "to" : "",
+    dashes: false,
     hidden: !isDefaultEdge(edge),
     physics: isDefaultEdge(edge),
-    length: edge.relation === "implemented_by"
+    length: edge.relation === "linked"
       ? 150
-      : edge.relation === "affects"
-        ? 180
-        : dependency
-          ? 125
-          : 240,
-    width: dependency ? 1.2 : 0.9,
+      : edge.relation === "affects" ? 180 : 240,
+    width: 0.9,
     smooth: false,
   };
 }
@@ -311,6 +288,7 @@ const edges = new vis.DataSet(graph.edges.map(viewerEdge));
 const graphContainer = document.getElementById("graph");
 const layoutStatus = document.getElementById("layout-status");
 const details = document.getElementById("details");
+const graphDiagnostics = document.getElementById("graph-diagnostics");
 const selectionKind = document.getElementById("selection-kind");
 const search = document.getElementById("search");
 const typeFilters = [...document.querySelectorAll("#node-type-filters input[type='checkbox']")];
@@ -402,6 +380,8 @@ document.getElementById("summary").textContent = [
   `${typeCounts.get("repository") ?? 0} репозиториев`,
   `${typeCounts.get("master-spec") ?? 0} мастер-спек`,
   `${typeCounts.get("change") ?? 0} изменений`,
+  `${graph.summary?.errors ?? 0} ошибок`,
+  `${graph.summary?.warnings ?? 0} предупреждений`,
 ].filter(Boolean).join(" · ");
 
 /** Adds one labeled value to the inspector definition list. */
@@ -507,6 +487,28 @@ function appendFileDetail(list, data) {
   list.append(term, description);
 }
 
+/** Creates a stable key matching the viewer server evidence allowlist. */
+function evidenceKey(location) {
+  return JSON.stringify([location.path, location.line, location.field]);
+}
+
+/** Formats one complete machine-readable source location. */
+function evidenceLabel(location) {
+  return `${location.path}:${location.line} · ${location.field}`;
+}
+
+/** Builds one evidence control or delegates its exact fallback presentation. */
+function evidenceElement(location, fallback) {
+  const reference = evidenceLabel(location);
+  const source = evidenceActions[evidenceKey(location)];
+  if (!source) return fallback(reference);
+  return createFileControl({
+    path: source.path,
+    label: reference,
+    copyValue: reference,
+  }, source);
+}
+
 /** Adds source evidence to the inspector. */
 function appendSources(data) {
   if (!Array.isArray(data.provenance) || data.provenance.length === 0) return;
@@ -515,23 +517,60 @@ function appendSources(data) {
   const heading = document.createElement("h3");
   heading.textContent = "Источники";
   const items = document.createElement("ul");
-  for (const reference of data.provenance) {
+  for (const location of data.provenance) {
     const item = document.createElement("li");
-    const source = evidenceActions[reference];
-    if (source) {
-      item.append(createFileControl({
-        path: source.path,
-        label: reference,
-        copyValue: reference,
-      }, source));
-    } else {
-      item.textContent = reference;
-    }
+    item.append(evidenceElement(location, (reference) => document.createTextNode(reference)));
     items.append(item);
   }
   sources.append(heading, items);
   details.append(sources);
 }
+
+/** Creates one diagnostic card shared by graph and element reports. */
+function diagnosticItem(value) {
+  const item = document.createElement("li");
+  item.className = `diagnostic-${value.severity}`;
+  const title = document.createElement("strong");
+  title.textContent = value.code;
+  const message = document.createElement("span");
+  message.textContent = value.message;
+  item.append(title, message);
+  if (value.source) {
+    item.append(evidenceElement(value.source, (reference) => {
+      const location = document.createElement("small");
+      location.textContent = reference;
+      return location;
+    }));
+  }
+  return item;
+}
+
+/** Keeps recoverable diagnostics without a graph element visible at all times. */
+function renderGraphDiagnostics() {
+  if (graphLevelDiagnostics.length === 0) return;
+  const heading = document.createElement("h3");
+  heading.textContent = `Ошибки графа (${graphLevelDiagnostics.length})`;
+  const items = document.createElement("ul");
+  for (const value of graphLevelDiagnostics) items.append(diagnosticItem(value));
+  graphDiagnostics.replaceChildren(heading, items);
+  graphDiagnostics.hidden = false;
+}
+
+/** Adds compiler diagnostics associated with one selected graph element. */
+function appendDiagnostics(elementId) {
+  const values = diagnosticsByElement.get(elementId) ?? [];
+  if (values.length === 0) return;
+  const section = document.createElement("section");
+  section.className = "details-diagnostics";
+  const heading = document.createElement("h3");
+  heading.textContent = `Диагностика (${values.length})`;
+  const items = document.createElement("ul");
+  for (const value of values) items.append(diagnosticItem(value));
+  section.append(heading, items);
+  details.append(section);
+}
+
+renderGraphDiagnostics();
 
 /** Appends one batch and exposes the remaining items through a real button. */
 function appendExpandableItems(items, values, batchSize, createItem) {
@@ -601,10 +640,8 @@ function createConnectionItem(edge) {
 
 /** Adds every direct relationship of a selected node without flooding the inspector. */
 function appendConnections(nodeId) {
-  const selected = graphNodes.get(nodeId);
   const related = graph.edges.filter((edge) => (
-    (edge.source === nodeId || edge.target === nodeId)
-    && !(selected?.type === "master-spec" && isMasterDependency(edge))
+    edge.source === nodeId || edge.target === nodeId
   ));
   if (related.length === 0) return;
   const section = document.createElement("section");
@@ -617,48 +654,15 @@ function appendConnections(nodeId) {
   details.append(section);
 }
 
-/** Adds separate outgoing and incoming Master Spec dependency lists. */
-function appendMasterDependencies(nodeId) {
-  const outgoing = masterDependencyEdges
-    .filter(({ source }) => source === nodeId)
-    .map(({ target }) => graphNodes.get(target));
-  const incoming = masterDependencyEdges
-    .filter(({ target }) => target === nodeId)
-    .map(({ source }) => graphNodes.get(source));
-  appendNodeList("Зависит от", outgoing, "dependency-list", "direction", "outgoing");
-  appendNodeList("От неё зависят", incoming, "dependency-list", "direction", "incoming");
-}
-
-/** Adds implementation and review impact lists for one Change. */
+/** Adds structural Master Spec and Repository lists for one Change. */
 function appendChangeImpact(impact) {
-  appendNodeList("Напрямую изменяет", impact.directMasters, "change-impact-list", "impact", "direct");
+  appendNodeList("Изменяет Master Specs", impact.masters, "change-impact-list", "impact", "direct");
   appendNodeList(
-    "Зависимое влияние",
-    impact.dependentMasters,
-    "change-impact-list",
-    "impact",
-    "dependent",
-  );
-  appendNodeList(
-    "Прямо затронутые репозитории",
-    impact.directRepositories,
+    "Затронутые репозитории",
+    impact.repositories,
     "change-impact-list",
     "impact",
     "direct",
-  );
-  appendNodeList(
-    "Репозитории с зависимым влиянием",
-    impact.dependentRepositories,
-    "change-impact-list",
-    "impact",
-    "dependent",
-  );
-  appendNodeList(
-    "Репозитории для проверки связей",
-    impact.reviewRepositories,
-    "change-impact-list",
-    "impact",
-    "review",
   );
 }
 
@@ -678,28 +682,22 @@ function renderNode(nodeId) {
   if (data.type === "store") addDetail(list, "ID Store", data.store_id);
   if (data.type === "repository") addDetail(list, "ID репозитория", data.repository_id);
   if (data.type === "change") addDetail(list, "ID изменения", data.change_id);
+  addDetail(list, "Проверка", data.status);
   if (changeImpact) {
     addDetail(list, "Дельта-спеки", changeImpact.deltaIds.size);
-    addDetail(list, "Прямые Master Specs", changeImpact.directMasterIds.size);
-    addDetail(list, "Зависимые Master Specs", changeImpact.dependentMasterIds.size);
-    addDetail(list, "Общий impact", changeImpact.totalMasterIds.size);
-    addDetail(list, "Проверить репозитории", changeImpact.reviewRepositories.length);
+    addDetail(list, "Master Specs", changeImpact.masterIds.size);
+    addDetail(list, "Репозитории", changeImpact.repositories.length);
   }
   if (["master-spec", "delta-spec"].includes(data.type)) {
     addEntityDetail(list, "Возможность", data);
-  }
-  if (data.type === "master-spec") {
-    const counts = dependencyCounts.get(data.id);
-    addDetail(list, "Зависит от", counts.outgoing);
-    addDetail(list, "Зависят от неё", counts.incoming);
   }
   if (data.type === "delta-spec") addDetail(list, "Изменение", data.change_id);
   addDetail(list, "Состояние", stateNames[data.state] ?? data.state);
   appendFileDetail(list, data);
   details.append(title, list);
   if (changeImpact) appendChangeImpact(changeImpact);
-  if (data.type === "master-spec") appendMasterDependencies(nodeId);
   appendConnections(nodeId);
+  appendDiagnostics(nodeId);
 }
 
 /** Renders curated information for one graph edge. */
@@ -721,12 +719,12 @@ function renderEdge(edgeId) {
   const list = document.createElement("dl");
   list.className = "details-grid";
   addDetail(list, "Связь", friendlyEdgeLabel(data));
-  addDetail(list, "Контракт", data.contract);
-  addDetail(list, "Источник", data.derived
-    ? "Получена из OpenSpec и конфигурации Store"
-    : "Объявлена в graph.yaml");
+  addDetail(list, "Состояние", data.status);
+  addDetail(list, "Через Changes", data.via_changes?.join(", "));
+  addDetail(list, "Источник", "Автоматически получена из текущего Store");
   details.append(title, list);
   appendSources(data);
+  appendDiagnostics(edgeId);
 }
 
 /** Clears the inspector when canvas selection is empty. */
@@ -742,7 +740,6 @@ let selectedNodeIds = new Set();
 let focusedEdgeIds = new Set();
 let focusNodeIds = new Set();
 let directImpactIds = new Set();
-let dependentImpactIds = new Set();
 let expandedChangeId;
 let labelsExpanded = false;
 let filterTimer;
@@ -782,17 +779,14 @@ function refreshEdges() {
     const visible = edgeIsVisible(edge);
     const touchesSelection = selectedNodeIds.has(edge.source) || selectedNodeIds.has(edge.target);
     const focused = focusedEdgeIds.has(edge.id) || touchesSelection;
-    const dependency = isMasterDependency(edge);
-    const impactDependency = dependency && focusedEdgeIds.has(edge.id)
-      && graphNodes.get(selectedNodeId)?.type === "change";
     const muted = focusing && !focused;
-    const baseColor = dependency
-      ? impactDependency ? "rgba(15,118,110,0.85)" : "rgba(124,58,237,0.62)"
-      : edge.relation === "affects"
-        ? "rgba(124,58,237,0.62)"
-        : edge.relation === "changes"
-          ? focused ? "rgba(217,119,6,0.82)" : "rgba(217,119,6,0.22)"
-          : "rgba(100,116,139,0.34)";
+    let baseColor = edge.relation === "affects"
+      ? "rgba(124,58,237,0.62)"
+      : edge.relation === "changes"
+        ? focused ? "rgba(217,119,6,0.82)" : "rgba(217,119,6,0.22)"
+        : "rgba(100,116,139,0.34)";
+    if (edge.status === "warning") baseColor = "rgba(217,119,6,0.88)";
+    if (edge.status === "error") baseColor = "rgba(220,38,38,0.9)";
     return {
       id: edge.id,
       hidden: !visible,
@@ -803,8 +797,8 @@ function refreshEdges() {
         highlight: baseColor,
         hover: baseColor,
       },
-      dashes: dependency,
-      width: focused ? 2.2 : dependency ? 1.2 : 0.9,
+      dashes: edge.status !== "ok",
+      width: focused || edge.status !== "ok" ? 2.2 : 0.9,
     };
   }));
 }
@@ -829,8 +823,13 @@ function refreshNodeAppearance() {
     if (directImpactIds.has(node.id)) {
       color = { background: "#059669", border: "#7c3aed", highlight: "#34d399" };
       borderWidth = 4;
-    } else if (dependentImpactIds.has(node.id)) {
-      color = { background: "#14b8a6", border: "#0f766e", highlight: "#2dd4bf" };
+    }
+    if (node.status === "warning") {
+      color = { ...color, border: "#d97706", highlight: "#f59e0b" };
+      borderWidth = 4;
+    }
+    if (node.status === "error") {
+      color = { ...color, border: "#dc2626", highlight: "#ef4444" };
       borderWidth = 4;
     }
     return {
@@ -919,14 +918,13 @@ function positionExpandedDeltas(impact) {
   positionDeltaCluster(expandedChangeId, impact.deltaIds);
 }
 
-/** Expands one Change and focuses its complete direct and downstream impact. */
+/** Expands one Change and focuses its exact structural impact. */
 function expandChange(changeNodeId) {
   const impact = impactForChange(changeNodeId);
   expandedChangeId = changeNodeId;
   focusedEdgeIds = impact.focusEdgeIds;
   focusNodeIds = impact.focusNodeIds;
-  directImpactIds = impact.directMasterIds;
-  dependentImpactIds = impact.dependentMasterIds;
+  directImpactIds = impact.masterIds;
   const enabledTypes = enabledNodeTypes();
   for (const id of impact.focusNodeIds) {
     if (enabledTypes.has(graphNodes.get(id)?.type)) visibleNodeIds.add(id);
@@ -937,7 +935,7 @@ function expandChange(changeNodeId) {
     [...impact.focusNodeIds].filter((id) => visibleNodeIds.has(id)),
     { maxZoomLevel: 0.9 },
   );
-  layoutStatus.textContent = `Impact: ${impact.totalMasterIds.size} мастер-спек · `
+  layoutStatus.textContent = `Impact: ${impact.masterIds.size} мастер-спек · `
     + `${impact.deltaIds.size} дельта-спеки`;
 }
 
@@ -975,7 +973,6 @@ function clearFocus({ fit = false } = {}) {
   focusedEdgeIds = new Set();
   focusNodeIds = new Set();
   directImpactIds = new Set();
-  dependentImpactIds = new Set();
   expandedChangeId = undefined;
   visibleNodeIds = matchingNodeIds();
   refreshVisibility({ fit });
@@ -1064,9 +1061,9 @@ function structuralChildren(nodeId) {
   for (const edge of graph.edges) {
     if (
       nodeType === "repository"
-      && edge.relation === "implemented_by"
-      && edge.target === nodeId
-    ) children.add(edge.source);
+      && edge.relation === "linked"
+      && edge.source === nodeId
+    ) children.add(edge.target);
     if (
       nodeType === "change"
       && edge.relation === "contains"
@@ -1152,7 +1149,6 @@ network.on("selectNode", ({ nodes: selected }) => {
   } else {
     expandedChangeId = undefined;
     directImpactIds = new Set();
-    dependentImpactIds = new Set();
     visibleNodeIds = matchingNodeIds();
     const neighborhood = neighborhoodForNode(selectedNodeId);
     const enabledTypes = enabledNodeTypes();

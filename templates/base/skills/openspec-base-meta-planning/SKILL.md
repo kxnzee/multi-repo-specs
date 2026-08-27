@@ -54,21 +54,17 @@ request проверяет один вопрос в одном Repository.
 
 После валидных Delta Specs использовать phase authoritative:
 
-- перед первой graph query выполнить status → recovery → status по корневым
-  инструкциям; derived build не нарушает read-only границу Planning, потому что не
-  меняет tracked product artifacts;
-- вызвать graph impact <change-id>;
-- при заявленном implementation scope вызвать graph check-scope с отдельным --repo
-  для каждого точного repository-id;
-- missing_required_repositories, missing_delta_specs и unmapped_master_specs являются
-  blockers;
+- выполнить `openspec-orch graph inspect --json`; отдельный build, freshness status и
+  recovery отсутствуют;
+- считать любую Graph error blocker и проверить каждый warning;
+- сверить таблицу Repository Impact с capabilities Delta Specs, Design map, Tasks и
+  при наличии Cycle repositories;
+- не принимать свободный список Repository как Graph mapping и не допускать неявный
+  cross-product между несколькими repositories и capabilities;
 - review-only Repository не входит в Repository Impact, Design map, Tasks или Cycle;
-  не требовать для него no-change row или отдельный artifact;
-- если проверка review Repository подтвердила необходимое изменение, вернуть Change
-  в Planning и только тогда добавить его в impact и scope;
-- included_review_repositories и extra_repositories являются blockers: объяснение без
-  обновления принятого Planning не делает их implementation scope;
-- не добавлять review repository в Cycle автоматически.
+  если проверка подтвердила необходимое изменение, вернуть Change в Planning и только
+  тогда добавить точную строку mapping;
+- `UNLINKED_MASTER_SPEC` не расширяет scope автоматически.
 
 ## Проверка
 

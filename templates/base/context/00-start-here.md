@@ -31,8 +31,8 @@
 | Нужно понять | Читать |
 |---|---|
 | Назначение, пользователи и границы продукта | `01-product-context.md`, `02-domain-glossary.md` |
-| Архитектура, компоненты и интеграции | `03-architecture.md`, `ADR/`, `openspec/graph.yaml` через OpenSpec Graph Plugin |
-| Репозитории, Specs и их связи | `openspec-orch.yaml`, `openspec/graph.yaml` через OpenSpec Graph Plugin |
+| Архитектура, компоненты и интеграции | `03-architecture.md`, `ADR/` |
+| Репозитории, Specs и их связи | `openspec-orch.yaml`, Delta Specs и Repository Impact через OpenSpec Graph Plugin |
 | Локальное техническое устройство репозитория | Файл инструкций агента, документация, конфигурация, код и тесты соответствующего Code Repository |
 | Доменное поведение и общие инварианты | `04-domain-model.md`, `06-cross-system-invariants.md` |
 | Безопасность и ограничения данных | `05-security-and-compliance.md` |

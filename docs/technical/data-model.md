@@ -7,7 +7,6 @@
 | Project configuration | `openspec-orch.yaml` | Пользователь/Core application service | tracked |
 | Store identity | `.openspec-store/store.yaml` | OpenSpec | tracked |
 | Specs и Changes | `openspec/` | OpenSpec/проект | tracked |
-| Explicit graph relations | `openspec/graph.yaml` | OpenSpec Graph + человек | tracked |
 | Cycle Record | `.openspec-orch/changes/<base64url-change-id>.json` | Change Tracking через Files facade | tracked |
 | Workspace pointer | `.openspec-orch/state.json` | Core | local |
 | Plugin state | `.openspec-orch/plugins/<id>/state.json` | Конкретный Plugin через Storage | local |
@@ -107,21 +106,19 @@ Symlink вместо ожидаемого обычного файла/катал
 
 - Store, Repositories, Master Specs, Changes, Delta Specs;
 - `Store contains Repository`;
+- `Store contains Master Spec/Change`;
 - `Change contains Delta Spec`;
 - `Change affects Master Spec`;
-- `Delta Spec changes Master Spec` с Delta operation.
+- `Delta Spec changes Master Spec` с Delta operation;
+- `Change changes_in Repository` из Repository Impact;
+- нейтральная `Repository linked Master Spec` через capability того же Change.
 
-Explicit relations из `openspec/graph.yaml`:
+Repository Impact — строгая таблица `Repository | Capabilities` в Proposal. Активные
+и архивные Changes агрегируются в `via_changes` прямой связи. Каждая связь содержит
+массив `provenance` с машинными источниками `{ path, line, field }`; строковые
+`path:line` ссылки не являются частью контракта.
 
-- Master Spec `implemented_by` Repository;
-- Delta Spec `targets` Repository;
-- Spec/Delta dependencies;
-- Repository `depends_on`, `calls`, `publishes_to` Repository;
-- Repository `verifies` Master Spec.
-
-Каждое explicit edge требует `path:line` provenance. Source digest учитывает topology
-inputs и evidence files, но не обычные изменения кода, task checkbox или текст
-Planning, если он не используется как evidence.
-
-Index заменяется атомарно только после успешной строгой проекции. Last-known-good
-сохраняется для диагностики, но не разрешен для authoritative queries.
+Архивная Delta Spec обязана иметь соответствующую текущую Master Spec. При её
+отсутствии компилятор сохраняет placeholder-ноду для диагностики и возвращает
+`ARCHIVED_MASTER_SPEC_MISSING`. Graph Report содержит ноды, связи, diagnostics и
+summary; persisted index, digest и last-known-good отсутствуют.

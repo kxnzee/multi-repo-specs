@@ -1,220 +1,388 @@
 # OpenSpec Graph Plugin
 
-`@openspec-orch/plugin-openspec-graph` строит единый Store-level граф для
-мультирепозитория. Он заменяет ручную карту систем, но не заменяет CodeGraph и не
-анализирует внутреннее устройство кода.
+Store-only Plugin, который автоматически строит граф текущего OpenSpec Store. Граф
+показывает структуру Store, зарегистрированные Code Repositories, Master Specs,
+активные и архивные Changes, Delta Specs и связи Repository–Master Spec.
 
-## Модель
+OpenSpec Graph является компиляцией Store, а не отдельной базой знаний. Агент не
+заполняет и не обслуживает граф, ручная graph metadata отсутствует.
 
-Plugin создаёт пять типов узлов:
+## Назначение и границы
 
-- `store:<id>` — корень текущего OpenSpec Store;
-- `repository:<id>` — Code Repository из `openspec-orch.yaml`;
-- `master-spec:<capability-path>` — текущая capability из `openspec/specs/`;
-- `change:<change-id>` — активный или архивный OpenSpec Change;
-- `delta-spec:<change-id>/<capability-path>` — активная или архивная Delta Spec.
+Plugin отвечает на два вопроса:
 
-Типизированная Store-level модель строится детерминированно. Store и Repository
-берутся из контекста Orchestrator, а Change,
-Delta Spec и затрагиваемая Master Spec — из структуры OpenSpec. Операции `ADDED`,
-`MODIFIED`, `REMOVED` и `RENAMED` читаются из стандартных секций Delta Spec и
-агрегируются на связи Change с Master Spec. Исходная связь Delta Spec → Master Spec
-с каждой отдельной операцией сохраняется для машинных запросов. В
-`openspec/graph.yaml` хранятся только явные связи, которые нельзя безопасно вывести
-из OpenSpec:
+1. Из каких OpenSpec-артефактов сейчас состоит Store?
+2. Какие Repository были явно сопоставлены с какими capabilities через активные или
+   архивные Changes?
+
+Plugin не анализирует исходный код Repository и не доказывает, что capability
+реализована. За навигацию по файлам, символам и runtime-зависимостям отвечает
+CodeGraph. OpenSpec Graph не создаёт связи `implemented_by`, `calls`, `depends_on`,
+Repository–Repository или Master Spec–Master Spec.
+
+## Как работает компиляция
+
+Каждый `graph inspect` и `graph view` выполняет полный независимый проход:
+
+```text
+openspec-orch.yaml + openspec/**
+              │
+              ▼
+     обход и строгий парсинг
+              │
+              ▼
+      проекция nodes/edges
+              │
+              ▼
+ diagnostics + status + summary
+              │
+              ├── openspec validate --all --strict
+              │
+              ▼
+        immutable Graph Report
+              │
+              ├── graph inspect
+              └── graph view
+```
+
+Последовательность работы:
+
+1. Orchestrator передаёт Plugin контекст Store, Store ID и зарегистрированные Code
+   Repositories.
+2. Package-owned compiler сканирует стандартные пути `openspec/` и
+   `openspec-orch.yaml`. Порядок файлов и результата стабилизируется сортировкой.
+3. Структура каталогов создаёт ноды Store, Master Spec, Change и Delta Spec.
+4. Стандартные Delta headings создают связи `affects` и `changes`.
+5. Таблица Repository Impact создаёт точные `changes_in` и `linked`.
+6. Компилятор добавляет diagnostics, вычисляет `status` каждой затронутой ноды и
+   связи, а затем формирует summary.
+7. Ошибка строгой OpenSpec validation добавляется в тот же report как
+   `OPENSPEC_VALIDATION_FAILED`, не уничтожая уже построенную частичную модель.
+
+Граф не читает и не пишет persisted index, digest, freshness state или
+last-known-good snapshot. Команды `build`, `status`, `impact`, `check-scope` и Plugin
+`sync` не входят в контракт.
+
+## Архитектура Plugin
+
+| Слой | Файлы | Ответственность |
+| --- | --- | --- |
+| Plugin facade | `index.js` | Store-only lifecycle и подключение публичных команд |
+| CLI | `lib/commands.js` | `inspect`, `view`, human/JSON output и exit codes |
+| Orchestration | `lib/service.js` | Запуск package compiler через PluginContext и строгая OpenSpec validation |
+| Native launcher | `bin/openspec-graph.js` | Изолированный package-owned entrypoint компилятора |
+| Input layer | `lib/compiler-input.js` | Обход Store, YAML/Markdown parsing и source locations |
+| Projection | `lib/builder.js` | Создание нод, связей и содержательных diagnostics |
+| Report model | `lib/report.js` | Детерминированная сортировка, provenance, statuses и summary |
+| Read queries | `lib/query.js` | Точный neighborhood ноды и impact одного Change |
+| Viewer | `lib/viewer.js`, `viewer/` | Read-only loopback server и визуализация готового report |
+
+В Core нет OpenSpec Graph-specific ветвлений. Core выбирает Store-контекст и
+предоставляет Plugin API, а грамматика OpenSpec, модель графа, compiler и viewer
+остаются внутри package `@openspec-orch/plugin-openspec-graph`.
+
+## Команды
+
+```bash
+openspec-orch graph inspect
+openspec-orch graph inspect --json
+openspec-orch graph view
+openspec-orch graph view --port 0
+```
+
+### `graph inspect`
+
+Компилирует Store и печатает каждую ноду и связь:
+
+- `[✓]` — элемент корректен;
+- `[!]` — есть warning;
+- `[✗]` — есть error.
+
+После элементов выводятся `nodes`, `edges`, `errors` и `warnings`. При наличии хотя
+бы одной error команда возвращает ненулевой exit code. `--json` возвращает полный
+Graph Report с тем же результатом проверки.
+
+### `graph view`
+
+Компилирует Store заново, печатает только summary и запускает read-only UI на
+`127.0.0.1`. `--port 0` выбирает свободный порт.
+
+Recoverable errors не блокируют viewer: ошибочные элементы выделяются красным,
+warnings — жёлтым, а diagnostics без конкретной ноды или связи показываются в секции
+«Ошибки графа». Viewer работает, пока выполняется команда, и не обновляется при
+последующих изменениях файлов — для нового состояния команду нужно перезапустить.
+
+## Входные данные
+
+| Источник | Что извлекается | Если отсутствует |
+| --- | --- | --- |
+| `openspec-orch.yaml` | Store ID и зарегистрированные Code Repositories | Orchestrator не сможет предоставить нормальный Store-контекст |
+| `openspec/specs/**/spec.md` | Текущие Master Specs | Допустимо для нового или пустого Store |
+| `openspec/changes/<change-id>/` | Активные Changes | Допустимо |
+| `openspec/changes/archive/<date>-<change-id>/` | Архивные Changes | Допустимо, но исторические Repository-связи восстановить будет не из чего |
+| `<change>/specs/**/spec.md` | Delta Specs и capability path | Change получает warning, кроме `skip_specs: true` |
+| `<change>/proposal.md` | Repository Impact | Change с Delta Specs получает warning; прямые Repository-связи не создаются |
+| `<change>/.openspec.yaml` | Native `skip_specs` | Считается `false` |
+| `openspec-graph.yaml` | Необязательные aliases полных Delta operation headings | Используются встроенные стандартные OpenSpec headings |
+
+Пустой Store с зарегистрированными Repository является корректным графом.
+
+### Альтернативные Delta operation headings
+
+Plugin всегда распознаёт четыре встроенных OpenSpec heading независимо от наличия
+конфигурации:
+
+| Heading | Каноническая operation |
+| --- | --- |
+| `## ADDED Requirements` | `ADDED` |
+| `## MODIFIED Requirements` | `MODIFIED` |
+| `## REMOVED Requirements` | `REMOVED` |
+| `## RENAMED Requirements` | `RENAMED` |
+
+Если профиль OpenSpec использует другой язык, текст или уровень Markdown heading,
+Store может добавить aliases в необязательный package-specific файл
+`openspec-graph.yaml`:
 
 ```yaml
 version: 1
-edges:
-  - source: master-spec:conference/visitors
-    relation: implemented_by
-    target: repository:web
-    sources:
-      - docs/architecture.md:18
-
-  - source: repository:web
-    relation: calls
-    target: repository:control
-    contract: Conference Control API
-    sources:
-      - docs/architecture.md:31
+operation_headings:
+  ADDED:
+    - "### Добавленные требования"
+  MODIFIED:
+    - "## Требования изменены"
+  REMOVED:
+    - "#### Удалённые требования"
+  RENAMED:
+    - "## Переименованные требования"
 ```
 
-Структурные отношения модели:
+Значение alias — полный Markdown heading вместе с `#`. Aliases только дополняют, но
+не заменяют встроенный набор. При сопоставлении не учитываются регистр, вид Unicode
+символов и повторяющиеся пробелы. Результат всегда канонизируется в `ADDED`,
+`MODIFIED`, `REMOVED` или `RENAMED`, поэтому формат Graph Report и viewer не зависит
+от языка исходной Delta Spec.
 
-```text
-Store contains Repository
-Change contains Delta Spec
-Change affects Master Spec
-Delta Spec changes Master Spec
-Master Spec implemented_by Repository
-Master Spec depends_on Master Spec
-Delta Spec targets Repository
+Один маппинг применяется одинаково к активным и архивным Changes. Если один heading
+сопоставлен разным operations, версия неизвестна или структура файла неверна,
+компилятор добавляет recoverable error, атомарно отбрасывает все пользовательские
+aliases и продолжает строить частичный граф на встроенном наборе.
+
+Маппинг расширяет только разбор OpenSpec Graph. Внешняя команда
+`openspec validate --all --strict` остаётся независимым источником validation: если
+установленный OpenSpec CLI не принимает альтернативный синтаксис, report дополнительно
+получит `OPENSPEC_VALIDATION_FAILED`.
+
+Файл не создаётся Plugin автоматически, не является состоянием графа и не требует
+обслуживания агентом. Для стандартного OpenSpec Store он не нужен.
+
+## Ноды
+
+Все node IDs детерминированы и не зависят от порядка обхода файлов.
+
+| Тип | ID | Источник | Состояния и смысл |
+| --- | --- | --- | --- |
+| `store` | `store:<store-id>` | Project/Store context | Корневая нода одного Store |
+| `repository` | `repository:<repository-id>` | `openspec-orch.yaml` | `registered`; неизвестная ссылка из Repository Impact остаётся placeholder-нодой `missing` с error |
+| `master-spec` | `master-spec:<capability>` | `openspec/specs/<capability>/spec.md` или Delta Spec | `current` для реальной Master Spec; `planned` для capability только активного Change; `missing` для архивной Delta без текущей Master Spec |
+| `change` | `change:<change-id>` | Активный или архивный каталог Change | `active` или `archived`; у стандартного archive-префикса `YYYY-MM-DD-` дата не входит в Change ID |
+| `delta-spec` | `delta-spec:<change-id>/<capability>` | `<change>/specs/<capability>/spec.md` | Наследует `active` или `archived` от Change и хранит capability path |
+
+`state` описывает жизненный цикл сущности. `status` описывает результат проверки и
+равен `ok`, `warning` или `error`. Это разные поля: например, архивный Change может
+иметь `state: archived` и `status: ok`.
+
+Placeholder-ноды сохраняют ошибочную ссылку в частичном графе, чтобы `inspect` и
+viewer могли показать место поломки вместо удаления всей связанной области.
+
+## Связи
+
+| Source | Relation | Target | Как выводится | Смысл |
+| --- | --- | --- | --- | --- |
+| Store | `contains` | Repository | Из registry `openspec-orch.yaml` | Repository зарегистрирована в Project |
+| Store | `contains` | Master Spec | Из Master Spec или первой Delta Spec capability | Capability известна Store |
+| Store | `contains` | Change | Из активного или архивного каталога | Change принадлежит Store |
+| Change | `contains` | Delta Spec | Из пути Delta Spec | Delta Spec принадлежит Change |
+| Change | `affects` | Master Spec | Из capability path Delta Spec | Change затрагивает capability; `operations` содержит найденные Delta operations |
+| Delta Spec | `changes` | Master Spec | По одному edge на уникальный Delta heading | Конкретная Delta Spec выполняет `ADDED`, `MODIFIED`, `REMOVED` или `RENAMED` |
+| Change | `changes_in` | Repository | Из колонки Repository таблицы Repository Impact | Change явно затрагивает Repository |
+| Repository | `linked` | Master Spec | Из Repository и capability одной строки Repository Impact того же Change | Нейтральный факт участия Repository в Change этой capability |
+
+Все связи имеют `derived: true` и непустой `provenance`. Источник представлен
+структурированным объектом:
+
+```json
+{
+  "path": "openspec/changes/add-checkout/proposal.md",
+  "line": 18,
+  "field": "repository-impact[0].capabilities[0]"
+}
 ```
 
-Каждый `sources` — существующий Store-relative `path:line`. Dangling nodes,
-дубликаты, неподдерживаемые направления, отсутствующее evidence и `calls` без
-контракта блокируют сборку. Предположения по именам и транзитивные связи не
-достраиваются.
+Одинаковая Repository–Master Spec пара отображается одной `linked`-линией. Если её
+подтверждают несколько активных или архивных Changes, edge агрегирует:
 
-Если source указывает на файл активного `openspec/changes/<change-id>/`, после
-штатного Archive builder разрешает тот же файл через единственный архивный каталог
-`openspec/changes/archive/<date>-<change-id>/` и возвращает его канонический архивный
-path в provenance. Для других отсутствующих paths сборка по-прежнему завершается
-ошибкой.
+- `via_changes` — отсортированные Change IDs;
+- `provenance` — точные места каждого объявления.
 
-## Граница с CodeGraph
+При раскрытии конкретного Change viewer показывает только `linked`, у которых этот
+Change присутствует в `via_changes`. Связи другого Change не попадают в его impact.
 
-OpenSpec Graph отвечает на вопросы «какой Change меняет какую capability и какие
-репозитории затронуты». CodeGraph отвечает на вопросы «какие файлы, символы и вызовы
-затронуты внутри выбранного Code Repository». Plugins не читают индексы друг друга и
-могут использоваться независимо.
+### Семантика `linked`
 
-## Plugin Template
+`linked` означает только: Repository была указана в Change, имевшем Delta Spec для
+этой capability. Связь не утверждает:
 
-Plugin владеет skill `openspec-graph-maintenance` и начальным
-`openspec/graph.yaml`. Они находятся в `template/`, который Core автоматически
-применяет через общий `ProjectTemplateService` при `plugin init`; `index.js` не
-содержит Agent integration или copy rules. Поддерживаются Claude, GigaCode и Qwen.
+- владение capability;
+- наличие или завершённость реализации;
+- вызов одного компонента другим;
+- техническую зависимость;
+- актуальность конкретной ревизии исходного кода.
 
-Отличающийся существующий файл блокирует установку, одинаковый пропускается.
-`plugin remove` не удаляет добавленные в Store файлы: CLI перечисляет пути skill и
-`openspec/graph.yaml` для ручной очистки. Base Template эти файлы не поставляет и
-не обновляет.
+## Repository Impact
 
-## Использование
+Прямые Repository–Master Spec связи создаются только из строгой таблицы Proposal:
 
-Из корня Store:
+```markdown
+## Repository Impact
 
-```bash
-openspec-orch plugin connect openspec-graph --repo <store-id>
-openspec-orch graph build
-openspec-orch graph status
-openspec-orch graph impact <change-id>
-openspec-orch graph check-scope <change-id> --repo <repository-id>...
-openspec-orch graph inspect <node-id>
-openspec-orch graph view
+| Repository | Capabilities |
+| --- | --- |
+| `frontend` | `orders/checkout` |
+| `backend` | `orders/checkout`, `payments/processing` |
 ```
 
-Текущий Base Project Template объявляет `openspec-graph` обязательным, поэтому
-`openspec-orch init` уже устанавливает Package и сохраняет `required: true`.
-Для Custom Template без этой зависимости Plugin можно установить отдельно через
-`openspec-orch plugin init --plugin openspec-graph`.
+Правила:
 
-`plugin connect` только создаёт Store binding и не валидирует незавершённые Changes,
-поэтому его можно безопасно выполнить, когда Change находится на Intake или Proposal.
-Индекс при подключении не создаётся: первый `graph build` запускается явно и сохраняет
-прежний fail-closed контракт строгой валидации. Для Store без активных Changes его
-можно выполнить сразу; при Intake-only или Proposal-only Change нужно сначала создать
-валидные Delta Specs. До build `graph status` возвращает `unavailable` и предлагает
-точную следующую команду.
+- заголовок секции должен быть ровно `## Repository Impact`;
+- таблица содержит ровно две колонки `Repository` и `Capabilities`;
+- repository-id должен существовать в `openspec-orch.yaml`;
+- capability должна иметь Delta Spec в том же Change;
+- несколько capabilities перечисляются через запятую;
+- дублированная секция или пара Repository–capability является error;
+- свободный список Repository не создаёт `changes_in` или `linked`;
+- сопоставления выполняются по строкам, поэтому не возникает неявного cross-product.
 
-`inspect` принимает только точный node ID и не выбирает fuzzy candidate. Если
-capability path неизвестен, сначала выполните `openspec list --specs --json` и
-выберите точный capability ID. При Intake/Proposal без валидных Delta Specs прочитайте
-точную Master Spec напрямую: Graph ещё не authoritative и не должен принуждать к
-преждевременному build. После появления валидных Delta Specs выполните build и только
-затем используйте `graph inspect master-spec:<capability-path>`.
+## Graph Report
 
-`impact` и `inspect` дают любому агенту provider-independent JSON из того же свежего
-индекса, который показывает UI. `impact` разделяет `direct_master_specs` — Master
-Specs с Delta Spec внутри выбранного Change, `dependent_master_specs` — downstream
-Master Specs, которые прямо или транзитивно зависят от изменяемых, и
-`total_master_specs` — их объединение без дубликатов. Репозитории аналогично
-разделены на `direct_repositories`, `dependent_repositories` и общий `repositories`.
-Репозитории, которые проверяют затронутые Master Specs через `verifies`, и
-направленно затронутые repositories по явным `depends_on` или `calls` отдельно
-возвращаются как `verification_repositories`,
-`related_repositories` и их объединение `review_repositories`. Они требуют проверки
-влияния, но не добавляются автоматически в implementation scope. `all_repositories`
-объединяет implementation scope и review-контур для отображения и машинной обработки.
-Repository-связи учитываются только на один переход и не распространяются
-транзитивно через весь мультирепозиторий.
+```json
+{
+  "report_version": 1,
+  "graph_version": 1,
+  "state": "ready",
+  "nodes": [],
+  "edges": [],
+  "diagnostics": [],
+  "summary": {
+    "nodes": 0,
+    "edges": 0,
+    "errors": 0,
+    "warnings": 0
+  }
+}
+```
 
-Направление Repository relations фиксировано:
+`state` равен `invalid`, если существует хотя бы одна error. Warnings не делают
+report invalid. Ноды и связи сортируются по ID, provenance — по `path`, `line` и
+`field`, а `via_changes` — по Change ID. Одинаковые входные файлы создают
+одинаковую проекцию компилятора. Итоговая strict-validation diagnostic также
+зависит от внешнего OpenSpec CLI.
 
-- `source depends_on target`: изменение dependency `target` отправляет dependent
-  `source` на review;
-- `source calls target`: изменение предоставляемого `target` contract отправляет
-  caller `source` на review;
-- `source publishes_to target`: фиксирует publisher и прямого consumer именованного
-  event contract, но сама по себе не добавляет Repository в impact или review.
+Diagnostic содержит:
 
-Обратное влияние для направленных impact-отношений не выводится автоматически.
-Транзитивное влияние строится только по явно подтверждённым связям Master Spec
-`depends_on`; отсутствующие связи не угадываются.
+- стабильный ID внутри report;
+- `code`, `severity` и сообщение;
+- `elements` — IDs затронутых нод и связей;
+- опциональный `source` с `path`, `line` и `field`.
 
-Change dependencies возвращаются в обоих направлениях:
-`prerequisite_changes.direct/transitive` показывают Changes, от которых зависит
-выбранный Change, а `dependent_changes.direct/transitive` — активных или архивных
-потребителей выбранного Change. Совпавшие Delta Specs одного Change не создают
-внешнюю self-dependency. Поле `dependency_changes` временно сохраняется как
-совместимый объединённый список prerequisites.
+## Диагностика
 
-`check-scope` сравнивает предложенный набор Code Repositories для Cycle с этим
-impact. Прямые репозитории обязательны; их отсутствие, Change без Delta Specs или
-непривязанная напрямую изменяемая Master Spec завершают команду ошибкой. Зависимые и
-review-репозитории выводятся для явного решения, но не включаются в Cycle
-автоматически. Переданный review-only или не относящийся к impact дополнительный
-репозиторий также делает scope `invalid`: если в нём действительно требуется
-изменение, сначала обновите Repository Impact, Design, Tasks и Graph mapping.
+### Warnings
 
-`build` сначала выполняет строгую валидацию OpenSpec, затем атомарно заменяет
-последний успешно собранный индекс в Plugin storage. `view` поднимает read-only UI
-на loopback-интерфейсе и использует vendored vis-network без внешнего CDN.
+| Code | Условие |
+| --- | --- |
+| `CHANGE_WITHOUT_DELTA_SPECS` | Change не содержит Delta Specs и не помечен `skip_specs: true` |
+| `REPOSITORY_IMPACT_MISSING` | У Change есть Delta Specs, но нет строгой таблицы Repository Impact |
+| `UNLINKED_MASTER_SPEC` | Ни активные, ни архивные Changes не связывают Master Spec с Repository |
 
-`source_digest` следует topology-only контракту: включает Store ID, `repository-id +
-role`, Master Specs, Delta Specs, состояние каталогов Changes, `openspec/graph.yaml` и
-файлы evidence explicit edges. Proposal, Design и Tasks не входят сами по себе; Design
-попадает в digest только когда его строка является explicit-edge evidence. Поэтому
-переключение checkbox Tasks не делает граф stale.
+### Recoverable errors
 
-`graph status` по умолчанию показывает человекочитаемую сводку с `✓`, `⚠` или `✗`,
-числом узлов и рёбер, digest и следующим действием. `graph status --json` возвращает
-`ready`, `stale`, `unavailable` или `invalid`, признак
-`authoritative`, наличие last known-good и `next_command`. Last known-good доступен
-только для диагностики: `inspect`, `impact`, `check-scope` и `view` читают граф лишь
-при свежем `ready` состоянии.
-Интерфейс использует один force-directed граф без колонок. Store задаёт границу и
-имя открытого графа, но не занимает отдельный узел. Репозитории, Master Specs и
-Changes постоянно находятся на canvas и образуют кластеры по реальным связям.
-Глобальная физика выполняет один ограниченный проход, после чего отключается, чтобы
-граф не дёргался. При перетаскивании Repository его Master Specs, а при
-перетаскивании Change раскрытые Delta Specs двигаются вместе с родителем, сохраняя
-взаимные расстояния. Прочие прямые соседи получают только небольшое пружинное
-смещение. Обновления объединяются в один кадр без повторного запуска общей
-симуляции. Рёбра всегда остаются прямыми, поэтому дальнее перемещение кластера не
-создаёт длинных петель. На далёком масштабе подписи Master Specs скрыты и
-появляются при приближении или фокусе.
+| Code | Условие |
+| --- | --- |
+| `ARCHIVED_MASTER_SPEC_MISSING` | Архивная Delta Spec не имеет соответствующей текущей Master Spec |
+| `GRAPH_UNKNOWN_REPOSITORY` | Repository Impact ссылается на отсутствующий registry ID |
+| `REPOSITORY_IMPACT_UNKNOWN_CAPABILITY` | Capability из таблицы не имеет Delta Spec в том же Change |
+| `REPOSITORY_IMPACT_TABLE_INVALID` | Заголовок или структура таблицы неверны |
+| `REPOSITORY_IMPACT_DUPLICATE_SECTION` | Proposal содержит несколько секций Repository Impact |
+| `REPOSITORY_IMPACT_DUPLICATE_MAPPING` | Пара Repository–capability объявлена повторно |
+| `REPOSITORY_IMPACT_ROW_INVALID` | Строка таблицы пуста или структурно некорректна |
+| `REPOSITORY_IMPACT_EMPTY` | Валидная таблица не содержит ни одного mapping |
+| `OPERATION_HEADINGS_CONFIG_INVALID` | Необязательный operation heading mapping имеет неверную структуру или конфликт aliases |
+| `DELTA_OPERATIONS_MISSING` | Delta Spec не содержит встроенного или настроенного operation heading |
+| `DELTA_OPERATION_DUPLICATE` | Одна operation-секция повторена в Delta Spec |
+| `CHANGE_METADATA_INVALID` | `.openspec.yaml` Change не парсится как YAML |
+| `OPENSPEC_VALIDATION_FAILED` | Внешняя строгая OpenSpec validation завершилась ошибкой |
 
-Delta Specs всегда отображаются компактными кластерами вокруг своих Changes — так
-же, как Master Specs группируются вокруг Repository. Связи от Delta Specs к Master
-Specs показывают точные операции `ADDED`, `MODIFIED`, `REMOVED` и `RENAMED`. При
-включённом слое Delta Spec связи `Delta Spec → targets → Repository` сохраняют
-видимый путь до scope Change. Они не заменяют постоянные
-`Master Spec → implemented_by → Repository`.
+Recoverable error сохраняет частичный Graph Report. `inspect` завершится с exit code
+`1`, но `view` откроется и покажет доступные элементы и diagnostics.
 
-Четыре чекбокса позволяют независимо скрыть Repository, Master Spec, Change или
-Delta Spec. По умолчанию видны Repository, Master Spec и Change, а подробный слой
-Delta Spec выключен. В этом режиме агрегированная связь `Change → affects → Master
-Spec` сохраняет видимый impact-путь. При включении соответствующей Delta Spec viewer
-динамически скрывает дублирующую `affects` и показывает подробную цепочку
-`Change → Delta Spec → Master Spec` вместе с `targets` до Repository. Вместе со
-скрытыми узлами исчезают их рёбра; расположение остальных групп не перестраивается.
+### Fatal errors
 
-Выбор Change фокусирует его impact. Фиолетовая рамка обозначает напрямую изменяемые
-Master Specs, бирюзовая — зависимые Master Specs с потенциальным downstream-влиянием.
-Остальной граф приглушается, а инспектор показывает отдельные списки и общий размер
-impact. Репозитории из `review_repositories` выводятся отдельным янтарным списком и
-не смешиваются с прямым или зависимым implementation scope.
+Fatal error означает, что даже частичную модель нельзя безопасно сформировать. К ним
+относятся, например:
 
-Путь к файлу в инспекторе открывает его read-only содержимое в новой вкладке. Меню
-рядом позволяет повторить просмотр, открыть файл в VS Code (когда `graph view`
-запущен из Store) или скопировать относительный путь. Источники связей используют
-те же действия, а VS Code открывает источник на указанной строке. Viewer принимает
-только файлы, указанные в узлах или валидированных provenance-ссылках графа, и читает
-их через Store-scoped Files facade.
+- symlink вместо ожидаемого файла или каталога Store;
+- не-directory на месте структурного каталога;
+- дублированный Repository, Change, Delta Spec или внутренний edge ID;
+- некорректный capability path;
+- повреждённый или неполный output package compiler.
 
-Поиск изолирует найденные узлы и их ближайшее окружение без перестроения физики.
-Кнопка `Сбросить` возвращает полный обзор. Выбор Master Spec показывает её прямые
-связи, а инспектор отдельно перечисляет `Зависит от` и `От неё зависят`.
+Fatal error останавливает `inspect` и `view`; viewer не запускается.
+
+## Жизненные сценарии
+
+### Новая capability
+
+Активная Delta Spec создаёт `planned` Master Spec, даже если текущего
+`openspec/specs/<capability>/spec.md` ещё нет. Repository Impact уже может связать её
+с Repository как планируемое изменение.
+
+### Archive после применения Delta
+
+После применения Delta появляется `current` Master Spec. Архивный Change и его
+Repository Impact продолжают подтверждать `linked`, поэтому отсутствие активных
+Changes не удаляет связь Repository–Master Spec.
+
+### Master Spec без активных Changes
+
+Master Spec остаётся в графе. Если связь находится в Archive, она отображается
+обычно. Если ни активный слой, ни Archive не содержат Repository Impact для этой
+capability, нода получает `UNLINKED_MASTER_SPEC`.
+
+### Неконсистентный Archive
+
+Если архивная Delta Spec осталась, а текущей Master Spec нет, компилятор создаёт
+`missing` placeholder и `ARCHIVED_MASTER_SPEC_MISSING`. Это отличает ещё не
+реализованную capability активного Change от сломанного результата Archive.
+
+## Ограничения
+
+- Компиляция полная, не инкрементальная. Время команды растёт вместе с количеством
+  Specs, Changes и Archive.
+- Viewer показывает snapshot на момент запуска и не следит за файловой системой.
+- Историческая Repository-связь существует только пока соответствующий архивный
+  Change сохраняет Proposal с Repository Impact и Delta Specs. Удалённый или старый
+  Archive без таблицы не позволяет восстановить эту связь.
+- Парсер использует только стандартные пути и файлы с именем `spec.md`.
+- Delta operations распознаются по встроенным headings или полным aliases из
+  `openspec-graph.yaml`. Произвольные регулярные выражения не выполняются; содержимое
+  Requirements и Scenarios не используется для построения дополнительных связей.
+- Repository Impact является строгим структурным контрактом. Свободный Markdown,
+  дополнительные колонки и неявные списки Repository не интерпретируются.
+- Plugin не сканирует checkout Code Repository, Git history или commits и не
+  подтверждает соответствие реализации спецификации.
+- Plugin не выводит ownership, runtime calls, зависимости между capabilities или
+  зависимости между Changes.
+- Нет persisted cache или last-known-good fallback: сломанный текущий Store создаёт
+  текущий invalid report, а не показывает предыдущий успешный граф.
+- Viewer доступен только локально через loopback, является read-only и живёт только
+  в процессе команды `graph view`.

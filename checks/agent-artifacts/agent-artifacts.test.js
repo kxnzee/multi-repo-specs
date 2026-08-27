@@ -114,10 +114,13 @@ test("repository evidence delegation keeps one question per subagent invocation"
   );
 });
 
-test("Apply context uses the exact OpenSpec Graph scope blocker contract", async () => {
+test("Apply context uses the stateless OpenSpec Graph inspection contract", async () => {
   const relative = "skills/openspec-base-apply-context/SKILL.md";
   const source = await fs.readFile(path.join(TEMPLATE_ROOT, relative), "utf8");
 
-  assert.match(source, /`missing_required_repositories`/, relative);
-  assert.doesNotMatch(source, /`missing_required`/, relative);
+  assert.match(source, /`openspec-orch graph inspect --json`/, relative);
+  assert.match(source, /`errors: 0`/, relative);
+  assert.match(source, /`Repository \| Capabilities`/, relative);
+  assert.doesNotMatch(source, /graph check-scope/u, relative);
+  assert.doesNotMatch(source, /missing_required_repositories/u, relative);
 });

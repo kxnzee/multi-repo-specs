@@ -8,7 +8,7 @@ CLI grammar, Agent integration и собственный Template, не изме
 
 | Plugin ID | Scope | Обязательность | Назначение |
 |---|---|---|---|
-| `openspec-graph` | Store | Required в Base Template | Строит производный граф Store/Repositories/Master Specs/Changes/Delta Specs, вычисляет impact и проверяет implementation scope |
+| `openspec-graph` | Store | Required в Base Template | Компилирует и проверяет текущий граф Store/Repositories/Master Specs/Changes/Delta Specs |
 | `change-tracking` | Store | Опциональный | Фиксирует Cycle, Results, Snapshot и результат проверки точного multi-repository candidate |
 | `codegraph` | Code Repository | Опциональный | Управляет repository-local CodeGraph index, native CLI passthrough и MCP/agent integration для навигации по коду |
 
@@ -21,21 +21,37 @@ CLI grammar, Agent integration и собственный Template, не изме
 
 ```bash
 openspec-orch plugin connect openspec-graph --repo <store-id>
-openspec-orch graph build
-openspec-orch graph status --json
-openspec-orch graph impact <change-id>
-openspec-orch graph check-scope <change-id> --repo <repository-id>...
-openspec-orch graph inspect <node-id>
+openspec-orch graph inspect
+openspec-orch graph inspect --json
 openspec-orch graph view
+openspec-orch graph view --port 0
 ```
 
-Binding не создает индекс. `build` валидирует Store и атомарно заменяет локальную
-проекцию. `impact`, `check-scope`, `inspect` и `view` требуют свежий authoritative
-index. Explicit relations хранятся в tracked `openspec/graph.yaml` с точным
-Store-relative `path:line` evidence.
+`inspect` и `view` каждый раз компилируют текущий Store без локального индекса,
+freshness status и Plugin sync. Прямые Repository–Master Spec связи выводятся из
+строгой таблицы `Repository | Capabilities` в Proposal и Delta Specs того же активного
+или архивного Change. Связь нейтральна и не утверждает владение или dependency.
 
 Graph не читает файлы Code Repositories, не вызывает CodeGraph, не редактирует Change
 и не запускается фоном.
+
+Стандартные Delta headings `ADDED`, `MODIFIED`, `REMOVED` и `RENAMED` работают без
+настройки. Если профиль OpenSpec использует другой язык или форму Markdown heading,
+добавьте необязательный `openspec-graph.yaml` в корень Store:
+
+```yaml
+version: 1
+operation_headings:
+  ADDED:
+    - "### Добавленные требования"
+  MODIFIED:
+    - "## Требования изменены"
+```
+
+Указывайте полный heading вместе с `#`. Aliases дополняют встроенный набор и одинаково
+применяются к активным и архивным Changes. Некорректный конфиг помечает report как
+`invalid`; все пользовательские aliases отбрасываются атомарно, а компилятор использует
+только встроенные headings. Plugin не создаёт и не изменяет этот файл автоматически.
 
 ## Change Tracking
 

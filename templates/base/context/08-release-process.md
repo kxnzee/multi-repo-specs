@@ -38,19 +38,15 @@ expected_source: Monitoring, runbooks, incidents, or maintainer confirmation
   проверки.
 - Штатный OpenSpec Archive остаётся владельцем применения Delta Specs к Master Specs
   и перемещения Change.
-- До изменения Master Specs требуется свежий OpenSpec Graph, проверка impact, порядка
-  зависимых Changes и repository scope через `graph check-scope`. Отсутствующий
-  Store binding блокирует Archive. При подключённом
-  Change Tracking используется набор repositories Cycle; `CYCLE_NOT_FOUND` разрешает
-  проверить scope по принятым Tasks sections с работой в Code Repository. Если Change
-  Tracking не подключён, его команды не вызываются, а scope сразу берётся из тех же
-  принятых Tasks sections;
-  принятый `skip_specs` помечает scope-check как неприменимый без фиктивной Delta Spec.
-- После Archive OpenSpec Graph пересобирается повторно. До `graph status: ready` и
-  проверки impact архивного Change агент повторно проверяет каждую directly changed
-  Master Spec. Change-scoped `targets` НЕ ЗАМЕНЯЕТ постоянный
-  `Master Spec → implemented_by → Repository`; отсутствующий подтверждённый mapping
-  блокирует Graph handoff. Сам штатный Archive автоматически не откатывается.
+- До изменения Master Specs требуется `graph inspect --json` с `errors: 0` и сверка
+  Repository Impact, Design, Tasks и при наличии Cycle repositories. Отсутствующий
+  Store binding блокирует Archive. `CYCLE_NOT_FOUND` разрешает проверить scope по
+  принятым Repository Impact и Tasks; принятый `skip_specs` не требует фиктивной
+  Delta Spec.
+- После Archive `graph inspect --json` выполняется повторно. Архивный Change должен
+  сохранять нейтральные Repository–Master Spec связи, автоматически полученные из
+  Repository Impact и Delta Specs. Ошибка post-Archive inspect блокирует Graph
+  handoff, но не откатывает штатный Archive автоматически.
 - После Archive и успешного Graph handoff при наличии долговечного
   domain/architecture/security
   изменения можно выполнить `/openspec-base-context audit --change <change-id>` либо

@@ -97,6 +97,11 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   await runCli(storeRoot, "plugin", "init", "--plugin", "change-tracking");
   await runCli(storeRoot, "plugin", "init", "--plugin", "codegraph");
   await runCli(storeRoot, "plugin", "init", "--plugin", "openspec-graph");
+  await runCli(storeRoot, "plugin", "connect", "openspec-graph", "--repo", "specs");
+  const graphInspection = JSON.parse((await runCli(
+    storeRoot,
+    "graph", "inspect", "--json",
+  )).stdout);
   const { stdout } = await runCli(storeRoot, "--help");
   const graphHelp = await runCli(storeRoot, "graph", "--help");
   const configured = configuration.parseProject(
@@ -104,21 +109,30 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   );
 
   assert.deepEqual(configured.plugins, ["change-tracking", "codegraph", "openspec-graph"]);
-  assert.match(graphHelp.stdout, /build/);
-  assert.match(graphHelp.stdout, /status/);
+  assert.deepEqual(graphInspection.summary, {
+    nodes: 2,
+    edges: 1,
+    errors: 0,
+    warnings: 0,
+  });
+  await assert.rejects(fs.access(
+    path.join(storeRoot, ".openspec-orch/plugins/openspec-graph/state.json"),
+  ), { code: "ENOENT" });
+  assert.match(graphHelp.stdout, /inspect/);
   assert.match(graphHelp.stdout, /view/);
-  assert.match(graphHelp.stdout, /check-scope/);
+  assert.doesNotMatch(graphHelp.stdout, /\bbuild\b/);
+  assert.doesNotMatch(graphHelp.stdout, /\bstatus\b/);
+  assert.doesNotMatch(graphHelp.stdout, /\bimpact\b/);
+  assert.doesNotMatch(graphHelp.stdout, /check-scope/);
   assert.match(
     await fs.readFile(path.join(storeRoot, ".qwen/settings.json"), "utf8"),
     /"openspec-orch-codegraph"/,
   );
   assert.match(await fs.readFile(path.join(storeRoot, "QWEN.md"), "utf8"), /codegraph_explore/);
-  const graphSkill = path.join(
-    storeRoot,
-    ".qwen/skills/openspec-graph-maintenance/SKILL.md",
-  );
-  assert.match(await fs.readFile(graphSkill, "utf8"), /name: openspec-graph-maintenance/u);
-  assert.match(await fs.readFile(graphSeed, "utf8"), /^version: 1$/mu);
+  await assert.rejects(fs.access(
+    path.join(storeRoot, ".qwen/skills/openspec-graph-maintenance/SKILL.md"),
+  ), { code: "ENOENT" });
+  await assert.rejects(fs.access(graphSeed), { code: "ENOENT" });
   await runCli(
     storeRoot,
     "plugin", "connect", "codegraph", "--repo", "specs", "--repo", "frontend",
@@ -174,13 +188,9 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     /openspec-orch-codegraph/,
   );
   assert.doesNotMatch(await fs.readFile(path.join(storeRoot, "QWEN.md"), "utf8"), /codegraph_explore/);
-  await fs.appendFile(graphSeed, "\n# durable project data\n");
-  const graphRemoval = await runCli(storeRoot, "plugin", "remove", "openspec-graph");
-  assert.match(graphRemoval.stdout, /Файлы Plugin оставлены в Store/u);
-  assert.match(graphRemoval.stdout, /\.qwen\/skills\/openspec-graph-maintenance\/SKILL\.md/u);
-  assert.match(graphRemoval.stdout, /openspec\/graph\.yaml/u);
-  assert.match(await fs.readFile(graphSkill, "utf8"), /name: openspec-graph-maintenance/u);
-  assert.match(await fs.readFile(graphSeed, "utf8"), /durable project data/u);
+  await runCli(storeRoot, "plugin", "disconnect", "openspec-graph", "--repo", "specs");
+  await runCli(storeRoot, "plugin", "remove", "openspec-graph");
+  await assert.rejects(fs.access(graphSeed), { code: "ENOENT" });
   const withoutGraph = configuration.parseProject(
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
   );
