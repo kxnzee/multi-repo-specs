@@ -5,7 +5,11 @@ import jsdoc from "eslint-plugin-jsdoc";
 
 export default [
   {
-    ignores: ["coverage/**", "node_modules/**"],
+    ignores: [
+      "coverage/**",
+      "extensions/superpowers/skills/**",
+      "node_modules/**",
+    ],
   },
   js.configs.recommended,
   {

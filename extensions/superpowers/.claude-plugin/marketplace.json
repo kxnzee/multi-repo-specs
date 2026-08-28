@@ -1,0 +1,13 @@
+{
+  "name": "openspec-orch-superpowers",
+  "description": "Locally bundled Superpowers Extension",
+  "owner": {
+    "name": "OpenSpec Orchestrator"
+  },
+  "plugins": [
+    {
+      "name": "superpowers",
+      "source": "./"
+    }
+  ]
+}

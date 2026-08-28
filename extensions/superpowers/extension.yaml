@@ -1,0 +1,6 @@
+id: superpowers
+name: Superpowers
+manifests:
+  claude: .claude-plugin/plugin.json
+  qwen: qwen-extension.json
+  gigacode: gigacode-extension.json
