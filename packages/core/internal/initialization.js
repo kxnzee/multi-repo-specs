@@ -4,8 +4,10 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { atomicWriter } from "./atomic-writer.js";
+import { bundledAgents } from "./bundled-agent.js";
 import { configuration } from "./configuration.js";
 import { CORE_CONTRACT_VERSIONS, CORE_FILES, CORE_PATTERNS } from "./constants.js";
+import { lstatOrNull } from "./fs.js";
 import { git } from "./git.js";
 import { openspec } from "./openspec.js";
 import { Project } from "./project.js";
@@ -13,17 +15,7 @@ import { Repository } from "./repository.js";
 import { CORE_SETTINGS } from "./settings.js";
 import { StoreTarget } from "./store-target.js";
 import { projectTemplates } from "./template.js";
-import { deepFreeze } from "./value.js";
-
-/** Возвращает lstat или null для отсутствующего path. */
-async function lstatOrNull(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
+import { deepFreeze, hasMethods } from "./value.js";
 
 /** Сравнивает Git remotes без незначимых завершающих slash. */
 function sameGitRemote(left, right) {
@@ -43,23 +35,32 @@ async function inspectRequiredFile(projectRoot, relativePath, issues) {
 /** Оркестрирует Core-owned init через доменные модели и ограниченные facades. */
 export class InitializationService {
   #configuration;
+  #agentAdapter;
+  #agents;
   #git;
   #openspec;
   #templates;
-  #writer;
 
   constructor({
+    agentAdapter,
+    agentProvider = bundledAgents,
     configurationService = configuration,
     gitService = git,
     openSpecService = openspec,
     templateService = projectTemplates,
-    writer = atomicWriter,
   } = {}) {
+    const resolvedAdapter = agentAdapter ?? agentProvider?.adapter;
+    if (!hasMethods(agentProvider, ["resolve"]) || !hasMethods(resolvedAdapter, ["adaptOpenSpecPack"])) {
+      throw new Error(
+        "INITIALIZATION_INVALID: agentProvider должен предоставлять resolve и Agent Adapter",
+      );
+    }
+    this.#agentAdapter = resolvedAdapter;
+    this.#agents = agentProvider;
     this.#configuration = configurationService;
     this.#git = gitService;
     this.#openspec = openSpecService;
     this.#templates = templateService;
-    this.#writer = writer;
     Object.freeze(this);
   }
 
@@ -67,12 +68,16 @@ export class InitializationService {
     target = ".",
     storeId,
     agentId,
+    templateId,
+    extensions,
     templateRoot,
     repositories = [],
     noStrict = false,
   } = {}) {
     this.#assertId(storeId, "Store ID");
     this.#assertId(agentId, "Agent ID");
+    if (templateId !== undefined) this.#assertId(templateId, "Template ID");
+    const agent = this.#agents.resolve(agentId);
     const storeTarget = await this.#resolveTarget(storeId, target);
     const strict = noStrict ? false : CORE_SETTINGS.execution.strictByDefault;
     if (await lstatOrNull(path.join(storeTarget.root, CORE_FILES.alternateOpenSpecConfig))) {
@@ -98,11 +103,13 @@ export class InitializationService {
       throw new Error(`${CORE_FILES.storeMetadata} должна быть обычным файлом`);
     }
     if (metadataStat) {
-      return this.#restoreExisting({ storeTarget, agentId, templateRoot });
+      return this.#restoreExisting({ storeTarget, agent, templateId, extensions });
     }
     return this.#initializeNew({
       storeTarget,
-      agentId,
+      agent,
+      templateId,
+      extensions: extensions ?? [],
       templateRoot,
       codeRepositories,
       strict,
@@ -118,7 +125,7 @@ export class InitializationService {
     return new StoreTarget(storeId, await fs.realpath(requestedRoot));
   }
 
-  async #restoreExisting({ storeTarget, agentId, templateRoot }) {
+  async #restoreExisting({ storeTarget, agent, templateId, extensions }) {
     const metadata = this.#configuration.parseStore(
       await fs.readFile(path.join(storeTarget.root, CORE_FILES.storeMetadata), "utf8"),
     );
@@ -128,54 +135,70 @@ export class InitializationService {
     const project = this.#configuration.parseProject(
       await fs.readFile(path.join(storeTarget.root, CORE_FILES.orchestratorConfig), "utf8"),
     );
-    if (project.agents.length > 0 && !project.agents.includes(agentId)) {
+    if (project.agent.id !== agent.id) {
       throw new Error(
-        `STORE_AGENT_MISMATCH: Store зарегистрирован для ` +
-          `${project.agents.join(", ")}, а не ${agentId}`,
+        `STORE_AGENT_MISMATCH: Store зарегистрирован для ${project.agent.id}, а не ${agent.id}`,
       );
     }
-    const templatePlan = await this.#templates.plan({
-      templateRoot,
-      targetRoot: storeTarget.root,
-      agentId,
-    });
-    await this.#assertComplete({ storeTarget, metadata, project, agent: templatePlan.agent });
+    if (templateId !== undefined && project.template.id !== templateId) {
+      throw new Error(
+        `STORE_TEMPLATE_MISMATCH: Store создан из ${project.template.id}, а не ${templateId}`,
+      );
+    }
+    let currentProject = project;
     const updated = [];
-    if (project.registerAgent(agentId)) {
-      await this.#inspectGit(storeTarget);
-      await this.#writer.write(
-        path.join(storeTarget.root, CORE_FILES.orchestratorConfig),
-        this.#configuration.serializeProject(project),
-      );
-      updated.push(CORE_FILES.orchestratorConfig);
+    if (extensions !== undefined) {
+      currentProject = new Project({ ...project.toConfig(), extensions });
+      const current = project.extensionDeclarations.map((entry) => entry.toConfig());
+      const requested = currentProject.extensionDeclarations.map((entry) => entry.toConfig());
+      if (JSON.stringify(current) !== JSON.stringify(requested)) {
+        await atomicWriter.write(
+          path.join(storeTarget.root, CORE_FILES.orchestratorConfig),
+          this.#configuration.serializeProject(currentProject),
+        );
+        updated.push(CORE_FILES.orchestratorConfig);
+      }
     }
+    await this.#assertComplete({ storeTarget, metadata, project: currentProject, agent });
     return this.#result({
       storeTarget,
       alreadyInitialized: true,
-      strict: project.strict,
+      strict: currentProject.strict,
       created: [],
       updated,
-      agent: templatePlan.agent,
-      requiredPluginIds: templatePlan.requiredPluginIds,
+      agent,
     });
   }
 
-  async #initializeNew({ storeTarget, agentId, templateRoot, codeRepositories, strict }) {
+  async #initializeNew({
+    storeTarget,
+    agent,
+    templateId,
+    extensions,
+    templateRoot,
+    codeRepositories,
+    strict,
+  }) {
     if (await lstatOrNull(path.join(storeTarget.root, CORE_FILES.orchestratorConfig))) {
       throw new Error(`Инициализации мешает существующий ${CORE_FILES.orchestratorConfig}`);
     }
     const templatePlan = await this.#templates.plan({
       templateRoot,
       targetRoot: storeTarget.root,
-      agentId,
+      agent,
     });
+    if (templateId !== undefined && templatePlan.id !== templateId) {
+      throw new Error(`TEMPLATE_ID_MISMATCH: ожидался ${templateId}, получен ${templatePlan.id}`);
+    }
     await templatePlan.assertAgentPackPathsAvailable();
     const unchangedPreExisting = await templatePlan.inspectPreExistingFiles();
     const gitIdentity = await this.#inspectGit(storeTarget);
     const project = new Project({
       version: CORE_CONTRACT_VERSIONS.project,
       strict,
-      agents: [agentId],
+      template: { id: templatePlan.id },
+      agent: { id: agent.id },
+      extensions,
       plugins: [],
       repositories: [
         new Repository({
@@ -197,7 +220,10 @@ export class InitializationService {
     );
     try {
       await openSpec.installAgentPack(templatePlan.agent.openSpecId);
-      await templatePlan.adaptGeneratedAgentPack();
+      await this.#agentAdapter.adaptOpenSpecPack({
+        agent: templatePlan.agent,
+        targetRoot: storeTarget.root,
+      });
       await openSpec.setupStore(gitIdentity.remote);
     } catch (error) {
       const metadataCreated = Boolean(
@@ -231,7 +257,6 @@ export class InitializationService {
       ],
       updated: installed.updated,
       agent: templatePlan.agent,
-      requiredPluginIds: templatePlan.requiredPluginIds,
     });
   }
 
@@ -258,7 +283,6 @@ export class InitializationService {
     if (!metadata.remote || !sameGitRemote(project.storeRepository.remote, metadata.remote)) {
       issues.push(`URL role: store в ${CORE_FILES.orchestratorConfig} не совпадает с Store metadata`);
     }
-    await inspectRequiredFile(storeTarget.root, agent.instructionsFile, issues);
     const commandsStat = await lstatOrNull(path.join(storeTarget.root, agent.commandsDirectory));
     if (!commandsStat?.isDirectory() || commandsStat.isSymbolicLink()) {
       issues.push(`${agent.commandsDirectory}/ не является обычным каталогом`);
@@ -294,7 +318,6 @@ export class InitializationService {
     created,
     updated,
     agent,
-    requiredPluginIds,
   }) {
     return deepFreeze({
       target: storeTarget.root,
@@ -304,7 +327,6 @@ export class InitializationService {
       created: [...created],
       updated: [...updated],
       agent: agent.snapshot(),
-      requiredPluginIds: [...requiredPluginIds],
     });
   }
 }

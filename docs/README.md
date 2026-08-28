@@ -27,8 +27,10 @@ Orchestrator. Источник правды — код, схемы и тесты
 
 OpenSpec владеет Requirements, Scenarios, Changes, Apply и Archive. Orchestrator
 подготавливает Store и workspace, проверяет Git/OpenSpec-контекст и предоставляет
-общую Plugin Platform. Project Template задает проектный процесс. Plugins добавляют
-собственные данные, команды и проверки, но не становятся новым источником требований.
+общую Plugin Platform. Project Template поставляет context, custom schema/config и
+copy-only assets, а выбранные Extensions — проектный workflow и Agent artifacts.
+Plugins добавляют собственные данные, команды, lifecycle и target-scoped Extensions,
+но не становятся новым источником требований.
 
 Core не выполняет `git add`, `commit`, `push`, `merge`, `rebase`, PR, deployment,
 проектные тесты, ручную проверку, Release или Archive. Эти действия явно остаются у

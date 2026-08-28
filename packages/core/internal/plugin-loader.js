@@ -7,6 +7,8 @@ import { pathToFileURL } from "node:url";
 import { PluginPackage } from "@openspec-orch/plugin-sdk";
 
 import { CORE_PATTERNS } from "./constants.js";
+import { lstatOrNull } from "./fs.js";
+import { isContainedPath } from "./path.js";
 
 const PLUGIN_API_METHODS = Object.freeze([
   "supportsRole",
@@ -18,22 +20,12 @@ const PLUGIN_API_METHODS = Object.freeze([
   "sync",
   "canExec",
   "exec",
-  "hasAgentContribution",
-  "integrateAgent",
+  "hasExtensionContribution",
+  "extensions",
   "hasCommandContribution",
   "registerCommands",
 ]);
 const REPOSITORY_ROLES = new Set(["store", "code"]);
-
-/** Возвращает lstat или null для отсутствующего path. */
-async function lstatOrNull(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
 
 /** Завершает загрузку стабильной ошибкой Core Plugin Loader. */
 function invalid(message, options) {
@@ -99,13 +91,7 @@ export class LoadedPlugin {
     ) {
       throw new Error("LOADED_PLUGIN_INVALID: root и entrypoint должны быть абсолютными путями");
     }
-    const relativeEntrypoint = path.relative(root, entrypoint);
-    if (
-      relativeEntrypoint === "" ||
-      relativeEntrypoint === ".." ||
-      relativeEntrypoint.startsWith(`..${path.sep}`) ||
-      path.isAbsolute(relativeEntrypoint)
-    ) {
+    if (!isContainedPath(root, entrypoint)) {
       throw new Error("LOADED_PLUGIN_INVALID: entrypoint должен находиться внутри package root");
     }
     if (!(pluginPackage instanceof PluginPackage)) {

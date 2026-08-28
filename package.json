@@ -10,22 +10,23 @@
     "bundledPlugins": [
       "@openspec-orch/plugin-change-tracking",
       "@openspec-orch/plugin-codegraph",
-      "@openspec-orch/plugin-mcp-connector",
       "@openspec-orch/plugin-openspec-graph"
     ]
   },
   "files": [
+    "agents",
     "bin",
+    "extensions",
     "templates"
   ],
   "bin": {
-    "openspec-orch": "./bin/openspec-orch.js"
+    "openspec-orch": "./bin/openspec-orch.js",
+    "openspec-orch-codegraph": "./bin/openspec-orch-codegraph.js"
   },
   "dependencies": {
     "@openspec-orch/core": "0.1.0",
     "@openspec-orch/plugin-change-tracking": "1.0.0",
     "@openspec-orch/plugin-codegraph": "1.0.0",
-    "@openspec-orch/plugin-mcp-connector": "1.0.0",
     "@openspec-orch/plugin-openspec-graph": "1.0.0"
   },
   "scripts": {

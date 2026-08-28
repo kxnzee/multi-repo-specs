@@ -1,0 +1,5 @@
+{
+  "name": "openspec-graph-agent",
+  "version": "1.0.0",
+  "contextFileName": "agent-instructions.md"
+}

@@ -56,9 +56,11 @@ test("candidate Change Tracking completes a real multi-repository Cycle", async 
     plugins: [pluginId],
   });
   const project = createProject({
-    version: 1,
+    version: 2,
     strict: true,
-    agents: ["qwen"],
+    template: { id: "base" },
+    agent: { id: "qwen" },
+    extensions: [],
     plugins: [{ id: pluginId, source: pluginSource }],
     repositories: [
       repository({ id: "specs", role: "store", remote: store.remote }),

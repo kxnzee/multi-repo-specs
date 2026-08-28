@@ -73,7 +73,7 @@ function normalizeRepository(value) {
 }
 
 /** Проверяет project-wide identity и Plugin binding invariants внешнего YAML. */
-function assertProjectContract(plugins, repositories) {
+function assertProjectContract(extensions, plugins, repositories) {
   if (new Set(repositories.map(({ id }) => id)).size !== repositories.length) {
     throw new Error(
       `CONFIG_INVALID: ${CORE_FILES.orchestratorConfig} содержит повторяющийся repository-id`,
@@ -88,6 +88,10 @@ function assertProjectContract(plugins, repositories) {
   const pluginIds = plugins.map(({ id }) => id);
   if (new Set(pluginIds).size !== pluginIds.length) {
     throw new Error("CONFIG_INVALID: plugins содержит повторяющийся plugin-id");
+  }
+  const extensionIds = extensions.map(({ id }) => id);
+  if (new Set(extensionIds).size !== extensionIds.length) {
+    throw new Error("CONFIG_INVALID: extensions содержит повторяющийся extension-id");
   }
   const knownPlugins = new Set(pluginIds);
   for (const repository of repositories) {
@@ -130,11 +134,13 @@ export class CoreConfiguration {
       parseYaml(source, `Некорректный ${CORE_FILES.orchestratorConfig}`),
     );
     const repositories = value.repositories.map(normalizeRepository);
-    assertProjectContract(value.plugins, repositories);
+    assertProjectContract(value.extensions, value.plugins, repositories);
     return new Project({
       version: value.version,
       strict: value.strict,
-      agents: value.agents,
+      template: value.template,
+      agent: value.agent,
+      extensions: value.extensions,
       plugins: value.plugins,
       repositories,
     });
@@ -145,7 +151,9 @@ export class CoreConfiguration {
     const source = stringify({
       version: config.version,
       strict: config.strict,
-      agents: config.agents,
+      template: config.template,
+      agent: config.agent,
+      extensions: config.extensions,
       plugins: config.plugins,
       repositories: config.repositories.map((repository) => ({
         id: repository.id,

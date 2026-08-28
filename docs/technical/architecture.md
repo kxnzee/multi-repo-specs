@@ -8,14 +8,15 @@ bin/openspec-orch.js                  composition root
 ├── @openspec-orch/plugin-sdk         public extension API
 ├── @openspec-orch/plugin-change-tracking
 ├── @openspec-orch/plugin-codegraph
-├── @openspec-orch/plugin-mcp-connector
 ├── @openspec-orch/plugin-openspec-graph
+├── agents/                           definitions и native adapters
+├── extensions/                       bundled standalone payloads
 └── templates/base/                   default Project Template
 ```
 
 Composition root проверяет Node.js, собирает каталог bundled Plugins и задает только
 distribution policy: package sources и разрешенные root commands. Core не содержит
-ветвлений по `change-tracking`, `codegraph`, `mcp-connector` или `openspec-graph`.
+ветвлений по `change-tracking`, `codegraph` или `openspec-graph`.
 
 ## Границы компонентов
 
@@ -23,8 +24,10 @@ distribution policy: package sources и разрешенные root commands. Co
 |---|---|---|
 | Core | Project/Repository domain, init/connect, Git/OpenSpec adapters, Plugin host, safe files/storage/process | Node/runtime libraries; не Plugin packages |
 | Plugin SDK | Immutable Plugin API, contributions, command builder, progress, contract test kit | Не Core internals |
-| Plugin package | Бизнес-логика расширения, package-owned state/template/launcher | Только публичный SDK и собственные dependencies |
-| Project Template | Agent mappings, schema, context, process artifacts, required Plugin IDs | Декларативный contract Core |
+| Plugin package | Бизнес-логика, package-owned state/launcher и target-scoped Extensions | Только публичный SDK и собственные dependencies |
+| Project Template | Copy-only context, custom schema/config и project assets | Декларативный contract Core |
+| Agent definition/adapter | OpenSpec adapter, adaptation pack и native Extension routing | Distribution-owned catalog |
+| Extension | Workflow payload и простые MCP | Native Agent mechanism |
 | OpenSpec | Artifact lifecycle и нормативные Specs/Changes | Внешний executable |
 
 ESLint закрепляет статическую границу: Plugin code не импортирует Core, SDK не
@@ -37,22 +40,24 @@ ESLint закрепляет статическую границу: Plugin code �
 CLI input
 → validate Store ID, Agent ID, Repository specs и paths
 → проверить заранее существующий Store target
-→ вызвать OpenSpec init с adapter Template
+→ вызвать OpenSpec init с OpenSpec ID выбранного Agent
+→ адаптировать созданный OpenSpec pack через Agent Adapter
 → применить Project Template безопасным copy engine
-→ записать базовый openspec-orch.yaml
-→ передать requires.plugins в generic reconciliation
-→ разрешить и установить required Plugin packages/templates
-→ обновить config точными declarations и required flags
+→ разрешить ID/source standalone Extensions из каталога без native Agent mutation
+→ записать openspec-orch.yaml v2 с Template, Agent и Extensions
+→ вывести явный следующий шаг connect
 ```
 
 Операция должна завершаться fail-closed: path traversal, collision, неизвестный
-Plugin, несовместимый Template или частичная Agent integration не выдаются за успех.
-Core не делает code-repository clone на этом этапе.
+Agent/Extension, несовпадающий Template ID или неполный OpenSpec/Agent pack не
+выдаются за успех. Plugins на этом этапе не выбираются, а Code Repositories не
+клонируются.
 
 ## Путь `connect`
 
 ```text
 найти Store и прочитать strict config
+→ выполнить preflight native CLI выбранного Agent
 → проверить OpenSpec version/register/doctor/context
 → разрешить workspace
 → для каждого Code Repository:
@@ -60,10 +65,16 @@ Core не делает code-repository clone на этом этапе.
    проверить identity/branch/clean state в strict
    создать/проверить OpenSpec pointer
 → сохранить явно выбранный strict workspace
+→ разрешить payload и проверить manifests standalone Extensions для всех Agents
+→ активировать standalone Extensions через adapter выбранного Agent
+→ восстановить Plugin runtime и contributions сохранённых bindings
+→ выполнить итоговый status standalone Extensions, Plugin runtime и contributions
 ```
 
 Существующий checkout никогда не получает `pull`, `checkout`, `reset` или merge.
 Relaxed mode требует готовый локальный каталог и пропускает Git pinning.
+Если Code Repositories не объявлены, repository-цикл пуст, а Store, Agent Extensions
+и Store-scoped Plugin продолжают подключаться обычным путём.
 
 ## Путь Plugin lifecycle
 
@@ -71,36 +82,31 @@ Relaxed mode требует готовый локальный каталог и 
 plugin init
 → resolve bundled или materialize external package
 → validate package manifest и structural export
-→ применить Agent contribution через Store setup context или Plugin Template
 → сохранить exact declaration
 
 plugin connect
 → выбрать Repository instances
 → создать setup-scoped PluginContext
+→ разрешить и проверить все Plugin-contributed Extensions без mutation
 → вызвать repository.connect
-→ повторно проверить repository.status
+→ активировать проверенные Extensions через общий Agent Adapter в target checkout
 → только после успеха сохранить binding
 ```
 
+Повторный адресный `plugin connect` существующего binding не вызывает
+`repository.connect`, но повторно активирует его Extension contributions. Фактический
+Plugin/Extension status проверяется отдельной status-командой и общим `connect`.
 Остальные lifecycle operations используют уже существующий binding. `disconnect`
-меняет configuration, но не удаляет tool-owned Repository data. `remove` удаляет
-declaration/runtime только после проверки required/bindings и возвращает paths для
-ручной очистки delivered assets.
-
-Agent-only Plugin не обязан объявлять фиктивный repository contribution или
-`supports`: Store setup context не создаёт binding и не смешивает Agent integration с
-Repository lifecycle.
+сначала нативно отключает Extension contributions, затем меняет configuration, но не
+удаляет tool-owned Repository data. `remove` удаляет declaration/runtime только после
+проверки bindings. Отдельный root `disconnect` отключает только локальные Agent
+Extensions и portable configuration не меняет.
 
 ## Команды Plugins
 
 Plugin command grammar строится ограниченным SDK builder и монтируется по умолчанию в
 `openspec-orch <plugin-id>`. Composition root может разрешить точный набор root command
 paths first-party Plugin, например `graph` или `assign/status/record/verify`.
-
-MCP Connector получает root namespace `mcp`, но Core не интерпретирует MCP transport
-или settings schema. Plugin читает `mcp-connector.yaml`, reconciles только owned
-`mcpServers` entries и managed context block через safe files/storage facades, выбирая
-settings и instruction paths по Agent.
 
 Универсальный `plugin exec` выбирает Plugin instance и Repository context, но Core не
 понимает native grammar. Если существует `repository.exec`, argv передается ему.
@@ -109,7 +115,8 @@ settings и instruction paths по Agent.
 
 ## Change Tracking path
 
-Change Tracking — Store-scoped Plugin:
+Change Tracking поддерживает bindings Store и Code Repository, а его Change-команды
+получают Store-scoped context:
 
 ```text
 assign
@@ -144,9 +151,11 @@ Store-level compiler читает registry, Master/Delta Specs, active/archive C
 
 ### CodeGraph
 
-Repository-scoped adapter вызывает внешний `codegraph` runtime в проверенном cwd,
-управляет init/index/status и устанавливает provider-specific MCP/instructions.
-Внутренняя модель CodeGraph не импортируется в OpenSpec Graph или Store artifacts.
+Repository-scoped adapter вызывает package-owned CodeGraph runtime в проверенном cwd
+связанного Store или Code Repository и управляет `init`, `status`, `sync` и native
+passthrough. Plugin поставляет Repository-scoped Extension, через который Agent
+подключает общие инструкции и MCP. Внутренняя модель CodeGraph не импортируется в
+OpenSpec Graph или Store artifacts.
 
 ## Безопасные facades
 

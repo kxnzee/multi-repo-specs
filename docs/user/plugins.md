@@ -2,25 +2,25 @@
 
 Plugin — самостоятельный ESM npm package, который расширяет Orchestrator через
 публичный `@openspec-orch/plugin-sdk`. Plugin может добавить repository lifecycle,
-CLI grammar, Agent integration и собственный Template, не изменяя Core.
+CLI grammar и Agent Extension, не изменяя Core.
 
 ## Plugins стандартной поставки
 
 | Plugin ID | Scope | Обязательность | Назначение |
 |---|---|---|---|
-| `openspec-graph` | Store | Required в Base Template | Компилирует и проверяет текущий граф Store/Repositories/Master Specs/Changes/Delta Specs |
-| `change-tracking` | Store | Опциональный | Фиксирует Cycle, Results, Snapshot и результат проверки точного multi-repository candidate |
-| `codegraph` | Code Repository | Опциональный | Управляет repository-local CodeGraph index, native CLI passthrough и MCP/agent integration для навигации по коду |
-| `mcp-connector` | Store/Agent | Опциональный | Декларативно синхронизирует MCP servers с settings зарегистрированного Agent |
+| `openspec-graph` | Store | Опциональный | Компилирует и проверяет текущий граф Store/Repositories/Master Specs/Changes/Delta Specs |
+| `change-tracking` | Store и Code Repository | Опциональный | Фиксирует Cycle, Results, Snapshot и результат проверки точного multi-repository candidate; команды Change выполняются в Store scope |
+| `codegraph` | Store и Code Repository | Опциональный | Управляет repository-local CodeGraph index, native CLI passthrough и Repository-scoped Agent Extension для навигации по выбранному checkout |
 
-Все четыре package поставляются как dependencies дистрибутива. Required означает
-зависимость активного Project Template, а не встроенную бизнес-логику Core.
+Все три package поставляются как dependencies дистрибутива. Template не
+выбирает, не устанавливает и не удаляет Plugins.
 
 ## OpenSpec Graph
 
 Основные команды:
 
 ```bash
+openspec-orch plugin init --plugin openspec-graph
 openspec-orch plugin connect openspec-graph --repo <store-id>
 openspec-orch graph inspect
 openspec-orch graph inspect --json
@@ -29,9 +29,19 @@ openspec-orch graph view --port 0
 ```
 
 `inspect` и `view` каждый раз компилируют текущий Store непосредственно из файлов.
+Команда `graph` появляется только после `plugin init`, а её Store-контекст становится
+доступен только после `plugin connect openspec-graph --repo <store-id>`.
 Прямые Repository–Master Spec связи выводятся из строгой таблицы
 `Repository | Capabilities` в Proposal и Delta Specs того же активного или архивного
 Change. Связь нейтральна и не утверждает владение или dependency.
+
+После успешного `graph inspect --json` Agent может использовать Graph Report как
+навигационную карту Store: переходить от Change к затронутым Master Specs и явно
+указанным Repositories, находить активные и архивные подтверждения связи, видеть
+`current`/`planned`/`missing` элементы и возвращаться к исходному полю через
+provenance. Карта помогает сузить чтение Store и сформулировать точечные вопросы к
+Code Repository, но не создаёт новый scope и не доказывает ownership, runtime call
+или техническую dependency.
 
 Graph не читает файлы Code Repositories, не вызывает CodeGraph, не редактирует Change
 и не запускается фоном.
@@ -55,6 +65,15 @@ operation_headings:
 только встроенные headings. Plugin не создаёт и не изменяет этот файл автоматически.
 
 ## Change Tracking
+
+Сначала свяжите Plugin со Store и всеми Code Repositories, которые могут входить в
+Cycle:
+
+```bash
+openspec-orch plugin init --plugin change-tracking
+openspec-orch plugin connect change-tracking \
+  --repo specs --repo frontend --repo backend
+```
 
 Основные команды:
 
@@ -91,53 +110,27 @@ argv native runtime через package-owned launcher в cwd выбранног�
 `.codegraph/` добавляется в локальный `.git/info/exclude`; tracked `.gitignore` не
 изменяется.
 
-Plugin умеет устанавливать integration для Qwen, Claude и GigaCode.
+CodeGraph можно связать со Store либо Code Repository: каждый binding обслуживает
+ровно свой Git checkout и получает собственные index, Extension и MCP scope. Для
+поиска implementation evidence обычно выбирают конкретный Code Repository; Store
+binding не даёт доступа к файлам соседних Code Repositories.
 
-## MCP Connector
+При `plugin connect` Agent-часть активируется как Repository-scoped Extension:
+Claude использует local marketplace. Qwen и GigaCode сначала включают уже установленный
+Extension в текущем workspace, а при его отсутствии один раз устанавливают project
+Extension; GigaCode использует Qwen CLI с отдельным `gigacode-extension.json`.
+Extension содержит общие инструкции и подключает MCP через executable
+`openspec-orch-codegraph`; Plugin не дописывает корневые Agent instructions и MCP
+settings вручную. `plugin disconnect` сначала отключает Extension в текущем workspace
+штатной командой Agent и только затем удаляет binding; установленный Qwen package
+остаётся доступным другим Repository.
 
-MCP Connector нужен, когда новый MCP следует добавить только в settings Agent. Один
-Plugin обслуживает любое количество серверов: для следующего MCP добавляется запись в
-`mcp-connector.yaml`, новый npm package и Plugin-код не нужны.
-Готовая заготовка находится в
-[`plugins/mcp-connector/examples/mcp-connector.yaml`](../../plugins/mcp-connector/examples/mcp-connector.yaml).
+## Простые MCP
 
-```yaml
-version: 1
-servers:
-  company-search:
-    agents: [qwen, gigacode, claude]
-    settings:
-      command: company-search-mcp
-      args: [--stdio]
-    context: |
-      Используй `company-search` для поиска внутренних сервисов.
-      Не изменяй данные без явного запроса пользователя.
-  internal-docs:
-    settings:
-      url: http://mcp.internal.example/mcp
-```
-
-`settings` — непрозрачный JSON-совместимый object. Его формат определяет Agent/MCP,
-поэтому Connector одинаково переносит stdio, HTTP и дополнительные поля. Необязательный
-`context` содержит Markdown-инструкцию по использованию server. `agents` необязателен;
-без него server и context применяются ко всем зарегистрированным Agent.
-
-```bash
-openspec-orch plugin init --plugin mcp-connector
-openspec-orch mcp status
-openspec-orch mcp apply
-openspec-orch plugin remove mcp-connector
-```
-
-`plugin init` сразу выполняет apply. Для Qwen используется `.qwen/settings.json`, для
-GigaCode — `.gigacode/settings.json`, для Claude — `.mcp.json`. Connector сохраняет
-остальные поля и чужие `mcpServers`, владеет только записанными им entries и не
-перезаписывает конфликт или ручное изменение. Удаление server из YAML и последующий
-`mcp apply` удаляют его owned entry; `plugin remove` удаляет все owned entries текущего
-Agent. Ownership state хранится локально в Plugin storage, а status не печатает
-`settings` и secrets. Context собирается в отдельный managed block в `QWEN.md`,
-`GIGACODE.md` или `CLAUDE.md`; остальной текст сохраняется, а изменённый вручную block
-не перезаписывается.
+Статический MCP входит в Agent Extension: Claude, Qwen и GigaCode получают его через
+собственный native manifest вместе с инструкциями использования. Один Extension может
+объявить несколько MCP. Если MCP требует repository lifecycle, состояния или своих
+команд, владельцем остаётся Plugin, который поставляет target-scoped Agent Extension.
 
 ## Общий lifecycle
 
@@ -159,9 +152,10 @@ Repositories; для остальных операций — все сущест
 Progress идет в `stderr`, поэтому JSON и raw stdout можно перенаправлять. После
 `connect` и `sync` Core повторно читает фактический Plugin status.
 
-`disconnect` удаляет binding, но не данные внутри Repository. `remove` требует
-отсутствие bindings и запрещен для `required: true`. Доставленные Template/Agent
-файлы автоматически не удаляются; CLI перечисляет их для ручной очистки.
+`disconnect` штатно отключает Plugin-owned Extension и удаляет binding, но не данные
+внутри Repository. `remove` требует отсутствия bindings. Для старого явного `agent`
+copy API доставленные файлы автоматически не удаляются; CLI перечисляет их для ручной
+очистки.
 
 ## Внешний Plugin
 
@@ -182,7 +176,7 @@ package identity сохраняется в `openspec-orch.yaml`. Внешний 
 ```bash
 openspec-orch plugin register dependency-audit
 openspec-orch plugin register code-analyzer \
-  --profile native --support code --template
+  --profile native --support code --extension
 ```
 
 Профили:
@@ -190,6 +184,10 @@ openspec-orch plugin register code-analyzer \
 - `commands` — только namespaced command contribution;
 - `repository` — guarded `connect/status` и command grammar;
 - `native` — repository lifecycle, native `exec` adapter и launcher.
+
+`--extension` добавляет в Repository/Native Plugin готовый Agent Extension для
+Claude, Qwen и GigaCode. Commands-only Plugin не имеет Repository target, поэтому
+этот флаг для него недоступен.
 
 Scaffold не возвращает фиктивный `ready`: автор обязан реализовать lifecycle и
 проверить package через SDK contract test kit.

@@ -6,11 +6,7 @@ import { CORE_CONTRACT_VERSIONS, CORE_FILES, CORE_PATTERNS } from "./constants.j
 
 const ID_SCHEMA = z.string().regex(CORE_PATTERNS.id, "должен быть в lowercase kebab-case");
 const ID_LIST_SCHEMA = z.array(ID_SCHEMA).default([]);
-const UNIQUE_AGENT_IDS_SCHEMA = ID_LIST_SCHEMA.superRefine((agents, context) => {
-  if (new Set(agents).size !== agents.length) {
-    context.addIssue({ code: "custom", message: "agents содержит повторяющийся agent-id" });
-  }
-});
+const IDENTITY_SCHEMA = z.strictObject({ id: ID_SCHEMA });
 const REPOSITORY_FIELDS = {
   id: ID_SCHEMA,
   roles: z.array(z.enum(["store", "code"])).length(1),
@@ -24,12 +20,17 @@ const REPOSITORY_SCHEMA = z.strictObject({
 const PLUGIN_DECLARATION_SCHEMA = z.strictObject({
   id: ID_SCHEMA,
   source: z.string().min(1),
-  required: z.boolean().default(false),
+});
+const EXTENSION_DECLARATION_SCHEMA = z.strictObject({
+  id: ID_SCHEMA,
+  source: z.string().min(1),
 });
 const PROJECT_CONFIG_SCHEMA = z.strictObject({
   version: z.literal(CORE_CONTRACT_VERSIONS.project),
   strict: z.boolean().default(true),
-  agents: UNIQUE_AGENT_IDS_SCHEMA,
+  template: IDENTITY_SCHEMA,
+  agent: IDENTITY_SCHEMA,
+  extensions: z.array(EXTENSION_DECLARATION_SCHEMA).default([]),
   plugins: z.array(PLUGIN_DECLARATION_SCHEMA).default([]),
   repositories: z.array(REPOSITORY_SCHEMA).default([]),
 });

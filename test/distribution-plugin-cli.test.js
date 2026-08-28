@@ -33,6 +33,31 @@ function confirmCli(cwd, ...args) {
   return execa(process.execPath, [CLI_PATH, ...args], { cwd, input: "y\n" });
 }
 
+/** Создаёт fake Qwen с общей установкой packages и workspace-scoped activation. */
+async function writeFakeQwen(fakeBin) {
+  await fs.writeFile(path.join(fakeBin, "qwen"), [
+    "#!/usr/bin/env node",
+    'const fs = require("node:fs");',
+    "const args = process.argv.slice(2);",
+    "const log = process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;",
+    "const installedPath = `${log}.installed.json`;",
+    "const installed = fs.existsSync(installedPath)",
+    '  ? JSON.parse(fs.readFileSync(installedPath, "utf8")) : [];',
+    "fs.appendFileSync(log, `${JSON.stringify({ cwd: process.cwd(), args })}\\n`);",
+    'if (args[0] === "extensions" && args[1] === "enable" && !installed.includes(args[2])) {',
+    "  process.stderr.write(`Extension with name ${args[2]} does not exist.\\n`);",
+    "  process.exit(1);",
+    "}",
+    'if (args[0] === "extensions" && args[1] === "install") {',
+    '  const nativeId = args[2].slice(args[2].lastIndexOf(":") + 1);',
+    "  if (!installed.includes(nativeId)) installed.push(nativeId);",
+    '  fs.writeFileSync(installedPath, JSON.stringify(installed));',
+    "}",
+    'if (args[0] === "extensions" && args[1] === "list") process.stdout.write("[]\\n");',
+    "",
+  ].join("\n"), { mode: 0o755 });
+}
+
 /** Инициализирует реальный Git Repository для distribution smoke. */
 async function initializeGitRepository(root) {
   await execa("git", ["init", "--initial-branch=main"], { cwd: root });
@@ -53,15 +78,30 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   const storeRoot = path.join(workspaceRoot, "specs");
   const codeRoot = path.join(workspaceRoot, "src", "frontend");
   t.after(() => fs.rm(workspaceRoot, { recursive: true, force: true }));
+  const fakeBin = path.join(workspaceRoot, "bin");
+  const nativeLog = path.join(workspaceRoot, "qwen-native.jsonl");
+  await fs.mkdir(fakeBin);
+  await writeFakeQwen(fakeBin);
+  const originalPath = process.env.PATH;
+  const originalNativeLog = process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
+  process.env.PATH = `${fakeBin}${path.delimiter}${originalPath}`;
+  process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG = nativeLog;
+  t.after(() => {
+    process.env.PATH = originalPath;
+    if (originalNativeLog === undefined) delete process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
+    else process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG = originalNativeLog;
+  });
   await fs.mkdir(storeRoot);
   await fs.mkdir(codeRoot, { recursive: true });
   await fs.writeFile(path.join(codeRoot, "index.js"), "export const ready = true;\n");
   await fs.mkdir(path.join(storeRoot, ".openspec-store"));
   await fs.mkdir(path.join(storeRoot, "openspec"));
   const project = createProject({
-    version: 1,
+    version: 2,
     strict: true,
-    agents: ["qwen"],
+    template: { id: "base" },
+    agent: { id: "qwen" },
+    extensions: [],
     plugins: [],
     repositories: [
       {
@@ -89,17 +129,6 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     configuration.serializeProject(project),
   );
   await fs.writeFile(path.join(storeRoot, "openspec/config.yaml"), "schema: spec-driven\n");
-  await fs.writeFile(path.join(storeRoot, "mcp-connector.yaml"), [
-    "version: 1",
-    "servers:",
-    "  company-search:",
-    "    agents: [qwen]",
-    "    settings:",
-    "      command: company-search-mcp",
-    "      args: [--stdio]",
-    "    context: Use company-search for internal service discovery.",
-    "",
-  ].join("\n"));
   await fs.mkdir(path.join(storeRoot, ".qwen"));
   await fs.writeFile(path.join(storeRoot, ".qwen/settings.json"), `${JSON.stringify({
     theme: "dark",
@@ -111,7 +140,6 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   const graphSeed = path.join(storeRoot, "openspec/graph.yaml");
   await assert.rejects(fs.access(graphSeed), { code: "ENOENT" });
   await runCli(storeRoot, "plugin", "init", "--plugin", "change-tracking");
-  await runCli(storeRoot, "plugin", "init", "--plugin", "mcp-connector");
   await runCli(storeRoot, "plugin", "init", "--plugin", "codegraph");
   await runCli(storeRoot, "plugin", "init", "--plugin", "openspec-graph");
   await runCli(storeRoot, "plugin", "connect", "openspec-graph", "--repo", "specs");
@@ -128,7 +156,6 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   assert.deepEqual(configured.plugins, [
     "change-tracking",
     "codegraph",
-    "mcp-connector",
     "openspec-graph",
   ]);
   assert.deepEqual(graphInspection.summary, {
@@ -146,48 +173,12 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   assert.doesNotMatch(graphHelp.stdout, /\bstatus\b/);
   assert.doesNotMatch(graphHelp.stdout, /\bimpact\b/);
   assert.doesNotMatch(graphHelp.stdout, /check-scope/);
-  let qwenSettings = JSON.parse(
+  const qwenSettings = JSON.parse(
     await fs.readFile(path.join(storeRoot, ".qwen/settings.json"), "utf8"),
   );
   assert.equal(qwenSettings.theme, "dark");
   assert.deepEqual(qwenSettings.mcpServers.existing, { command: "existing-mcp" });
-  assert.deepEqual(qwenSettings.mcpServers["company-search"], {
-    command: "company-search-mcp",
-    args: ["--stdio"],
-  });
-  assert.ok(qwenSettings.mcpServers["openspec-orch-codegraph"]);
-  const mcpStatus = JSON.parse((await runCli(storeRoot, "mcp", "status", "--json")).stdout);
-  assert.equal(mcpStatus.state, "ready");
-  assert.equal(mcpStatus.context, "ready");
-  assert.deepEqual(mcpStatus.servers, [{ id: "company-search", status: "ready" }]);
-  assert.match(
-    await fs.readFile(path.join(storeRoot, "QWEN.md"), "utf8"),
-    /### company-search\n\nUse company-search for internal service discovery\./u,
-  );
-  await fs.writeFile(path.join(storeRoot, "mcp-connector.yaml"), [
-    "version: 1",
-    "servers:",
-    "  internal-docs:",
-    "    settings:",
-    "      url: http://mcp.internal.example/mcp",
-    "    context: Use internal-docs for project documentation.",
-    "",
-  ].join("\n"));
-  await runCli(storeRoot, "mcp", "apply");
-  qwenSettings = JSON.parse(
-    await fs.readFile(path.join(storeRoot, ".qwen/settings.json"), "utf8"),
-  );
-  assert.equal(qwenSettings.mcpServers["company-search"], undefined);
-  assert.deepEqual(qwenSettings.mcpServers["internal-docs"], {
-    url: "http://mcp.internal.example/mcp",
-  });
-  assert.deepEqual(qwenSettings.mcpServers.existing, { command: "existing-mcp" });
-  assert.ok(qwenSettings.mcpServers["openspec-orch-codegraph"]);
-  let qwenInstructions = await fs.readFile(path.join(storeRoot, "QWEN.md"), "utf8");
-  assert.doesNotMatch(qwenInstructions, /### company-search/u);
-  assert.match(qwenInstructions, /### internal-docs/u);
-  assert.match(qwenInstructions, /codegraph_explore/u);
-  assert.match(await fs.readFile(path.join(storeRoot, "QWEN.md"), "utf8"), /codegraph_explore/);
+  assert.equal(qwenSettings.mcpServers["openspec-orch-codegraph"], undefined);
   await assert.rejects(fs.access(
     path.join(storeRoot, ".qwen/skills/openspec-graph-maintenance/SKILL.md"),
   ), { code: "ENOENT" });
@@ -196,6 +187,37 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     storeRoot,
     "plugin", "connect", "codegraph", "--repo", "specs", "--repo", "frontend",
   );
+  const connectedExtensions = (await fs.readFile(nativeLog, "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line))
+    .filter(({ args }) => args[1] === "install");
+  assert.deepEqual(connectedExtensions.map(({ cwd, args }) => ({
+    cwd,
+    operation: args.slice(0, 2),
+    scope: args.slice(-3),
+  })), [
+    {
+      cwd: await fs.realpath(storeRoot),
+      operation: ["extensions", "install"],
+      scope: ["--scope", "project", "--consent"],
+    },
+    {
+      cwd: await fs.realpath(storeRoot),
+      operation: ["extensions", "install"],
+      scope: ["--scope", "project", "--consent"],
+    },
+  ]);
+  const enabledExtensions = (await fs.readFile(nativeLog, "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line))
+    .filter(({ args }) => args[1] === "enable");
+  assert.deepEqual(enabledExtensions.map(({ cwd }) => cwd), [
+    await fs.realpath(storeRoot),
+    await fs.realpath(storeRoot),
+    await fs.realpath(codeRoot),
+  ]);
   assert.equal((await execa(
     "git",
     ["status", "--short", "--untracked-files=all"],
@@ -232,23 +254,27 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   for (const command of ["assign", "status", "record", "verify"]) {
     assert.match(stdout, new RegExp(`\\b${command}\\b`));
   }
-  assert.match(stdout, /\bmcp\b/);
+  assert.doesNotMatch(stdout, /\bmcp\b/);
   assert.doesNotMatch(stdout, /change-tracking\s+Команды Plugin/);
 
   const disconnectAll = await runCli(storeRoot, "plugin", "disconnect", "codegraph", "--all");
   assert.match(disconnectAll.stdout, /✓ codegraph → specs — отключён/);
   assert.match(disconnectAll.stdout, /✓ codegraph → frontend — отключён/);
-  await runCli(storeRoot, "plugin", "remove", "mcp-connector");
-  qwenSettings = JSON.parse(
-    await fs.readFile(path.join(storeRoot, ".qwen/settings.json"), "utf8"),
-  );
-  assert.equal(qwenSettings.mcpServers["internal-docs"], undefined);
-  assert.deepEqual(qwenSettings.mcpServers.existing, { command: "existing-mcp" });
-  assert.ok(qwenSettings.mcpServers["openspec-orch-codegraph"]);
-  qwenInstructions = await fs.readFile(path.join(storeRoot, "QWEN.md"), "utf8");
-  assert.doesNotMatch(qwenInstructions, /openspec-orch:mcp-connector:context/u);
-  assert.doesNotMatch(qwenInstructions, /### internal-docs/u);
-  assert.match(qwenInstructions, /codegraph_explore/u);
+  const disconnectedExtensions = (await fs.readFile(nativeLog, "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line))
+    .filter(({ args }) => args[1] === "disable");
+  assert.deepEqual(disconnectedExtensions, [
+    {
+      cwd: await fs.realpath(storeRoot),
+      args: ["extensions", "disable", "codegraph-agent", "--scope", "workspace"],
+    },
+    {
+      cwd: await fs.realpath(codeRoot),
+      args: ["extensions", "disable", "codegraph-agent", "--scope", "workspace"],
+    },
+  ]);
   await runCli(storeRoot, "plugin", "remove", "codegraph");
   const removed = configuration.parseProject(
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
@@ -258,7 +284,6 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     await fs.readFile(path.join(storeRoot, ".qwen/settings.json"), "utf8"),
     /openspec-orch-codegraph/,
   );
-  assert.doesNotMatch(await fs.readFile(path.join(storeRoot, "QWEN.md"), "utf8"), /codegraph_explore/);
   await runCli(storeRoot, "plugin", "disconnect", "openspec-graph", "--repo", "specs");
   await runCli(storeRoot, "plugin", "remove", "openspec-graph");
   await assert.rejects(fs.access(graphSeed), { code: "ENOENT" });
@@ -270,6 +295,19 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
 
 test("candidate distribution completes Change Tracking through the public CLI", async (t) => {
   const root = await temporaryDirectory(t, "openspec-orch-distribution-cycle-");
+  const fakeBin = path.join(root, "bin");
+  const nativeLog = path.join(root, "qwen-native.jsonl");
+  await fs.mkdir(fakeBin);
+  await writeFakeQwen(fakeBin);
+  const originalPath = process.env.PATH;
+  const originalNativeLog = process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
+  process.env.PATH = `${fakeBin}${path.delimiter}${originalPath}`;
+  process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG = nativeLog;
+  t.after(() => {
+    process.env.PATH = originalPath;
+    if (originalNativeLog === undefined) delete process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
+    else process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG = originalNativeLog;
+  });
   const store = await createCheckoutWithRemote(
     root,
     "workspace/specs",
@@ -296,9 +334,11 @@ test("candidate distribution completes Change Tracking through the public CLI", 
     plugins: [],
   });
   const project = createProject({
-    version: 1,
+    version: 2,
     strict: true,
-    agents: ["qwen"],
+    template: { id: "base" },
+    agent: { id: "qwen" },
+    extensions: [],
     plugins: [],
     repositories: [
       repository({ id: "specs", role: "store", remote: store.remote }),
@@ -325,16 +365,25 @@ test("candidate distribution completes Change Tracking through the public CLI", 
 
   await runCli(store.checkout, "plugin", "init", "--plugin", "change-tracking");
   const applySkill = ".qwen/skills/change-tracking-apply-context/SKILL.md";
-  assert.match(
-    await fs.readFile(path.join(store.checkout, applySkill), "utf8"),
-    /name: change-tracking-apply-context/u,
-  );
+  await assert.rejects(fs.access(path.join(store.checkout, applySkill)), { code: "ENOENT" });
   await runCli(
     store.checkout,
     "plugin", "connect", "change-tracking",
     "--repo", "specs", "--repo", "frontend", "--repo", "backend",
   );
-  await runCommand("git", ["-C", store.checkout, "add", "openspec-orch.yaml", applySkill]);
+  const extensionCalls = (await fs.readFile(nativeLog, "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line))
+    .filter(({ args }) => args[1] === "install");
+  assert.equal(extensionCalls.length, 1);
+  assert.equal(extensionCalls[0].cwd, await fs.realpath(store.checkout));
+  assert.deepEqual(extensionCalls[0].args.slice(0, 2), ["extensions", "install"]);
+  assert.match(
+    extensionCalls[0].args[2],
+    /plugins\/change-tracking\/extension:change-tracking-agent$/u,
+  );
+  await runCommand("git", ["-C", store.checkout, "add", "openspec-orch.yaml"]);
   await runCommand("git", ["-C", store.checkout, "commit", "-m", "enable change tracking"]);
 
   await confirmCli(

@@ -6,8 +6,9 @@
   Plugin-specific commands must not become special cases in `packages/core/`.
 - Put reusable Plugin contracts in `packages/plugin-sdk/` and concrete runtime,
   repository lifecycle or Agent integration in the owning Plugin package.
-- Project workflow, schema and Agent artifacts belong to Project Template or Plugin
-  Template, not to Core runtime.
+- Project context, custom schema/config and copy-only assets belong to Project
+  Template. Workflow and Agent artifacts belong to standalone Extensions or
+  Plugin-owned Extensions, not to Core runtime.
 - Cover changes to observable behavior with regression tests and update current
   documentation when the public contract changes.
 

@@ -1,0 +1,13 @@
+{
+  "name": "openspec-orch-change-tracking-agent",
+  "description": "Bundled Change Tracking Agent Extension",
+  "owner": {
+    "name": "OpenSpec Orchestrator"
+  },
+  "plugins": [
+    {
+      "name": "change-tracking-agent",
+      "source": "./"
+    }
+  ]
+}

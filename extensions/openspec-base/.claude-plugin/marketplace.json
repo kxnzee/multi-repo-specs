@@ -1,0 +1,13 @@
+{
+  "name": "openspec-orch-openspec-base",
+  "description": "Bundled OpenSpec Base workflow Extension",
+  "owner": {
+    "name": "OpenSpec Orchestrator"
+  },
+  "plugins": [
+    {
+      "name": "openspec-base",
+      "source": "./"
+    }
+  ]
+}

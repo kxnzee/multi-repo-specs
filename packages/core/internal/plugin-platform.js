@@ -2,9 +2,15 @@
 
 import process from "node:process";
 
+import { isAgentExtensionAdapter } from "./agent-extension-adapter.js";
+import { bundledAgents } from "./bundled-agent.js";
+import { bundledExtensions } from "./bundled-extension.js";
 import { BundledPluginProvider } from "./bundled-plugin.js";
 import { CandidateCli } from "./cli.js";
 import { currentRepositories } from "./current-repository.js";
+import { ExtensionLifecycle } from "./extension-lifecycle.js";
+import { InitializationService } from "./initialization.js";
+import { InitSelectionService } from "./init-selection.js";
 import { PluginApplicationService } from "./plugin-application.js";
 import { pluginCatalog } from "./plugin-catalog.js";
 import { pluginContexts } from "./plugin-context.js";
@@ -13,32 +19,33 @@ import { PluginCommandMounter } from "./plugin-commands.js";
 import { PluginHost, PluginRegistry } from "./plugin-host.js";
 import { PluginLifecycleService } from "./plugin-lifecycle.js";
 import { PluginManagerService, pluginManagers } from "./plugin-manager.js";
-import { PluginRequirementsService } from "./plugin-requirements.js";
 import { storeProjects } from "./store-project.js";
+import { hasMethods } from "./value.js";
 
 /** Собирает Loader output, Host, lifecycle и CLI adapters без знания Plugin IDs. */
 export class PluginPlatform {
   #commands;
+  #extensionLifecycle;
+  #initialization;
+  #initSelection;
+  #pluginExtensions;
   #lifecycleCommands;
-  #pluginRequirements;
 
   constructor({
+    agentAdapter,
     applicationService,
+    bundledAgentProvider = bundledAgents,
+    bundledExtensionProvider = bundledExtensions,
     catalog,
     contextFactory = pluginContexts,
     currentRepositoryService = currentRepositories,
     loadedPlugins = [],
     pluginCommandOptions = {},
-    pluginRequirementService,
     rootCommands = new Map(),
     start = process.cwd(),
     storeProjectService = storeProjects,
   } = {}) {
-    if (
-      !pluginCommandOptions ||
-      typeof pluginCommandOptions !== "object" ||
-      Array.isArray(pluginCommandOptions)
-    ) {
+    if (!pluginCommandOptions || typeof pluginCommandOptions !== "object" || Array.isArray(pluginCommandOptions)) {
       throw new Error("PLUGIN_PLATFORM_INVALID: pluginCommandOptions должен быть object");
     }
     for (const key of ["applicationService", "catalog", "lifecycleService"]) {
@@ -46,11 +53,32 @@ export class PluginPlatform {
         throw new Error(`PLUGIN_PLATFORM_INVALID: ${key} управляется PluginPlatform`);
       }
     }
+    const resolvedAgentAdapter = agentAdapter ?? bundledAgentProvider.adapter;
+    if (!isAgentExtensionAdapter(resolvedAgentAdapter)) {
+      throw new Error("PLUGIN_PLATFORM_INVALID: bundled Agent provider не предоставляет adapter");
+    }
     const registry = new PluginRegistry(loadedPlugins);
-    const host = new PluginHost({ contextFactory, registry });
+    const host = new PluginHost({
+      agentAdapter: resolvedAgentAdapter,
+      contextFactory,
+      registry,
+    });
     const lifecycle = new PluginLifecycleService({
       applicationService,
       host,
+      start,
+    });
+    this.#pluginExtensions = lifecycle;
+    this.#initialization = new InitializationService({ agentProvider: bundledAgentProvider });
+    this.#initSelection = new InitSelectionService({
+      agentCatalog: bundledAgentProvider.catalog,
+      extensionCatalog: bundledExtensionProvider.catalog,
+    });
+    this.#extensionLifecycle = new ExtensionLifecycle({
+      agentAdapter: resolvedAgentAdapter,
+      bundledProvider: bundledExtensionProvider,
+      start,
+      storeProjectService,
     });
     const loadedIds = new Set(registry.list().map(({ id }) => id));
     const activeRootCommands = new Map(
@@ -72,11 +100,7 @@ export class PluginPlatform {
           throw new Error("PLUGIN_COMMAND_CONTEXT_UNAVAILABLE: текущий Repository не определён");
         }
         const loadedPlugin = registry.require(pluginId);
-        if (
-          !requireBinding &&
-          scope === "store" &&
-          !loadedPlugin.plugin.hasRepositoryContribution()
-        ) {
+        if (!requireBinding && scope === "store" && !loadedPlugin.plugin.hasRepositoryContribution()) {
           return contextFactory.forStoreSetup({ loadedPlugin, storeProject });
         }
         const createContext = requireBinding
@@ -97,7 +121,6 @@ export class PluginPlatform {
       catalog,
       lifecycleService: lifecycle,
     });
-    this.#pluginRequirements = pluginRequirementService;
     Object.freeze(this);
   }
 
@@ -107,11 +130,10 @@ export class PluginPlatform {
     loadedPlugins,
     managerService,
     pluginCommandOptions = {},
-    pluginRequirementService,
     start = process.cwd(),
     ...options
   } = {}) {
-    if (managerService !== undefined && typeof managerService?.forStore !== "function") {
+    if (managerService !== undefined && !hasMethods(managerService, ["forStore"])) {
       throw new Error("PLUGIN_PLATFORM_INVALID: managerService должен предоставлять forStore");
     }
     if (bundledProvider !== undefined && managerService !== undefined) {
@@ -129,14 +151,11 @@ export class PluginPlatform {
     const applicationService = new PluginApplicationService({
       managerService: resolvedManagerService,
     });
-    const resolvedPluginRequirementService = pluginRequirementService ?? new PluginRequirementsService({
-      applicationService,
-      catalog,
-      storeProjectService: storeProjects,
-    });
+    const storeProjectService = options.storeProjectService ?? storeProjects;
     const resolved = loadedPlugins ?? await PluginPlatform.#loadInstalled(
       start,
       resolvedManagerService,
+      storeProjectService,
     );
     return new PluginPlatform({
       ...options,
@@ -144,24 +163,27 @@ export class PluginPlatform {
       catalog,
       loadedPlugins: resolved,
       pluginCommandOptions,
-      pluginRequirementService: resolvedPluginRequirementService,
       start,
+      storeProjectService,
     });
   }
 
   createProgram(options) {
     return new CandidateCli({
       ...options,
+      extensionLifecycle: this.#extensionLifecycle,
+      initSelectionService: this.#initSelection,
+      initializationService: this.#initialization,
       pluginCommandMounter: this.#commands,
+      pluginExtensionConnector: this.#pluginExtensions,
       pluginLifecycleCommands: this.#lifecycleCommands,
-      pluginRequirementService: this.#pluginRequirements,
     }).createProgram();
   }
 
-  static async #loadInstalled(start, managerService) {
+  static async #loadInstalled(start, managerService, storeProjectService) {
     let storeProject;
     try {
-      storeProject = await storeProjects.resolve(start);
+      storeProject = await storeProjectService.resolve(start);
     } catch (error) {
       if (error.code === "STORE_ROOT_NOT_FOUND") return Object.freeze([]);
       throw error;

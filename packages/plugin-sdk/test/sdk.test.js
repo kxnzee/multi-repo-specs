@@ -7,7 +7,9 @@ import test from "node:test";
 import {
   CliProgressRenderer,
   createCliProgress,
+  defineExtension,
   definePlugin,
+  Extension,
   Plugin,
   PluginPackage,
   PLUGIN_API_VERSION,
@@ -104,8 +106,56 @@ test("definePlugin returns an immutable domain model without running contributio
   assert.throws(() => plugin.sync(context), /PLUGIN_SYNC_UNSUPPORTED/);
   assert.equal(plugin.canExec(), true);
   assert.throws(() => plugin.exec(context, []), /PLUGIN_EXEC_INVALID/);
-  assert.equal(plugin.hasAgentContribution(), false);
-  assert.throws(() => plugin.integrateAgent(context), /PLUGIN_AGENT_UNSUPPORTED/);
+});
+
+test("Plugin exposes immutable Extension contributions as data", () => {
+  let calls = 0;
+  const plugin = definePlugin({
+    id: "codegraph",
+    supports: ["code"],
+    repository: {
+      connect() {},
+      status() { return { state: "ready" }; },
+    },
+    extensions(context) {
+      calls += 1;
+      return [defineExtension({
+        id: "agent",
+        root: "./extension",
+        target: context.repository,
+      })];
+    },
+  });
+
+  assert.equal(calls, 0);
+  assert.equal(plugin.hasExtensionContribution(), true);
+
+  const [extension] = plugin.extensions({ repository: { id: "frontend", role: "code" } });
+  assert.equal(calls, 1);
+  assert.equal(extension instanceof Extension, true);
+  assert.equal(extension.id, "agent");
+  assert.equal(extension.root, "./extension");
+  assert.deepEqual(extension.target, { id: "frontend", role: "code" });
+  assert.equal(Object.isFrozen(extension), true);
+  assert.equal(Object.isFrozen(extension.target), true);
+
+  assert.throws(
+    () => defineExtension({
+      id: "agent",
+      root: "/tmp/extension",
+      target: { id: "frontend", role: "code" },
+    }),
+    /EXTENSION_DEFINITION_INVALID/,
+  );
+  assert.throws(
+    () => defineExtension({
+      id: "agent",
+      root: "./extension",
+      target: { id: "frontend", role: "code" },
+      connect() {},
+    }),
+    /неизвестное поле 'connect'/,
+  );
 });
 
 test("definePlugin rejects invalid definitions without instanceof coupling", () => {
@@ -308,8 +358,8 @@ test("contract validation uses the public Plugin API instead of instanceof", () 
     sync: plugin.sync.bind(plugin),
     canExec: plugin.canExec.bind(plugin),
     exec: plugin.exec.bind(plugin),
-    hasAgentContribution: plugin.hasAgentContribution.bind(plugin),
-    integrateAgent: plugin.integrateAgent.bind(plugin),
+    hasExtensionContribution: plugin.hasExtensionContribution.bind(plugin),
+    extensions: plugin.extensions.bind(plugin),
     hasCommandContribution: plugin.hasCommandContribution.bind(plugin),
     registerCommands: plugin.registerCommands.bind(plugin),
   });

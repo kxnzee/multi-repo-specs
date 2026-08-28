@@ -1,6 +1,7 @@
 /** @fileoverview Доменный агрегат Project поверх нормализованного config. */
 
 import { CORE_CONTRACT_VERSIONS, CORE_FILES, CORE_PATTERNS } from "./constants.js";
+import { ExtensionDeclaration } from "./extension-declaration.js";
 import { PluginDeclaration } from "./plugin-declaration.js";
 import { Repository } from "./repository.js";
 import { deepFreeze } from "./value.js";
@@ -9,14 +10,20 @@ import { deepFreeze } from "./value.js";
 export class Project {
   #version;
   #strict;
-  #agents;
+  #template;
+  #agent;
+  #extensions;
   #plugins;
   #repositories;
 
   constructor(config) {
     this.#version = config.version;
     this.#strict = config.strict;
-    this.#agents = Object.freeze([...(config.agents ?? [])]);
+    this.#template = Project.#identity(config.template, "Template");
+    this.#agent = Project.#identity(config.agent, "Agent");
+    this.#extensions = Object.freeze((config.extensions ?? []).map((extension) => (
+      extension instanceof ExtensionDeclaration ? extension : new ExtensionDeclaration(extension)
+    )));
     this.#plugins = Object.freeze((config.plugins ?? []).map((plugin) => (
       plugin instanceof PluginDeclaration ? plugin : new PluginDeclaration(plugin)
     )));
@@ -35,9 +42,14 @@ export class Project {
     return this.#strict;
   }
 
-  get agents() {
-    return this.#agents;
+  get template() { return this.#template; }
+  get agent() { return this.#agent; }
+
+  get extensions() {
+    return Object.freeze(this.#extensions.map(({ id }) => id));
   }
+
+  get extensionDeclarations() { return this.#extensions; }
 
   get plugins() {
     return Object.freeze(this.#plugins.map(({ id }) => id));
@@ -64,7 +76,9 @@ export class Project {
     return deepFreeze({
       version: this.#version,
       strict: this.#strict,
-      agents: [...this.#agents],
+      template: { ...this.#template },
+      agent: { ...this.#agent },
+      extensions: this.#extensions.map((extension) => extension.toConfig()),
       plugins: this.#plugins.map((plugin) => plugin.toConfig()),
       repositories,
       storeRepository: this.storeRepository.toConfig(),
@@ -101,18 +115,16 @@ export class Project {
     return this.#plugins.find(({ id }) => id === pluginId);
   }
 
-  registerAgent(agentId) {
-    if (typeof agentId !== "string" || !CORE_PATTERNS.id.test(agentId)) {
-      throw new Error(`PROJECT_INVALID: некорректный Agent ID '${agentId ?? ""}'`);
+  extensionDeclaration(extensionId) {
+    return this.#extensions.find(({ id }) => id === extensionId);
+  }
+
+  requireExtension(extensionId) {
+    const declaration = this.extensionDeclaration(extensionId);
+    if (!declaration) {
+      throw new Error(`EXTENSION_NOT_SELECTED: extension-id '${extensionId}' не выбран в Store`);
     }
-    if (this.#agents.includes(agentId)) return false;
-    if (this.#agents.length > 0) {
-      throw new Error(
-        `STORE_AGENT_MISMATCH: Store зарегистрирован для ${this.#agents.join(", ")}, а не ${agentId}`,
-      );
-    }
-    this.#agents = Object.freeze([agentId]);
-    return true;
+    return declaration;
   }
 
   requirePlugin(pluginId) {
@@ -122,39 +134,15 @@ export class Project {
     return pluginId;
   }
 
-  declarePlugin(pluginId, source, { required } = {}) {
+  declarePlugin(pluginId, source) {
     const current = this.pluginDeclaration(pluginId);
-    const declaration = new PluginDeclaration({
-      id: pluginId,
-      source,
-      required: required ?? current?.required ?? false,
-    });
+    const declaration = new PluginDeclaration({ id: pluginId, source });
     const next = [
       ...this.#plugins.filter(({ id }) => id !== pluginId),
       declaration,
     ].sort((left, right) => left.id.localeCompare(right.id));
-    const changed = current?.source !== source || current?.required !== declaration.required;
+    const changed = current?.source !== source;
     this.#plugins = Object.freeze(next);
-    return changed;
-  }
-
-  setRequiredPlugins(pluginIds) {
-    if (!Array.isArray(pluginIds) || new Set(pluginIds).size !== pluginIds.length) {
-      throw new Error("PROJECT_INVALID: required plugin IDs должны быть уникальным массивом");
-    }
-    const required = new Set(pluginIds);
-    for (const pluginId of required) this.requirePlugin(pluginId);
-    let changed = false;
-    this.#plugins = Object.freeze(this.#plugins.map((declaration) => {
-      const nextRequired = required.has(declaration.id);
-      if (declaration.required === nextRequired) return declaration;
-      changed = true;
-      return new PluginDeclaration({
-        id: declaration.id,
-        source: declaration.source,
-        required: nextRequired,
-      });
-    }));
     return changed;
   }
 
@@ -186,9 +174,6 @@ export class Project {
     }
     const declaration = this.pluginDeclaration(pluginId);
     if (!declaration) return false;
-    if (declaration.required) {
-      throw new Error(`PLUGIN_REQUIRED_BY_TEMPLATE: ${pluginId} обязателен для Project Template`);
-    }
     this.#plugins = Object.freeze(this.#plugins.filter(({ id }) => id !== pluginId));
     return true;
   }
@@ -216,6 +201,9 @@ export class Project {
     if (new Set(this.#plugins.map(({ id }) => id)).size !== this.#plugins.length) {
       throw new Error("PROJECT_INVALID: plugins содержит повторяющийся ID");
     }
+    if (new Set(this.#extensions.map(({ id }) => id)).size !== this.#extensions.length) {
+      throw new Error("PROJECT_INVALID: extensions содержит повторяющийся ID");
+    }
     if (this.#repositories.filter((repository) => repository.isStore()).length !== 1) {
       throw new Error("PROJECT_INVALID: Project должен содержать ровно один Store Repository");
     }
@@ -229,6 +217,20 @@ export class Project {
         }
       }
     }
+  }
+
+  static #identity(value, label) {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value) ||
+      Object.keys(value).join(",") !== "id" ||
+      typeof value.id !== "string" ||
+      !CORE_PATTERNS.id.test(value.id)
+    ) {
+      throw new Error(`PROJECT_INVALID: ${label} должен содержать один корректный id`);
+    }
+    return Object.freeze({ id: value.id });
   }
 }
 

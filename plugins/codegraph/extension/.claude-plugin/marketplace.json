@@ -1,0 +1,13 @@
+{
+  "name": "openspec-orch-codegraph-agent",
+  "description": "Bundled CodeGraph Agent Extension",
+  "owner": {
+    "name": "OpenSpec Orchestrator"
+  },
+  "plugins": [
+    {
+      "name": "codegraph-agent",
+      "source": "./"
+    }
+  ]
+}

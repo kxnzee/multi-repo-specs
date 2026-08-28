@@ -1,10 +1,10 @@
 /** @fileoverview Read-only статус Repository registry без сети и исправлений. */
 
-import { promises as fs } from "node:fs";
 import process from "node:process";
 
 import { RepositoryCheckout } from "./checkout.js";
 import { coreState } from "./core-state.js";
+import { lstatOrNull } from "./fs.js";
 import { git } from "./git.js";
 import { repositoryRunner, repositorySelector } from "./repository-operations.js";
 import { storeProjects } from "./store-project.js";
@@ -19,16 +19,6 @@ const REPOSITORY_STATES = new Set([
   "not_a_git_root",
   "workspace_unresolved",
 ]);
-
-/** Возвращает lstat или null для отсутствующего path. */
-async function lstatOrNull(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
 
 /** Immutable read-only состояние одного Repository. */
 export class RepositoryStatus {

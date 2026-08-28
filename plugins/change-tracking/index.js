@@ -14,6 +14,14 @@ export { ChangeTrackingState, ChangeTrackingStore } from "./lib/state.js";
 const plugin = definePlugin({
   id: "change-tracking",
   supports: ["store", "code"],
+  extensions(context) {
+    if (context.repository.role !== "store") return [];
+    return [{
+      id: "agent",
+      root: "./extension",
+      target: context.repository,
+    }];
+  },
   repository: {
     connect(context) {
       return Object.freeze({ repositoryId: context.repository.id, state: "ready" });

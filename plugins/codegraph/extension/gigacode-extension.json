@@ -1,0 +1,12 @@
+{
+  "name": "codegraph-agent",
+  "version": "1.0.0",
+  "contextFileName": "agent-instructions.md",
+  "mcpServers": {
+    "openspec-orch-codegraph": {
+      "command": "openspec-orch-codegraph",
+      "args": ["serve", "--mcp"],
+      "cwd": "${workspacePath}"
+    }
+  }
+}

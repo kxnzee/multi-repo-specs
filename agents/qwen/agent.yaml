@@ -1,0 +1,13 @@
+id: qwen
+name: Qwen Code
+openspec:
+  adapter: qwen
+  generatedDirectory: .qwen
+  targetDirectory: .qwen
+  commandsDirectory: .qwen/commands
+  instructionsFile: QWEN.md
+native:
+  adapter: adapter.js
+  executable: qwen
+  scope: project
+  manifest: qwen-extension.json

@@ -1,7 +1,10 @@
 /** @fileoverview Contract and domain tests for the Change Tracking Plugin. */
 
 import assert from "node:assert/strict";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   assertPluginContract,
@@ -17,6 +20,8 @@ import plugin, {
 import packageManifest from "../package.json" with { type: "json" };
 import { assignmentContext } from "./assignment-context.js";
 
+const packageRoot = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
+
 testPluginContract({ plugin, packageManifest });
 
 test("change-tracking contributes only the preserved root command set", () => {
@@ -25,6 +30,44 @@ test("change-tracking contributes only the preserved root command set", () => {
     ["assign", "status", "record", "verify"],
   );
   assert.equal(plugin.canExec(), true);
+});
+
+test("change-tracking contributes one Store-scoped Agent Extension without extra state", async () => {
+  assert.equal(plugin.hasExtensionContribution(), true);
+  const store = Object.freeze({ id: "specs", role: "store" });
+  const code = Object.freeze({ id: "frontend", role: "code" });
+  assert.deepEqual(plugin.extensions(Object.freeze({ repository: store })).map((extension) => ({
+    id: extension.id,
+    root: extension.root,
+    target: extension.target,
+  })), [{
+    id: "agent",
+    root: "./extension",
+    target: store,
+  }]);
+  assert.deepEqual(plugin.extensions(Object.freeze({ repository: code })), []);
+
+  const extensionRoot = path.join(packageRoot, "extension");
+  const [qwen, gigacode, claude, skill] = await Promise.all([
+    fs.readFile(path.join(extensionRoot, "qwen-extension.json"), "utf8").then(JSON.parse),
+    fs.readFile(path.join(extensionRoot, "gigacode-extension.json"), "utf8").then(JSON.parse),
+    fs.readFile(path.join(extensionRoot, ".claude-plugin", "plugin.json"), "utf8").then(JSON.parse),
+    fs.readFile(
+      path.join(extensionRoot, "skills", "change-tracking-apply-context", "SKILL.md"),
+      "utf8",
+    ),
+  ]);
+  assert.equal(qwen.name, "change-tracking-agent");
+  assert.equal(qwen.contextFileName, "agent-instructions.md");
+  assert.equal(gigacode.name, "change-tracking-agent");
+  assert.equal(gigacode.contextFileName, "agent-instructions.md");
+  assert.equal(claude.name, "change-tracking-agent");
+  assert.match(skill, /name: change-tracking-apply-context/);
+  assert.equal(packageManifest.files.includes("template"), false);
+  await assert.rejects(
+    fs.access(path.join(packageRoot, "template", "template.yaml")),
+    { code: "ENOENT" },
+  );
 });
 
 test("CycleRecord creates and serializes the frozen v1 contract", () => {

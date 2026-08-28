@@ -172,12 +172,7 @@ export class ChangeTrackingService {
     if (typeof confirm !== "function") {
       throw new Error("CHANGE_TRACKING_INVALID: confirm должен быть функцией");
     }
-    const current = await this.currentCycle(changeId);
-    if (!current.committed) {
-      throw new Error(
-        "CYCLE_NOT_COMMITTED: сначала закоммитьте Cycle Record обычным процессом Git",
-      );
-    }
+    const current = await this.#committedCycle(changeId);
     if (!current.cycle.repositories.includes(repositoryId)) {
       throw new Error(`REPO_UNKNOWN: repository-id '${repositoryId}' не входит в текущий Cycle`);
     }
@@ -243,20 +238,10 @@ export class ChangeTrackingService {
    * @returns {Promise<object>} Created or unchanged Snapshot.
    */
   async verify(changeId) {
-    const current = await this.currentCycle(changeId);
-    if (!current.committed) {
-      throw new Error(
-        "CYCLE_NOT_COMMITTED: сначала закоммитьте Cycle Record обычным процессом Git",
-      );
-    }
+    const current = await this.#committedCycle(changeId);
     let result;
     await this.#state.update(async (state) => {
-      const latest = await this.currentCycle(changeId);
-      if (!latest.committed) {
-        throw new Error(
-          "CYCLE_NOT_COMMITTED: сначала закоммитьте Cycle Record обычным процессом Git",
-        );
-      }
+      const latest = await this.#committedCycle(changeId);
       if (latest.cycle.cycleId !== current.cycle.cycleId) {
         throw new Error("CYCLE_MISMATCH: текущий Cycle изменился; повторите команду");
       }
@@ -300,12 +285,7 @@ export class ChangeTrackingService {
     if (typeof confirm !== "function") {
       throw new Error("CHANGE_TRACKING_INVALID: confirm должен быть функцией");
     }
-    const current = await this.currentCycle(changeId);
-    if (!current.committed) {
-      throw new Error(
-        "CYCLE_NOT_COMMITTED: сначала закоммитьте Cycle Record обычным процессом Git",
-      );
-    }
+    const current = await this.#committedCycle(changeId);
     const state = await this.#state.read();
     let expectedSnapshotId;
     try {
@@ -336,12 +316,7 @@ export class ChangeTrackingService {
     if (!proceed) return Object.freeze({ status: "cancelled" });
 
     await this.#state.update(async (latestState) => {
-      const latest = await this.currentCycle(changeId);
-      if (!latest.committed) {
-        throw new Error(
-          "CYCLE_NOT_COMMITTED: сначала закоммитьте Cycle Record обычным процессом Git",
-        );
-      }
+      const latest = await this.#committedCycle(changeId);
       let latestSnapshotId;
       try {
         latestSnapshotId = currentSnapshotId(latest.cycle, latestState);
@@ -448,6 +423,17 @@ export class ChangeTrackingService {
       verification,
       nextAction,
     });
+  }
+
+  /** Возвращает текущий Cycle только после общей проверки его commit gate. */
+  async #committedCycle(changeId) {
+    const current = await this.currentCycle(changeId);
+    if (!current.committed) {
+      throw new Error(
+        "CYCLE_NOT_COMMITTED: сначала закоммитьте Cycle Record обычным процессом Git",
+      );
+    }
+    return current;
   }
 
   /**

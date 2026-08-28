@@ -6,8 +6,14 @@ import { pluginApplications } from "./plugin-application.js";
 import { PluginHost } from "./plugin-host.js";
 import { repositoryRunner } from "./repository-operations.js";
 import { storeProjects } from "./store-project.js";
+import { hasMethods } from "./value.js";
 
 const REPOSITORY_OPERATIONS = new Set(["connect", "disconnect", "exec", "sync"]);
+const SELECTED_OPERATION_METHODS = Object.freeze({
+  connect: "connect",
+  disconnect: "disconnectExtensions",
+  status: "status",
+});
 
 /** Выбирает связанные repositories явно или все в стабильном проектном порядке. */
 function selectConnections(project, pluginId, repositoryIds) {
@@ -146,34 +152,35 @@ export class PluginLifecycleService {
   #applications;
   #host;
   #runner;
+  #start;
   #storeProjects;
 
   constructor({
     applicationService = pluginApplications,
     host,
     repositoryRunnerService = repositoryRunner,
+    start,
     storeProjectService = storeProjects,
   } = {}) {
     if (!(host instanceof PluginHost)) {
       throw new Error("PLUGIN_LIFECYCLE_INVALID: требуется PluginHost");
     }
-    if (
-      !applicationService ||
-      typeof applicationService.connectMany !== "function" ||
-      typeof applicationService.disconnect !== "function" ||
-      typeof applicationService.disconnectMany !== "function"
-    ) {
+    if (!hasMethods(applicationService, ["connectMany", "disconnect", "disconnectMany"])) {
       throw new Error("PLUGIN_LIFECYCLE_INVALID: требуется PluginApplicationService");
     }
-    if (!repositoryRunnerService || typeof repositoryRunnerService.run !== "function") {
+    if (!hasMethods(repositoryRunnerService, ["run"])) {
       throw new Error("PLUGIN_LIFECYCLE_INVALID: требуется RepositoryRunner");
     }
-    if (!storeProjectService || typeof storeProjectService.find !== "function") {
+    if (!hasMethods(storeProjectService, ["find"])) {
       throw new Error("PLUGIN_LIFECYCLE_INVALID: требуется StoreProjectService");
+    }
+    if (start !== undefined && typeof start !== "string") {
+      throw new Error("PLUGIN_LIFECYCLE_INVALID: start должен быть строкой");
     }
     this.#applications = applicationService;
     this.#host = host;
     this.#runner = repositoryRunnerService;
+    this.#start = start;
     this.#storeProjects = storeProjectService;
     Object.freeze(this);
   }
@@ -201,11 +208,66 @@ export class PluginLifecycleService {
       }),
     );
     const selectedIds = [...new Set(repositoryIds)];
+    for (const [index, change] of changes.entries()) {
+      if (!change.changed) {
+        await this.#host.connectExtensions({
+          pluginId,
+          repositoryId: selectedIds[index],
+          storeProject,
+        });
+      }
+    }
     return Object.freeze(changes.map((change, index) => new PluginConnectionResult({
       connected: change.changed,
       output: change.output,
       pluginId,
       repositoryId: selectedIds[index],
+    })));
+  }
+
+  /** Восстанавливает runtime и Agent Extensions всех portable Plugin bindings Store. */
+  async connectSelected({ start = this.#start ?? process.cwd() } = {}) {
+    return this.#invokeSelected("connect", start);
+  }
+
+  /** Проверяет runtime и Agent Extensions всех portable Plugin bindings Store. */
+  async statusSelected({ start = this.#start ?? process.cwd() } = {}) {
+    return this.#invokeSelected("status", start);
+  }
+
+  /** Локально отключает Agent Extensions всех portable Plugin bindings без изменения config. */
+  async disconnectSelected({ start = this.#start ?? process.cwd() } = {}) {
+    return this.#invokeSelected("disconnect", start);
+  }
+
+  async #invokeSelected(operation, start) {
+    const storeProject = await this.#storeProjects.find(start);
+    const selected = storeProject.project.pluginConnections();
+    const connections = operation === "disconnect" ? [...selected].reverse() : selected;
+    const results = [];
+    for (const { pluginId, repository } of connections) {
+      try {
+        this.#host.assertLoaded(pluginId);
+        const value = await this.#host[SELECTED_OPERATION_METHODS[operation]]({
+          pluginId,
+          repositoryId: repository.id,
+          storeProject,
+        });
+        if (operation === "status") results.push(statusResult(pluginId, repository.id, value));
+      } catch (error) {
+        if (!error.message?.startsWith("PLUGIN_NOT_LOADED:")) throw error;
+        throw new Error(
+          `PLUGIN_RUNTIME_UNAVAILABLE: ${pluginId} объявлен в Store, но package недоступен; ` +
+            `восстановите его через plugin init --plugin ${pluginId} [--from <source>] и ` +
+            "повторите connect",
+          { cause: error },
+        );
+      }
+    }
+    if (operation === "status") return Object.freeze(results);
+    return Object.freeze(connections.map(({ pluginId, repository }) => Object.freeze({
+      pluginId,
+      repositoryId: repository.id,
     })));
   }
 
@@ -242,6 +304,12 @@ export class PluginLifecycleService {
       .pluginConnections({ pluginId })
       .map(({ repository }) => repository.id))];
     if (selectedIds.length === 0) return Object.freeze([]);
+    const connectedIds = selectedIds.filter((repositoryId) => (
+      storeProject.project.isPluginConnected(pluginId, repositoryId)
+    ));
+    for (const repositoryId of connectedIds) {
+      await this.#host.disconnectExtensions({ pluginId, repositoryId, storeProject });
+    }
     const changes = await this.#applications.disconnectMany(
       storeProject,
       pluginId,
@@ -298,21 +366,7 @@ export class PluginLifecycleService {
   }
 
   async syncMany({ start = process.cwd(), pluginId, repositoryIds } = {}) {
-    const storeProject = await this.#storeProjects.find(start);
-    const connections = selectConnections(storeProject.project, pluginId, repositoryIds);
-    const results = await this.#runner.run(
-      connections.map(({ repository }) => repository),
-      async (repository) => Object.freeze({
-        output: await this.#host.sync({
-          pluginId,
-          repositoryId: repository.id,
-          storeProject,
-        }),
-        pluginId,
-        repositoryId: repository.id,
-      }),
-    );
-    return results;
+    return this.#invokeMany("sync", { start, pluginId, repositoryIds });
   }
 
   async exec({ start = process.cwd(), args, pluginId, repositoryId } = {}) {
@@ -321,13 +375,17 @@ export class PluginLifecycleService {
   }
 
   async execMany({ start = process.cwd(), args, pluginId, repositoryIds } = {}) {
+    return this.#invokeMany("exec", { args, start, pluginId, repositoryIds });
+  }
+
+  async #invokeMany(operation, { args, start, pluginId, repositoryIds }) {
     const storeProject = await this.#storeProjects.find(start);
     const connections = selectConnections(storeProject.project, pluginId, repositoryIds);
-    const results = await this.#runner.run(
+    return this.#runner.run(
       connections.map(({ repository }) => repository),
       async (repository) => Object.freeze({
-        output: await this.#host.exec({
-          args,
+        output: await this.#host[operation]({
+          ...(operation === "exec" ? { args } : {}),
           pluginId,
           repositoryId: repository.id,
           storeProject,
@@ -336,6 +394,5 @@ export class PluginLifecycleService {
         repositoryId: repository.id,
       }),
     );
-    return results;
   }
 }

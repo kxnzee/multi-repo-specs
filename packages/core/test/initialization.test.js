@@ -10,9 +10,15 @@ import { fileURLToPath } from "node:url";
 import { execa } from "execa";
 
 import {
+  AgentCatalog,
+  AgentCatalogEntry,
+  AgentDefinition,
   CandidateCli,
   CoreConfiguration,
+  ExtensionCatalog,
+  ExtensionCatalogEntry,
   GitService,
+  InitSelectionService,
   InitializationService,
   OpenSpecService,
   ProcessService,
@@ -20,6 +26,43 @@ import {
 } from "@openspec-orch/core";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../../templates/base/", import.meta.url));
+
+const TEST_AGENTS = new Map([
+  ["claude", new AgentDefinition({
+    id: "claude",
+    name: "Claude Code",
+    openspec: {
+      adapter: "claude",
+      generatedDirectory: ".claude",
+      targetDirectory: ".claude",
+      commandsDirectory: ".claude/commands/opsx",
+      instructionsFile: "CLAUDE.md",
+    },
+    native: {
+      adapter: "adapter.js",
+      executable: "claude",
+      scope: "local",
+      manifest: ".claude-plugin/plugin.json",
+    },
+  })],
+  ["qwen", new AgentDefinition({
+    id: "qwen",
+    name: "Qwen Code",
+    openspec: {
+      adapter: "qwen",
+      generatedDirectory: ".qwen",
+      targetDirectory: ".qwen",
+      commandsDirectory: ".qwen/commands",
+      instructionsFile: "QWEN.md",
+    },
+    native: {
+      adapter: "adapter.js",
+      executable: "qwen",
+      scope: "project",
+      manifest: "qwen-extension.json",
+    },
+  })],
+]);
 
 /** Создаёт временный чистый Git Store с origin. */
 async function storeFixture(t) {
@@ -58,6 +101,14 @@ function fakeExecutor(projectRoot, { registered = false, failSetup = false } = {
         "generated\n",
         "utf8",
       );
+      await fs.mkdir(path.join(projectRoot, ".claude/skills/openspec-explore"), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(projectRoot, ".claude/skills/openspec-explore/SKILL.md"),
+        "upstream openspec skill\n",
+        "utf8",
+      );
       await fs.mkdir(path.join(projectRoot, "openspec"), { recursive: true });
       await fs.writeFile(path.join(projectRoot, "openspec/config.yaml"), "generated: true\n", "utf8");
       stdout = "initialized";
@@ -94,6 +145,22 @@ function initFixture(executor) {
   return {
     configurationService,
     service: new InitializationService({
+      agentAdapter: Object.freeze({
+        async adaptOpenSpecPack({ agent, targetRoot }) {
+          if (agent.generatedDirectory === agent.targetDirectory) return;
+          await fs.rename(
+            path.join(targetRoot, agent.generatedDirectory),
+            path.join(targetRoot, agent.targetDirectory),
+          );
+        },
+      }),
+      agentProvider: Object.freeze({
+        resolve(agentId) {
+          const agent = TEST_AGENTS.get(agentId);
+          if (!agent) throw new Error(`AGENT_NOT_DISCOVERED: ${agentId}`);
+          return agent;
+        },
+      }),
       configurationService,
       gitService: new GitService(processService),
       openSpecService: new OpenSpecService(processService),
@@ -122,16 +189,25 @@ test("InitializationService creates Store through domain and public facade contr
   assert.equal(result.executionMode, "strict");
   assert.equal(Object.isFrozen(result), true);
   assert.equal(result.agent.id, "claude");
-  assert.deepEqual(result.requiredPluginIds, ["openspec-graph"]);
   assert.equal(result.created[0], ".openspec-store/store.yaml");
   assert.equal(result.created.includes("openspec-orch.yaml"), true);
   const project = configurationService.parseProject(
     await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"),
   );
-  assert.deepEqual(project.agents, ["claude"]);
+  assert.deepEqual(project.template, { id: "base" });
+  assert.deepEqual(project.agent, { id: "claude" });
   assert.deepEqual(project.codeRepositories.map(({ id }) => id), ["frontend"]);
-  assert.equal((await fs.stat(path.join(root, "CLAUDE.md"))).isFile(), true);
+  assert.equal(await fs.lstat(path.join(root, "CLAUDE.md")).catch((error) => error.code), "ENOENT");
   assert.equal((await fs.stat(path.join(root, ".claude/commands/opsx"))).isDirectory(), true);
+  assert.equal(
+    await fs.readFile(path.join(root, ".claude/commands/opsx/opsx-explore.md"), "utf8"),
+    "generated\n",
+  );
+  assert.equal(
+    await fs.readFile(path.join(root, ".claude/skills/openspec-explore/SKILL.md"), "utf8"),
+    "upstream openspec skill\n",
+  );
+  assert.equal((await fs.stat(path.join(root, "openspec/context/00-start-here.md"))).isFile(), true);
   const gitignore = await fs.readFile(path.join(root, ".gitignore"), "utf8");
   assert.match(gitignore, /^\.openspec-orch\/plugins\/$/m);
   assert.match(gitignore, /^\.claude\/settings\.local\.json$/m);
@@ -146,12 +222,11 @@ test("InitializationService creates Store through domain and public facade contr
     templateRoot: TEMPLATE_ROOT,
   });
   assert.equal(repeated.alreadyInitialized, true);
-  assert.deepEqual(repeated.requiredPluginIds, ["openspec-graph"]);
   assert.deepEqual(repeated.created, []);
   assert.equal(fake.calls.length, callCount);
 });
 
-test("InitializationService preserves relaxed mode and upgrades empty Agent registry", async (t) => {
+test("InitializationService preserves relaxed mode for an existing v2 Store", async (t) => {
   const root = await storeFixture(t);
   const fake = fakeExecutor(root);
   const { service, configurationService } = initFixture(fake.executor);
@@ -163,8 +238,6 @@ test("InitializationService preserves relaxed mode and upgrades empty Agent regi
     noStrict: true,
   });
   const configPath = path.join(root, "openspec-orch.yaml");
-  const source = (await fs.readFile(configPath, "utf8")).replace("agents:\n  - claude", "agents: []");
-  await fs.writeFile(configPath, source, "utf8");
   await execa("git", ["-C", root, "add", "."]);
   await execa("git", ["-C", root, "-c", "user.name=Test", "-c", "user.email=test@example.test",
     "commit", "-m", "initialized store"]);
@@ -177,8 +250,75 @@ test("InitializationService preserves relaxed mode and upgrades empty Agent regi
   });
   const project = configurationService.parseProject(await fs.readFile(configPath, "utf8"));
   assert.equal(result.executionMode, "relaxed");
-  assert.deepEqual(result.updated, ["openspec-orch.yaml"]);
-  assert.deepEqual(project.agents, ["claude"]);
+  assert.deepEqual(result.updated, []);
+  assert.deepEqual(project.agent, { id: "claude" });
+});
+
+test("custom Template is applied once and its source is not needed for repeated init", async (t) => {
+  const root = await storeFixture(t);
+  const customRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-custom-template-"));
+  t.after(() => fs.rm(customRoot, { recursive: true, force: true }));
+  await fs.mkdir(path.join(customRoot, "context"));
+  await fs.writeFile(path.join(customRoot, "context/product.md"), "# Product\n");
+  await fs.writeFile(path.join(customRoot, "template.yaml"), [
+    "id: custom-product",
+    "name: Custom Product",
+    "copy:",
+    "  - from: context",
+    "    to: openspec/context",
+    "",
+  ].join("\n"));
+  const fake = fakeExecutor(root);
+  const { service, configurationService } = initFixture(fake.executor);
+
+  await service.initialize({
+    target: root,
+    storeId: "payments-specs",
+    agentId: "claude",
+    templateRoot: customRoot,
+    extensions: [{ id: "superpowers", source: "bundled:superpowers" }],
+    repositories: [configurationService.parseRepositoryArgument(
+      "frontend=https://example.test/frontend.git#main",
+    )],
+  });
+  const project = configurationService.parseProject(
+    await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"),
+  );
+  assert.deepEqual(project.template, { id: "custom-product" });
+  assert.deepEqual(project.extensionDeclarations.map((extension) => extension.toConfig()), [
+    { id: "superpowers", source: "bundled:superpowers" },
+  ]);
+  assert.equal((await fs.readFile(path.join(root, "openspec/context/product.md"), "utf8")), "# Product\n");
+
+  await fs.rm(customRoot, { recursive: true, force: true });
+  const repeated = await service.initialize({
+    target: root,
+    storeId: "payments-specs",
+    agentId: "claude",
+  });
+  assert.equal(repeated.alreadyInitialized, true);
+  assert.deepEqual(
+    configurationService.parseProject(
+      await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"),
+    ).extensions,
+    ["superpowers"],
+  );
+
+  const callCount = fake.calls.length;
+  const changed = await service.initialize({
+    target: root,
+    storeId: "payments-specs",
+    agentId: "claude",
+    extensions: [],
+  });
+  assert.deepEqual(changed.updated, ["openspec-orch.yaml"]);
+  assert.equal(fake.calls.length, callCount);
+  assert.deepEqual(
+    configurationService.parseProject(
+      await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"),
+    ).extensions,
+    [],
+  );
 });
 
 test("InitializationService fails before OpenSpec for dirty or conflicting Store", async (t) => {
@@ -228,8 +368,20 @@ test("InitializationService rolls generated files back when setup fails before m
 
 test("CandidateCli preserves init grammar and passes normalized domain input", async () => {
   const calls = [];
-  const requirementCalls = [];
+  const availableExtensions = new ExtensionCatalog([
+    new ExtensionCatalogEntry({
+      id: "company-tools",
+      name: "Company Tools",
+      source: "bundled:company-tools",
+    }),
+    new ExtensionCatalogEntry({
+      id: "superpowers",
+      name: "Superpowers",
+      source: "bundled:superpowers",
+    }),
+  ]);
   const cli = new CandidateCli({
+    initSelectionService: new InitSelectionService({ extensionCatalog: availableExtensions }),
     templateRoot: TEMPLATE_ROOT,
     initializationService: {
       async initialize(options) {
@@ -241,18 +393,21 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
           executionMode: "strict",
           created: [],
           updated: [],
-          requiredPluginIds: ["openspec-graph"],
         };
       },
     },
-    pluginRequirementService: {
-      async reconcile(root, pluginIds) {
-        requirementCalls.push({ root, pluginIds });
-        return { initialized: [], required: pluginIds };
-      },
-    },
   });
-  await cli.createProgram().parseAsync([
+  const program = cli.createProgram();
+  const initCommand = program.commands.find((command) => command.name() === "init");
+  assert.equal(
+    initCommand.options.find((option) => option.long === "--agent").description,
+    "независимый Agent ID",
+  );
+  assert.equal(
+    initCommand.options.find((option) => option.long === "--template").flags,
+    "--template <id-or-path>",
+  );
+  await program.parseAsync([
     "node",
     "openspec-orch",
     "init",
@@ -261,6 +416,10 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
     "payments-specs",
     "--agent",
     "claude",
+    "--extension",
+    "superpowers",
+    "--extension",
+    "company-tools",
     "--repo",
     "frontend=https://example.test/frontend.git#main",
     "--no-strict",
@@ -269,11 +428,145 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
   assert.equal(calls[0].target, "project");
   assert.equal(calls[0].storeId, "payments-specs");
   assert.equal(calls[0].agentId, "claude");
+  assert.equal(calls[0].templateId, undefined);
   assert.equal(calls[0].templateRoot, TEMPLATE_ROOT);
+  assert.deepEqual(calls[0].extensions, [
+    { id: "superpowers", source: "bundled:superpowers" },
+    { id: "company-tools", source: "bundled:company-tools" },
+  ]);
   assert.equal(calls[0].repositories[0].id, "frontend");
   assert.equal(calls[0].noStrict, true);
-  assert.deepEqual(requirementCalls, [{
-    root: "/workspace/payments-specs",
-    pluginIds: ["openspec-graph"],
-  }]);
+});
+
+test("CandidateCli interactive init builds the same normalized domain input", async () => {
+  const calls = [];
+  const confirmations = [];
+  const agentCatalog = new AgentCatalog([
+    new AgentCatalogEntry({ id: "qwen", name: "Qwen Code" }),
+    new AgentCatalogEntry({ id: "claude", name: "Claude Code" }),
+  ]);
+  const extensionCatalog = new ExtensionCatalog([
+    new ExtensionCatalogEntry({
+      id: "openspec-base",
+      name: "OpenSpec Base",
+      source: "bundled:openspec-base",
+    }),
+    new ExtensionCatalogEntry({
+      id: "superpowers",
+      name: "Superpowers",
+      source: "bundled:superpowers",
+    }),
+  ]);
+  const cli = new CandidateCli({
+    initSelectionService: new InitSelectionService({
+      agentCatalog,
+      extensionCatalog,
+      stdin: { isTTY: true },
+      stdout: { isTTY: true },
+      inputPrompt: async ({ message }) => {
+        if (message === "Store ID") return "payments-specs";
+        if (message.startsWith("Code Repositories")) {
+          return "frontend=https://example.test/frontend.git#main";
+        }
+        throw new Error(`unexpected input prompt: ${message}`);
+      },
+      selectPrompt: async ({ message, choices }) => {
+        if (message === "Выберите Project Template") {
+          assert.deepEqual(choices.map(({ value }) => value), ["base", "__local__"]);
+          return "base";
+        }
+        if (message === "Выберите Agent") {
+          assert.deepEqual(choices.map(({ value }) => value), ["claude", "qwen"]);
+          return "qwen";
+        }
+        throw new Error(`unexpected select prompt: ${message}`);
+      },
+      checkboxPrompt: async ({ choices, theme }) => {
+        assert.deepEqual(choices.map(({ value }) => value), ["openspec-base", "superpowers"]);
+        assert.deepEqual(theme.icon, { checked: "[✓]", unchecked: "[ ]" });
+        return ["openspec-base", "superpowers"];
+      },
+      confirmPrompt: async (options) => {
+        confirmations.push(options);
+        return true;
+      },
+    }),
+    templateRoot: TEMPLATE_ROOT,
+    initializationService: {
+      async initialize(options) {
+        calls.push(options);
+        return {
+          target: "/workspace/payments-specs",
+          storeId: "payments-specs",
+          alreadyInitialized: true,
+          executionMode: "strict",
+          created: [],
+          updated: [],
+        };
+      },
+    },
+  });
+
+  await cli.createProgram().parseAsync(["node", "openspec-orch", "init", "project"]);
+
+  assert.equal(confirmations.length, 2);
+  assert.equal(confirmations[0].message, "Использовать strict mode?");
+  assert.match(confirmations[1].message, /Store: payments-specs.*Agent: qwen.*Продолжить/u);
+  assert.equal(calls.length, 1);
+  assert.deepEqual({ ...calls[0], repositories: undefined }, {
+    target: "project",
+    storeId: "payments-specs",
+    agentId: "qwen",
+    templateId: "base",
+    templateRoot: TEMPLATE_ROOT,
+    extensions: [
+      { id: "openspec-base", source: "bundled:openspec-base" },
+      { id: "superpowers", source: "bundled:superpowers" },
+    ],
+    repositories: undefined,
+    noStrict: false,
+  });
+  assert.equal(calls[0].repositories.length, 1);
+  assert.equal(calls[0].repositories[0].id, "frontend");
+  assert.equal(calls[0].repositories[0].role, "code");
+  assert.equal(calls[0].repositories[0].remote, "https://example.test/frontend.git");
+  assert.equal(calls[0].repositories[0].defaultBranch, "main");
+});
+
+test("CandidateCli interactive init cancels before mutation and non-TTY requires flags", async () => {
+  const calls = [];
+  const candidate = (selectionOverrides) => new CandidateCli({
+    initSelectionService: new InitSelectionService({
+      agentCatalog: new AgentCatalog([
+        new AgentCatalogEntry({ id: "qwen", name: "Qwen Code" }),
+      ]),
+      extensionCatalog: new ExtensionCatalog(),
+      ...selectionOverrides,
+    }),
+    templateRoot: TEMPLATE_ROOT,
+    initializationService: { async initialize(options) { calls.push(options); } },
+  }).createProgram();
+
+  await assert.rejects(
+    candidate({ stdin: { isTTY: false }, stdout: { isTTY: false } }).parseAsync([
+      "node", "openspec-orch", "init", "project",
+    ]),
+    /INIT_SELECTION_REQUIRED.*--store и --agent/u,
+  );
+
+  let confirmCalls = 0;
+  await candidate({
+    stdin: { isTTY: true },
+    stdout: { isTTY: true },
+    inputPrompt: async ({ message }) => message === "Store ID" ? "specs" : "",
+    selectPrompt: async ({ message }) => message.includes("Template") ? "base" : "qwen",
+    checkboxPrompt: async () => [],
+    confirmPrompt: async () => {
+      confirmCalls += 1;
+      return confirmCalls === 1;
+    },
+  }).parseAsync(["node", "openspec-orch", "init", "project"]);
+
+  assert.equal(confirmCalls, 2);
+  assert.deepEqual(calls, []);
 });

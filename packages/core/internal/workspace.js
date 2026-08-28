@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { CORE_FILES } from "./constants.js";
 import { RepositoryCheckout } from "./checkout.js";
+import { ensureDirectory, lstatOrNull } from "./fs.js";
 import { CORE_SETTINGS } from "./settings.js";
 
 /** Канонический Workspace с единым правилом размещения Code Repositories. */
@@ -38,30 +39,13 @@ export class Workspace {
   }
 
   async ensureRepositoriesRoot() {
-    const existing = await this.#lstatOrNull(this.repositoriesRoot);
-    if (!existing) {
-      try {
-        await fs.mkdir(this.repositoriesRoot);
-      } catch (error) {
-        if (error.code !== "EEXIST") throw error;
-      }
-    }
-    const stat = await fs.lstat(this.repositoriesRoot);
+    const stat = await ensureDirectory(this.repositoriesRoot);
     if (!stat.isDirectory() || stat.isSymbolicLink()) {
       throw new Error(
         `WORKSPACE_INVALID: ${this.repositoriesRoot} должен быть обычным каталогом`,
       );
     }
     return this.repositoriesRoot;
-  }
-
-  async #lstatOrNull(target) {
-    try {
-      return await fs.lstat(target);
-    } catch (error) {
-      if (error.code === "ENOENT") return null;
-      throw error;
-    }
   }
 }
 
@@ -81,7 +65,7 @@ export class WorkspaceResolver {
         { code: "WORKSPACE_UNRESOLVED" },
       );
     }
-    const stat = await this.#lstatOrNull(candidate);
+    const stat = await lstatOrNull(candidate);
     if (!stat?.isDirectory() || stat.isSymbolicLink()) {
       if (remembered) {
         throw new Error(
@@ -112,7 +96,7 @@ export class WorkspaceResolver {
       );
     }
     const workspaceRoot = path.dirname(sourceRoot);
-    const stat = await this.#lstatOrNull(workspaceRoot);
+    const stat = await lstatOrNull(workspaceRoot);
     if (!stat?.isDirectory() || stat.isSymbolicLink()) {
       throw new Error(`Workspace должен быть обычным каталогом: ${workspaceRoot}`);
     }
@@ -121,7 +105,7 @@ export class WorkspaceResolver {
 
   async resolveCheckout(workspace, repository) {
     const candidate = workspace.checkoutPath(repository);
-    const stat = await this.#lstatOrNull(candidate);
+    const stat = await lstatOrNull(candidate);
     if (!stat?.isDirectory() || stat.isSymbolicLink()) {
       throw Object.assign(
         new Error(`REPOSITORY_CHECKOUT_UNAVAILABLE: ${candidate}`),
@@ -129,15 +113,6 @@ export class WorkspaceResolver {
       );
     }
     return new RepositoryCheckout(repository, await fs.realpath(candidate));
-  }
-
-  async #lstatOrNull(target) {
-    try {
-      return await fs.lstat(target);
-    } catch (error) {
-      if (error.code === "ENOENT") return null;
-      throw error;
-    }
   }
 }
 

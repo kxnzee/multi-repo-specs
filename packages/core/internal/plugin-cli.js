@@ -58,13 +58,10 @@ export class PluginLifecycleCommands {
     if (
       !lifecycleService ||
       typeof lifecycleService.connectMany !== "function" ||
-      typeof lifecycleService.disconnect !== "function" ||
       typeof lifecycleService.disconnectMany !== "function" ||
-      typeof lifecycleService.exec !== "function" ||
       typeof lifecycleService.execMany !== "function" ||
       typeof lifecycleService.repositoryCandidates !== "function" ||
       typeof lifecycleService.statuses !== "function" ||
-      typeof lifecycleService.sync !== "function" ||
       typeof lifecycleService.syncMany !== "function"
     ) {
       throw new Error("PLUGIN_CLI_INVALID: требуется PluginLifecycleService");
@@ -112,7 +109,7 @@ export class PluginLifecycleCommands {
         .default("commands"))
       .addOption(new Option("--support <role>", "роль для repository/native: store или code")
         .argParser(collectValues))
-      .option("--template", "добавить пустой Plugin Template")
+      .option("--extension", "добавить Plugin-owned Agent Extension")
       .action((pluginId, target, options) => this.#register(pluginId, target, options));
     plugin.command("init")
       .description("выбрать Plugins из встроенного или пользовательского каталога")
@@ -182,7 +179,7 @@ export class PluginLifecycleCommands {
     return plugin;
   }
 
-  async #register(pluginId, target, { name, profile, support, template }) {
+  async #register(pluginId, target, { name, profile, support, extension }) {
     const targetRoot = target ?? path.join(process.cwd(), "plugins", pluginId);
     const result = await this.#scaffolds.register({
       pluginId,
@@ -190,7 +187,7 @@ export class PluginLifecycleCommands {
       name,
       profile,
       supports: support?.length ? support : undefined,
-      template: Boolean(template),
+      extension: Boolean(extension),
     });
     this.#output.log(`${pluginId}: registered at ${result.root}`);
     this.#output.log(`Entrypoint: ${result.entrypoint}`);
@@ -295,22 +292,18 @@ export class PluginLifecycleCommands {
       this.#output.log(`${pluginId}: connected repositories не найдены`);
       return;
     }
-    if (repositoryIds.length === 1) {
-      const [repositoryId] = repositoryIds;
-      const output = await this.#progress.run(
-        `Синхронизация ${pluginId} → ${repositoryId}...`,
-        () => this.#lifecycle.sync({ pluginId, repositoryId }),
-        { success: `${pluginId} → ${repositoryId}: синхронизирован` },
-      );
-      this.#output.log(`✓ ${pluginId} → ${repositoryId} — синхронизирован`);
-      if (output) this.#output.log(output);
-      await this.#printCurrentStatuses(pluginId, repositoryIds);
-      return;
-    }
+    const [repositoryId] = repositoryIds;
+    const single = repositoryIds.length === 1;
     const results = await this.#progress.run(
-      `Синхронизация ${pluginId} в repositories (${repositoryIds.length})...`,
+      single
+        ? `Синхронизация ${pluginId} → ${repositoryId}...`
+        : `Синхронизация ${pluginId} в repositories (${repositoryIds.length})...`,
       () => this.#lifecycle.syncMany({ pluginId, repositoryIds }),
-      { success: `${pluginId}: синхронизация завершена` },
+      {
+        success: single
+          ? `${pluginId} → ${repositoryId}: синхронизирован`
+          : `${pluginId}: синхронизация завершена`,
+      },
     );
     this.#printMany(pluginId, results, "synced");
     await this.#printCurrentStatuses(pluginId, repositoryIds);
@@ -322,25 +315,24 @@ export class PluginLifecycleCommands {
       this.#output.log(`${pluginId}: connected repositories не найдены`);
       return;
     }
-    if (repositoryIds.length === 1) {
-      const output = await this.#progress.run(
-        `Выполнение ${pluginId} → ${repositoryIds[0]}...`,
-        () => this.#lifecycle.exec({
-          args,
-          pluginId,
-          repositoryId: repositoryIds[0],
-        }),
-        { success: `${pluginId} → ${repositoryIds[0]}: команда завершена` },
-      );
-      if (output) this.#output.log(output);
-      return;
-    }
+    const [repositoryId] = repositoryIds;
+    const single = repositoryIds.length === 1;
     const results = await this.#progress.run(
-      `Выполнение ${pluginId} в repositories (${repositoryIds.length})...`,
+      single
+        ? `Выполнение ${pluginId} → ${repositoryId}...`
+        : `Выполнение ${pluginId} в repositories (${repositoryIds.length})...`,
       () => this.#lifecycle.execMany({ args, pluginId, repositoryIds }),
-      { success: `${pluginId}: команда завершена` },
+      {
+        success: single
+          ? `${pluginId} → ${repositoryId}: команда завершена`
+          : `${pluginId}: команда завершена`,
+      },
     );
-    this.#printMany(pluginId, results, "executed");
+    if (single) {
+      if (results[0]?.output) this.#output.log(results[0].output);
+    } else {
+      this.#printMany(pluginId, results, "executed");
+    }
   }
 
   async #disconnect(pluginId, selection) {
@@ -349,22 +341,18 @@ export class PluginLifecycleCommands {
       this.#output.log(`${pluginId}: connected repositories не найдены`);
       return;
     }
-    if (repositoryIds.length === 1) {
-      const [repositoryId] = repositoryIds;
-      const result = await this.#progress.run(
-        `Отключение ${pluginId} → ${repositoryId}...`,
-        () => this.#lifecycle.disconnect({ pluginId, repositoryId }),
-        { success: `${pluginId} → ${repositoryId}: отключение завершено` },
-      );
-      this.#output.log(result.disconnected
-        ? `✓ ${pluginId} → ${repositoryId} — отключён`
-        : `• ${pluginId} → ${repositoryId} — не был подключён`);
-      return;
-    }
+    const [repositoryId] = repositoryIds;
+    const single = repositoryIds.length === 1;
     const results = await this.#progress.run(
-      `Отключение ${pluginId} от repositories (${repositoryIds.length})...`,
+      single
+        ? `Отключение ${pluginId} → ${repositoryId}...`
+        : `Отключение ${pluginId} от repositories (${repositoryIds.length})...`,
       () => this.#lifecycle.disconnectMany({ pluginId, repositoryIds }),
-      { success: `${pluginId}: отключение завершено` },
+      {
+        success: single
+          ? `${pluginId} → ${repositoryId}: отключение завершено`
+          : `${pluginId}: отключение завершено`,
+      },
     );
     for (const result of results) {
       this.#output.log(result.disconnected
@@ -445,9 +433,5 @@ export class PluginLifecycleCommands {
     this.#output.log(result.removed
       ? `✓ ${pluginId} — удалён`
       : `• ${pluginId} — не был инициализирован`);
-    if (result.removed && result.cleanupPaths?.length > 0) {
-      this.#output.log("Файлы Plugin оставлены в Store. При необходимости удалите вручную:");
-      for (const relativePath of result.cleanupPaths) this.#output.log(`  - ${relativePath}`);
-    }
   }
 }

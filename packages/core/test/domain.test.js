@@ -38,9 +38,11 @@ function projectConfig() {
     },
   ];
   return {
-    version: 1,
+    version: 2,
     strict: true,
-    agents: ["qwen"],
+    template: { id: "base" },
+    agent: { id: "qwen" },
+    extensions: [],
     plugins: [],
     repositories,
     storeRepository: repositories[0],
@@ -137,7 +139,7 @@ test("Project requires Plugin declarations and replaces their exact source", () 
   const project = createProject(projectConfig());
 
   assert.equal(project.declarePlugin("dependency-audit", "@test/plugin-dependency-audit@1.0.0"), true);
-  assert.equal(project.version, 1);
+  assert.equal(project.version, 2);
   assert.deepEqual(project.plugins, ["dependency-audit"]);
   assert.deepEqual(project.pluginDeclarations[0].toConfig(), {
     id: "dependency-audit",
@@ -146,17 +148,13 @@ test("Project requires Plugin declarations and replaces their exact source", () 
   assert.equal(project.declarePlugin("dependency-audit", "@test/plugin-dependency-audit@1.0.0"), false);
   assert.equal(project.declarePlugin("dependency-audit", "@test/plugin-dependency-audit@2.0.0"), true);
   assert.equal(project.pluginDeclaration("dependency-audit").source, "@test/plugin-dependency-audit@2.0.0");
-  assert.equal(project.setRequiredPlugins(["dependency-audit"]), true);
-  assert.equal(project.pluginDeclaration("dependency-audit").required, true);
-  assert.throws(() => project.removePlugin("dependency-audit"), /PLUGIN_REQUIRED_BY_TEMPLATE/);
-  assert.equal(project.setRequiredPlugins([]), true);
-  assert.equal(project.pluginDeclaration("dependency-audit").required, false);
+  assert.equal(project.removePlugin("dependency-audit"), true);
   assert.throws(
     () => createProject({ ...projectConfig(), plugins: ["legacy"] }),
     /PLUGIN_DECLARATION_INVALID/,
   );
   assert.throws(
-    () => createProject({ ...projectConfig(), version: 2 }),
-    /поддерживается только version 1/,
+    () => createProject({ ...projectConfig(), version: 1 }),
+    /поддерживается только version 2/,
   );
 });

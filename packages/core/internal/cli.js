@@ -9,8 +9,10 @@ import { collectValues, singleValue } from "./cli-values.js";
 import { configuration } from "./configuration.js";
 import { CORE_FILES } from "./constants.js";
 import { connection } from "./connection.js";
+import { initSelections } from "./init-selection.js";
 import { initialization } from "./initialization.js";
 import { repositoryStatuses } from "./repository-status.js";
+import { hasMethods } from "./value.js";
 import { formatStatusHeading } from "./status-output.js";
 import { workspace } from "./workspace.js";
 
@@ -54,44 +56,64 @@ function buildConnectHint(storeRoot, storeId) {
 /** Собирает candidate CLI из публичных Core application services. */
 export class CandidateCli {
   #connection;
+  #extensionPreflight;
+  #extensions;
+  #initSelection;
   #initialization;
   #pluginCommands;
   #pluginLifecycleCommands;
-  #pluginRequirements;
   #progress;
   #repositoryStatuses;
   #templateRoot;
 
   constructor({
     connectionService = connection,
+    extensionLifecycle,
+    initSelectionService = initSelections,
     initializationService = initialization,
     pluginCommandMounter,
+    pluginExtensionConnector,
     pluginLifecycleCommands,
-    pluginRequirementService,
     progress = createCliProgress(),
     repositoryStatusService = repositoryStatuses,
     templateRoot,
   } = {}) {
     this.#connection = connectionService;
+    if (extensionLifecycle && !hasMethods(
+      extensionLifecycle,
+      ["connectSelected", "disconnectSelected", "preflight", "statusSelected"],
+    )) {
+      throw new Error(
+        "CLI_INVALID: extensionLifecycle должен предоставлять preflight и selected lifecycle",
+      );
+    }
+    this.#extensionPreflight = extensionLifecycle;
+    if (typeof initSelectionService?.resolve !== "function") {
+      throw new Error("CLI_INVALID: initSelectionService должен предоставлять resolve");
+    }
+    this.#initSelection = initSelectionService;
     this.#initialization = initializationService;
     if (pluginCommandMounter && typeof pluginCommandMounter.mount !== "function") {
       throw new Error("CLI_INVALID: pluginCommandMounter должен предоставлять mount");
     }
     this.#pluginCommands = pluginCommandMounter;
+    if (pluginExtensionConnector && !hasMethods(
+      pluginExtensionConnector,
+      ["connectSelected", "disconnectSelected", "statusSelected"],
+    )) {
+      throw new Error(
+        "CLI_INVALID: pluginExtensionConnector должен предоставлять connectSelected, " +
+          "statusSelected и disconnectSelected",
+      );
+    }
+    this.#extensions = Object.freeze(
+      [extensionLifecycle, pluginExtensionConnector].filter(Boolean),
+    );
     if (pluginLifecycleCommands && typeof pluginLifecycleCommands.mount !== "function") {
       throw new Error("CLI_INVALID: pluginLifecycleCommands должен предоставлять mount");
     }
     this.#pluginLifecycleCommands = pluginLifecycleCommands;
-    if (pluginRequirementService && typeof pluginRequirementService.reconcile !== "function") {
-      throw new Error("CLI_INVALID: pluginRequirementService должен предоставлять reconcile");
-    }
-    this.#pluginRequirements = pluginRequirementService;
-    if (
-      !progress ||
-      ["fail", "run", "start", "succeed", "update", "warn"].some((method) => (
-        typeof progress[method] !== "function"
-      ))
-    ) {
+    if (!hasMethods(progress, ["fail", "run", "start", "succeed", "update", "warn"])) {
       throw new Error("CLI_INVALID: progress должен предоставлять renderer contract");
     }
     this.#progress = progress;
@@ -108,101 +130,27 @@ export class CandidateCli {
       .exitOverride();
     program.command("init [path]")
       .description("создать OpenSpec Store и применить Project Template")
-      .requiredOption("--store <store-id>", "Store ID", singleValue)
-      .requiredOption("--agent <agent-id>", "agent mapping из Project Template", singleValue)
-      .addOption(new Option("--template <path>", "локальный Project Template").argParser(singleValue))
+      .addOption(new Option("--store <store-id>", "Store ID").argParser(singleValue))
+      .addOption(new Option("--agent <agent-id>", "независимый Agent ID").argParser(singleValue))
+      .addOption(new Option(
+        "--template <id-or-path>",
+        "bundled Template ID или локальный Project Template",
+      ).argParser(singleValue))
+      .addOption(new Option("--extension <extension-id>", "выбрать standalone Extension")
+        .argParser(collectValues))
+      .option("--no-extensions", "явно выбрать пустой список Extensions")
       .addOption(new Option("--repo <id=remote#branch>", "добавить Code Repository")
         .argParser(collectRepositories))
       .option("--no-strict", "отключить Git pinning и automation для текущего вызова")
-      .action(async (target = ".", options) => {
-        const result = await this.#progress.run(
-          "Инициализация Store и Project Template...",
-          async () => {
-            const initialized = await this.#initialization.initialize({
-              target,
-              storeId: options.store,
-              agentId: options.agent,
-              templateRoot: options.template ?? this.#templateRoot,
-              repositories: options.repo ?? [],
-              noStrict: options.strict === false,
-            });
-            if (!this.#pluginRequirements || !Array.isArray(initialized.requiredPluginIds)) {
-              return initialized;
-            }
-            const requirements = await this.#pluginRequirements.reconcile(
-              initialized.target,
-              initialized.requiredPluginIds,
-            );
-            return Object.freeze({
-              ...initialized,
-              initializedRequiredPlugins: requirements.initialized,
-              requiredPluginIds: requirements.required,
-            });
-          },
-          { success: "Store и Project Template проверены" },
-        );
-        if (result.requiredPluginIds?.length > 0) {
-          console.log(`Required Plugins: ${result.requiredPluginIds.join(", ")}`);
-        }
-        if (result.alreadyInitialized) {
-          const pluginSuffix = result.initializedRequiredPlugins?.length > 0
-            ? `; установлены обязательные Plugins: ${result.initializedRequiredPlugins.join(", ")}`
-            : "; обязательные Plugins проверены";
-          console.log(`Store ${result.storeId} уже инициализирован${pluginSuffix}.`);
-          console.log(`Execution mode: ${result.executionMode}`);
-          console.log(buildConnectHint(result.target, result.storeId));
-          return;
-        }
-        console.log(`Store ${result.storeId}: ${result.target}`);
-        console.log(`Agent: ${options.agent}`);
-        console.log(`Execution mode: ${result.executionMode}`);
-        printPaths("Создано", result.created);
-        if (result.updated.length > 0) printPaths("Дополнено", result.updated);
-        console.log(buildConnectHint(result.target, result.storeId));
-      });
+      .action((target = ".", options) => this.#initialize(target, options));
     program.command("connect")
       .description("подключить рабочую машину и Code Repositories")
       .addOption(new Option("--workspace <path>", "явный workspace").argParser(singleValue))
       .option("--no-strict", "отключить Git pinning и automation для текущего вызова")
-      .action(async (options) => {
-        this.#progress.start("Подключение Store и Code Repositories...");
-        let result;
-        try {
-          result = await this.#connection.connect({
-            workspace: options.workspace,
-            noStrict: options.strict === false,
-            onProgress: (message, status) => {
-              if (status === "success") this.#progress.succeed(message);
-              else if (status === "warning") this.#progress.warn(message);
-              else this.#progress.update(message);
-            },
-          });
-          this.#progress.succeed("Store и Code Repositories подключены");
-        } catch (error) {
-          this.#progress.fail("Подключение Store и Code Repositories: ошибка");
-          throw error;
-        }
-        console.log(`Store: ${result.storeId} (${result.storeRoot})`);
-        console.log(`Workspace: ${result.workspace}`);
-        console.log(`Execution mode: ${result.executionMode}`);
-        if (options.workspace && result.executionMode === "strict") {
-          console.log("Workspace сохранён локально для следующих команд OpenSpec Orchestrator.");
-        } else if (options.workspace) {
-          console.log("Workspace использован только для текущего relaxed-вызова и не сохранён локально.");
-        }
-        console.log("Локальная регистрация Store проверена OpenSpec.");
-        for (const repository of result.repositories) {
-          console.log(formatStatusHeading(repository.id, repository.status));
-          console.log(`  ✓ Checkout: ${repository.cloned ? "клонирован" : "уже существовал"}`);
-          console.log(`  Путь: ${repository.path}`);
-          if (repository.pointerCreated) {
-            console.log(`  ⚠ Создан ${CORE_FILES.openSpecConfig}; требуется setup PR`);
-          } else if (repository.pointerPending) {
-            console.log(`  ⚠ ${CORE_FILES.openSpecConfig} ещё не принят; требуется setup PR`);
-          }
-        }
-        console.log(formatStatusHeading("Локальное подключение", result.status));
-      });
+      .action((options) => this.#connect(options));
+    program.command("disconnect")
+      .description("локально отключить Agent Extensions без изменения Store config")
+      .action(() => this.#disconnect());
     this.#pluginLifecycleCommands?.mount(program);
     const repository = program.command("repository")
       .description("операции только чтения над репозиториями реестра");
@@ -210,17 +158,118 @@ export class CandidateCli {
       .description("показать подключение, чистоту, remote и ветку каждого репозитория")
       .addOption(new Option("--repo <repository-id>", "ограничить вывод одним repository-id")
         .argParser(collectValues))
-      .action(async (options) => {
-        const statuses = await this.#progress.run(
-          "Проверка состояния repositories...",
-          () => this.#repositoryStatuses.inspect({
-            repositoryIds: options.repo ?? [],
-          }),
-          { success: "Состояние repositories проверено" },
-        );
-        for (const status of statuses) printRepositoryStatus(status);
-      });
+      .action((options) => this.#inspectRepositories(options));
     this.#pluginCommands?.mount(program);
     return program;
   }
+
+  async #initialize(target, options) {
+    const selection = await this.#initSelection.resolve(options);
+    if (!selection) {
+      console.log("Инициализация отменена.");
+      return;
+    }
+    const bundledTemplate = selection.template === undefined || selection.template === "base";
+    const result = await this.#progress.run(
+      "Инициализация Store и Project Template...",
+      () => this.#initialization.initialize({
+        target,
+        storeId: selection.storeId,
+        agentId: selection.agentId,
+        extensions: selection.extensionsSpecified ? selection.extensions : undefined,
+        templateId: selection.template === "base" ? "base" : undefined,
+        templateRoot: bundledTemplate ? this.#templateRoot : selection.template,
+        repositories: selection.repositories,
+        noStrict: selection.noStrict,
+      }),
+      { success: "Store и Project Template проверены" },
+    );
+    if (result.alreadyInitialized) {
+      console.log(`Store ${result.storeId} уже инициализирован.`);
+      console.log(`Execution mode: ${result.executionMode}`);
+      console.log(buildConnectHint(result.target, result.storeId));
+      return;
+    }
+    console.log(`Store ${result.storeId}: ${result.target}`);
+    console.log(`Agent: ${selection.agentId}`);
+    console.log(`Execution mode: ${result.executionMode}`);
+    printPaths("Создано", result.created);
+    if (result.updated.length > 0) printPaths("Дополнено", result.updated);
+    console.log(buildConnectHint(result.target, result.storeId));
+  }
+
+  async #connect(options) {
+    this.#progress.start("Подключение Store и Code Repositories...");
+    let result;
+    try {
+      this.#progress.update("Проверка native CLI выбранного Agent...");
+      await this.#extensionPreflight?.preflight();
+      result = await this.#connection.connect({
+        workspace: options.workspace,
+        noStrict: options.strict === false,
+        onProgress: (message, status) => this.#renderConnectionProgress(message, status),
+      });
+      this.#progress.update("Подключение выбранных Extensions...");
+      for (const lifecycle of this.#extensions) await lifecycle.connectSelected();
+      this.#progress.update("Проверка состояния Extensions и Plugins...");
+      for (const lifecycle of this.#extensions) await lifecycle.statusSelected();
+      this.#progress.succeed("Store и Code Repositories подключены");
+    } catch (error) {
+      this.#progress.fail("Подключение Store и Code Repositories: ошибка");
+      throw error;
+    }
+    this.#printConnection(result, options);
+  }
+
+  async #disconnect() {
+    this.#progress.start("Отключение Agent Extensions на текущей машине...");
+    try {
+      for (const lifecycle of [...this.#extensions].reverse()) {
+        await lifecycle.disconnectSelected();
+      }
+      this.#progress.succeed("Agent Extensions отключены; Store config не изменён");
+    } catch (error) {
+      this.#progress.fail("Отключение Agent Extensions: ошибка");
+      throw error;
+    }
+  }
+
+  async #inspectRepositories(options) {
+    const statuses = await this.#progress.run(
+      "Проверка состояния repositories...",
+      () => this.#repositoryStatuses.inspect({ repositoryIds: options.repo ?? [] }),
+      { success: "Состояние repositories проверено" },
+    );
+    for (const status of statuses) printRepositoryStatus(status);
+  }
+
+  #renderConnectionProgress(message, status) {
+    if (status === "success") this.#progress.succeed(message);
+    else if (status === "warning") this.#progress.warn(message);
+    else this.#progress.update(message);
+  }
+
+  #printConnection(result, options) {
+    console.log(`Store: ${result.storeId} (${result.storeRoot})`);
+    console.log(`Workspace: ${result.workspace}`);
+    console.log(`Execution mode: ${result.executionMode}`);
+    if (options.workspace && result.executionMode === "strict") {
+      console.log("Workspace сохранён локально для следующих команд OpenSpec Orchestrator.");
+    } else if (options.workspace) {
+      console.log("Workspace использован только для текущего relaxed-вызова и не сохранён локально.");
+    }
+    console.log("Локальная регистрация Store проверена OpenSpec.");
+    for (const repository of result.repositories) {
+      console.log(formatStatusHeading(repository.id, repository.status));
+      console.log(`  ✓ Checkout: ${repository.cloned ? "клонирован" : "уже существовал"}`);
+      console.log(`  Путь: ${repository.path}`);
+      if (repository.pointerCreated) {
+        console.log(`  ⚠ Создан ${CORE_FILES.openSpecConfig}; требуется setup PR`);
+      } else if (repository.pointerPending) {
+        console.log(`  ⚠ ${CORE_FILES.openSpecConfig} ещё не принят; требуется setup PR`);
+      }
+    }
+    console.log(formatStatusHeading("Локальное подключение", result.status));
+  }
+
 }

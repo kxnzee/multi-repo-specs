@@ -1,0 +1,9 @@
+{
+  "name": "openspec-base",
+  "version": "1.0.0",
+  "description": "OpenSpec Store workflow, skills, commands and repository evidence subagent",
+  "author": {
+    "name": "OpenSpec Orchestrator"
+  },
+  "agents": "./adapters/claude/subagents/openspec-base-repository-evidence-scout.md"
+}

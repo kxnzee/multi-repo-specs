@@ -7,6 +7,7 @@ import process from "node:process";
 import { RepositoryCheckout } from "./checkout.js";
 import { configuration } from "./configuration.js";
 import { CORE_FILES } from "./constants.js";
+import { lstatOrNull } from "./fs.js";
 import { pointers } from "./pointer.js";
 
 const REQUIRED_ROOT_FILES = Object.freeze([
@@ -14,16 +15,6 @@ const REQUIRED_ROOT_FILES = Object.freeze([
   CORE_FILES.orchestratorConfig,
   CORE_FILES.openSpecConfig,
 ]);
-
-/** Возвращает lstat или null для отсутствующего path. */
-async function lstatOrNull(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
 
 /** Безопасно читает обычный project file без symlink в parent chain. */
 async function readProjectFile(root, relativePath) {

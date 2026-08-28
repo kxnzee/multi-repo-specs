@@ -17,17 +17,12 @@ function run(context, operation, ...args) {
 const plugin = definePlugin({
   id: "codegraph",
   supports: ["store", "code"],
-  agent: {
-    integration(context) {
-      const invoke = (operation) => context.process.run(
-        process.execPath,
-        [launcher, "agent", operation, "--agent", context.agent.id],
-      );
-      return Object.freeze({
-        install() { return invoke("install"); },
-        remove() { return invoke("remove"); },
-      });
-    },
+  extensions(context) {
+    return [{
+      id: "agent",
+      root: "./extension",
+      target: context.repository,
+    }];
   },
   repository: {
     connect(context) {

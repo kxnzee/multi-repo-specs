@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { atomicWriter } from "./atomic-writer.js";
 import { CORE_CONTRACT_VERSIONS, CORE_PATTERNS, CORE_SERVICE_PATHS } from "./constants.js";
+import { ensureDirectory, lstatOrNull } from "./fs.js";
 import { locks } from "./lock.js";
 import { deepFreeze } from "./value.js";
 
@@ -22,16 +23,6 @@ function ownJson(value) {
   return deepFreeze(JSON.parse(source));
 }
 
-/** Возвращает lstat или null для отсутствующего path. */
-async function lstatOrNull(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
-
 /** Создаёт Core-owned directory path и запрещает файл или symlink в каждом сегменте. */
 async function ensureDirectories(root, relativePath) {
   const rootStat = await lstatOrNull(root);
@@ -41,15 +32,7 @@ async function ensureDirectories(root, relativePath) {
   let current = root;
   for (const segment of relativePath.split("/")) {
     current = path.join(current, segment);
-    const existing = await lstatOrNull(current);
-    if (!existing) {
-      try {
-        await fs.mkdir(current, { mode: 0o700 });
-      } catch (error) {
-        if (error.code !== "EEXIST") throw error;
-      }
-    }
-    const stat = await fs.lstat(current);
+    const stat = await ensureDirectory(current, { mode: 0o700 });
     if (!stat.isDirectory() || stat.isSymbolicLink()) {
       throw new Error(`PLUGIN_STORAGE_CORRUPTED: ${current} должен быть обычным каталогом`);
     }

@@ -1,76 +1,11 @@
-requires:
-  plugins:
-    - openspec-graph
-
-agents:
-  claude:
-    openspec_adapter: claude
-    generated_directory: .claude
-    target_directory: .claude
-    commands_directory: .claude/commands/opsx
-    instructions_file: CLAUDE.md
-    copy:
-      - from: assets/gitignore.template
-        to: .gitignore
-      - from: openspec/config.yaml
-        to: openspec/config.yaml
-      - from: openspec/schemas
-        to: openspec/schemas
-      - from: context
-        to: openspec/context
-      - from: commands
-        to: .claude/commands
-      - from: skills
-        to: .claude/skills
-      - from: adapters/claude/subagents
-        to: .claude/agents
-      - from: agent-instructions.md
-        to: CLAUDE.md
-
-  qwen:
-    openspec_adapter: qwen
-    generated_directory: .qwen
-    target_directory: .qwen
-    commands_directory: .qwen/commands
-    instructions_file: QWEN.md
-    copy:
-      - from: assets/gitignore.template
-        to: .gitignore
-      - from: openspec/config.yaml
-        to: openspec/config.yaml
-      - from: openspec/schemas
-        to: openspec/schemas
-      - from: context
-        to: openspec/context
-      - from: commands
-        to: .qwen/commands
-      - from: skills
-        to: .qwen/skills
-      - from: subagents
-        to: .qwen/agents
-      - from: agent-instructions.md
-        to: QWEN.md
-
-  gigacode:
-    openspec_adapter: qwen
-    generated_directory: .qwen
-    target_directory: .gigacode
-    commands_directory: .gigacode/commands
-    instructions_file: GIGACODE.md
-    copy:
-      - from: assets/gitignore.template
-        to: .gitignore
-      - from: openspec/config.yaml
-        to: openspec/config.yaml
-      - from: openspec/schemas
-        to: openspec/schemas
-      - from: context
-        to: openspec/context
-      - from: commands
-        to: .gigacode/commands
-      - from: skills
-        to: .gigacode/skills
-      - from: subagents
-        to: .gigacode/agents
-      - from: agent-instructions.md
-        to: GIGACODE.md
+id: base
+name: Base Store Template
+copy:
+  - from: context
+    to: openspec/context
+  - from: openspec/config.yaml
+    to: openspec/config.yaml
+  - from: openspec/schemas
+    to: openspec/schemas
+  - from: assets/gitignore.template
+    to: .gitignore

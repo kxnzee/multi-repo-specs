@@ -35,54 +35,107 @@ async function resolvePluginPackage(packageName) {
 }
 
 const templateRoot = fileURLToPath(new URL("../templates/base/", import.meta.url));
+const agentRoot = fileURLToPath(new URL("../agents/", import.meta.url));
+const extensionRoot = fileURLToPath(new URL("../extensions/", import.meta.url));
+const BUNDLED_PLUGINS = Object.freeze([
+  Object.freeze({
+    id: "change-tracking",
+    name: "Change Tracking",
+    packageName: "@openspec-orch/plugin-change-tracking",
+    rootCommands: Object.freeze(["assign", "status", "record", "verify"]),
+  }),
+  Object.freeze({
+    id: "codegraph",
+    name: "CodeGraph",
+    packageName: "@openspec-orch/plugin-codegraph",
+  }),
+  Object.freeze({
+    id: "openspec-graph",
+    name: "OpenSpec Graph",
+    packageName: "@openspec-orch/plugin-openspec-graph",
+    rootCommands: Object.freeze(["graph"]),
+  }),
+]);
+
+/** Безопасно загружает package-каталоги одного bundled registry. */
+async function resolveBundledDirectories({ label, load, Provider, root }) {
+  const entries = await fs.readdir(root, { withFileTypes: true });
+  const unsafe = entries.find((entry) => entry.isSymbolicLink());
+  if (unsafe) throw new Error(`Bundled ${label} entry не должен быть symlink: ${unsafe.name}`);
+  const directories = entries
+    .filter((entry) => entry.isDirectory())
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const packages = await Promise.all(directories.map(({ name }) => (
+    load(path.join(root, name), name)
+  )));
+  return new Provider(packages);
+}
+
+/** Загружает distribution-owned Agent definitions независимо от Template. */
+async function resolveBundledAgents(BundledAgentPackage, BundledAgentProvider) {
+  return resolveBundledDirectories({
+    label: "Agent",
+    load: (root, name) => BundledAgentPackage.load(root, { expectedId: name }),
+    Provider: BundledAgentProvider,
+    root: agentRoot,
+  });
+}
+
+/** Загружает все локально поставляемые Extension payloads без списка ID в Core. */
+async function resolveBundledExtensions(
+  BundledExtensionPackage,
+  BundledExtensionProvider,
+  agentIds,
+) {
+  return resolveBundledDirectories({
+    label: "Extension",
+    load: (root) => BundledExtensionPackage.load(root, { agentIds }),
+    Provider: BundledExtensionProvider,
+    root: extensionRoot,
+  });
+}
 
 try {
   assertNodeVersion();
-  const [{ BundledPluginPackage, BundledPluginProvider, createCandidateProgram },
-    changeTracking, codeGraph, mcpConnector, openSpecGraph] = await Promise.all([
+  const [{
+    BundledAgentPackage,
+    BundledAgentProvider,
+    BundledExtensionPackage,
+    BundledExtensionProvider,
+    BundledPluginPackage,
+    BundledPluginProvider,
+    createCandidateProgram,
+  },
+  pluginPackages] = await Promise.all([
     import("@openspec-orch/core"),
-    resolvePluginPackage("@openspec-orch/plugin-change-tracking"),
-    resolvePluginPackage("@openspec-orch/plugin-codegraph"),
-    resolvePluginPackage("@openspec-orch/plugin-mcp-connector"),
-    resolvePluginPackage("@openspec-orch/plugin-openspec-graph"),
+    Promise.all(BUNDLED_PLUGINS.map(({ packageName }) => resolvePluginPackage(packageName))),
   ]);
-  const bundledProvider = new BundledPluginProvider([
-    new BundledPluginPackage({
-      id: "change-tracking",
-      name: "Change Tracking",
-      packageName: changeTracking.manifest.name,
-      packageRoot: changeTracking.root,
-      version: changeTracking.manifest.version,
-    }),
-    new BundledPluginPackage({
-      id: "codegraph",
-      name: "CodeGraph",
-      packageName: codeGraph.manifest.name,
-      packageRoot: codeGraph.root,
-      version: codeGraph.manifest.version,
-    }),
-    new BundledPluginPackage({
-      id: "mcp-connector",
-      name: "MCP Connector",
-      packageName: mcpConnector.manifest.name,
-      packageRoot: mcpConnector.root,
-      version: mcpConnector.manifest.version,
-    }),
-    new BundledPluginPackage({
-      id: "openspec-graph",
-      name: "OpenSpec Graph",
-      packageName: openSpecGraph.manifest.name,
-      packageRoot: openSpecGraph.root,
-      version: openSpecGraph.manifest.version,
-    }),
-  ]);
+  const bundledProvider = new BundledPluginProvider(BUNDLED_PLUGINS.map((definition, index) => {
+    const resolved = pluginPackages[index];
+    return new BundledPluginPackage({
+      id: definition.id,
+      name: definition.name,
+      packageName: resolved.manifest.name,
+      packageRoot: resolved.root,
+      version: resolved.manifest.version,
+    });
+  }));
+  const bundledAgentProvider = await resolveBundledAgents(
+    BundledAgentPackage,
+    BundledAgentProvider,
+  );
+  const bundledExtensionProvider = await resolveBundledExtensions(
+    BundledExtensionPackage,
+    BundledExtensionProvider,
+    bundledAgentProvider.catalog.entries.map(({ id }) => id),
+  );
   const program = await createCandidateProgram({
+    bundledAgentProvider,
+    bundledExtensionProvider,
     bundledProvider,
-    rootCommands: new Map([
-      ["change-tracking", ["assign", "status", "record", "verify"]],
-      ["mcp-connector", ["mcp"]],
-      ["openspec-graph", ["graph"]],
-    ]),
+    rootCommands: new Map(BUNDLED_PLUGINS
+      .filter(({ rootCommands }) => rootCommands !== undefined)
+      .map(({ id, rootCommands }) => [id, rootCommands])),
     templateRoot,
   });
   if (process.argv.length === 2) program.outputHelp();

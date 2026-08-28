@@ -5,19 +5,10 @@ import path from "node:path";
 import process from "node:process";
 
 import { coreState } from "./core-state.js";
+import { lstatOrNull } from "./fs.js";
 import { git } from "./git.js";
 import { StoreProject } from "./store-project.js";
 import { workspace } from "./workspace.js";
-
-/** Возвращает lstat либо null для отсутствующего пути. */
-async function lstatOrNull(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
 
 /** Находит ближайший Git root без выполнения команды в недоверенном cwd. */
 async function findGitRoot(start) {

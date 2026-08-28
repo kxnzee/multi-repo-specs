@@ -5,6 +5,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+import { lstatOrNull } from "./fs.js";
+
 /** Атомарно заменяет обычный файл через временный файл в том же каталоге. */
 export class AtomicWriter {
   async write(target, contents, { mode } = {}) {
@@ -14,7 +16,7 @@ export class AtomicWriter {
     if (typeof contents !== "string") {
       throw new Error("ATOMIC_WRITE_INVALID: contents должен быть строкой");
     }
-    const existing = await this.#lstatOrNull(target);
+    const existing = await lstatOrNull(target);
     if (existing && (!existing.isFile() || existing.isSymbolicLink())) {
       throw new Error(`ATOMIC_WRITE_UNSAFE: ${target} должен быть обычным файлом`);
     }
@@ -34,15 +36,6 @@ export class AtomicWriter {
       await fs.rename(temporary, target);
     } finally {
       await fs.rm(temporary, { force: true });
-    }
-  }
-
-  async #lstatOrNull(target) {
-    try {
-      return await fs.lstat(target);
-    } catch (error) {
-      if (error.code === "ENOENT") return null;
-      throw error;
     }
   }
 }

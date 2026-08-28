@@ -61,18 +61,21 @@ Repository contribution объявляет поддерживаемые roles и
 эту grammar для Repository Plugin. `repository.exec` нужен только для передачи argv
 собственному native runtime.
 
-### Agent
+### Extensions
 
-Agent contribution может вернуть imperative `install/remove` для provider-specific
-semantic merge или декларативный `copy`. Core не интерпретирует MCP format. Операция
-должна быть симметричной настолько, насколько позволяет provider; delivered files
-всегда перечисляются для контролируемой очистки.
+Plugin возвращает data-only declarations с package-relative `root` и точным
+Store/Repository `target`. Core разрешает canonical `realpath`, запрещает root symlink
+и выход из package, сверяет target и через Agent Adapter проверяет manifests/ID всех
+Agent поставки. После этого native `connect/status/update/disconnect` проксируются
+выбранному provider adapter. Автоматического Plugin Template fallback нет.
 
-### Plugin Template
+Общий `openspec-orch connect` повторно вызывает repository `connect` для каждого
+portable binding, восстанавливая runtime на новой машине, а затем выполняет итоговый
+Plugin/Extension status. Адресный повторный `plugin connect` существующего binding
+по-прежнему не повторяет repository callback и только реактивирует contribution.
 
-Package может содержать `template/` и mapping `agents.<id>.copy`. Если явная Agent
-contribution отсутствует, Core применяет Template автоматически для каждого
-зарегистрированного Agent. Plugin descriptor не повторяет Base mapping metadata.
+Отдельного `agent.integration` API нет: вся Agent-интеграция Plugin реализуется
+только через `extensions` и штатный lifecycle выбранного Agent.
 
 ## Public Plugin object
 
@@ -81,7 +84,7 @@ contribution отсутствует, Core применяет Template автом
 ```text
 id, supports, supportsRole, assertSupports,
 hasRepositoryContribution, connect, status, canSync, sync, canExec, exec,
-hasAgentContribution, integrateAgent,
+hasExtensionContribution, extensions,
 hasCommandContribution, registerCommands
 ```
 
@@ -128,19 +131,16 @@ Secrets нельзя встраивать в HTTP(S) source URL. Package entrypo
 разрешаются относительно materialized package, а не глобального PATH или
 `node_modules` подключенного Repository.
 
-## Required Plugins
+## Независимость от Template
 
-Project Template объявляет только ID в `requires.plugins`. Catalog composition root
-разрешает ID в package source. Успешный init сохраняет declaration с
-`required: true` и применяет обычный Plugin lifecycle.
-
-Если новый Template больше не требует ID, Plugin остается установленным, но теряет
-required flag. Автоматического remove нет.
+Template не объявляет обязательные Plugins. Пользователь выбирает Plugins отдельно,
+а Project config хранит только их exact package declarations и Repository bindings.
+Автоматической установки или удаления Plugin из-за Template нет.
 
 ## Authoring и проверки
 
 ```bash
-openspec-orch plugin register example --profile repository --support code --template
+openspec-orch plugin register example --profile repository --support code --extension
 cd plugins/example
 npm install
 npm test

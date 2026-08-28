@@ -8,7 +8,7 @@ import process from "node:process";
 import test from "node:test";
 
 import { execa } from "execa";
-import { PluginLoader, PluginScaffoldService, ProjectTemplateService } from "@openspec-orch/core";
+import { PluginLoader, PluginScaffoldService } from "@openspec-orch/core";
 
 import { createDirectoryLink } from "../fixtures/filesystem.js";
 import { PLUGIN_SDK_ROOT } from "./helpers/plugin-materializer.js";
@@ -28,21 +28,21 @@ test("PluginScaffoldService creates convention-first commands, repository and na
       profile: "commands",
       inputProfile: undefined,
       supports: undefined,
-      template: false,
+      extension: false,
       expectedSupports: [],
     },
     {
       profile: "repository",
       inputProfile: "repository",
       supports: ["store", "code", "code"],
-      template: false,
+      extension: false,
       expectedSupports: ["store", "code"],
     },
     {
       profile: "native",
       inputProfile: "native",
       supports: ["code"],
-      template: true,
+      extension: true,
       expectedSupports: ["code"],
     },
   ];
@@ -56,7 +56,7 @@ test("PluginScaffoldService creates convention-first commands, repository and na
         name: `${candidate.profile} Plugin`,
         profile: candidate.inputProfile,
         supports: candidate.supports,
-        template: candidate.template,
+        extension: candidate.extension,
       });
       const canonicalRoot = await fs.realpath(targetRoot);
       assert.equal(result.root, canonicalRoot);
@@ -66,7 +66,7 @@ test("PluginScaffoldService creates convention-first commands, repository and na
         ...(candidate.profile === "native" ? ["bin"] : []),
         "index.js",
         "package.json",
-        ...(candidate.template ? ["template"] : []),
+        ...(candidate.extension ? ["extension"] : []),
         "test",
       ].sort();
       assert.deepEqual((await fs.readdir(targetRoot)).sort(), expectedFiles);
@@ -78,7 +78,7 @@ test("PluginScaffoldService creates convention-first commands, repository and na
         "index.js",
         "README.md",
         ...(candidate.profile === "native" ? ["bin"] : []),
-        ...(candidate.template ? ["template"] : []),
+        ...(candidate.extension ? ["extension"] : []),
       ]);
       const [entrypoint, readme] = await Promise.all([
         fs.readFile(path.join(targetRoot, "index.js"), "utf8"),
@@ -94,19 +94,25 @@ test("PluginScaffoldService creates convention-first commands, repository and na
         assert.equal(entrypoint.includes("context.process.run"), candidate.profile === "native");
         assert.match(readme, /Реализуйте .*connect\/status.* перед установкой/u);
       }
-      if (candidate.template) {
-        assert.match(
-          await fs.readFile(path.join(targetRoot, "template/template.yaml"), "utf8"),
-          /^agents: \{\}\n$/u,
+      if (candidate.extension) {
+        assert.deepEqual(
+          (await fs.readdir(path.join(targetRoot, "extension"))).sort(),
+          [
+            ".claude-plugin",
+            "agent-instructions.md",
+            "gigacode-extension.json",
+            "hooks",
+            "qwen-extension.json",
+          ],
         );
-        const templateTarget = path.join(temporary, `${pluginId}-template-target`);
-        await fs.mkdir(templateTarget);
-        const plan = await new ProjectTemplateService().planPlugin({
-          agentId: "qwen",
-          targetRoot: templateTarget,
-          templateRoot: path.join(targetRoot, "template"),
-        });
-        assert.deepEqual(plan.targetPaths, []);
+        const qwen = JSON.parse(
+          await fs.readFile(path.join(targetRoot, "extension/qwen-extension.json"), "utf8"),
+        );
+        const gigacode = JSON.parse(
+          await fs.readFile(path.join(targetRoot, "extension/gigacode-extension.json"), "utf8"),
+        );
+        assert.equal(qwen.name, `${pluginId}-agent`);
+        assert.deepEqual(gigacode, qwen);
       }
       await linkSdk(targetRoot);
       const loaded = await new PluginLoader().load({
@@ -114,29 +120,22 @@ test("PluginScaffoldService creates convention-first commands, repository and na
         pluginId,
       });
       assert.deepEqual(loaded.supports, candidate.expectedSupports);
+      assert.equal(loaded.plugin.hasExtensionContribution(), candidate.extension);
+      if (candidate.extension) {
+        const repository = Object.freeze({ id: "frontend", role: "code" });
+        assert.deepEqual(
+          loaded.plugin.extensions(Object.freeze({ repository })).map((item) => ({
+            id: item.id,
+            root: item.root,
+            target: item.target,
+          })),
+          [{ id: "agent", root: "./extension", target: repository }],
+        );
+      }
       const contract = await execa(process.execPath, ["--test"], { cwd: targetRoot, reject: false });
       assert.equal(contract.exitCode, 0, contract.stderr || contract.stdout);
     });
   }
-});
-
-test("ProjectTemplateService rejects Base Agent metadata in a Plugin Template", async (t) => {
-  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-plugin-template-"));
-  t.after(() => fs.rm(temporary, { recursive: true, force: true }));
-  const templateRoot = path.join(temporary, "template");
-  const targetRoot = path.join(temporary, "store");
-  await fs.mkdir(templateRoot);
-  await fs.mkdir(targetRoot);
-  await fs.writeFile(path.join(templateRoot, "template.yaml"), `agents:
-  qwen:
-    openspec_adapter: qwen
-    copy: []
-`);
-
-  await assert.rejects(
-    new ProjectTemplateService().planPlugin({ agentId: "qwen", targetRoot, templateRoot }),
-    /openspec_adapter/u,
-  );
 });
 
 test("PluginScaffoldService rejects invalid, reserved and existing targets", async (t) => {
@@ -168,6 +167,15 @@ test("PluginScaffoldService rejects invalid, reserved and existing targets", asy
       targetRoot: path.join(temporary, "commands-support"),
     }),
     /PLUGIN_SUPPORT_INVALID/,
+  );
+  await assert.rejects(
+    scaffolds.register({
+      pluginId: "sample",
+      profile: "commands",
+      extension: true,
+      targetRoot: path.join(temporary, "commands-extension"),
+    }),
+    /PLUGIN_EXTENSION_INVALID/,
   );
   await fs.mkdir(path.join(temporary, "existing"));
   await assert.rejects(

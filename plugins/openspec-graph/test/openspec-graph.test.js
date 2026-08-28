@@ -98,7 +98,48 @@ test("Package exposes a Store-only Plugin with graph commands and no sync", asyn
   assert.deepEqual(plugin.supports, ["store"]);
   assert.equal(plugin.canExec(), true);
   assert.equal(plugin.canSync(), false);
-  assert.equal(plugin.hasAgentContribution(), false);
+  assert.equal(plugin.hasExtensionContribution(), true);
+  const repository = Object.freeze({ id: "specs", role: "store" });
+  assert.deepEqual(plugin.extensions(Object.freeze({ repository })).map((extension) => ({
+    id: extension.id,
+    root: extension.root,
+    target: extension.target,
+  })), [{
+    id: "agent",
+    root: "./extension",
+    target: repository,
+  }]);
+});
+
+test("Package ships its Store-scoped Agent Extension for every Agent", async () => {
+  const extensionRoot = path.join(packageRoot, "extension");
+  const packageManifest = JSON.parse(await fs.readFile(
+    path.join(packageRoot, "package.json"),
+    "utf8",
+  ));
+  const [qwen, gigacode, claude, marketplace, instructions] = await Promise.all([
+    fs.readFile(path.join(extensionRoot, "qwen-extension.json"), "utf8").then(JSON.parse),
+    fs.readFile(path.join(extensionRoot, "gigacode-extension.json"), "utf8").then(JSON.parse),
+    fs.readFile(path.join(extensionRoot, ".claude-plugin", "plugin.json"), "utf8").then(JSON.parse),
+    fs.readFile(path.join(extensionRoot, ".claude-plugin", "marketplace.json"), "utf8").then(JSON.parse),
+    fs.readFile(path.join(extensionRoot, "agent-instructions.md"), "utf8"),
+  ]);
+
+  assert.equal(qwen.name, "openspec-graph-agent");
+  assert.equal(qwen.contextFileName, "agent-instructions.md");
+  assert.equal(gigacode.name, "openspec-graph-agent");
+  assert.equal(gigacode.contextFileName, "agent-instructions.md");
+  assert.equal(claude.name, "openspec-graph-agent");
+  assert.equal(marketplace.name, "openspec-orch-openspec-graph-agent");
+  assert.match(instructions, /openspec-orch graph inspect --json/);
+  assert.match(instructions, /используй текущий Graph Report как\s+навигационную карту Store/);
+  assert.match(instructions, /Он не создаёт новый\s+scope/);
+  assert.match(instructions, /\{ path, line, field \}.*provenance/);
+  assert.equal(packageManifest.files.includes("template"), false);
+  await assert.rejects(
+    fs.access(path.join(packageRoot, "template", "template.yaml")),
+    { code: "ENOENT" },
+  );
 });
 
 test("Empty Store compiles without OpenSpec Graph config or OpenSpec content", async (t) => {

@@ -49,7 +49,7 @@ async function initializeRepository(root, files = {}) {
 }
 
 /** Собирает независимый Store, Code remote и стандартный workspace. */
-async function connectionScenario(t, { pointer = false, strict = true } = {}) {
+async function connectionScenario(t, { codeRepository = true, pointer = false, strict = true } = {}) {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-candidate-connect-"));
   const root = await fs.realpath(temporary);
   t.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -65,9 +65,11 @@ async function connectionScenario(t, { pointer = false, strict = true } = {}) {
   await execa("git", ["clone", "--bare", codeSource, codeRemotePath]);
   const configuration = new CoreConfiguration();
   const project = new Project({
-    version: 1,
+    version: 2,
     strict,
-    agents: ["claude"],
+    template: { id: "base" },
+    agent: { id: "claude" },
+    extensions: [],
     plugins: [],
     repositories: [
       new Repository({
@@ -77,13 +79,13 @@ async function connectionScenario(t, { pointer = false, strict = true } = {}) {
         defaultBranch: "main",
         plugins: [],
       }),
-      new Repository({
+      ...(codeRepository ? [new Repository({
         id: "api",
         role: "code",
         remote: codeRemote,
         defaultBranch: "main",
         plugins: [],
-      }),
+      })] : []),
     ],
   });
   await initializeRepository(storeRoot, {
@@ -187,6 +189,19 @@ test("ConnectionService registers Store, clones Repository and creates pointer",
   assert.equal(fake.calls.some(({ args }) => args[0] === "store" && args[1] === "register"), true);
 });
 
+test("ConnectionService connects a Store without Code Repositories", async (t) => {
+  const scenario = await connectionScenario(t, { codeRepository: false });
+  const fake = connectExecutor(scenario);
+
+  const result = await connectionFixture(fake.executor).connect({
+    start: scenario.storeRoot,
+  });
+
+  assert.equal(result.status, "ready");
+  assert.deepEqual(result.repositories, []);
+  assert.equal(fake.calls.some(({ args }) => args[0] === "store" && args[1] === "register"), true);
+});
+
 test("ConnectionService is idempotent and remembers explicit nonstandard workspace", async (t) => {
   const scenario = await connectionScenario(t, { pointer: true });
   const customStoreRoot = path.join(scenario.root, "custom-store");
@@ -279,6 +294,14 @@ test("OpenSpecPointerService preserves CRLF and local OpenSpec migration guards"
 test("CandidateCli preserves connect grammar and normalized options", async () => {
   const calls = [];
   const cli = new CandidateCli({
+    extensionLifecycle: {
+      async preflight() {
+        calls.push({ agent: "preflight" });
+      },
+      async connectSelected() { calls.push({ extensions: "connect" }); },
+      async disconnectSelected() { calls.push({ extensions: "disconnect" }); },
+      async statusSelected() { calls.push({ extensions: "status" }); },
+    },
     connectionService: {
       async connect(options) {
         calls.push(options);
@@ -292,6 +315,17 @@ test("CandidateCli preserves connect grammar and normalized options", async () =
         };
       },
     },
+    pluginExtensionConnector: {
+      async connectSelected() {
+        calls.push({ pluginExtensions: "connect" });
+      },
+      async disconnectSelected() {
+        calls.push({ pluginExtensions: "disconnect" });
+      },
+      async statusSelected() {
+        calls.push({ pluginExtensions: "status" });
+      },
+    },
   });
   await cli.createProgram().parseAsync([
     "node",
@@ -302,8 +336,20 @@ test("CandidateCli preserves connect grammar and normalized options", async () =
     "--no-strict",
   ]);
 
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].workspace, "/workspace");
-  assert.equal(calls[0].noStrict, true);
-  assert.equal(typeof calls[0].onProgress, "function");
+  assert.equal(calls.length, 6);
+  assert.deepEqual(calls[0], { agent: "preflight" });
+  assert.equal(calls[1].workspace, "/workspace");
+  assert.equal(calls[1].noStrict, true);
+  assert.equal(typeof calls[1].onProgress, "function");
+  assert.deepEqual(calls[2], { extensions: "connect" });
+  assert.deepEqual(calls[3], { pluginExtensions: "connect" });
+  assert.deepEqual(calls[4], { extensions: "status" });
+  assert.deepEqual(calls[5], { pluginExtensions: "status" });
+
+  calls.length = 0;
+  await cli.createProgram().parseAsync(["node", "openspec-orch", "disconnect"]);
+  assert.deepEqual(calls, [
+    { pluginExtensions: "disconnect" },
+    { extensions: "disconnect" },
+  ]);
 });

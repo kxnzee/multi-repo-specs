@@ -1,8 +1,11 @@
 /** @fileoverview Проверки fail-fast Plugin registry и repository lifecycle host. */
 
 import assert from "node:assert/strict";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 
+import { definePlugin } from "@openspec-orch/plugin-sdk";
 import {
   PluginHost,
   PluginRegistry,
@@ -10,7 +13,11 @@ import {
 import { loadPluginExport } from "./helpers/plugin-materializer.js";
 
 /** Создаёт structurally valid Plugin export с наблюдаемым lifecycle. */
-function pluginExport(id, calls, { exec = true, repository = true, sync = true } = {}) {
+function pluginExport(
+  id,
+  calls,
+  { exec = true, extensions = false, repository = true, sync = true } = {},
+) {
   return Object.freeze({
     id,
     supports: Object.freeze(["code"]),
@@ -35,8 +42,15 @@ function pluginExport(id, calls, { exec = true, repository = true, sync = true }
       calls.push([id, "exec", context, args]);
       return "executed";
     },
-    hasAgentContribution: () => false,
-    integrateAgent() {},
+    hasExtensionContribution: () => extensions,
+    extensions: (context) => {
+      calls.push([id, "extensions", context]);
+      return Object.freeze([Object.freeze({
+        id: "agent",
+        root: "./extension",
+        target: context.repository,
+      })]);
+    },
     hasCommandContribution: () => false,
     registerCommands() {},
   });
@@ -52,6 +66,174 @@ test("PluginRegistry has stable order independent of load order and rejects dupl
   assert.equal(registry.require("beta"), beta);
   assert.throws(() => registry.require("missing"), /PLUGIN_NOT_LOADED/);
   assert.throws(() => new PluginRegistry([alpha, alpha]), /не должны повторяться/);
+});
+
+test("PluginHost forwards Extension contribution to Agent Adapter after connect", async (t) => {
+  const calls = [];
+  const loadedPlugin = await loadPluginExport(t, pluginExport("sample", calls, {
+    extensions: true,
+  }));
+  await fs.mkdir(path.join(loadedPlugin.root, "extension"));
+  const context = Object.freeze({
+    agent: Object.freeze({ id: "qwen" }),
+    repository: Object.freeze({ id: "frontend", role: "code" }),
+  });
+  const adapterCalls = [];
+  const host = new PluginHost({
+    agentAdapter: {
+      async validateExtension(extension, options) {
+        adapterCalls.push(["validate", extension, options]);
+      },
+      async invokeExtension(receivedContext, extension, request) {
+        adapterCalls.push([receivedContext, extension, request]);
+      },
+    },
+    contextFactory: {
+      async forRepositorySetup() { return context; },
+      async forRepository() { throw new Error("unexpected connected context"); },
+    },
+    registry: new PluginRegistry([loadedPlugin]),
+  });
+
+  assert.equal(await host.connect({
+    pluginId: "sample",
+    repositoryId: "frontend",
+    storeProject: {},
+  }), "connected");
+
+  assert.deepEqual(calls.map(([, operation]) => operation), ["extensions", "connect"]);
+  assert.equal(adapterCalls.length, 2);
+  assert.deepEqual(adapterCalls[0], [
+    "validate",
+    {
+      id: "agent",
+      root: path.join(loadedPlugin.root, "extension"),
+      target: { id: "frontend", role: "code" },
+    },
+    { ownerId: "sample" },
+  ]);
+  assert.equal(adapterCalls[1][0], context);
+  assert.deepEqual(adapterCalls[1][1], {
+    id: "agent",
+    root: path.join(loadedPlugin.root, "extension"),
+    target: { id: "frontend", role: "code" },
+  });
+  assert.deepEqual(adapterCalls[1][2], { operation: "connect", ownerId: "sample" });
+  assert.equal(Object.isFrozen(adapterCalls[1][2]), true);
+});
+
+test("PluginHost checks Extension through Agent Adapter after Plugin status", async (t) => {
+  const calls = [];
+  const loadedPlugin = await loadPluginExport(t, pluginExport("sample", calls, {
+    extensions: true,
+  }));
+  await fs.mkdir(path.join(loadedPlugin.root, "extension"));
+  const context = Object.freeze({
+    agent: Object.freeze({ id: "qwen" }),
+    repository: Object.freeze({ id: "frontend", role: "code" }),
+  });
+  const operations = [];
+  const host = new PluginHost({
+    agentAdapter: {
+      async validateExtension() {},
+      async invokeExtension(receivedContext, extension, request) {
+        assert.equal(receivedContext, context);
+        assert.equal(extension.id, "agent");
+        operations.push(request.operation);
+      },
+    },
+    contextFactory: {
+      async forRepositorySetup() { throw new Error("unexpected setup context"); },
+      async forRepository() { return context; },
+    },
+    registry: new PluginRegistry([loadedPlugin]),
+  });
+
+  assert.deepEqual(await host.status({
+    pluginId: "sample",
+    repositoryId: "frontend",
+    storeProject: {},
+  }), { state: "ready" });
+  assert.deepEqual(calls.map(([, operation]) => operation), ["status", "extensions"]);
+  assert.deepEqual(operations, ["status"]);
+});
+
+test("PluginHost rejects a Plugin Extension root symlink before Agent invocation", async (t) => {
+  const calls = [];
+  const loadedPlugin = await loadPluginExport(t, pluginExport("sample", calls, {
+    extensions: true,
+  }));
+  const external = path.join(path.dirname(loadedPlugin.root), "external-extension");
+  t.after(() => fs.rm(external, { recursive: true, force: true }));
+  await fs.mkdir(external);
+  await fs.symlink(external, path.join(loadedPlugin.root, "extension"));
+  const adapterCalls = [];
+  const context = Object.freeze({
+    agent: Object.freeze({ id: "qwen" }),
+    repository: Object.freeze({ id: "frontend", role: "code" }),
+  });
+  const host = new PluginHost({
+    agentAdapter: {
+      async validateExtension() { adapterCalls.push("validate"); },
+      async invokeExtension() { adapterCalls.push("invoke"); },
+    },
+    contextFactory: {
+      async forRepositorySetup() { return context; },
+      async forRepository() { return context; },
+    },
+    registry: new PluginRegistry([loadedPlugin]),
+  });
+
+  await assert.rejects(
+    host.connect({ pluginId: "sample", repositoryId: "frontend", storeProject: {} }),
+    /PLUGIN_EXTENSION_INVALID.*symlink/u,
+  );
+  assert.deepEqual(adapterCalls, []);
+  assert.deepEqual(calls.map(([, operation]) => operation), ["extensions"]);
+});
+
+test("PluginHost validates every Extension before Plugin connect and native mutation", async (t) => {
+  const calls = [];
+  const loadedPlugin = await loadPluginExport(t, definePlugin({
+    id: "sample",
+    supports: ["code"],
+    extensions(context) {
+      calls.push("extensions");
+      return [
+        { id: "first", root: "./extension", target: context.repository },
+        { id: "second", root: "./extension", target: context.repository },
+      ];
+    },
+    repository: {
+      connect() { calls.push("connect"); },
+      status() { return { state: "ready" }; },
+    },
+  }));
+  await fs.mkdir(path.join(loadedPlugin.root, "extension"));
+  const context = Object.freeze({
+    agent: Object.freeze({ id: "qwen" }),
+    repository: Object.freeze({ id: "frontend", role: "code" }),
+  });
+  const host = new PluginHost({
+    agentAdapter: {
+      async validateExtension(extension) {
+        calls.push(`validate:${extension.id}`);
+        if (extension.id === "second") throw new Error("invalid second manifest");
+      },
+      async invokeExtension() { calls.push("native"); },
+    },
+    contextFactory: {
+      async forRepositorySetup() { return context; },
+      async forRepository() { return context; },
+    },
+    registry: new PluginRegistry([loadedPlugin]),
+  });
+
+  await assert.rejects(
+    host.connect({ pluginId: "sample", repositoryId: "frontend", storeProject: {} }),
+    /invalid second manifest/u,
+  );
+  assert.deepEqual(calls, ["extensions", "validate:first", "validate:second"]);
 });
 
 test("PluginHost uses setup context for connect and connected context for bound operations", async (t) => {

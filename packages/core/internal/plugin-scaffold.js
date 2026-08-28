@@ -2,24 +2,38 @@
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { PluginPackage, PLUGIN_API_VERSION } from "@openspec-orch/plugin-sdk";
 
 import { CORE_CLI_COMMANDS, CORE_PACKAGES, CORE_PACKAGE_VERSIONS, CORE_PATTERNS } from "./constants.js";
+import { lstatOrNull } from "./fs.js";
 
 const REPOSITORY_ROLES = new Set(["store", "code"]);
 const PLUGIN_PROFILES = new Set(["commands", "repository", "native"]);
+const PLUGIN_EXTENSION_TEMPLATE_ROOT = fileURLToPath(
+  new URL("../templates/plugin-extension/", import.meta.url),
+);
 
-const EMPTY_PLUGIN_TEMPLATE = "agents: {}\n";
-
-/** Возвращает lstat или null для отсутствующего path. */
-async function lstatOrNull(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
+/** Рекурсивно читает все файлы package-owned Plugin Extension Template. */
+async function extensionTemplatePaths(root = PLUGIN_EXTENSION_TEMPLATE_ROOT, prefix = "") {
+  const entries = await fs.readdir(root, { withFileTypes: true });
+  const paths = [];
+  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+    if (entry.isSymbolicLink()) {
+      throw new Error(`PLUGIN_EXTENSION_TEMPLATE_INVALID: symlink запрещён: ${entry.name}`);
+    }
+    const relativePath = path.posix.join(prefix, entry.name);
+    const absolutePath = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      paths.push(...await extensionTemplatePaths(absolutePath, relativePath));
+    } else if (entry.isFile() && entry.name.endsWith(".template")) {
+      paths.push(relativePath.slice(0, -".template".length));
+    } else {
+      throw new Error(`PLUGIN_EXTENSION_TEMPLATE_INVALID: ожидается *.template: ${relativePath}`);
+    }
   }
+  return paths;
 }
 
 /** Преобразует kebab-case ID в читаемое имя. */
@@ -31,7 +45,7 @@ function displayName(pluginId) {
 }
 
 /** Нормализует пользовательские параметры scaffold. */
-function normalize({ pluginId, name, profile = "commands", supports, template = false }) {
+function normalize({ pluginId, name, profile = "commands", supports, extension = false }) {
   if (typeof pluginId !== "string" || !CORE_PATTERNS.pluginId.test(pluginId)) {
     throw new Error(`PLUGIN_ID_INVALID: plugin-id '${pluginId ?? ""}' должен быть lowercase kebab-case`);
   }
@@ -41,8 +55,13 @@ function normalize({ pluginId, name, profile = "commands", supports, template = 
   if (!PLUGIN_PROFILES.has(profile)) {
     throw new Error("PLUGIN_PROFILE_INVALID: --profile должен быть commands, repository или native");
   }
-  if (typeof template !== "boolean") {
-    throw new Error("PLUGIN_TEMPLATE_INVALID: template должен быть boolean");
+  if (typeof extension !== "boolean") {
+    throw new Error("PLUGIN_EXTENSION_INVALID: extension должен быть boolean");
+  }
+  if (profile === "commands" && extension) {
+    throw new Error(
+      "PLUGIN_EXTENSION_INVALID: --extension доступен только для repository и native",
+    );
   }
   if (profile === "commands" && supports !== undefined) {
     throw new Error("PLUGIN_SUPPORT_INVALID: --support доступен только для repository и native");
@@ -66,18 +85,39 @@ function normalize({ pluginId, name, profile = "commands", supports, template = 
     name: name?.trim() ?? displayName(pluginId),
     profile,
     supports: roles,
-    template,
+    extension,
   });
 }
 
+/** Материализует Agent artifacts из package-owned Plugin Extension Template. */
+async function extensionTemplateFiles({ pluginId, name }) {
+  const extensionName = `${pluginId}-agent`;
+  const values = new Map([
+    ["__EXTENSION_NAME_JSON__", JSON.stringify(extensionName)],
+    ["__EXTENSION_DESCRIPTION_JSON__", JSON.stringify(`${name} Agent Extension`)],
+    ["__MARKETPLACE_NAME_JSON__", JSON.stringify(`openspec-orch-${extensionName}`)],
+    ["__PLUGIN_DISPLAY_NAME__", name],
+    ["__PLUGIN_DISPLAY_NAME_JSON__", JSON.stringify(name)],
+  ]);
+  const templatePaths = await extensionTemplatePaths();
+  return Promise.all(templatePaths.map(async (relativePath) => {
+    let contents = await fs.readFile(
+      path.join(PLUGIN_EXTENSION_TEMPLATE_ROOT, `${relativePath}.template`),
+      "utf8",
+    );
+    for (const [token, value] of values) contents = contents.replaceAll(token, () => value);
+    return [`extension/${relativePath}`, contents];
+  }));
+}
+
 /** Формирует минимальные файлы самостоятельного Plugin package. */
-function scaffoldFiles({ pluginId, name, profile, supports, template }) {
+async function scaffoldFiles({ pluginId, name, profile, supports, extension }) {
   const sdkVersion = `^${CORE_PACKAGE_VERSIONS.pluginSdk}`;
   const packagedFiles = [
     "index.js",
     "README.md",
     ...(profile === "native" ? ["bin"] : []),
-    ...(template ? ["template"] : []),
+    ...(extension ? ["extension"] : []),
   ];
   const manifest = {
     name: `openspec-orch-plugin-${pluginId}`,
@@ -129,6 +169,12 @@ import { fileURLToPath } from "node:url";
       });
   },
 `;
+  const extensions = extension
+    ? `  extensions(context) {
+    return [{ id: "agent", root: "./extension", target: context.repository }];
+  },
+`
+    : "";
   const entrypoint = `/** @fileoverview ${name} Plugin. */
 
 ${nativeImports}import { definePlugin } from "${CORE_PACKAGES.pluginSdk}";
@@ -136,7 +182,7 @@ ${nativeImports}import { definePlugin } from "${CORE_PACKAGES.pluginSdk}";
 ${launcher}export default definePlugin({
   id: "${pluginId}",
 ${profile === "commands" ? "" : `  supports: ${JSON.stringify(supports)},\n`}
-${repository}${commands}});
+${extensions}${repository}${commands}});
 `;
   const contractTest = `/** @fileoverview Contract test ${name} Plugin. */
 
@@ -173,7 +219,7 @@ ${usage}
 
 ${profile === "repository" ? "Реализуйте lifecycle `connect/status` перед установкой. `plugin exec` автоматически исполняет grammar из `registerCommands`." : ""}
 ${profile === "native" ? "Реализуйте native runtime в `bin/` и lifecycle `connect/status` перед установкой." : ""}
-${template ? "Plugin Template находится в `template/`; добавьте assets и copy operations в `template.yaml`." : ""}
+${extension ? "Agent Extension находится в `extension/` и подключается штатным lifecycle текущего Agent." : ""}
 `;
   return new Map([
     ["package.json", `${JSON.stringify(manifest, null, 2)}\n`],
@@ -186,14 +232,14 @@ ${template ? "Plugin Template находится в `template/`; добавьт�
 throw new Error("NATIVE_RUNTIME_NOT_IMPLEMENTED");
 `]]
       : []),
-    ...(template ? [["template/template.yaml", EMPTY_PLUGIN_TEMPLATE]] : []),
+    ...(extension ? await extensionTemplateFiles({ pluginId, name }) : []),
   ]);
 }
 
 /** Создаёт самостоятельный Plugin package без изменений Core. */
 export class PluginScaffoldService {
-  async register({ pluginId, targetRoot, name, profile, supports, template } = {}) {
-    const registration = normalize({ pluginId, name, profile, supports, template });
+  async register({ pluginId, targetRoot, name, profile, supports, extension } = {}) {
+    const registration = normalize({ pluginId, name, profile, supports, extension });
     if (typeof targetRoot !== "string" || targetRoot.length === 0) {
       throw new Error("PLUGIN_TARGET_INVALID: target path обязателен");
     }
@@ -206,7 +252,7 @@ export class PluginScaffoldService {
     const root = path.join(parent, path.basename(requestedRoot));
     const temporaryRoot = await fs.mkdtemp(path.join(parent, `.${pluginId}-`));
     try {
-      for (const [relativePath, contents] of scaffoldFiles(registration)) {
+      for (const [relativePath, contents] of await scaffoldFiles(registration)) {
         const target = path.join(temporaryRoot, relativePath);
         await fs.mkdir(path.dirname(target), { recursive: true });
         await fs.writeFile(target, contents, { encoding: "utf8", flag: "wx" });

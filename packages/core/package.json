@@ -4,7 +4,8 @@
   "type": "module",
   "files": [
     "index.js",
-    "internal"
+    "internal",
+    "templates"
   ],
   "exports": {
     ".": "./index.js"

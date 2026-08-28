@@ -1,0 +1,6 @@
+id: openspec-base
+name: OpenSpec Base Workflow
+manifests:
+  claude: .claude-plugin/plugin.json
+  qwen: qwen-extension.json
+  gigacode: gigacode-extension.json

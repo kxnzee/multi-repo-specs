@@ -8,10 +8,12 @@
 | `packages/core/` | Domain, use cases, adapters и generic Plugin host |
 | `packages/plugin-sdk/` | Единственный публичный API для Plugins |
 | `plugins/change-tracking/` | Cycle/Receipts/Snapshot |
-| `plugins/codegraph/` | CodeGraph adapter, launcher и Agent integration |
-| `plugins/mcp-connector/` | Декларативный MCP settings reconciler для Agents |
+| `plugins/codegraph/` | CodeGraph lifecycle, launcher и Repository-scoped Agent Extension |
 | `plugins/openspec-graph/` | Store graph, queries и viewer |
+| `agents/` | Distribution-owned Agent definitions и provider-specific native adapters |
+| `extensions/` | Bundled standalone Agent Extensions |
 | `templates/base/` | Default Project Template |
+| `packages/core/templates/plugin-extension/` | Agent artifacts scaffold создаваемого Plugin |
 | `test/` | Distribution integration tests |
 | `checks/template/` | Structural contract Project Template |
 | `checks/agent-artifacts/` | Skills/commands/subagents contract checks |
@@ -45,17 +47,23 @@ Loader/Host, SDK contract kit и external plain export.
    commands, точную composition policy.
 8. Проверьте package packing и installation smoke.
 
-## Добавление агента в Project Template
+## Добавление Agent и Extension
 
-1. Добавьте mapping в `templates/base/template.yaml`.
-2. Совместимые канонические assets копируйте напрямую.
-3. Provider adapter создавайте только для несовместимого frontmatter/format.
-4. Обновите user documentation и универсальные Template checks.
+1. Добавьте Agent definition и adapter в `agents/<id>/`; Template менять не нужно.
+2. Для каждого bundled Extension добавьте native manifest нового Agent.
+3. Provider adapter реализует
+   `adaptOpenSpecPack/preflight/validateExtension/invokeExtension` вне generic Core;
+   общий формат можно переиспользовать, как Qwen-compatible adapter GigaCode.
+4. Обновите user documentation, Agent/Extension structural tests и package inventory.
 5. Выполните реальный native runtime smoke, прежде чем объявлять поддержку
    проверенной.
 
-Наличие Agent adapter в конкретном Plugin не расширяет список `--agent` Base
-Template автоматически.
+Наличие manifest внутри одного Extension не расширяет distribution Agent catalog.
+
+Новый standalone Extension размещается в `extensions/<id>/`, содержит
+`extension.yaml` и manifests Claude/Qwen/GigaCode и обнаруживается composition root
+без списка ID в Core. Plugin-owned Extension размещается внутри package и возвращается
+через `extensions(context)` с Store/Repository target.
 
 ## Проверки
 

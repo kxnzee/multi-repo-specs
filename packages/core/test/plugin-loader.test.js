@@ -51,8 +51,8 @@ function externalPlugin(id = "external", calls = []) {
     sync: untouched("sync"),
     canExec: untouched("canExec"),
     exec: untouched("exec"),
-    hasAgentContribution: untouched("hasAgentContribution"),
-    integrateAgent: untouched("integrateAgent"),
+    hasExtensionContribution: untouched("hasExtensionContribution"),
+    extensions: untouched("extensions"),
     hasCommandContribution: untouched("hasCommandContribution"),
     registerCommands: untouched("registerCommands"),
   });

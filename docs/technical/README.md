@@ -19,8 +19,10 @@ Plugins. Пользовательский процесс находится в [
 
 Эти документы объясняют реализацию, но не заменяют код. Публичными программными
 границами являются CLI и `@openspec-orch/plugin-sdk`; Core internals не являются API
-для Plugin packages. Проектный workflow принадлежит Template artifacts и не должен
-реализовываться условиями по конкретным Plugin ID внутри Core.
+для Plugin packages. Проектный workflow принадлежит standalone или Plugin-owned
+Extensions, а Project Template ограничен context, custom schema/config и copy-only
+assets. Ни одна из этих политик не должна реализовываться условиями по конкретным
+Plugin ID внутри Core.
 
 Не реализованные Jira, Zephyr и Confluence adapters не описываются как действующие
 компоненты. Их допустимая граница — отдельный Plugin package или внешний сервис после

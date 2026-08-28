@@ -19,13 +19,15 @@ test("root distribution exposes the candidate entrypoint and required runtime fi
   const manifest = await readManifest("package.json");
 
   assert.deepEqual(manifest.workspaces, ["packages/*", "plugins/*"]);
-  assert.deepEqual(manifest.bin, { "openspec-orch": "./bin/openspec-orch.js" });
-  assert.deepEqual(manifest.files, ["bin", "templates"]);
+  assert.deepEqual(manifest.bin, {
+    "openspec-orch": "./bin/openspec-orch.js",
+    "openspec-orch-codegraph": "./bin/openspec-orch-codegraph.js",
+  });
+  assert.deepEqual(manifest.files, ["agents", "bin", "extensions", "templates"]);
   assert.deepEqual(manifest.dependencies, {
     "@openspec-orch/core": "0.1.0",
     "@openspec-orch/plugin-change-tracking": "1.0.0",
     "@openspec-orch/plugin-codegraph": "1.0.0",
-    "@openspec-orch/plugin-mcp-connector": "1.0.0",
     "@openspec-orch/plugin-openspec-graph": "1.0.0",
   });
   assert.deepEqual(
@@ -45,7 +47,7 @@ test("Core and Plugin SDK are independently publishable packages", async () => {
   });
   assert.notEqual(core.private, true);
   assert.notEqual(sdk.private, true);
-  assert.deepEqual(core.files, ["index.js", "internal"]);
+  assert.deepEqual(core.files, ["index.js", "internal", "templates"]);
   assert.deepEqual(sdk.files, ["README.md", "index.js", "internal", "testing.js"]);
   assert.equal(sdk.dependencies, undefined);
 });
@@ -58,6 +60,7 @@ test("public entrypoint exposes the supported CLI", () => {
 
   assert.equal(candidate.status, 0, candidate.stderr);
   assert.match(candidate.stdout, /init \[options\] \[path\]/);
+  assert.doesNotMatch(candidate.stdout, /^\s+extensions?\b/mu);
 });
 
 test("public entrypoint preserves the Node guard and CLI exit codes", () => {

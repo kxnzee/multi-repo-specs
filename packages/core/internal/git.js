@@ -1,9 +1,9 @@
 /** @fileoverview Git facade, привязанный к RepositoryCheckout или Workspace. */
 
-import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { CORE_PATTERNS } from "./constants.js";
+import { lstatOrNull } from "./fs.js";
 import { processes } from "./process.js";
 
 const GIT_OPERATION_MARKERS = Object.freeze([
@@ -14,16 +14,6 @@ const GIT_OPERATION_MARKERS = Object.freeze([
   "rebase-merge",
   "rebase-apply",
 ]);
-
-/** Возвращает lstat либо null для отсутствующего Git marker. */
-async function lstatOrNull(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
 
 /** Разбирает пути из git status --porcelain=v1 -z. */
 function parseStatusPaths(output) {

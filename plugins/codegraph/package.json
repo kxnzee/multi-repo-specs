@@ -5,12 +5,13 @@
   "type": "module",
   "exports": {
     ".": "./index.js",
+    "./bin/codegraph.js": "./bin/codegraph.js",
     "./package.json": "./package.json"
   },
   "files": [
     "bin",
+    "extension",
     "index.js",
-    "instructions.md",
     "lib"
   ],
   "openspecOrchestrator": {

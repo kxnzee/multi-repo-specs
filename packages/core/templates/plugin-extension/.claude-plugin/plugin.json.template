@@ -1,0 +1,8 @@
+{
+  "name": __EXTENSION_NAME_JSON__,
+  "version": "1.0.0",
+  "description": __EXTENSION_DESCRIPTION_JSON__,
+  "author": {
+    "name": __PLUGIN_DISPLAY_NAME_JSON__
+  }
+}

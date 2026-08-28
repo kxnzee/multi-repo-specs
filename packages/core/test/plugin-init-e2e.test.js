@@ -35,9 +35,11 @@ async function storeFixture(t) {
   await fs.writeFile(path.join(storeRoot, "openspec/config.yaml"), "schema: spec-driven\n");
   await fs.writeFile(path.join(storeRoot, "openspec-orch.yaml"), configuration.serializeProject(
     createProject({
-      version: 1,
+      version: 2,
       strict: true,
-      agents: ["qwen"],
+      template: { id: "base" },
+      agent: { id: "qwen" },
+      extensions: [],
       plugins: [],
       repositories: [
         {

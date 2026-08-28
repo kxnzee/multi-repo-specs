@@ -25,9 +25,11 @@ async function storeFixture(t, { declared = true } = {}) {
   await fs.mkdir(path.join(root, ".openspec-store"));
   await fs.mkdir(path.join(root, "openspec"));
   const project = createProject({
-    version: 1,
+    version: 2,
     strict: true,
-    agents: ["qwen"],
+    template: { id: "base" },
+    agent: { id: "qwen" },
+    extensions: [],
     plugins: declared ? [{ id: "sample", source: "@test/plugin-sample@1.0.0" }] : [],
     repositories: [
       {
@@ -193,6 +195,7 @@ test("PluginPlatform wires sample lifecycle and namespaced command into candidat
 test("empty composition still exposes Core plugin lifecycle without Plugin-specific branches", async () => {
   const program = await createCandidateProgram({ loadedPlugins: [] });
   assert.equal(program.commands.some((command) => command.name() === "plugin"), true);
+  assert.equal(program.commands.some((command) => command.name() === "extensions"), false);
   assert.equal(program.commands.some((command) => command.name() === "sample"), false);
   await assert.rejects(
     createCandidateProgram({
@@ -201,6 +204,67 @@ test("empty composition still exposes Core plugin lifecycle without Plugin-speci
     }),
     /applicationService управляется PluginPlatform/,
   );
+});
+
+test("automatic composition tolerates a missing Store through the injected resolver", async () => {
+  const start = "/virtual/without-store";
+  const calls = [];
+  const program = await createCandidateProgram({
+    pluginManagerService: {
+      forStore() {
+        assert.fail("manager must not be requested without a Store");
+      },
+    },
+    start,
+    storeProjectService: {
+      async resolve(received) {
+        calls.push(received);
+        throw Object.assign(new Error("Store not found"), { code: "STORE_ROOT_NOT_FOUND" });
+      },
+    },
+  });
+
+  assert.deepEqual(calls, [start]);
+  assert.equal(program.commands.some((command) => command.name() === "plugin"), true);
+  assert.equal(program.commands.some((command) => command.name() === "sample"), false);
+});
+
+test("automatic composition restores declared Plugins through injected services", async (t) => {
+  const start = "/virtual/store";
+  const loadedPlugin = await samplePlugin(t, []);
+  const checkout = Object.freeze({ root: start });
+  const declaration = Object.freeze({ id: "sample", source: "@test/plugin-sample@1.0.0" });
+  const calls = [];
+  const program = await createCandidateProgram({
+    pluginManagerService: {
+      forStore(received) {
+        calls.push(["forStore", received]);
+        return {
+          async resolve(candidate) {
+            calls.push(["resolvePlugin", candidate]);
+            return Object.freeze({ loadedPlugin });
+          },
+        };
+      },
+    },
+    start,
+    storeProjectService: {
+      async resolve(received) {
+        calls.push(["resolveStore", received]);
+        return Object.freeze({
+          checkout,
+          project: Object.freeze({ pluginDeclarations: Object.freeze([declaration]) }),
+        });
+      },
+    },
+  });
+
+  assert.deepEqual(calls, [
+    ["resolveStore", start],
+    ["forStore", checkout],
+    ["resolvePlugin", declaration],
+  ]);
+  assert.equal(program.commands.some((command) => command.name() === "sample"), true);
 });
 
 test("command context preserves start and selects current or Store scope explicitly", async (t) => {

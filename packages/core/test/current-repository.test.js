@@ -25,9 +25,11 @@ async function commandWorkspace(t) {
   await fs.mkdir(path.join(repositoryRoot, "openspec"), { recursive: true });
   await fs.mkdir(path.join(repositoryRoot, ".git"));
   const project = createProject({
-    version: 1,
+    version: 2,
     strict: true,
-    agents: ["qwen"],
+    template: { id: "base" },
+    agent: { id: "qwen" },
+    extensions: [],
     plugins: [{ id: "change-tracking", source: "@test/change-tracking@1.0.0" }],
     repositories: [
       {

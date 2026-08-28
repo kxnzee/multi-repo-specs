@@ -1,12 +1,28 @@
 /** @fileoverview Публичная граница нового Orchestrator Core. */
 
-export { AgentIntegration, AgentService, agentIntegrations } from "./internal/agent.js";
+export { AgentDefinition } from "./internal/agent-definition.js";
+export {
+  AgentCatalog,
+  AgentCatalogEntry,
+  BundledAgentPackage,
+  BundledAgentProvider,
+  bundledAgents,
+} from "./internal/bundled-agent.js";
+export {
+  AgentExtensionAdapter,
+  agentExtensions,
+} from "./internal/agent-extension-adapter.js";
 export { AtomicWriter, atomicWriter } from "./internal/atomic-writer.js";
 export {
   BundledPluginPackage,
   BundledPluginProvider,
   bundledPlugins,
 } from "./internal/bundled-plugin.js";
+export {
+  BundledExtensionPackage,
+  BundledExtensionProvider,
+  bundledExtensions,
+} from "./internal/bundled-extension.js";
 export { CandidateCli } from "./internal/cli.js";
 export { ConnectionResult, ConnectionService, RepositoryConnection, connection } from "./internal/connection.js";
 export { RepositoryCheckout, createRepositoryCheckout } from "./internal/checkout.js";
@@ -16,6 +32,7 @@ export { CurrentRepositoryService, currentRepositories } from "./internal/curren
 export { FileService, RepositoryFiles, files } from "./internal/files.js";
 export { GitService, RepositoryGit, WorkspaceGit, git } from "./internal/git.js";
 export { InitializationService, initialization } from "./internal/initialization.js";
+export { InitSelectionService, initSelections } from "./internal/init-selection.js";
 export { OpenSpecService, RepositoryOpenSpec, openspec } from "./internal/openspec.js";
 export { OpenSpecPointerService, pointers } from "./internal/pointer.js";
 export { FailClosedLock, locks } from "./internal/lock.js";
@@ -30,6 +47,12 @@ export {
 } from "./internal/plugin-application.js";
 export { PluginLifecycleCommands } from "./internal/plugin-cli.js";
 export { PluginCatalog, PluginCatalogEntry, pluginCatalog } from "./internal/plugin-catalog.js";
+export {
+  ExtensionCatalog,
+  ExtensionCatalogEntry,
+  extensionCatalog,
+} from "./internal/extension-catalog.js";
+export { ExtensionDeclaration } from "./internal/extension-declaration.js";
 export { PluginCommandBuilder, PluginCommandMounter, PluginCommandRegistry } from "./internal/plugin-commands.js";
 export { PluginHost, PluginRegistry } from "./internal/plugin-host.js";
 export {
@@ -48,10 +71,6 @@ export {
 export { NpmPackageInstaller, NpmPackageInstallResult, npmPackageInstaller } from "./internal/npm-package-installer.js";
 export { PluginPlatform } from "./internal/plugin-platform.js";
 export { PluginSource } from "./internal/plugin-source.js";
-export {
-  PluginRequirementsResult,
-  PluginRequirementsService,
-} from "./internal/plugin-requirements.js";
 export { PluginScaffoldService, pluginScaffolds } from "./internal/plugin-scaffold.js";
 export { PluginStorage, PluginStorageService, pluginStorage } from "./internal/plugin-storage.js";
 export { ProcessService, ScopedProcess, processes } from "./internal/process.js";
@@ -64,7 +83,6 @@ export { StoreProject, StoreProjectService, storeProjects } from "./internal/sto
 export { StoreTarget } from "./internal/store-target.js";
 export {
   ProjectTemplateService,
-  TemplateAgent,
   TemplatePlan,
   projectTemplates,
 } from "./internal/template.js";
@@ -74,26 +92,28 @@ import { PluginPlatform } from "./internal/plugin-platform.js";
 
 /** Создаёт candidate CLI с уже перенесёнными Core operations. */
 export async function createCandidateProgram({
+  bundledAgentProvider,
+  bundledExtensionProvider,
   bundledProvider,
   currentRepositoryService,
   loadedPlugins,
   pluginCommandOptions,
   pluginContextFactory,
   pluginManagerService,
-  pluginRequirementService,
   rootCommands,
   start,
   storeProjectService,
   ...options
 } = {}) {
   const platform = await PluginPlatform.create({
+    bundledAgentProvider,
+    bundledExtensionProvider,
     bundledProvider,
     contextFactory: pluginContextFactory,
     currentRepositoryService,
     loadedPlugins,
     managerService: pluginManagerService,
     pluginCommandOptions,
-    pluginRequirementService,
     rootCommands,
     start,
     storeProjectService,

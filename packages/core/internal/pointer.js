@@ -7,18 +7,9 @@ import { execa } from "execa";
 
 import { atomicWriter } from "./atomic-writer.js";
 import { CORE_FILES, CORE_PATTERNS } from "./constants.js";
+import { ensureDirectory, lstatOrNull } from "./fs.js";
 import { parseOpenSpecJson } from "./openspec.js";
 import { ScopedProcess } from "./process.js";
-
-/** Возвращает lstat или null для отсутствующего path. */
-async function lstatOrNull(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
 
 /** Создаёт и проверяет config-only pointer без доступа к Master Specs. */
 export class OpenSpecPointerService {
@@ -100,15 +91,7 @@ export class OpenSpecPointerService {
         );
       }
     }
-    const existingDirectory = await lstatOrNull(directory);
-    if (!existingDirectory) {
-      try {
-        await fs.mkdir(directory);
-      } catch (error) {
-        if (error.code !== "EEXIST") throw error;
-      }
-    }
-    const directoryStat = await fs.lstat(directory);
+    const directoryStat = await ensureDirectory(directory);
     if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
       throw new Error(`${CORE_FILES.openSpecDirectory} должен быть обычным каталогом`);
     }

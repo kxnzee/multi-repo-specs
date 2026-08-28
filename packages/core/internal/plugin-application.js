@@ -1,12 +1,11 @@
 /** @fileoverview Координация Plugin Manager и project declaration. */
 
-import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { agentIntegrations } from "./agent.js";
 import { configuration } from "./configuration.js";
 import { CORE_FILES, CORE_SERVICE_PATHS } from "./constants.js";
 import { files } from "./files.js";
+import { ensureDirectory } from "./fs.js";
 import { locks } from "./lock.js";
 import { pluginManagers } from "./plugin-manager.js";
 import { PluginSource } from "./plugin-source.js";
@@ -17,30 +16,12 @@ function invalid(message, options) {
   throw new Error(`PLUGIN_APPLICATION_INVALID: ${message}`, options);
 }
 
-/** Возвращает lstat или null для отсутствующего path. */
-async function lstatOrNull(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
-
 /** Создаёт безопасный общий Core lock directory. */
 async function ensureLockDirectory(root, corruptionCode = "PLUGIN_APPLICATION_INVALID") {
   let current = root;
   for (const segment of CORE_SERVICE_PATHS.lockDirectory.split("/")) {
     current = path.join(current, segment);
-    const existing = await lstatOrNull(current);
-    if (!existing) {
-      try {
-        await fs.mkdir(current, { mode: 0o700 });
-      } catch (error) {
-        if (error.code !== "EEXIST") throw error;
-      }
-    }
-    const stat = await fs.lstat(current);
+    const stat = await ensureDirectory(current, { mode: 0o700 });
     if (!stat.isDirectory() || stat.isSymbolicLink()) {
       throw new Error(
         `${corruptionCode}: ${CORE_SERVICE_PATHS.lockDirectory} содержит небезопасный segment`,
@@ -64,20 +45,14 @@ export class PluginApplicationResult {
 
 /** Immutable результат удаления Plugin declaration. */
 export class PluginRemovalResult {
-  #cleanupPaths;
   #removed;
 
-  constructor({ removed, cleanupPaths = [] }) {
+  constructor({ removed }) {
     if (typeof removed !== "boolean") invalid("removed должен быть boolean");
-    if (!Array.isArray(cleanupPaths) || cleanupPaths.some((value) => typeof value !== "string")) {
-      invalid("cleanupPaths должен быть массивом строк");
-    }
-    this.#cleanupPaths = Object.freeze([...cleanupPaths]);
     this.#removed = removed;
     Object.freeze(this);
   }
 
-  get cleanupPaths() { return this.#cleanupPaths; }
   get removed() { return this.#removed; }
 }
 
@@ -99,7 +74,6 @@ export class PluginBindingChange {
 
 /** Application service безопасного изменения Plugin project state. */
 export class PluginApplicationService {
-  #agents;
   #configuration;
   #files;
   #managers;
@@ -107,20 +81,12 @@ export class PluginApplicationService {
   #storeProjects;
 
   constructor({
-    agentService = agentIntegrations,
     configurationService = configuration,
     fileService = files,
     managerService = pluginManagers,
     lock = locks,
     storeProjectService = storeProjects,
   } = {}) {
-    if (
-      typeof agentService?.resolve !== "function" ||
-      typeof agentService?.install !== "function" ||
-      typeof agentService?.remove !== "function"
-    ) {
-      invalid("agentService должен предоставлять resolve, install и remove");
-    }
     if (typeof configurationService?.serializeProject !== "function") {
       invalid("configurationService должен предоставлять serializeProject");
     }
@@ -134,7 +100,6 @@ export class PluginApplicationService {
     if (typeof storeProjectService?.load !== "function") {
       invalid("storeProjectService должен предоставлять load");
     }
-    this.#agents = agentService;
     this.#configuration = configurationService;
     this.#files = fileService;
     this.#managers = managerService;
@@ -144,7 +109,7 @@ export class PluginApplicationService {
   }
 
   /** Устанавливает Plugin и только затем публикует его lock и project declaration. */
-  async install(storeProject, pluginId, source, { required } = {}) {
+  async install(storeProject, pluginId, source) {
     if (!(storeProject instanceof StoreProject)) invalid("требуется StoreProject");
     if (!(source instanceof PluginSource)) {
       invalid("требуется PluginSource");
@@ -152,24 +117,7 @@ export class PluginApplicationService {
     await ensureLockDirectory(storeProject.root);
     return this.#lock.run(
       path.join(storeProject.root, CORE_SERVICE_PATHS.projectConfigLock),
-      () => this.#installUnlocked(storeProject.root, pluginId, source, required),
-      { busyCode: "PLUGIN_APPLICATION_BUSY" },
-    );
-  }
-
-  /** Synchronizes the exact required-by-Template set without removing Plugin packages. */
-  async setRequiredPlugins(storeProject, pluginIds) {
-    if (!(storeProject instanceof StoreProject)) invalid("требуется StoreProject");
-    if (!Array.isArray(pluginIds)) invalid("pluginIds должен быть массивом");
-    await ensureLockDirectory(storeProject.root);
-    return this.#lock.run(
-      path.join(storeProject.root, CORE_SERVICE_PATHS.projectConfigLock),
-      async () => {
-        const current = await this.#storeProjects.load(storeProject.root);
-        const changed = current.project.setRequiredPlugins(pluginIds);
-        if (changed) await this.#writeProject(current);
-        return changed;
-      },
+      () => this.#installUnlocked(storeProject.root, pluginId, source),
       { busyCode: "PLUGIN_APPLICATION_BUSY" },
     );
   }
@@ -252,9 +200,8 @@ export class PluginApplicationService {
     );
   }
 
-  async #installUnlocked(root, pluginId, source, required) {
+  async #installUnlocked(root, pluginId, source) {
     const current = await this.#storeProjects.load(root);
-    const previousProjectSource = this.#configuration.serializeProject(current.project);
     let result;
     await this.#managers.forStore(current.checkout).install(
       pluginId,
@@ -268,19 +215,8 @@ export class PluginApplicationService {
         ) {
           invalid("Plugin Manager вернул несогласованный installation");
         }
-        const initialized = current.project.declarePlugin(
-          pluginId,
-          installation.declaration,
-          { required },
-        );
-        const integration = await this.#agents.resolve(current, installation.loadedPlugin);
+        const initialized = current.project.declarePlugin(pluginId, installation.declaration);
         await this.#writeProject(current);
-        try {
-          if (integration) await this.#agents.install(current, integration);
-        } catch (error) {
-          await this.#writeProjectSource(current, previousProjectSource);
-          throw error;
-        }
         result = new PluginApplicationResult({ initialized });
       },
     );
@@ -295,30 +231,12 @@ export class PluginApplicationService {
     const declaration = current.project.pluginDeclaration(pluginId);
     if (!declaration) return new PluginRemovalResult({ removed: false });
     const manager = this.#managers.forStore(current.checkout);
-    const installation = await manager.resolve(declaration);
-    const integration = await this.#agents.resolve(current, installation.loadedPlugin);
-    const previousProjectSource = this.#configuration.serializeProject(current.project);
-    let cleanupPaths = [];
     current.project.removePlugin(pluginId);
     await manager.remove(
       pluginId,
-      async () => {
-        await this.#writeProject(current);
-        try {
-          if (integration) {
-            const cleanup = await this.#agents.remove(current, integration);
-            cleanupPaths = cleanup?.cleanupPaths ?? [];
-          }
-        } catch (error) {
-          await this.#writeProjectSource(current, previousProjectSource);
-          throw error;
-        }
-      },
+      () => this.#writeProject(current),
     );
-    return new PluginRemovalResult({
-      cleanupPaths,
-      removed: true,
-    });
+    return new PluginRemovalResult({ removed: true });
   }
 
   async #writeProject(storeProject) {

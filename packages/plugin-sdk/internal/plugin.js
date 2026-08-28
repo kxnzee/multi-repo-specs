@@ -1,9 +1,16 @@
 /** @fileoverview Доменная модель Plugin и фабрика публичного API. */
 
 import { executePluginCommands } from "./command-executor.js";
+import { Extension, defineExtension } from "./extension.js";
+import {
+  DEFINITION_ID_PATTERN,
+  REPOSITORY_ROLES,
+  assertKnownKeys as assertKnownDefinitionKeys,
+  assertPlainObject as assertPlainDefinitionObject,
+} from "./validation.js";
 
-const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
-const REPOSITORY_ROLES = new Set(["store", "code"]);
+const PLUGIN_KEYS = new Set(["id", "supports", "repository", "extensions", "registerCommands"]);
+const REPOSITORY_KEYS = new Set(["connect", "status", "sync", "exec"]);
 
 /** @typedef {"store" | "code"} RepositoryRole */
 
@@ -120,23 +127,11 @@ const REPOSITORY_ROLES = new Set(["store", "code"]);
  */
 
 /**
- * @typedef {object} AgentContribution
- * @property {(context: PluginContext) => (
- *   {install: Function, remove: Function} |
- *   {copy: readonly {from: string, to: string}[]} |
- *   Promise<
- *     {install: Function, remove: Function} |
- *     {copy: readonly {from: string, to: string}[]}
- *   >
- * )} integration
- */
-
-/**
  * @typedef {object} PluginDefinition
  * @property {string} id
  * @property {readonly RepositoryRole[]} [supports]
  * @property {RepositoryContribution} [repository]
- * @property {AgentContribution} [agent]
+ * @property {(context: PluginContext) => readonly (Extension | object)[]} [extensions]
  * @property {(commands: CommandRegistry) => void} [registerCommands]
  */
 
@@ -145,23 +140,10 @@ function invalid(message) {
   throw new Error(`PLUGIN_DEFINITION_INVALID: ${message}`);
 }
 
-/** Проверяет plain object пользовательского definition. */
-function assertPlainObject(value, label) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    invalid(`${label} должен быть plain object`);
-  }
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) {
-    invalid(`${label} должен быть plain object`);
-  }
-}
-
-/** Запрещает неизвестные поля публичного контракта. */
-function assertKnownKeys(value, allowed, label) {
-  for (const key of Object.keys(value)) {
-    if (!allowed.has(key)) invalid(`${label} содержит неизвестное поле '${key}'`);
-  }
-}
+const assertPlainObject = (value, label) => assertPlainDefinitionObject(value, label, invalid);
+const assertKnownKeys = (value, allowed, label) => (
+  assertKnownDefinitionKeys(value, allowed, label, invalid)
+);
 
 /** Проверяет callback одного contribution. */
 function assertCallback(value, label) {
@@ -172,7 +154,7 @@ function assertCallback(value, label) {
 function repositoryContribution(repository) {
   if (repository === undefined) return undefined;
   assertPlainObject(repository, "repository");
-  assertKnownKeys(repository, new Set(["connect", "status", "sync", "exec"]), "repository");
+  assertKnownKeys(repository, REPOSITORY_KEYS, "repository");
   assertCallback(repository.connect, "repository.connect");
   assertCallback(repository.status, "repository.status");
   if (repository.sync !== undefined) assertCallback(repository.sync, "repository.sync");
@@ -185,13 +167,11 @@ function repositoryContribution(repository) {
   });
 }
 
-/** Проверяет и копирует Agent contribution. */
-function agentContribution(agent) {
-  if (agent === undefined) return undefined;
-  assertPlainObject(agent, "agent");
-  assertKnownKeys(agent, new Set(["integration"]), "agent");
-  assertCallback(agent.integration, "agent.integration");
-  return Object.freeze({ integration: agent.integration });
+/** Проверяет optional data-only Extension contribution callback. */
+function extensionContribution(extensions) {
+  if (extensions === undefined) return undefined;
+  assertCallback(extensions, "extensions");
+  return extensions;
 }
 
 /** Доменная модель одного проверенного Plugin. */
@@ -199,18 +179,14 @@ export class Plugin {
   #id;
   #supports;
   #repository;
-  #agent;
+  #extensionContribution;
   #commandRegistration;
 
   /** @param {PluginDefinition} definition Пользовательское определение Plugin. */
   constructor(definition) {
     assertPlainObject(definition, "Plugin definition");
-    assertKnownKeys(
-      definition,
-      new Set(["id", "supports", "repository", "agent", "registerCommands"]),
-      "Plugin definition",
-    );
-    if (typeof definition.id !== "string" || !PLUGIN_ID_PATTERN.test(definition.id)) {
+    assertKnownKeys(definition, PLUGIN_KEYS, "Plugin definition");
+    if (typeof definition.id !== "string" || !DEFINITION_ID_PATTERN.test(definition.id)) {
       invalid("id должен быть lowercase kebab-case");
     }
     if (definition.supports !== undefined && !Array.isArray(definition.supports)) {
@@ -225,7 +201,7 @@ export class Plugin {
     }
 
     const repository = repositoryContribution(definition.repository);
-    const agent = agentContribution(definition.agent);
+    const extensions = extensionContribution(definition.extensions);
     if (repository && supports.length === 0) {
       invalid("repository contribution требует хотя бы одну supports role");
     }
@@ -235,14 +211,14 @@ export class Plugin {
     if (definition.registerCommands !== undefined) {
       assertCallback(definition.registerCommands, "registerCommands");
     }
-    if (!repository && !agent && definition.registerCommands === undefined) {
+    if (!repository && !extensions && definition.registerCommands === undefined) {
       invalid("Plugin должен объявить хотя бы один contribution");
     }
 
     this.#id = definition.id;
     this.#supports = Object.freeze(supports);
     this.#repository = repository;
-    this.#agent = agent;
+    this.#extensionContribution = extensions;
     this.#commandRegistration = definition.registerCommands;
     Object.freeze(this);
   }
@@ -312,15 +288,25 @@ export class Plugin {
     throw new Error(`PLUGIN_EXEC_UNSUPPORTED: ${this.#id} не поддерживает exec`);
   }
 
-  hasAgentContribution() {
-    return this.#agent !== undefined;
+  hasExtensionContribution() {
+    return this.#extensionContribution !== undefined;
   }
 
-  integrateAgent(context) {
-    if (!this.#agent) {
-      throw new Error(`PLUGIN_AGENT_UNSUPPORTED: ${this.#id} не предоставляет Agent integration`);
+  extensions(context) {
+    if (!this.#extensionContribution) {
+      throw new Error(`PLUGIN_EXTENSIONS_UNSUPPORTED: ${this.#id} не предоставляет Extensions`);
     }
-    return this.#agent.integration(context);
+    const definitions = this.#extensionContribution(context);
+    if (!Array.isArray(definitions)) {
+      invalid("extensions должен вернуть массив");
+    }
+    const extensions = definitions.map((definition) => (
+      definition instanceof Extension ? definition : defineExtension(definition)
+    ));
+    if (new Set(extensions.map(({ id }) => id)).size !== extensions.length) {
+      invalid("extensions содержит повторяющийся id");
+    }
+    return Object.freeze(extensions);
   }
 
   hasCommandContribution() {

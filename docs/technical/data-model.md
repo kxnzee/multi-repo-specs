@@ -19,10 +19,11 @@ Tracked и local данные не взаимозаменяемы. Потеря 
 
 Project содержит ровно один Store Repository и Code Repositories. Repository имеет
 устойчивый `id`, singleton role, remote и default branch. Plugin declaration хранит
-`id`, exact source и `required`; binding — ссылка на declaration внутри конкретного
-Repository.
+`id` и exact source; binding — ссылка на declaration внутри конкретного Repository.
+Project также хранит один Template, один Agent и упорядоченные standalone Extensions
+с source `bundled:<id>`.
 
-Configuration поддерживает только `version: 1`. Неизвестный format/version — ошибка,
+Configuration поддерживает только `version: 2`. Неизвестный format/version — ошибка,
 а не best-effort migration.
 
 ## Cycle Record

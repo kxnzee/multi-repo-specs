@@ -1,27 +1,30 @@
 # Project Template
 
-Project Template — локальный каталог, который `openspec-orch init` безопасно
-накладывает на результат штатного OpenSpec init. Он задает процесс проекта, но не
-добавляет бизнес-логику в Core.
+Project Template — copy-only каталог, который `openspec-orch init` один раз безопасно
+накладывает на результат штатного OpenSpec init. Он не выбирает Agent, Extension или
+Plugin.
 
 ## Что поставляет Base Template
 
-- mappings для Qwen, GigaCode и Claude;
 - schema `base-v1`: `intake → proposal → specs → design → tasks`;
-- `/openspec-base-intake` и `/openspec-base-context`;
-- skills `base-intent`, `openspec-base-meta-planning`,
-  `openspec-base-apply-context`, `openspec-base-test-cases`;
-- read-only `openspec-base-repository-evidence-scout`;
+- `openspec/config.yaml`;
 - заготовки project context и ADR;
-- required Plugin `openspec-graph`.
+- `.gitignore` из явного asset mapping.
+
+Команды, skills, bootstrap instructions и subagent принадлежат отдельному bundled
+Extension `openspec-base` и активируются нативным механизмом выбранного Agent.
 
 Change Tracking не входит в Base Template как обязательный Plugin. Его Apply context
-поставляется собственным Plugin Template и появляется только после установки
-`change-tracking`.
+поставляется Store-scoped Extension самого Plugin и активируется при подключении
+`change-tracking` к Store.
+
+OpenSpec Graph также не выбирается Template. Полный описанный workflow
+`openspec-base` вызывает Graph после появления Delta Specs и перед Apply, поэтому для
+этого маршрута пользователь отдельно инициализирует Plugin и связывает его со Store.
 
 ## Работа с субагентом
 
-Для точечной проверки текущего кода шаблон вызывает отдельного субагента только для
+Для точечной проверки текущего кода `openspec-base` вызывает отдельного субагента только для
 чтения. Он не планирует изменение и отвечает на один вопрос по одному репозиторию.
 
 - Один вопрос — один новый субагент. Пять вопросов означают пять независимых
@@ -38,9 +41,10 @@ Change Tracking не входит в Base Template как обязательны
 | Владелец | Содержимое |
 |---|---|
 | OpenSpec | Официальный agent pack, schema lifecycle и operations |
-| Core | Безопасное копирование, mapping/routing и разрешение required Plugin ID |
-| Project Template | Project rules, context, commands, skills и subagents |
-| Plugin Template | Только Plugin-specific Store/Agent assets |
+| Core | Безопасное одноразовое копирование объявленных Template assets |
+| Project Template | Context, custom schema/config и дополнительные assets |
+| Extension | Instructions, commands, skills, subagents, hooks и простые MCP |
+| Plugin | Runtime, repository lifecycle и Plugin-contributed Extension |
 
 Встроенные `openspec-*` skills и `opsx-*` commands выбранного provider нельзя
 переписывать Project Template. Project-local правила используют свой namespace.
@@ -48,8 +52,8 @@ Change Tracking не входит в Base Template как обязательны
 ## Жизненный цикл
 
 Template применяется только во время `init`. Скопированные файлы принадлежат Store и
-автоматически не обновляются. Повторный `init` выполняет reconciliation required
-Plugins, но не перезаписывает отличающийся target-файл.
+автоматически не обновляются. Повторный `init` не перезаписывает отличающийся
+target-файл и не управляет Plugins.
 
 Явный `--template` полностью заменяет Base Template. Автоматического merge двух
 Project Templates нет.
@@ -59,24 +63,18 @@ Project Templates нет.
 ```text
 team-template/
 ├── template.yaml
-└── AGENT.md
+├── context/
+└── assets/
 ```
 
 ```yaml
-requires:
-  plugins:
-    - openspec-graph
-
-agents:
-  team-agent:
-    openspec_adapter: provider-adapter
-    generated_directory: .provider
-    target_directory: .team-agent
-    commands_directory: .team-agent/commands
-    instructions_file: AGENT.md
-    copy:
-      - from: AGENT.md
-        to: AGENT.md
+id: team-product
+name: Team Product Template
+copy:
+  - from: context
+    to: openspec/context
+  - from: assets/gitignore.template
+    to: .gitignore
 ```
 
 Применение:
@@ -84,25 +82,13 @@ agents:
 ```bash
 openspec-orch init /absolute/path/to/store \
   --store specs \
-  --agent team-agent \
+  --agent qwen \
+  --extension openspec-base \
   --template /absolute/path/to/team-template
 ```
 
-## Agent mapping
-
-| Поле | Назначение |
-|---|---|
-| `openspec_adapter` | Значение штатного `openspec init --tools` |
-| `generated_directory` | Каталог официального pack OpenSpec |
-| `target_directory` | Итоговый provider-specific каталог |
-| `commands_directory` | Каталог официальных commands |
-| `instructions_file` | Постоянный корневой файл инструкций |
-| `handoffs` | Необязательные именованные paths Template |
-| `copy` | Упорядоченные операции `from → to` |
-
-Если generated и target directories различаются, Core переносит официальный pack, а
-затем применяет copy operations. Смысл канонических skills/subagents хранится один
-раз; provider adapter может менять только несовместимый frontmatter.
+Identity custom Template берётся из `template.yaml`; source path после применения не
+сохраняется. Agent definition выбирается отдельно из distribution-owned каталога.
 
 ## Безопасность применения
 
@@ -118,11 +104,9 @@ Core запрещает:
 Interpolation, conditions, delete rules и автоматическое удаление старых assets не
 реализованы.
 
-## Plugin Template
+## Plugin-owned Extension
 
-Plugin может содержать `template/template.yaml` с `agents.<id>.copy`. Base mapping
-повторять не нужно. Если Plugin не объявляет явную Agent contribution, Core применяет
-его Template через тот же safe copy engine во время `plugin init`.
-
-При `plugin remove` доставленные файлы не удаляются автоматически. CLI возвращает
-Store-relative paths для контролируемой ручной очистки.
+Plugin может вернуть один или несколько data-only Extension с package-relative root и
+Store/Repository target. Core передаёт их тому же Agent Adapter, который обслуживает
+standalone Extensions. Автоматического поиска или применения `template/` внутри
+Plugin Package нет.

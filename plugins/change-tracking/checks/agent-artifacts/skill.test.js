@@ -12,7 +12,7 @@ const packageRoot = path.dirname(fileURLToPath(new URL("../../package.json", imp
 
 test("Change Tracking Apply context is a self-describing Plugin skill", async () => {
   const skillName = "change-tracking-apply-context";
-  const relativePath = `template/skills/${skillName}/SKILL.md`;
+  const relativePath = `extension/skills/${skillName}/SKILL.md`;
   const source = await fs.readFile(path.join(packageRoot, relativePath), "utf8");
   assert.equal(source.startsWith("---\n"), true, `${relativePath}: frontmatter is required`);
   const end = source.indexOf("\n---\n", 4);

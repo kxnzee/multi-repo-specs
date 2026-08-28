@@ -28,8 +28,9 @@ Code Repositories реализуют принятый Change и не созда�
 |---|---|---|
 | OpenSpec | Change artifacts, Requirements, Scenarios, Apply, Sync и Archive | Multi-repository workspace и Plugin lifecycle |
 | Orchestrator Core | `init`, `connect`, repository status, безопасные facades, Plugin lifecycle | Содержание требований, реализацию и Release |
-| Project Template | Schema, context, команды/skills агента, правила Planning и required Plugins | Runtime конкретного Plugin |
-| Plugin | Свои команды, repository lifecycle, данные, MCP/agent integration и Template | Изменение Core и чужих Plugin contracts |
+| Project Template | Context, custom schema/config и дополнительные assets | Agent workflow и выбор компонентов |
+| Extension | Instructions, skills, commands, subagents, hooks и простые MCP | Repository lifecycle и собственный runtime |
+| Plugin | Свои команды, repository lifecycle, данные и Extension contribution | Изменение Core и чужих Plugin contracts |
 | Команда | Intent, Gates, код, review, проверки, rollout, Release и разрешения | Автоматическое делегирование решений инструменту |
 
 ## Основные термины
@@ -65,16 +66,16 @@ Intent
   → Archive → Graph handoff
 ```
 
-Base Template требует OpenSpec Graph, поэтому Graph входит в штатный flow этой
-документации. Custom Template без этой зависимости должен определить собственную
-политику и не обязан повторять Graph-шаги.
+OpenSpec Graph подключается отдельно как Plugin: Template и Extensions не
+устанавливают его автоматически и не определяют выбор Plugins. Полный описанный
+`openspec-base` flow использует Graph после появления Delta Specs и перед Apply,
+поэтому пользователь явно выбирает и связывает Plugin для этого маршрута.
 
 ## Поддерживаемые агенты
 
-Base Template принимает `--agent qwen`, `--agent gigacode` и `--agent claude`.
-Mapping определяет provider-specific каталоги, корневой файл инструкций, commands,
-skills и subagents. Эти же три Agent поддерживаются Plugin Templates и CodeGraph
-integration.
+Distribution-owned Agent catalog принимает `--agent qwen`, `--agent gigacode` и
+`--agent claude` независимо от Template. GigaCode использует Qwen-compatible CLI и
+OpenSpec adapter, но собственный `gigacode-extension.json`.
 
 ## Важные ограничения
 
@@ -84,5 +85,5 @@ integration.
   переносится только Cycle Record.
 - `verify` вычисляет Snapshot, но не делает checkout и не запускает тесты.
 - OpenSpec Graph компилирует модель Store из OpenSpec-артефактов; CodeGraph индексирует
-  файлы и symbols одного Code Repository. Это разные модели.
+  файлы и symbols одного явно связанного Store или Code Repository. Это разные модели.
 - Jira, Zephyr, Confluence, CI и deployment не интегрированы в текущем репозитории.

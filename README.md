@@ -10,30 +10,31 @@ OpenSpec Orchestrator — локальный CLI для подготовки Ope
 |---|---|
 | OpenSpec | Changes, Specs, schema, Planning artifacts, Apply и Archive |
 | Orchestrator Core | `init`, `connect`, repository routing, Git/OpenSpec checks и Plugin lifecycle |
-| Project Template | Проектные правила, schema, context, agent commands, skills и required Plugins |
-| Plugin | Собственные CLI-команды, repository lifecycle, MCP/agent integration и Plugin Template |
+| Project Template | Context, custom schema/config и дополнительные assets |
+| Agent definition | OpenSpec adapter и нативный способ подключения Extension |
+| Extension | Instructions, skills, commands, subagents, hooks и простые MCP |
+| Plugin | Собственные команды, runtime/repository lifecycle и target-scoped Extension |
 
 Core не планирует Change, не интерпретирует требования и не запускает Jira, Zephyr,
 CI, deployment или ручное тестирование. Он также не выполняет `git add`, `commit`,
 `push`, `merge` или `rebase`. Эти действия остаются в действующем процессе команды.
 
-## Base Project Template
+## Base Template и Extensions
 
 Без `--template` команда `openspec-orch init` использует
-[`templates/base/`](templates/base/). Template устанавливает:
+[`templates/base/`](templates/base/). Этот Template устанавливает только:
 
-- agent mappings для Qwen, GigaCode и Claude;
 - project-local schema `base-v1`:
   `intake → proposal → specs → design → tasks`;
-- опросник `/openspec-base-intake`, который сам собирает `intake.md` и после него
-  предлагает Explore, Proposal либо дополнительное уточнение;
-- project context в `openspec/context/` и команду `/openspec-base-context` для
-  `initialize`, read-only `audit` и подтверждаемого `update`;
-- skills `base-intent`, `openspec-base-meta-planning`,
-  `openspec-base-apply-context` и `openspec-base-test-cases`;
-- один ограниченный read-only subagent
-  `openspec-base-repository-evidence-scout`;
-- обязательный Plugin `openspec-graph` через `requires.plugins`.
+- `openspec/config.yaml` и project context в `openspec/context/`;
+- дополнительные assets, включая `.gitignore`.
+
+Agent, Extensions и Plugins выбираются отдельно. Bundled Extension `openspec-base`
+поставляет workflow-инструкции, `/openspec-base-*`, project skills и repository
+evidence subagent. Bundled `superpowers` поставляет локальный MIT-снимок общей
+библиотеки skills. Оба поддерживают Claude, Qwen и GigaCode и не зависят от Template.
+OpenSpec Graph, CodeGraph и Change Tracking остаются отдельными Plugins и доставляют
+свою Agent-часть как target-scoped Extension.
 
 `openspec-base-test-cases` может сформировать тест-кейсы из принятых Requirements и
 Scenarios, в том числе нейтральную структуру для последующего переноса в Zephyr. Он
@@ -51,9 +52,9 @@ Scenarios, в том числе нейтральную структуру для
 подтверждения снова делают его незавершённым. Archive дополнительно требует
 фактический Release; отдельный verification artifact в schema не создаётся.
 
-Base Template применяется только во время `init`. Установленные файлы принадлежат
-Store и не обновляются из исходного каталога автоматически. Custom Project Template
-полностью заменяет Base Template, а не сливается с ним.
+Template применяется только во время `init`. Скопированные файлы принадлежат Store и
+не обновляются автоматически. Custom Project Template полностью заменяет Base
+Template, но не меняет отдельно выбранные Agent, Extensions или Plugins.
 
 ## Требования и локальная установка
 
@@ -87,23 +88,35 @@ node /absolute/path/to/multi-repo-specs/bin/openspec-orch.js --help
 openspec-orch init /absolute/path/to/workspace/specs \
   --store specs \
   --agent qwen \
+  --extension openspec-base \
+  --extension superpowers \
   --repo frontend=ssh://git.example.org/product/frontend.git#main \
   --repo backend=ssh://git.example.org/product/backend.git#main
 
 cd /absolute/path/to/workspace/specs
 openspec-orch connect
+openspec-orch plugin init --plugin openspec-graph
+openspec-orch plugin connect openspec-graph --repo specs
 openspec-orch repository status
 ```
 
-Base Template устанавливает required Plugin `openspec-graph`, но binding с Store
-создаётся явно:
+Template не выбирает Plugins. Если нужен OpenSpec Graph, Plugin и его Store binding
+добавляются явно:
 
 ```bash
+openspec-orch plugin init --plugin openspec-graph
 openspec-orch plugin connect openspec-graph --repo specs
 openspec-orch graph inspect --json
 ```
 
 `graph inspect` каждый раз компилирует текущий Store непосредственно из его файлов.
+
+Выбор `--extension` во время `init` задаёт только desired composition: Core разрешает
+ID и bundled source из каталога поставки и записывает их в `openspec-orch.yaml`, не
+вызывая native CLI Agent. Во время последующего `connect` Orchestrator разрешает
+локальный payload, проверяет manifests всех поддерживаемых Agents и только затем
+передаёт `connect` адаптеру выбранного Agent. Поэтому одна portable-конфигурация
+восстанавливает те же Extensions на каждой рабочей машине.
 
 Для нестандартной раскладки workspace задаётся один раз:
 
@@ -113,7 +126,10 @@ openspec-orch connect --workspace /absolute/path/to/workspace
 
 Локальный путь сохраняется в `.openspec-orch/state.json`. `connect` может клонировать
 отсутствующие Code Repositories в strict mode, но не обновляет существующие checkout.
-`repository status` ничего не исправляет и не выполняет сетевых операций.
+Ноль Code Repositories допустимы. Перед native mutation выполняется Agent preflight,
+затем восстанавливаются standalone Extensions, Plugin runtime/contributions и их
+итоговый status. `repository status` ничего не исправляет и не выполняет сетевых
+операций.
 
 ## Пользовательский путь Change
 
@@ -181,18 +197,21 @@ diff и отдельного подтверждения пользователя
 
 ## Plugins
 
-Стандартная поставка содержит четыре независимых Plugin:
+Стандартная поставка содержит три независимых Plugin:
 
 | Plugin | Назначение | Scope |
 |---|---|---|
 | `openspec-graph` | Store-level связи Repository, Master Spec, Change и Delta Spec | Store |
-| `codegraph` | Локальная навигация по файлам и symbols реализации | Code Repository |
+| `codegraph` | Локальная навигация по файлам и symbols одного выбранного checkout | Store или Code Repository |
 | `change-tracking` | Cycle, Result Receipts, Snapshot и Verification Receipt | Store и выбранные Code Repositories |
-| `mcp-connector` | Декларативная синхронизация MCP servers с settings Agent | Store/Agent |
 
-OpenSpec Graph обязателен только для Base Template. CodeGraph, Change Tracking и MCP
-Connector подключаются по решению команды. Template и Core продолжают работать без
-них в доступном Standard flow.
+OpenSpec Graph, CodeGraph и Change Tracking подключаются по решению команды. Template
+и Core продолжают работать без них в доступном Standard flow.
+
+При этом полный workflow bundled Extension `openspec-base` использует OpenSpec Graph
+после появления Delta Specs и перед Apply. Plugin остаётся отдельным выбором и не
+устанавливается автоматически: для этого маршрута его нужно явно инициализировать и
+связать со Store.
 
 ```bash
 openspec-orch plugin init --plugin codegraph
@@ -201,24 +220,19 @@ openspec-orch plugin status --plugin codegraph
 openspec-orch plugin sync codegraph --all
 ```
 
-MCP Connector подключается один раз, а новые MCP добавляются как записи в
-`mcp-connector.yaml` без создания новых packages. Необязательное поле `context`
-добавляет управляемую инструкцию в файл текущего Agent:
-
-```bash
-openspec-orch plugin init --plugin mcp-connector
-openspec-orch mcp status
-openspec-orch mcp apply
-```
-
-Если Plugin содержит `template/`, Core автоматически применяет его тем же безопасным
-copy engine во время `plugin init`. Plugin не обязан реализовывать точечное копирование
-в `index.js`. При `plugin remove` доставленные файлы не удаляются автоматически: CLI
-показывает пользователю их paths для ручной очистки при необходимости.
+Простые MCP объявляются в native manifests соответствующего Extension. Plugin со
+сложным repository lifecycle может поставлять свой target-scoped Extension; его Agent
+payload активируется нативным CLI во время `plugin connect`.
 
 Change Tracking является необязательным расширением Apply. После его установки и
 подключения Base skill передаёт plugin-owned `change-tracking-apply-context` проверки
 Cycle, а затем продолжает общий Graph preflight. Команды расширения:
+
+```bash
+openspec-orch plugin init --plugin change-tracking
+openspec-orch plugin connect change-tracking \
+  --repo specs --repo frontend --repo backend
+```
 
 ```text
 openspec-orch assign <change-id> --repo <repository-id>...
@@ -239,11 +253,12 @@ openspec-orch record verification <change-id> --result <pass|fail> --source <hum
 ## Публичный Core CLI
 
 ```text
-openspec-orch init [path] --store <id> --agent <id> [--template <path>] [--repo <id=remote#branch>]...
-openspec-orch connect [--workspace <path>]
+openspec-orch init [path] --store <id> --agent <id> [--template <id-or-path>] [--extension <id>]... [--no-extensions] [--repo <id=remote#branch>]... [--no-strict]
+openspec-orch connect [--workspace <path>] [--no-strict]
+openspec-orch disconnect
 openspec-orch repository status [--repo <repository-id>]...
 
-openspec-orch plugin register <plugin-id> [path] [--profile <commands|repository|native>] [--support <store|code>]... [--template]
+openspec-orch plugin register <plugin-id> [path] [--name <display-name>] [--profile <commands|repository|native>] [--support <store|code>]... [--extension]
 openspec-orch plugin init [--plugin <plugin-id>] [--from <source>] [--all]
 openspec-orch plugin connect <plugin-id> [--repo <repository-id>]... [--all]
 openspec-orch plugin status [--plugin <plugin-id>] [--repo <repository-id>] [--json]
@@ -252,6 +267,15 @@ openspec-orch plugin exec <plugin-id> [--repo <repository-id>]... [--all] -- <co
 openspec-orch plugin disconnect <plugin-id> [--repo <repository-id>]... [--all]
 openspec-orch plugin remove <plugin-id>
 ```
+
+После `connect` пользователь запускает глобальный CLI выбранного Agent напрямую из
+Store (`qwen` или `claude`). Orchestrator не проксирует Agent commands; универсальный
+`exec` остаётся только у Plugins и вызывает их собственный runtime.
+
+`init` поддерживает два режима: с обязательными `--store`/`--agent` он не открывает
+prompts, а в TTY без одного из них запускает интерактивный выбор Template, Agent,
+Extensions, Code Repositories и strict/relaxed mode с подтверждением до записи.
+В non-TTY `--store` и `--agent` обязательны.
 
 Plugin может добавить собственный namespace, например `openspec-orch graph ...` или
 `openspec-orch <plugin-id> <command>`. Фактическую grammar показывает `--help` после
@@ -266,13 +290,18 @@ Progress пишется в `stderr`, поэтому не загрязняет JS
 Минимальный `openspec-orch.yaml` после `init`:
 
 ```yaml
-version: 1
+version: 2
 strict: true
-agents: [qwen]
-plugins:
-  - id: openspec-graph
-    source: "@openspec-orch/plugin-openspec-graph@1.0.0"
-    required: true
+template:
+  id: base
+agent:
+  id: qwen
+extensions:
+  - id: openspec-base
+    source: bundled:openspec-base
+  - id: superpowers
+    source: bundled:superpowers
+plugins: []
 
 repositories:
   - id: specs
@@ -295,7 +324,8 @@ relaxed behavior описаны в [справочнике конфигурац�
 | Данные | Расположение | Git |
 |---|---|---|
 | Project config | `openspec-orch.yaml` | да |
-| Specs, Changes и установленный Template | `openspec/`, agent files | да |
+| Specs, Changes, Template assets и upstream OpenSpec pack | `openspec/`, provider directories | да |
+| Native registration Extensions | локальный project/local scope выбранного Agent | нет |
 | Cycle Records Change Tracking | `.openspec-orch/changes/*.json` | да |
 | Локальный workspace Core | `.openspec-orch/state.json` | нет |
 | Plugin state | `.openspec-orch/plugins/<plugin-id>/state.json` | нет |

@@ -1,0 +1,13 @@
+id: claude
+name: Claude Code
+openspec:
+  adapter: claude
+  generatedDirectory: .claude
+  targetDirectory: .claude
+  commandsDirectory: .claude/commands/opsx
+  instructionsFile: CLAUDE.md
+native:
+  adapter: adapter.js
+  executable: claude
+  scope: local
+  manifest: .claude-plugin/plugin.json

@@ -6,7 +6,8 @@ Plugin; он не связан с Project Template.
 
 ## Граница ответственности
 
-- Один Code Repository — один локальный каталог `.codegraph/`.
+- Один binding Store или Code Repository — один локальный каталог `.codegraph/` в
+  соответствующем Git checkout.
 - `.codegraph/` является производным индексом и не коммитится в Git.
 - Центральный OpenSpec Store не хранит копии графов Code Repositories.
 - Requirements и целевое наблюдаемое поведение определяются только OpenSpec Store.
@@ -31,6 +32,11 @@ openspec-orch plugin connect codegraph --repo frontend
 openspec-orch plugin status --plugin codegraph --repo frontend
 openspec-orch plugin exec codegraph --repo frontend -- explore "authentication flow"
 ```
+
+Plugin поддерживает Store и Code Repository. Каждый binding изолирован своим cwd,
+локальным индексом и Repository-scoped Extension; Store binding не открывает checkout
+другого Repository. Для implementation evidence связывайте CodeGraph с конкретным
+Code Repository, код которого требуется исследовать.
 
 Для выполнения во всех repositories, к которым подключён CodeGraph, укажите
 `--all` явно:
@@ -57,20 +63,24 @@ Tracked `.gitignore` Repository не меняется, а сам индекс о
 ## MCP для агента
 
 `openspec-orch init` сохраняет выбранный Agent ID в `openspec-orch.yaml`. Во время
-`plugin init codegraph` Package автоматически:
+`plugin init --plugin codegraph` только регистрирует Package в Store. После успешного
+`plugin connect codegraph --repo <id>` Package передаёт Repository-scoped
+`extension/` общему Agent Adapter, который штатным механизмом выбранного Agent:
 
-- добавляет stdio MCP server `openspec-orch-codegraph` в project-local конфиг каждого
-  зарегистрированного Claude, Qwen или GigaCode;
-- указывает абсолютные пути к текущему Node.js и bundled launcher, поэтому глобальный
-  `codegraph` в `PATH` не нужен;
-- добавляет в project instructions короткое правило использования
-  `codegraph_explore`;
-- сохраняет существующие MCP servers и пользовательские инструкции.
+- устанавливает Claude local Plugin либо активирует Qwen-compatible Extension в
+  текущем workspace, устанавливая его в project scope только при отсутствии;
+- для GigaCode использует Qwen CLI, но отдельный `gigacode-extension.json`;
+- подключает stdio MCP server `openspec-orch-codegraph` в checkout выбранного
+  Repository;
+- загружает общий `agent-instructions.md`, не изменяя корневые `CLAUDE.md`, `QWEN.md`
+  и `GIGACODE.md`.
 
-Эти adapters находятся в CodeGraph Package, а не в Core или Project Template.
-`plugin remove codegraph` симметрично удаляет только принадлежащие Package блоки.
-После `plugin init` или `plugin remove` перезапустите агент, затем проверьте его список
-MCP tools и выполните один тестовый `codegraph_explore`.
+MCP вызывает поставляемый executable `openspec-orch-codegraph`; отдельно устанавливать
+глобальный `codegraph` не нужно. Для Qwen и GigaCode `plugin disconnect` отключает
+Extension только в workspace этого checkout, не удаляя установленный package, и затем
+удаляет binding. После connect/disconnect перезапустите Agent, затем проверьте его
+список MCP tools и выполните один тестовый `codegraph_explore` из целевого Code
+Repository.
 
 До чтения графа агент должен получить разрешённый абсолютный путь без поиска по
 файловой системе, подтвердить точный Git root и repository identity, полный commit
@@ -85,8 +95,8 @@ SHA, равенство `HEAD` этой revision и чистый working tree. �
    сформулирован один технический claim.
 2. Если исследование разрешено, `.codegraph/` существует и MCP доступен, для адресной
    карты реализации сначала использовать `codegraph_explore`.
-3. При обращении к другому checkout передавать его разрешённый абсолютный путь через
-   `projectPath`; один MCP server обслуживает несколько проиндексированных repositories.
+3. Для другого Repository запускать отдельный разрешённый subagent из его checkout:
+   там активируется собственный Repository-scoped Extension и MCP.
 4. Если revision индекса неизвестна, индекс сообщает ошибку или не покрывает нужный
    язык, использовать обычные read/search tools внутри того же разрешённого checkout
    и явно назвать fallback.

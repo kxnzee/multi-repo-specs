@@ -82,6 +82,14 @@ openspec-orch.yaml + openspec/**
 
 ## Команды
 
+Сначала установите Plugin в проект и создайте его Store binding. До этого root-команда
+`graph` не монтируется:
+
+```bash
+openspec-orch plugin init --plugin openspec-graph
+openspec-orch plugin connect openspec-graph --repo <store-id>
+```
+
 ```bash
 openspec-orch graph inspect
 openspec-orch graph inspect --json
@@ -105,6 +113,22 @@ Graph Report с тем же результатом проверки.
 
 Компилирует Store заново, печатает только summary и запускает read-only UI на
 `127.0.0.1`. `--port 0` выбирает свободный порт.
+
+## Использование Graph Report агентом
+
+Успешный `graph inspect --json` является текущей навигационной картой Store. Agent
+может использовать её, чтобы:
+
+- пройти от Change к затронутым Master Specs и явно указанным Repositories;
+- найти активные и архивные Changes, подтверждающие конкретную связь;
+- различить `current`, `planned`, `missing` и диагностические элементы;
+- вернуться к точному источнику через `{ path, line, field }` provenance;
+- сузить чтение Store и подготовить точечные repository-specific вопросы перед
+  разрешённым обращением к CodeGraph.
+
+Graph Report не расширяет принятый scope и не является доказательством ownership,
+runtime calls, реализации или технической dependency. Отсутствующая в структурных
+данных связь остаётся `unknown`, а не восстанавливается из догадок или текста кода.
 
 Recoverable errors не блокируют viewer: ошибочные элементы выделяются красным,
 warnings — жёлтым, а diagnostics без конкретной ноды или связи показываются в секции

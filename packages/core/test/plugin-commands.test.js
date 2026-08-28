@@ -263,8 +263,8 @@ test("PluginCommandMounter validates root policy and command contribution result
     sync: valid.sync.bind(valid),
     canExec: valid.canExec.bind(valid),
     exec: valid.exec.bind(valid),
-    hasAgentContribution: valid.hasAgentContribution.bind(valid),
-    integrateAgent: valid.integrateAgent.bind(valid),
+    hasExtensionContribution: valid.hasExtensionContribution.bind(valid),
+    extensions: valid.extensions.bind(valid),
     hasCommandContribution: () => "yes",
     registerCommands: valid.registerCommands.bind(valid),
   });

@@ -4,17 +4,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { atomicWriter } from "./atomic-writer.js";
+import { ensureDirectory, lstatOrNull } from "./fs.js";
 import { isPortableRelativePath } from "./path.js";
-
-/** Возвращает lstat или null для отсутствующего path. */
-async function lstatOrNull(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
 
 /** Files API внутри одного canonical Repository root. */
 export class RepositoryFiles {
@@ -74,15 +65,7 @@ export class RepositoryFiles {
     let current = this.#root;
     for (const segment of relativePath.split("/")) {
       current = path.join(current, segment);
-      const existing = await lstatOrNull(current);
-      if (!existing) {
-        try {
-          await fs.mkdir(current);
-        } catch (error) {
-          if (error.code !== "EEXIST") throw error;
-        }
-      }
-      const stat = await fs.lstat(current);
+      const stat = await ensureDirectory(current);
       if (!stat.isDirectory() || stat.isSymbolicLink()) {
         throw new Error(`Путь ${relativePath} содержит небезопасный каталог`);
       }

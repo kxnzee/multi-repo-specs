@@ -13,9 +13,11 @@ import {
 /** Создаёт Project с Store и несколькими Code Repositories. */
 function projectFixture() {
   return createProject({
-    version: 1,
+    version: 2,
     strict: true,
-    agents: ["qwen"],
+    template: { id: "base" },
+    agent: { id: "qwen" },
+    extensions: [],
     plugins: [],
     repositories: [
       {

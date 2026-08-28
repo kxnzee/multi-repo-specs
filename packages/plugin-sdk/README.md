@@ -20,8 +20,9 @@ export default definePlugin({
 но ничего не регистрирует и не запускает. Core работает с Plugin только через её
 публичные методы: `supportsRole`, `assertSupports`, `hasRepositoryContribution`,
 `connect`, `status`, `canSync`, `sync`, `canExec`, `exec`,
-`hasAgentContribution`, `integrateAgent`, `hasCommandContribution` и
-`registerCommands`. Loader проверяет этот API структурно и не
+`hasExtensionContribution`, `extensions`, `hasCommandContribution` и
+`registerCommands`. Loader проверяет
+обязательную часть этого API структурно и не
 зависит от `instanceof`, поэтому разные физические копии SDK не ломают загрузку.
 `exec` автоматически встроен для Plugin с `registerCommands` и использует
 зарегистрированную grammar. Объявлять одинаковый `repository.exec` в каждом Plugin
@@ -35,16 +36,36 @@ passthrough для него недоступен.
 список. Если объявлен `repository`, требуется хотя бы одна role в `supports` и
 обязательные callbacks `connect/status`.
 
-Необязательный `agent.integration(context)` предоставляет два публичных варианта:
+Plugin может поставлять Agent Extension как проверенные данные:
 
-- `{ install, remove }` — imperative lifecycle для provider-specific merge или MCP;
-- `{ copy: [{ from, to }] }` — declarative file overlay из корня Plugin Package.
+```js
+import { defineExtension, definePlugin } from "@openspec-orch/plugin-sdk";
 
-Declarative `copy` применяет тот же безопасный copy contract, что и Template, и
-заменяет автоматический `template/` этого Plugin. Если `agent` contribution не
-объявлен, Core автоматически ищет `template/template.yaml` и применяет
-`agents.<current-agent>.copy`. Удаление не стирает доставленные файлы: `remove`
-возвращает их Store-relative paths для ручной очистки.
+export default definePlugin({
+  id: "codegraph",
+  extensions(context) {
+    return [defineExtension({
+      id: "agent",
+      root: "./extension",
+      target: context.repository,
+    })];
+  },
+});
+```
+
+`root` — безопасный package-relative путь с префиксом `./`, а `target` —
+immutable handle `{ id, role }` Store или Code Repository. Extension не содержит
+собственный lifecycle: Plugin SDK не принимает в её definition callbacks
+`init/connect/disconnect/remove`. Orchestrator выбирает Extension и передаёт её
+bootstrap-инструкцию штатному механизму выбранного Agent. Plugin-owned Extension
+управляется вместе с Plugin через существующий Plugin lifecycle.
+
+Native ID вычисляется как `<plugin-id>-<extension-id>`. Поэтому provider manifests
+в `root` обязаны использовать это имя: `qwen-extension.json` для Qwen,
+`gigacode-extension.json` для GigaCode и `.claude-plugin/plugin.json` для Claude.
+Claude marketplace называется `openspec-orch-<native-id>` и ссылается на Plugin с
+тем же native ID. Один общий content tree разрешён; отдельный GigaCode manifest
+обязателен даже при запуске через Qwen CLI.
 
 Порядок загрузки Plugins не специфицирован. Plugin не должен полагаться на то, что
 другой Plugin загружен или зарегистрирован раньше.
@@ -55,8 +76,10 @@ Core через новый immutable `PluginContext` для каждого invoc
 
 `repository.status`, `repository.sync` и `repository.exec` получают context, уже привязанный к одному
 Repository. Для `repository.connect` Core создаёт setup-context: проверяет project
-registration, поддерживаемую role и локальный checkout, но сохраняет новый binding
-только после успешного callback. Для остальных операций существующий
+registration, поддерживаемую role и локальный checkout. Если Plugin поставляет
+Extensions, Core разрешает и валидирует их до callback, активирует после успешного
+callback и сохраняет новый binding только после успеха обоих этапов. Для остальных
+операций существующий
 `repositories[].plugins` binding обязателен. `repository`, `project.repositories` и
 `repositories.list()` содержат только immutable `{ id, role }` handles; filesystem
 root этих handles и изменяемая Project model в Plugin не передаются. Для command

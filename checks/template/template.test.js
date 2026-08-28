@@ -7,10 +7,15 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ProjectTemplateService } from "@openspec-orch/core";
+import {
+  BundledAgentPackage,
+  BundledAgentProvider,
+  ProjectTemplateService,
+} from "@openspec-orch/core";
 import { parse } from "yaml";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/base/", import.meta.url));
+const AGENTS_ROOT = fileURLToPath(new URL("../../agents/", import.meta.url));
 
 /** Возвращает POSIX paths всех обычных файлов ниже directory. */
 async function listFiles(directory, relative = "") {
@@ -25,9 +30,9 @@ async function listFiles(directory, relative = "") {
 }
 
 /** Вычисляет ожидаемые target files одной agent mapping без фиксированного inventory. */
-async function expectedTargets(agent) {
+async function expectedTargets(copy) {
   const targets = [];
-  for (const operation of agent.copy) {
+  for (const operation of copy) {
     const source = path.join(TEMPLATE_ROOT, operation.from);
     const stat = await fs.stat(source);
     if (stat.isFile()) {
@@ -60,31 +65,46 @@ function assertAcyclic(artifacts) {
   for (const id of dependencies.keys()) visit(id);
 }
 
-test("each declared agent installs every mapped Template file and remains extensible", async (t) => {
+test("Base Template is copy-only and applies identically for every independent Agent", async (t) => {
   const descriptor = parse(await fs.readFile(path.join(TEMPLATE_ROOT, "template.yaml"), "utf8"));
-  assert.deepEqual(descriptor.requires, { plugins: ["openspec-graph"] });
+  assert.deepEqual(Object.keys(descriptor).sort(), ["copy", "id", "name"]);
+  assert.equal(descriptor.id, "base");
+  assert.equal(Object.hasOwn(descriptor, "agents"), false);
+  const agentDirectories = (await fs.readdir(AGENTS_ROOT, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const provider = new BundledAgentProvider(await Promise.all(agentDirectories.map(({ name }) => (
+    BundledAgentPackage.load(path.join(AGENTS_ROOT, name), { expectedId: name })
+  ))));
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-template-"));
   const temporaryRoot = await fs.realpath(temporary);
   t.after(() => fs.rm(temporaryRoot, { recursive: true, force: true }));
 
-  for (const [agentId, agent] of Object.entries(descriptor.agents)) {
+  for (const { id: agentId } of provider.catalog.entries) {
     const targetRoot = path.join(temporaryRoot, agentId);
     await fs.mkdir(targetRoot);
-    const expected = await expectedTargets(agent);
+    const expected = await expectedTargets(descriptor.copy);
     const service = new ProjectTemplateService();
-    const plan = await service.plan({ templateRoot: TEMPLATE_ROOT, targetRoot, agentId });
+    const agent = provider.resolve(agentId);
+    const plan = await service.plan({ templateRoot: TEMPLATE_ROOT, targetRoot, agent });
     const result = await plan.apply(await plan.inspectPreExistingFiles());
 
     assert.deepEqual(result.created, expected, agentId);
     assert.deepEqual(result.updated, [], agentId);
     for (const relative of expected) await fs.access(path.join(targetRoot, relative));
 
-    const repeated = await service.plan({ templateRoot: TEMPLATE_ROOT, targetRoot, agentId });
+    const repeated = await service.plan({ templateRoot: TEMPLATE_ROOT, targetRoot, agent });
     assert.deepEqual(
       await repeated.apply(await repeated.inspectPreExistingFiles()),
       { created: [], updated: [] },
       `${agentId}: repeated apply`,
     );
+  }
+  assert.equal((await expectedTargets(descriptor.copy)).includes(".gitignore"), true);
+  assert.equal((await expectedTargets(descriptor.copy)).some((target) => target.startsWith("assets/")), false);
+  const allowed = /^(?:assets\/gitignore\.template|context\/|openspec\/|template\.yaml$)/u;
+  for (const relative of await listFiles(TEMPLATE_ROOT)) {
+    assert.match(relative, allowed, `Template содержит не copy-only asset: ${relative}`);
   }
 });
 

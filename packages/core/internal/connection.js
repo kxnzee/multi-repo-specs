@@ -2,25 +2,14 @@
 
 import process from "node:process";
 
-import { promises as fs } from "node:fs";
-
 import { CORE_FILES, CORE_PATTERNS } from "./constants.js";
 import { coreState } from "./core-state.js";
+import { lstatOrNull } from "./fs.js";
 import { git } from "./git.js";
 import { openspec } from "./openspec.js";
 import { pointers } from "./pointer.js";
 import { storeProjects } from "./store-project.js";
 import { workspace } from "./workspace.js";
-
-/** Возвращает lstat или null для отсутствующего path. */
-async function lstatOrNull(target) {
-  try {
-    return await fs.lstat(target);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-}
 
 /** Immutable результат подключения одного Code Repository. */
 export class RepositoryConnection {
@@ -105,9 +94,6 @@ export class ConnectionService {
     onProgress("Проверка Store и OpenSpec...");
     const storeProject = await this.#storeProjects.load(start);
     const { project, root: storeRoot, store: metadata } = storeProject;
-    if (project.codeRepositories.length === 0) {
-      throw new Error("CONFIG_INVALID: нужен минимум один repository с roles: [code]");
-    }
     const executionMode = noStrict || !project.strict ? "relaxed" : "strict";
     const storeCheckout = storeProject.checkout;
     const storeOpenSpec = this.#openspec.forRepository(storeCheckout);

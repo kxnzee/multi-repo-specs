@@ -8,9 +8,9 @@
     "./package.json": "./package.json"
   },
   "files": [
+    "extension",
     "index.js",
-    "lib",
-    "template"
+    "lib"
   ],
   "openspecOrchestrator": {
     "apiVersion": 1,

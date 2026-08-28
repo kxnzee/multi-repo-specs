@@ -37,9 +37,11 @@ async function contextScenario(t, { backendPlugin = false, storePlugin = false }
   await fs.mkdir(storeRoot);
   await fs.mkdir(frontendRoot, { recursive: true });
   const project = createProject({
-    version: 1,
+    version: 2,
     strict: true,
-    agents: ["qwen"],
+    template: { id: "base" },
+    agent: { id: "qwen" },
+    extensions: [],
     plugins: [{ id: "sample", source: "@test/plugin-sample@1.0.0" }],
     repositories: [
       {
@@ -156,7 +158,7 @@ test("PluginContextFactory creates a new immutable scoped context without exposi
   assert.deepEqual(messages, [["info", "[plugin:sample][repository:frontend] ready"]]);
 });
 
-test("PluginContextFactory creates Store context for Agent contribution without repository scope", async (t) => {
+test("PluginContextFactory creates Store context for Store-scoped setup", async (t) => {
   const scenario = await contextScenario(t);
   const factory = contextFactory([], { info() {}, warn() {}, error() {} });
 

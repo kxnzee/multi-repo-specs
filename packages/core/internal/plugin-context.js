@@ -298,9 +298,6 @@ export class PluginContextFactory {
     const { plugin } = loadedPlugin;
     const { project } = storeProject;
     project.requirePlugin(plugin.id);
-    if (project.agents.length !== 1) {
-      throw new Error("PLUGIN_CONTEXT_INVALID: Project должен содержать ровно одного Agent");
-    }
     const repositories = new PluginRepositoryRegistry(project, plugin, async (selected) => {
       const selectedCheckout = await this.#resolveCheckout(storeProject, selected);
       return new PluginGitFacade(this.#git.forRepository(selectedCheckout));
@@ -330,7 +327,7 @@ export class PluginContextFactory {
         path: path.normalize(invocation.path),
       });
     }
-    const agent = Object.freeze({ id: project.agents[0] });
+    const agent = project.agent;
     const projectSnapshot = deepFreeze({
       id: storeProject.store.id,
       strict: project.strict,

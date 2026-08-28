@@ -48,9 +48,11 @@ async function repositoryScenario(t) {
   const frontendRemote = "https://example.test/frontend.git";
   const configuration = new CoreConfiguration();
   const project = new Project({
-    version: 1,
+    version: 2,
     strict: true,
-    agents: ["qwen"],
+    template: { id: "base" },
+    agent: { id: "qwen" },
+    extensions: [],
     plugins: [],
     repositories: [
       new Repository({

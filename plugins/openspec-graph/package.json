@@ -10,9 +10,9 @@
   "files": [
     "README.md",
     "bin",
+    "extension",
     "index.js",
     "lib",
-    "template",
     "viewer"
   ],
   "openspecOrchestrator": {

@@ -1,9 +1,7 @@
 /** @fileoverview Самостоятельный контракт поставки CodeGraph Plugin Package. */
 
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
@@ -15,26 +13,6 @@ import plugin from "../index.js";
 
 const packageRoot = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const launcher = path.join(packageRoot, "bin", "codegraph.js");
-
-/** Создаёт изолированный project root для Agent integration tests. */
-async function temporaryProject(t) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-codegraph-agent-"));
-  t.after(() => fs.rm(root, { recursive: true, force: true }));
-  return root;
-}
-
-/** Запускает Plugin-owned Agent lifecycle без глобального CodeGraph executable. */
-function runAgentLifecycle(root, operation, agentId) {
-  return spawnSync(
-    process.execPath,
-    [launcher, "agent", operation, "--agent", agentId],
-    {
-      cwd: root,
-      encoding: "utf8",
-      env: { ...process.env, PATH: "/usr/bin:/bin" },
-    },
-  );
-}
 
 test("Package owns its CodeGraph dependency and native Plugin entrypoint", async () => {
   const packageManifest = JSON.parse(await fs.readFile(
@@ -52,19 +30,64 @@ test("Package owns its CodeGraph dependency and native Plugin entrypoint", async
     commands: [],
   });
   assert.equal(plugin.canExec(), true);
-  const calls = [];
-  const integration = plugin.integrateAgent(Object.freeze({
-    agent: Object.freeze({ id: "qwen" }),
-    process: Object.freeze({
-      run(executable, args) { calls.push([executable, args]); },
-    }),
-  }));
-  await integration.install();
-  await integration.remove();
-  assert.deepEqual(calls, [
-    [process.execPath, [launcher, "agent", "install", "--agent", "qwen"]],
-    [process.execPath, [launcher, "agent", "remove", "--agent", "qwen"]],
-  ]);
+  assert.equal(plugin.hasExtensionContribution(), true);
+  const repository = Object.freeze({ id: "frontend", role: "code" });
+  assert.deepEqual(plugin.extensions(Object.freeze({ repository })).map((extension) => ({
+    id: extension.id,
+    root: extension.root,
+    target: extension.target,
+  })), [{
+    id: "agent",
+    root: "./extension",
+    target: repository,
+  }]);
+});
+
+test("Package ships one native Agent Extension for Claude, Qwen and GigaCode", async () => {
+  const extensionRoot = path.join(packageRoot, "extension");
+  const qwen = JSON.parse(await fs.readFile(
+    path.join(extensionRoot, "qwen-extension.json"),
+    "utf8",
+  ));
+  const gigacode = JSON.parse(await fs.readFile(
+    path.join(extensionRoot, "gigacode-extension.json"),
+    "utf8",
+  ));
+  const claude = JSON.parse(await fs.readFile(
+    path.join(extensionRoot, ".claude-plugin", "plugin.json"),
+    "utf8",
+  ));
+  const marketplace = JSON.parse(await fs.readFile(
+    path.join(extensionRoot, ".claude-plugin", "marketplace.json"),
+    "utf8",
+  ));
+  const claudeMcp = JSON.parse(await fs.readFile(
+    path.join(extensionRoot, ".mcp.json"),
+    "utf8",
+  ));
+
+  assert.equal(qwen.name, "codegraph-agent");
+  assert.equal(qwen.contextFileName, "agent-instructions.md");
+  assert.equal(gigacode.name, "codegraph-agent");
+  assert.equal(gigacode.contextFileName, "agent-instructions.md");
+  assert.equal(claude.name, "codegraph-agent");
+  assert.deepEqual(marketplace, {
+    name: "openspec-orch-codegraph-agent",
+    description: "Bundled CodeGraph Agent Extension",
+    owner: { name: "OpenSpec Orchestrator" },
+    plugins: [{ name: "codegraph-agent", source: "./" }],
+  });
+  assert.deepEqual(qwen.mcpServers["openspec-orch-codegraph"], {
+    command: "openspec-orch-codegraph",
+    args: ["serve", "--mcp"],
+    cwd: "${workspacePath}",
+  });
+  assert.deepEqual(gigacode.mcpServers, qwen.mcpServers);
+  assert.deepEqual(claudeMcp.mcpServers["openspec-orch-codegraph"], {
+    command: "openspec-orch-codegraph",
+    args: ["serve", "--mcp"],
+    cwd: "${CLAUDE_PROJECT_DIR}",
+  });
 });
 
 test("Native repository lifecycle delegates to the package launcher", async () => {
@@ -120,83 +143,4 @@ test("Repository status maps native CodeGraph freshness without false ready", as
     });
     assert.deepEqual(await plugin.status(context), { state, details });
   }
-});
-
-test("Package installs and removes MCP for registered Qwen Agent", async (t) => {
-  const root = await temporaryProject(t);
-  await fs.mkdir(path.join(root, ".qwen"), { recursive: true });
-  await fs.writeFile(
-    path.join(root, ".qwen", "settings.json"),
-    `${JSON.stringify({
-      theme: "dark",
-      mcpServers: { existing: { command: "existing-server" } },
-    }, null, 2)}\n`,
-  );
-  await fs.writeFile(path.join(root, "QWEN.md"), "# Team instructions\n");
-
-  const install = runAgentLifecycle(root, "install", "qwen");
-  assert.equal(install.status, 0, install.stderr);
-  const qwenPath = path.join(root, ".qwen", "settings.json");
-  const canonicalRoot = await fs.realpath(root);
-  const qwen = JSON.parse(await fs.readFile(qwenPath, "utf8"));
-  assert.deepEqual(qwen.mcpServers.existing, { command: "existing-server" });
-  assert.deepEqual(qwen.mcpServers["openspec-orch-codegraph"], {
-    command: process.execPath,
-    args: [launcher, "serve", "--mcp"],
-    cwd: canonicalRoot,
-  });
-  assert.match(await fs.readFile(path.join(root, "QWEN.md"), "utf8"), /codegraph_explore/);
-
-  const stableQwen = await fs.readFile(qwenPath, "utf8");
-  assert.equal(runAgentLifecycle(root, "install", "qwen").status, 0);
-  assert.equal(await fs.readFile(qwenPath, "utf8"), stableQwen);
-
-  const remove = runAgentLifecycle(root, "remove", "qwen");
-  assert.equal(remove.status, 0, remove.stderr);
-  const removedQwen = JSON.parse(await fs.readFile(qwenPath, "utf8"));
-  assert.deepEqual(removedQwen.mcpServers, { existing: { command: "existing-server" } });
-  assert.doesNotMatch(await fs.readFile(path.join(root, "QWEN.md"), "utf8"), /codegraph_explore/);
-});
-
-test("Package installs and removes MCP for Claude and GigaCode Agents", async (t) => {
-  const root = await temporaryProject(t);
-  await fs.mkdir(path.join(root, ".gigacode"), { recursive: true });
-
-  for (const agentId of ["claude", "gigacode"]) {
-    const result = runAgentLifecycle(root, "install", agentId);
-    assert.equal(result.status, 0, result.stderr);
-  }
-  const canonicalRoot = await fs.realpath(root);
-  for (const relativePath of [".mcp.json", ".gigacode/settings.json"]) {
-    const config = JSON.parse(await fs.readFile(path.join(root, relativePath), "utf8"));
-    assert.deepEqual(config.mcpServers["openspec-orch-codegraph"], {
-      command: process.execPath,
-      args: [launcher, "serve", "--mcp"],
-      cwd: canonicalRoot,
-    });
-  }
-  assert.match(await fs.readFile(path.join(root, "CLAUDE.md"), "utf8"), /codegraph_explore/);
-  assert.match(await fs.readFile(path.join(root, "GIGACODE.md"), "utf8"), /codegraph_explore/);
-
-  for (const agentId of ["claude", "gigacode"]) {
-    const result = runAgentLifecycle(root, "remove", agentId);
-    assert.equal(result.status, 0, result.stderr);
-  }
-  assert.deepEqual(
-    JSON.parse(await fs.readFile(path.join(root, ".mcp.json"), "utf8")),
-    { mcpServers: {} },
-  );
-  assert.doesNotMatch(
-    await fs.readFile(path.join(root, ".gigacode", "settings.json"), "utf8"),
-    /codegraph/,
-  );
-  assert.equal(await fs.readFile(path.join(root, "CLAUDE.md"), "utf8"), "");
-  assert.equal(await fs.readFile(path.join(root, "GIGACODE.md"), "utf8"), "");
-});
-
-test("Package rejects an Agent without a CodeGraph adapter", async (t) => {
-  const root = await temporaryProject(t);
-  const result = runAgentLifecycle(root, "install", "unknown-agent");
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /CODEGRAPH_AGENT_UNSUPPORTED/);
 });

@@ -43,7 +43,6 @@ function candidate({
     checkboxPrompt,
     lifecycleService: {
       async disconnectMany() { return []; },
-      async exec() {},
       async execMany() { return []; },
       async repositoryCandidates() { return []; },
       async syncMany() { return []; },
@@ -59,16 +58,14 @@ function candidate({
   return new CandidateCli({ pluginLifecycleCommands }).createProgram();
 }
 
-test("plugin register delegates the selected profile and optional Template", async () => {
+test("plugin register delegates the selected profile and optional Extension", async () => {
   const calls = [];
   const captured = outputCollector();
   const program = candidate({
     applicationService: { async install() {}, async remove() {} },
     lifecycleService: {
       async connectMany() { return []; },
-      async disconnect() {},
       async statuses() { return []; },
-      async sync() {},
     },
     output: captured.output,
     scaffoldService: {
@@ -94,7 +91,7 @@ test("plugin register delegates the selected profile and optional Template", asy
     "store",
     "--support",
     "code",
-    "--template",
+    "--extension",
   ]);
 
   assert.deepEqual(calls, [{
@@ -103,7 +100,7 @@ test("plugin register delegates the selected profile and optional Template", asy
     name: "Sample Plugin",
     profile: "native",
     supports: ["store", "code"],
-    template: true,
+    extension: true,
   }]);
   assert.deepEqual(captured.lines, [
     "sample: registered at /plugins/sample",
@@ -126,9 +123,7 @@ test("plugin init preserves --plugin/--from grammar and delegates to application
     },
     lifecycleService: {
       async connectMany() { return []; },
-      async disconnect() {},
       async statuses() { return []; },
-      async sync() {},
     },
     output: captured.output,
     storeProjectService: { async find() { return storeProject; } },
@@ -162,9 +157,7 @@ test("plugin init rejects ambiguous custom source selection before Store lookup"
     applicationService: { async install() {}, async remove() {} },
     lifecycleService: {
       async connectMany() { return []; },
-      async disconnect() {},
       async statuses() { return []; },
-      async sync() {},
     },
     output: outputCollector().output,
     storeProjectService: { async find() { finds += 1; } },
@@ -210,9 +203,7 @@ test("plugin init installs discovered catalog entries through --all", async () =
   };
   const lifecycleService = {
     async connectMany() { return []; },
-    async disconnect() {},
     async statuses() { return []; },
-    async sync() {},
   };
   const program = candidate({
     applicationService,
@@ -252,9 +243,7 @@ test("plugin init uses checkbox catalog selection and requires TTY", async () =>
   };
   const lifecycleService = {
     async connectMany() { return []; },
-    async disconnect() {},
     async statuses() { return []; },
-    async sync() {},
   };
   const storeProjectService = { async find() { return Object.freeze({ root: "/store" }); } };
   const interactive = candidate({
@@ -307,9 +296,7 @@ test("plugin connect preserves repeated --repo grammar and current output", asyn
           { repositoryId: "backend", connected: false, output: "" },
         ];
       },
-      async disconnect() {},
       async statuses() { return []; },
-      async sync() {},
     },
     output: captured.output,
   });
@@ -346,7 +333,6 @@ test("plugin connect keeps checkbox UX and supports explicit --all", async () =>
       calls.push(options);
       return [{ repositoryId: "frontend", connected: true, output: "" }];
     },
-    async disconnect() {},
     async repositoryCandidates(options) {
       calls.push(["candidates", options]);
       return [
@@ -355,7 +341,6 @@ test("plugin connect keeps checkbox UX and supports explicit --all", async () =>
       ];
     },
     async statuses() { return []; },
-    async sync() {},
   };
   const program = candidate({
     checkboxPrompt: async (options) => {
@@ -417,12 +402,10 @@ test("plugin status preserves filters, JSON shape and unavailable rows", async (
   const program = candidate({
     lifecycleService: {
       async connectMany() { return []; },
-      async disconnect() {},
       async statuses(options) {
         calls.push(options);
         return statuses;
       },
-      async sync() {},
     },
     output: captured.output,
   });
@@ -448,7 +431,6 @@ test("plugin human status uses icons while sync preserves current output", async
   const captured = outputCollector();
   const lifecycleService = {
     async connectMany() { return []; },
-    async disconnect() {},
     async statuses() {
       return [{
         pluginId: "sample",
@@ -457,9 +439,9 @@ test("plugin human status uses icons while sync preserves current output", async
         output: "line one\nline two",
       }];
     },
-    async sync(options) {
+    async syncMany(options) {
       calls.push(options);
-      return "synced output";
+      return [{ pluginId: "sample", repositoryId: "frontend", output: "synced output" }];
     },
   };
   const statusProgram = candidate({ lifecycleService, output: captured.output });
@@ -475,7 +457,7 @@ test("plugin human status uses icons while sync preserves current output", async
     "frontend",
   ]);
 
-  assert.deepEqual(calls, [{ pluginId: "sample", repositoryId: "frontend" }]);
+  assert.deepEqual(calls, [{ pluginId: "sample", repositoryIds: ["frontend"] }]);
   assert.deepEqual(captured.lines, [
     "✓ sample → frontend — готов",
     "  line one",
@@ -494,13 +476,15 @@ test("plugin exec forwards the native argv tail to one connected instance", asyn
   const program = candidate({
     lifecycleService: {
       async connectMany() { return []; },
-      async disconnect() {},
-      async exec(options) {
+      async execMany(options) {
         calls.push(options);
-        return '{"initialized":true}';
+        return [{
+          pluginId: "codegraph",
+          repositoryId: "frontend",
+          output: '{"initialized":true}',
+        }];
       },
       async statuses() { return []; },
-      async sync() {},
     },
     output: captured.output,
   });
@@ -521,7 +505,7 @@ test("plugin exec forwards the native argv tail to one connected instance", asyn
   assert.deepEqual(calls, [{
     args: ["status", "--json"],
     pluginId: "codegraph",
-    repositoryId: "frontend",
+    repositoryIds: ["frontend"],
   }]);
   assert.deepEqual(captured.lines, ['{"initialized":true}']);
 });
@@ -532,7 +516,6 @@ test("plugin exec --all forwards the argv tail to all connected instances", asyn
   const program = candidate({
     lifecycleService: {
       async connectMany() { return []; },
-      async disconnect() {},
       async execMany(options) {
         calls.push(options);
         return [
@@ -547,7 +530,6 @@ test("plugin exec --all forwards the argv tail to all connected instances", asyn
         ];
       },
       async statuses() { return []; },
-      async sync() {},
     },
     output: captured.output,
   });
@@ -584,9 +566,7 @@ test("plugin sync without --repo uses checkbox selection", async () => {
   const program = candidate({
     lifecycleService: {
       async connectMany() { return []; },
-      async disconnect() {},
       async statuses() { return []; },
-      async sync() {},
       async repositoryCandidates(options) {
         calls.push(["candidates", options]);
         return [
@@ -639,12 +619,11 @@ test("plugin disconnect preserves explicit --repo grammar and current output", a
   const captured = outputCollector();
   const lifecycleService = {
     async connectMany() { return []; },
-    async disconnect(options) {
+    async disconnectMany(options) {
       calls.push(options);
-      return { disconnected: calls.length === 1 };
+      return [{ repositoryId: "frontend", disconnected: calls.length === 1 }];
     },
     async statuses() { return []; },
-    async sync() {},
   };
 
   await candidate({ lifecycleService, output: captured.output }).parseAsync([
@@ -667,8 +646,8 @@ test("plugin disconnect preserves explicit --repo grammar and current output", a
   ]);
 
   assert.deepEqual(calls, [
-    { pluginId: "sample", repositoryId: "frontend" },
-    { pluginId: "sample", repositoryId: "frontend" },
+    { pluginId: "sample", repositoryIds: ["frontend"] },
+    { pluginId: "sample", repositoryIds: ["frontend"] },
   ]);
   assert.deepEqual(captured.lines, [
     "✓ sample → frontend — отключён",
@@ -681,7 +660,6 @@ test("plugin disconnect --all removes all connected bindings", async () => {
   const captured = outputCollector();
   const lifecycleService = {
     async connectMany() { return []; },
-    async disconnect() {},
     async disconnectMany(options) {
       calls.push(options);
       return [
@@ -696,7 +674,6 @@ test("plugin disconnect --all removes all connected bindings", async () => {
       ];
     },
     async statuses() { return []; },
-    async sync() {},
   };
 
   await candidate({ lifecycleService, output: captured.output }).parseAsync([
@@ -723,7 +700,6 @@ test("plugin lifecycle bulk commands preserve repeatable --repo and reject ambig
   const captured = outputCollector();
   const lifecycleService = {
     async connectMany() { return []; },
-    async disconnect() {},
     async disconnectMany(options) {
       calls.push(["disconnect", options]);
       return options.repositoryIds.map((repositoryId) => ({ repositoryId, disconnected: true }));
@@ -733,7 +709,6 @@ test("plugin lifecycle bulk commands preserve repeatable --repo and reject ambig
       return options.repositoryIds.map((repositoryId) => ({ repositoryId, output: "" }));
     },
     async statuses() { return []; },
-    async sync() {},
     async syncMany(options) {
       calls.push(["sync", options]);
       return options.repositoryIds.map((repositoryId) => ({ repositoryId, output: "" }));
@@ -769,7 +744,7 @@ test("plugin lifecycle bulk commands preserve repeatable --repo and reject ambig
   );
 });
 
-test("plugin remove delegates to application facade and prints manual Template cleanup", async () => {
+test("plugin remove delegates to application facade and remains idempotent", async () => {
   const calls = [];
   const captured = outputCollector();
   const storeProject = Object.freeze({ root: "/store" });
@@ -777,17 +752,12 @@ test("plugin remove delegates to application facade and prints manual Template c
     async install() {},
     async remove(current, pluginId) {
       calls.push({ current, pluginId });
-      return {
-        removed: calls.length === 1,
-        cleanupPaths: calls.length === 1 ? ["openspec/graph.yaml"] : [],
-      };
+      return { removed: calls.length === 1 };
     },
   };
   const lifecycleService = {
     async connectMany() { return []; },
-    async disconnect() {},
     async statuses() { return []; },
-    async sync() {},
   };
   const storeProjectService = { async find() { return storeProject; } };
 
@@ -810,8 +780,6 @@ test("plugin remove delegates to application facade and prints manual Template c
   ]);
   assert.deepEqual(captured.lines, [
     "✓ sample — удалён",
-    "Файлы Plugin оставлены в Store. При необходимости удалите вручную:",
-    "  - openspec/graph.yaml",
     "• sample — не был инициализирован",
   ]);
 });

@@ -17,8 +17,8 @@ const PLUGIN_API_METHODS = Object.freeze([
   "sync",
   "canExec",
   "exec",
-  "hasAgentContribution",
-  "integrateAgent",
+  "hasExtensionContribution",
+  "extensions",
   "hasCommandContribution",
   "registerCommands",
 ]);
