@@ -27,7 +27,8 @@ OpenSpec Graph получают разрешённые root namespaces (`assign/
 ## Требования запуска
 
 - Node.js `20.19.0` или новее проверяется до импорта Core и Plugins.
-- Внешний executable `openspec` должен находиться в `PATH` для `init` и `connect`.
+- Внешний executable `openspec` должен находиться в `PATH` для `init`, `connect` и
+  `doctor`.
 - Версия OpenSpec принимается, если `openspec --version` возвращает строку semantic
   version. Минимальный номер и exact pin кодом не заданы.
 - Git используется без shell-строк: Core передаёт executable и argv через process
@@ -41,6 +42,7 @@ Core всегда объявляет:
 openspec-orch init [path] --store <id> --agent <id>
   [--template <id-or-path>] [--extension <id>]... [--no-extensions]
   [--repo <id=remote#branch>]... [--no-strict]
+openspec-orch doctor [--json]
 openspec-orch connect [--workspace <path>] [--no-strict]
 openspec-orch disconnect
 openspec-orch repository status [--repo <id>]...
@@ -51,6 +53,12 @@ openspec-orch plugin register|init|connect|status|sync|exec|disconnect|remove ..
 только флаги. В TTY отсутствие одного из них включает интерактивный выбор остальных
 параметров и подтверждение до мутаций; в non-TTY это стабильная ошибка
 `INIT_SELECTION_REQUIRED`.
+
+`doctor` формирует read-only Diagnostic Report из существующих Store/OpenSpec,
+Repository, standalone Extension и Plugin status contracts. Human-readable вывод
+используется по умолчанию, `--json` печатает тот же report без progress в stdout.
+Итоговые состояния: `ready`, `degraded` и `blocked`; только `blocked` возвращает exit
+code `1`. Ошибка одного независимого источника не прекращает остальные проверки.
 
 Команды `assign`, `status`, `record`, `verify` и `graph` появляются только после
 загрузки соответствующих установленных Plugin declarations. Статический `--help` в

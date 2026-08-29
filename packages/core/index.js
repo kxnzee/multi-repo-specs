@@ -37,6 +37,12 @@ export { RepositoryCheckout, createRepositoryCheckout } from "./internal/checkou
 export { CoreConfiguration, configuration } from "./internal/configuration.js";
 export { CoreState, CoreStateService, CoreStateStore, coreState } from "./internal/core-state.js";
 export { CurrentRepositoryService, currentRepositories } from "./internal/current-repository.js";
+export {
+  DiagnosticReport,
+  DiagnosticResult,
+  DoctorService,
+  doctor,
+} from "./internal/doctor.js";
 export { FileService, RepositoryFiles, files } from "./internal/files.js";
 export { GitService, RepositoryGit, WorkspaceGit, git } from "./internal/git.js";
 export { InitializationService, initialization } from "./internal/initialization.js";

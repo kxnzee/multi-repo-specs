@@ -53,7 +53,9 @@ async function writeFakeQwen(fakeBin) {
     "  if (!installed.includes(nativeId)) installed.push(nativeId);",
     '  fs.writeFileSync(installedPath, JSON.stringify(installed));',
     "}",
-    'if (args[0] === "extensions" && args[1] === "list") process.stdout.write("[]\\n");',
+    'if (args[0] === "extensions" && args[1] === "list") {',
+    '  process.stdout.write(installed.map((id) => `✓ ${id} (1.0.0)\\n Enabled (Workspace): true`).join("\\n\\n"));',
+    "}",
     "",
   ].join("\n"), { mode: 0o755 });
 }
@@ -78,6 +80,16 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   const storeRoot = path.join(workspaceRoot, "specs");
   const codeRoot = path.join(workspaceRoot, "src", "frontend");
   t.after(() => fs.rm(workspaceRoot, { recursive: true, force: true }));
+  const originalXdgConfigHome = process.env.XDG_CONFIG_HOME;
+  const originalXdgDataHome = process.env.XDG_DATA_HOME;
+  process.env.XDG_CONFIG_HOME = path.join(workspaceRoot, "xdg-config");
+  process.env.XDG_DATA_HOME = path.join(workspaceRoot, "xdg-data");
+  t.after(() => {
+    if (originalXdgConfigHome === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
+    if (originalXdgDataHome === undefined) delete process.env.XDG_DATA_HOME;
+    else process.env.XDG_DATA_HOME = originalXdgDataHome;
+  });
   const fakeBin = path.join(workspaceRoot, "bin");
   const nativeLog = path.join(workspaceRoot, "qwen-native.jsonl");
   await fs.mkdir(fakeBin);
@@ -136,6 +148,17 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   }, null, 2)}\n`);
   await initializeGitRepository(storeRoot);
   await initializeGitRepository(codeRoot);
+  await execa("git", ["remote", "add", "origin", "https://example.test/specs.git"], {
+    cwd: storeRoot,
+  });
+  await execa("git", ["remote", "add", "origin", "https://example.test/frontend.git"], {
+    cwd: codeRoot,
+  });
+  await execa(
+    "openspec",
+    ["store", "register", storeRoot, "--id", "specs", "--yes", "--json"],
+    { cwd: storeRoot },
+  );
 
   const graphSeed = path.join(storeRoot, "openspec/graph.yaml");
   await assert.rejects(fs.access(graphSeed), { code: "ENOENT" });
@@ -240,6 +263,33 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   assert.match(humanStatus.stdout, /⚠ codegraph → specs — требует обновления/);
   assert.match(humanStatus.stdout, /✓ codegraph → frontend — готов/);
   assert.doesNotMatch(humanStatus.stdout, /^\s*\{/mu);
+  const storeStatusBeforeDoctor = (await execa(
+    "git",
+    ["status", "--short", "--untracked-files=all"],
+    { cwd: storeRoot },
+  )).stdout;
+  const doctorCommand = await runCli(storeRoot, "doctor", "--json");
+  const doctor = JSON.parse(doctorCommand.stdout);
+  assert.equal(doctorCommand.exitCode, 0);
+  assert.equal(doctor.version, 1);
+  assert.equal(doctor.status, "degraded");
+  assert.equal(doctor.summary.error, 0);
+  assert.deepEqual(
+    doctor.checks.slice(0, 2).map(({ id }) => id),
+    ["store", "openspec"],
+  );
+  const humanDoctor = await runCli(storeRoot, "doctor");
+  assert.match(humanDoctor.stdout, /OpenSpec Orchestrator Doctor/);
+  assert.match(humanDoctor.stdout, /⚠ Готово с предупреждениями/);
+  assert.match(humanDoctor.stdout, /Результат/);
+  assert.match(humanDoctor.stdout, /Проверки/);
+  assert.match(humanDoctor.stdout, /Дальше/);
+  assert.doesNotMatch(humanDoctor.stdout, /^\s*\{/mu);
+  assert.equal((await execa(
+    "git",
+    ["status", "--short", "--untracked-files=all"],
+    { cwd: storeRoot },
+  )).stdout, storeStatusBeforeDoctor);
   const syncAll = await runCli(storeRoot, "plugin", "sync", "codegraph", "--all");
   assert.match(syncAll.stdout, /✓ codegraph → specs — синхронизирован/);
   assert.match(syncAll.stdout, /✓ codegraph → frontend — синхронизирован/);

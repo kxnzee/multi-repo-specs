@@ -229,6 +229,38 @@ test("automatic composition tolerates a missing Store through the injected resol
   assert.equal(program.commands.some((command) => command.name() === "sample"), false);
 });
 
+test("Doctor reports an invalid Store even when automatic Plugin composition cannot start", async (t) => {
+  const start = "/virtual/invalid-store";
+  const output = [];
+  const previousExitCode = process.exitCode;
+  t.after(() => { process.exitCode = previousExitCode; });
+  t.mock.method(console, "log", (value) => output.push(value));
+  const program = await createCandidateProgram({
+    pluginManagerService: {
+      forStore() {
+        assert.fail("manager must not be requested for an invalid Store");
+      },
+    },
+    start,
+    storeProjectService: {
+      async resolve() {
+        throw Object.assign(new Error("CONFIG_INVALID: malformed project"), {
+          code: "CONFIG_INVALID",
+        });
+      },
+    },
+  });
+
+  await program.parseAsync(["node", "openspec-orch", "doctor", "--json"]);
+
+  const report = JSON.parse(output[0]);
+  assert.equal(report.version, 1);
+  assert.equal(report.status, "blocked");
+  assert.equal(report.checks[0].id, "store");
+  assert.equal(report.checks[0].code, "CONFIG_INVALID");
+  assert.equal(process.exitCode, 1);
+});
+
 test("automatic composition restores declared Plugins through injected services", async (t) => {
   const start = "/virtual/store";
   const loadedPlugin = await samplePlugin(t, []);

@@ -10,6 +10,26 @@ import {
   runNative,
 } from "../native-extension.js";
 
+/** Requires the requested Claude Plugin to be installed and enabled. */
+function assertPluginEnabled(output, qualifiedId) {
+  let plugins;
+  try {
+    plugins = JSON.parse(output);
+  } catch (cause) {
+    throw new Error("AGENT_EXTENSION_STATUS_INVALID: Claude plugin list вернул некорректный JSON", {
+      cause,
+    });
+  }
+  if (!Array.isArray(plugins)) {
+    throw new Error("AGENT_EXTENSION_STATUS_INVALID: Claude plugin list должен вернуть массив");
+  }
+  const plugin = plugins.find(({ id }) => id === qualifiedId);
+  if (!plugin) throw new Error(`AGENT_EXTENSION_STATUS_MISSING: ${qualifiedId}`);
+  if (plugin.enabled !== true) {
+    throw new Error(`AGENT_EXTENSION_STATUS_DISABLED: ${qualifiedId}`);
+  }
+}
+
 /** Claude Plugin lifecycle через локальный marketplace checkout. */
 const claudeAdapter = Object.freeze({
   adaptOpenSpecPack,
@@ -59,7 +79,9 @@ const claudeAdapter = Object.freeze({
       ]);
     }
     if (request.operation === "status") {
-      return runNative(context, extension, ["plugin", "list", "--json"]);
+      const output = await runNative(context, extension, ["plugin", "list", "--json"]);
+      assertPluginEnabled(output, qualifiedId);
+      return output;
     }
     await runNative(context, extension, [
       "plugin", "uninstall", qualifiedId, "--scope", context.agent.scope,

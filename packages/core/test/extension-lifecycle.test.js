@@ -6,7 +6,10 @@ import test from "node:test";
 
 import { ExtensionLifecycle } from "../internal/extension-lifecycle.js";
 
-test("ExtensionLifecycle preflights and invokes the complete Store selection", async () => {
+/** Builds one two-Extension lifecycle while keeping native behavior injectable. */
+function lifecycleFixture(invoke = async (_context, selected, request) => (
+  `${selected.id}:${request.operation}`
+)) {
   const calls = [];
   const declarations = Object.freeze([
     Object.freeze({ id: "first", source: "bundled:first" }),
@@ -33,7 +36,7 @@ test("ExtensionLifecycle preflights and invokes the complete Store selection", a
       },
       async invokeExtension(context, extension, request) {
         calls.push({ context, extension: extension.id, operation: request.operation });
-        return `${extension.id}:${request.operation}`;
+        return invoke(context, extension, request);
       },
     }),
     bundledProvider: Object.freeze({
@@ -59,6 +62,11 @@ test("ExtensionLifecycle preflights and invokes the complete Store selection", a
       },
     }),
   });
+  return { calls, lifecycle };
+}
+
+test("ExtensionLifecycle preflights and invokes the complete Store selection", async () => {
+  const { calls, lifecycle } = lifecycleFixture();
 
   assert.equal(await lifecycle.preflight(), "qwen 1.0.0");
   assert.deepEqual(calls.map(({ operation, extension }) => [operation, extension]), [
@@ -82,5 +90,22 @@ test("ExtensionLifecycle preflights and invokes the complete Store selection", a
   assert.deepEqual(calls.map(({ extension, operation }) => [extension, operation]), [
     ["second", "disconnect"],
     ["first", "disconnect"],
+  ]);
+});
+
+test("ExtensionLifecycle diagnoses every selected Extension after an independent failure", async () => {
+  const { lifecycle } = lifecycleFixture(async (_context, selected) => {
+    if (selected.id === "first") throw new Error("native registration is missing");
+    return "enabled";
+  });
+
+  assert.deepEqual(await lifecycle.diagnoseSelected(), [
+    {
+      extensionId: "first",
+      targetId: "specs",
+      state: "unavailable",
+      output: "EXTENSION_NATIVE_FAILED: first → specs: native registration is missing",
+    },
+    { extensionId: "second", targetId: "specs", state: "ready", output: "enabled" },
   ]);
 });

@@ -80,6 +80,7 @@ test("public entrypoint exposes the supported CLI", () => {
 
   assert.equal(candidate.status, 0, candidate.stderr);
   assert.match(candidate.stdout, /init \[options\] \[path\]/);
+  assert.match(candidate.stdout, /doctor \[options\]/);
   assert.doesNotMatch(candidate.stdout, /^\s+extensions?\b/mu);
 });
 
@@ -99,6 +100,14 @@ test("public entrypoint preserves the Node guard and CLI exit codes", () => {
     encoding: "utf8",
   });
   assert.equal(invalid.status, 2);
+
+  const doctor = spawnSync(process.execPath, [entrypoint, "doctor", "--json"], {
+    cwd: path.resolve("."),
+    encoding: "utf8",
+  });
+  assert.equal(doctor.status, 1, doctor.stderr);
+  assert.equal(doctor.stderr, "");
+  assert.equal(JSON.parse(doctor.stdout).status, "blocked");
 });
 
 test("ESLint enforces static Core, SDK and Plugin import boundaries", async () => {

@@ -1,6 +1,7 @@
 /** @fileoverview Candidate CLI composition для перенесённых Core operations. */
 
 import path from "node:path";
+import process from "node:process";
 
 import { collectValues, createCliProgress, singleValue } from "@openspec-orch/plugin-sdk";
 import { Command, Option } from "commander";
@@ -9,11 +10,12 @@ import { isBundledTemplateProvider } from "./bundled-template.js";
 import { configuration } from "./configuration.js";
 import { CORE_EXECUTION_MODE, CORE_FILES } from "./constants.js";
 import { connection } from "./connection.js";
+import { doctor } from "./doctor.js";
 import { initSelections } from "./init-selection.js";
 import { initialization } from "./initialization.js";
 import { repositoryStatuses } from "./repository-status.js";
 import { hasMethods } from "./value.js";
-import { formatStatusHeading } from "./status-output.js";
+import { formatDoctorReport, formatStatusHeading } from "./status-output.js";
 import { workspace } from "./workspace.js";
 
 const LEGACY_TEMPLATE_ID = "base";
@@ -86,6 +88,7 @@ function buildConnectHint(storeRoot, storeId) {
 export class CandidateCli {
   #bundledTemplates;
   #connection;
+  #doctor;
   #extensionPreflight;
   #extensions;
   #initSelection;
@@ -98,6 +101,7 @@ export class CandidateCli {
   constructor({
     bundledTemplateProvider,
     connectionService = connection,
+    doctorService = doctor,
     extensionLifecycle,
     initSelectionService = initSelections,
     initializationService = initialization,
@@ -116,6 +120,10 @@ export class CandidateCli {
     }
     this.#bundledTemplates = resolvedTemplates;
     this.#connection = connectionService;
+    if (!hasMethods(doctorService, ["inspect"])) {
+      throw new Error("CLI_INVALID: doctorService должен предоставлять inspect");
+    }
+    this.#doctor = doctorService;
     if (extensionLifecycle && !hasMethods(
       extensionLifecycle,
       ["connectSelected", "disconnectSelected", "preflight", "statusSelected"],
@@ -179,6 +187,10 @@ export class CandidateCli {
         .argParser(collectRepositories))
       .option("--no-strict", "отключить Git pinning и automation для текущего вызова")
       .action((target = ".", options) => this.#initialize(target, options));
+    program.command("doctor")
+      .description("проверить готовность Store и локального окружения без изменений")
+      .option("--json", "вывести машиночитаемый Diagnostic Report")
+      .action((options) => this.#diagnose({ json: Boolean(options.json) }));
     program.command("connect")
       .description("подключить рабочую машину и Code Repositories")
       .addOption(new Option("--workspace <path>", "явный workspace").argParser(singleValue))
@@ -257,6 +269,16 @@ export class CandidateCli {
       throw error;
     }
     this.#printConnection(result, options);
+  }
+
+  async #diagnose({ json }) {
+    const report = await this.#doctor.inspect();
+    process.exitCode = report.status === "blocked" ? 1 : 0;
+    if (json) {
+      console.log(JSON.stringify(report, null, 2));
+      return;
+    }
+    console.log(formatDoctorReport(report).join("\n"));
   }
 
   async #disconnect() {

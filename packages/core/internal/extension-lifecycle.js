@@ -10,6 +10,12 @@ import { processes } from "./process.js";
 import { storeProjects } from "./store-project.js";
 import { hasMethods } from "./value.js";
 
+/** Wraps one native failure with its portable Extension target. */
+function nativeFailure(extensionId, targetId, cause) {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  return new Error(`EXTENSION_NATIVE_FAILED: ${extensionId} → ${targetId}: ${message}`, { cause });
+}
+
 /** Подключает выбранные standalone Extensions без отдельного CLI-фасада. */
 export class ExtensionLifecycle {
   #adapter;
@@ -62,6 +68,37 @@ export class ExtensionLifecycle {
   statusSelected() { return this.#invokeSelected("status"); }
   disconnectSelected() { return this.#invokeSelected("disconnect"); }
 
+  /** Проверяет все выбранные Extensions, не останавливаясь после независимой ошибки. */
+  async diagnoseSelected() {
+    const storeProject = await this.#storeProjects.resolve(this.#start);
+    const context = this.#context(storeProject);
+    const results = [];
+    for (const declaration of storeProject.project.extensionDeclarations) {
+      let extension;
+      try {
+        extension = this.#resolveExtension(storeProject, declaration);
+        const output = await this.#invoke(context, extension, "status");
+        results.push(Object.freeze({
+          extensionId: extension.id,
+          targetId: extension.target.id,
+          state: "ready",
+          output: typeof output === "string" ? output : "",
+        }));
+      } catch (cause) {
+        const extensionId = extension?.id ?? declaration.id;
+        const targetId = extension?.target.id ?? storeProject.store.id;
+        const message = nativeFailure(extensionId, targetId, cause).message;
+        results.push(Object.freeze({
+          extensionId,
+          targetId,
+          state: "unavailable",
+          output: message,
+        }));
+      }
+    }
+    return Object.freeze(results);
+  }
+
   async #invokeSelected(operation) {
     const storeProject = await this.#storeProjects.resolve(this.#start);
     const declarations = operation === "disconnect"
@@ -72,19 +109,16 @@ export class ExtensionLifecycle {
     for (const declaration of declarations) {
       const extension = this.#resolveExtension(storeProject, declaration);
       try {
-        results.push(await this.#adapter.invokeExtension(
-          context,
-          extension,
-          Object.freeze({ operation }),
-        ));
+        results.push(await this.#invoke(context, extension, operation));
       } catch (cause) {
-        throw new Error(
-          `EXTENSION_NATIVE_FAILED: ${extension.id} → ${extension.target.id}: ${cause.message}`,
-          { cause },
-        );
+        throw nativeFailure(extension.id, extension.target.id, cause);
       }
     }
     return Object.freeze(results);
+  }
+
+  #invoke(context, extension, operation) {
+    return this.#adapter.invokeExtension(context, extension, Object.freeze({ operation }));
   }
 
   #resolveExtension(storeProject, declaration) {

@@ -11,6 +11,26 @@ import {
 } from "../native-extension.js";
 
 const WORKSPACE_SCOPE = "workspace";
+const ANSI_ESCAPE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "gu");
+
+/** Escapes one native ID before matching the stable first line of Qwen list output. */
+function escapePattern(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+/** Requires the requested Extension to be enabled in the current workspace. */
+function assertExtensionEnabled(output, nativeId) {
+  const plain = output.replace(ANSI_ESCAPE, "");
+  const entry = plain.split(/\n\s*\n/gu).find((block) => (
+    new RegExp(`^[✓✗]\\s+${escapePattern(nativeId)}\\s+\\(`, "u").test(block)
+  ));
+  if (!entry) {
+    throw new Error(`AGENT_EXTENSION_STATUS_MISSING: ${nativeId}`);
+  }
+  if (!entry.startsWith("✓")) {
+    throw new Error(`AGENT_EXTENSION_STATUS_DISABLED: ${nativeId}`);
+  }
+}
 
 /** Отличает отсутствие package от прочих native CLI failures. */
 function isMissingExtension(error, nativeId) {
@@ -52,7 +72,9 @@ const qwenAdapter = Object.freeze({
         ];
       }
     } else if (request.operation === "status") {
-      args = ["extensions", "list"];
+      const output = await runNative(context, extension, ["extensions", "list"]);
+      assertExtensionEnabled(output, resolvedNativeId);
+      return output;
     } else {
       args = ["extensions", "disable", resolvedNativeId, "--scope", WORKSPACE_SCOPE];
     }

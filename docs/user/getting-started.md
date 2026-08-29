@@ -45,6 +45,7 @@ openspec-orch init /absolute/path/to/workspace/specs \
 
 cd /absolute/path/to/workspace/specs
 openspec-orch connect
+openspec-orch doctor
 openspec-orch repository status
 ```
 
@@ -156,13 +157,16 @@ Intake-only или Proposal-only Change может дать warning об отс�
 ## Минимальная проверка готовности
 
 ```bash
+openspec-orch doctor
 openspec-orch repository status
 openspec-orch plugin status --plugin openspec-graph
 openspec-orch graph inspect --json
 ```
 
-Ожидаемый результат — `errors: 0`. Каждый warning нужно разобрать до продолжения
-workflow.
+`doctor` ничего не исправляет: он проверяет Store, OpenSpec, локальные repositories,
+standalone Extensions и Plugin bindings. `doctor --json` выводит тот же Diagnostic
+Report для CI; при блокирующей ошибке команда завершится с кодом `1`. Для Graph
+ожидаемый результат — `errors: 0`. Каждый warning нужно разобрать до продолжения workflow.
 
 ## Следующий шаг
 

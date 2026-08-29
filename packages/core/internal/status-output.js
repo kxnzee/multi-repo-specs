@@ -2,6 +2,20 @@
 
 import { STATUS_PRESENTATIONS } from "./status-output-config.js";
 
+const doctorPresentation = (icon, label) => Object.freeze({ icon, label });
+const DOCTOR_PRESENTATIONS = Object.freeze({
+  pass: doctorPresentation("✓", "Успешно"),
+  warning: doctorPresentation("⚠", "Предупреждения"),
+  error: doctorPresentation("✗", "Ошибки"),
+  skipped: doctorPresentation("•", "Пропущено"),
+});
+
+const DOCTOR_STATUS = Object.freeze({
+  ready: Object.freeze({ icon: "✓", label: "Готово к работе" }),
+  degraded: Object.freeze({ icon: "⚠", label: "Готово с предупреждениями" }),
+  blocked: Object.freeze({ icon: "✗", label: "Есть блокирующие ошибки" }),
+});
+
 /** Returns a stable icon and readable label for a machine state. */
 export function presentState(state) {
   return STATUS_PRESENTATIONS[state] ?? Object.freeze({ icon: "•", label: state });
@@ -65,4 +79,48 @@ export function formatStatusDetails(details) {
   }
   if (!parsed || typeof parsed !== "object") return Object.freeze([scalar(parsed)]);
   return Object.freeze(renderTree(parsed));
+}
+
+/** Removes a duplicated machine code from the start of a human message. */
+function withoutLeadingCode(message, code) {
+  if (!code || !message.startsWith(`${code}:`)) return message;
+  return message.slice(code.length + 1).trimStart();
+}
+
+/** Formats one complete Doctor report for a terminal without changing its JSON contract. */
+export function formatDoctorReport(report) {
+  const status = DOCTOR_STATUS[report.status] ?? Object.freeze({ icon: "•", label: report.status });
+  const summary = Object.entries(DOCTOR_PRESENTATIONS)
+    .map(([outcome, { icon, label }]) => [icon, label, report.summary[outcome]]);
+  const lines = [
+    "OpenSpec Orchestrator Doctor",
+    "────────────────────────────",
+    "",
+    `${status.icon} ${status.label}`,
+    "",
+    "Результат",
+    ...summary.map(([icon, label, count]) => `  ${icon} ${label.padEnd(16)} ${count}`),
+    "",
+    "Проверки",
+  ];
+  for (const check of report.checks) {
+    const presentation = DOCTOR_PRESENTATIONS[check.outcome] ?? Object.freeze({ icon: "•" });
+    lines.push(`  ${presentation.icon} ${check.subject}`);
+    if (check.outcome === "pass") continue;
+    if (check.code) lines.push(`      Код: ${check.code}`);
+    const message = withoutLeadingCode(check.message, check.code);
+    for (const details of [message, check.details]) {
+      for (const line of formatStatusDetails(details)) lines.push(`      ${line}`);
+    }
+  }
+  lines.push("", "Дальше");
+  if (report.status === "ready") {
+    lines.push("  Все обязательные проверки пройдены.");
+  } else {
+    lines.push(report.status === "blocked"
+      ? "  Исправьте блокирующие ошибки и повторите:"
+      : "  Разберите предупреждения и повторите при необходимости:");
+    lines.push("    openspec-orch doctor");
+  }
+  return Object.freeze(lines);
 }

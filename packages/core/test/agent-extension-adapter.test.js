@@ -75,6 +75,9 @@ test("Qwen adapter installs once and proxies workspace lifecycle", async (t) => 
     if (calls.length === 1) {
       throw new Error("Extension with name codegraph-agent does not exist.");
     }
+    if (calls.at(-1)[1].join(" ") === "extensions list") {
+      return "✓ codegraph-agent (1.0.0)\n Enabled (Workspace): true";
+    }
     return "done";
   });
   const payload = extension(root);
@@ -167,7 +170,12 @@ test("Qwen adapter does not replace an enable failure with install", async (t) =
 
 test("Claude adapter proxies local marketplace lifecycle", async (t) => {
   const root = await extensionFixture(t, "openspec-claude-extension-");
-  const fixture = invocationContext("claude", (calls) => `result-${calls.length}`);
+  const qualified = "codegraph-agent@openspec-orch-codegraph-agent";
+  const fixture = invocationContext("claude", (calls) => (
+    calls.at(-1)[1].includes("list")
+      ? JSON.stringify([{ id: qualified, enabled: true }])
+      : `result-${calls.length}`
+  ));
   const payload = extension(root);
 
   assert.equal(await agentAdapter.invokeExtension(
@@ -186,7 +194,6 @@ test("Claude adapter proxies local marketplace lifecycle", async (t) => {
     { operation: "disconnect", ownerId: "codegraph" },
   );
 
-  const qualified = "codegraph-agent@openspec-orch-codegraph-agent";
   assert.deepEqual(fixture.calls, [
     ["claude", ["plugin", "marketplace", "add", root, "--scope", "local"]],
     ["claude", ["plugin", "install", qualified, "--scope", "local"]],
@@ -194,6 +201,35 @@ test("Claude adapter proxies local marketplace lifecycle", async (t) => {
     ["claude", ["plugin", "uninstall", qualified, "--scope", "local"]],
     ["claude", ["plugin", "marketplace", "remove", "openspec-orch-codegraph-agent", "--scope", "local"]],
   ]);
+});
+
+test("Agent status requires the exact Extension to be present and enabled", async (t) => {
+  const root = await extensionFixture(t, "openspec-agent-status-");
+  const payload = extension(root);
+
+  for (const [agentId, output, expected] of [
+    ["qwen", "No extensions installed.", /AGENT_EXTENSION_STATUS_MISSING.*codegraph-agent/u],
+    ["qwen", "✗ codegraph-agent (1.0.0)", /AGENT_EXTENSION_STATUS_DISABLED.*codegraph-agent/u],
+    ["claude", "[]", /AGENT_EXTENSION_STATUS_MISSING.*codegraph-agent@openspec-orch-codegraph-agent/u],
+    [
+      "claude",
+      JSON.stringify([{
+        id: "codegraph-agent@openspec-orch-codegraph-agent",
+        enabled: false,
+      }]),
+      /AGENT_EXTENSION_STATUS_DISABLED.*codegraph-agent@openspec-orch-codegraph-agent/u,
+    ],
+  ]) {
+    const fixture = invocationContext(agentId, output);
+    await assert.rejects(
+      agentAdapter.invokeExtension(
+        fixture.context,
+        payload,
+        { operation: "status", ownerId: "codegraph" },
+      ),
+      expected,
+    );
+  }
 });
 
 test("Claude adapter preflight validates marketplace identity before native mutation", async (t) => {

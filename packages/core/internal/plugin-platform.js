@@ -11,6 +11,7 @@ import { bundledTemplates, isBundledTemplateProvider } from "./bundled-template.
 import { BundledPluginProvider } from "./bundled-plugin.js";
 import { CandidateCli } from "./cli.js";
 import { currentRepositories } from "./current-repository.js";
+import { DoctorService } from "./doctor.js";
 import { ExtensionLifecycle } from "./extension-lifecycle.js";
 import { InitializationService } from "./initialization.js";
 import { InitSelectionService } from "./init-selection.js";
@@ -22,6 +23,7 @@ import { PluginCommandMounter } from "./plugin-commands.js";
 import { PluginHost, PluginRegistry } from "./plugin-host.js";
 import { PluginLifecycleService } from "./plugin-lifecycle.js";
 import { PluginManagerService, pluginManagers } from "./plugin-manager.js";
+import { RepositoryStatusService } from "./repository-status.js";
 import { storeProjects } from "./store-project.js";
 import { hasMethods } from "./value.js";
 
@@ -29,6 +31,7 @@ import { hasMethods } from "./value.js";
 export class PluginPlatform {
   #bundledTemplates;
   #commands;
+  #doctor;
   #extensionLifecycle;
   #initialization;
   #initSelection;
@@ -90,6 +93,13 @@ export class PluginPlatform {
     this.#extensionLifecycle = new ExtensionLifecycle({
       agentAdapter: resolvedAgentAdapter,
       bundledProvider: bundledExtensionProvider,
+      start,
+      storeProjectService,
+    });
+    this.#doctor = new DoctorService({
+      extensionStatusService: this.#extensionLifecycle,
+      pluginStatusService: lifecycle,
+      repositoryStatusService: new RepositoryStatusService({ storeProjectService }),
       start,
       storeProjectService,
     });
@@ -189,6 +199,7 @@ export class PluginPlatform {
     return new CandidateCli({
       ...options,
       bundledTemplateProvider: this.#bundledTemplates,
+      doctorService: this.#doctor,
       extensionLifecycle: this.#extensionLifecycle,
       initSelectionService: this.#initSelection,
       initializationService: this.#initialization,
@@ -202,9 +213,9 @@ export class PluginPlatform {
     let storeProject;
     try {
       storeProject = await storeProjectService.resolve(start);
-    } catch (error) {
-      if (error.code === "STORE_ROOT_NOT_FOUND") return Object.freeze([]);
-      throw error;
+    } catch {
+      // Core commands, especially Doctor, must remain available to report Store errors.
+      return Object.freeze([]);
     }
     const manager = managerService.forStore(storeProject.checkout);
     const loadedPlugins = [];

@@ -120,6 +120,7 @@ cd /absolute/path/to/workspace/specs
 openspec-orch connect
 openspec-orch plugin init --plugin openspec-graph
 openspec-orch plugin connect openspec-graph --repo specs
+openspec-orch doctor
 openspec-orch repository status
 ```
 
@@ -152,7 +153,9 @@ openspec-orch connect --workspace /absolute/path/to/workspace
 Ноль Code Repositories допустимы. Перед native mutation выполняется Agent preflight,
 затем восстанавливаются standalone Extensions, Plugin runtime/contributions и их
 итоговый status. `repository status` ничего не исправляет и не выполняет сетевых
-операций.
+операций. `doctor` также работает только на чтение и собирает единый отчёт о Store,
+OpenSpec, repositories, standalone Extensions и Plugin bindings. Для CI доступен
+`openspec-orch doctor --json`; блокирующие ошибки дают exit code `1`.
 
 ## Пользовательский путь Change
 
@@ -277,6 +280,7 @@ openspec-orch record verification <change-id> --result <pass|fail> --source <hum
 
 ```text
 openspec-orch init [path] --store <id> --agent <id> [--template <id-or-path>] [--extension <id>]... [--no-extensions] [--repo <id=remote#branch>]... [--no-strict]
+openspec-orch doctor [--json]
 openspec-orch connect [--workspace <path>] [--no-strict]
 openspec-orch disconnect
 openspec-orch repository status [--repo <repository-id>]...
