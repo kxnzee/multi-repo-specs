@@ -28,9 +28,11 @@ openspec-orch init
 ```
 
 Команда предложит выбрать Store ID, Template, Agent, Extensions, Code Repositories
-и strict/relaxed mode, затем покажет сводку и запросит подтверждение. Отмена происходит
-до записи файлов. Если переданы `--store` и `--agent`, prompts не открываются и команда
-работает только через флаги. В non-TTY эти два флага обязательны.
+и strict/relaxed mode, затем покажет сводку и запросит подтверждение. Рядом с каждым
+bundled Template показан его Extension-профиль: `base → openspec-base`,
+`superspec → superpowers`. Отмена происходит до записи файлов. Если переданы
+`--store` и `--agent`, prompts не открываются и команда работает только через флаги.
+В non-TTY эти два флага обязательны.
 
 Пример Store `specs` с двумя Code Repositories:
 
@@ -38,8 +40,6 @@ openspec-orch init
 openspec-orch init /absolute/path/to/workspace/specs \
   --store specs \
   --agent qwen \
-  --extension openspec-base \
-  --extension superpowers \
   --repo frontend=ssh://git.example.org/product/frontend.git#main \
   --repo backend=ssh://git.example.org/product/backend.git#main
 
@@ -53,14 +53,17 @@ openspec-orch repository status
 `openspec-orch.yaml`. Команда не устанавливает Plugins и не клонирует Code
 Repositories: последнее делает последующий `connect` в strict mode.
 Повторяемый `--extension <id>` выбирает standalone Extensions из локальной поставки;
-`--no-extensions` явно задаёт пустой набор. `init` только сохраняет выбор и не
-вызывает Agent CLI — нативная регистрация выполняется последующим `connect`.
+required Extension выбранного Template добавляется автоматически. `--no-extensions`
+явно задаёт пустой набор только для Template без requirements и отклоняется для обоих
+bundled Template. `init` только сохраняет выбор и не вызывает Agent CLI — нативная
+регистрация выполняется последующим `connect`.
 Для уже созданного Store повторный `init` без этих флагов сохраняет текущий набор,
 а явные `--extension` или `--no-extensions` обновляют только desired composition в
 `openspec-orch.yaml`, не применяя Template повторно.
 
-Для полного Superspec workflow вместо default Base выберите Template. Его обязательный
-Extension `superpowers` init добавит автоматически:
+Default Base автоматически включает `openspec-base`. Для полного Superspec workflow
+выберите другой Template; его обязательный Extension `superpowers` init также добавит
+автоматически:
 
 ```bash
 openspec-orch init /absolute/path/to/workspace/specs \
@@ -71,9 +74,9 @@ openspec-orch init /absolute/path/to/workspace/specs \
 ```
 
 Интерактивный порядок: Store ID, Project Template, Agent, Extensions, Code
-Repositories, strict mode, итоговое подтверждение. После выбора `superspec`
-`superpowers` показан выбранным и заблокированным; `--no-extensions` несовместим с
-этим Template.
+Repositories, strict mode, итоговое подтверждение. После выбора Template его required
+Extension показан выбранным и заблокированным; `--no-extensions` несовместим с
+`base` и `superspec`.
 
 Superspec хранит brainstorming, plan, Apply/Verify/Finalize receipts внутри текущего
 OpenSpec Change. Finalize использует structured branch closeout Superpowers отдельно

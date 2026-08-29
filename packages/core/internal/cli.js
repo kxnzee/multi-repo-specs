@@ -170,7 +170,7 @@ export class CandidateCli {
       .addOption(new Option("--agent <agent-id>", "независимый Agent ID").argParser(singleValue))
       .addOption(new Option(
         "--template <id-or-path>",
-        "bundled Template ID или локальный Project Template",
+        "bundled Template ID с Extension-профилем или локальный Project Template",
       ).argParser(singleValue))
       .addOption(new Option("--extension <extension-id>", "выбрать standalone Extension")
         .argParser(collectValues))
@@ -213,7 +213,8 @@ export class CandidateCli {
         target,
         storeId: selection.storeId,
         agentId: selection.agentId,
-        extensions: selection.extensionsSpecified ? selection.extensions : undefined,
+        extensions: selection.extensions,
+        replaceExtensions: selection.extensionsSpecified,
         templateId: template.id,
         templateRoot: template.root,
         repositories: selection.repositories,

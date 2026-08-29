@@ -88,10 +88,11 @@ Version, revision и абсолютный путь в Store не записыв�
 
 Project без Template или Agent недопустим.
 
-`openspec-base` и `superpowers` — independently delivered bundled Extensions. Base и
-custom Template могут выбирать их явно. Bundled Template может объявить required
-Extensions; `superspec` требует `superpowers`, поэтому init добавляет его автоматически
-и отклоняет `--no-extensions`.
+`openspec-base` и `superpowers` — independently delivered bundled Extensions. Template
+не копирует их payload, но может объявить required Extensions. Bundled профили:
+`base → openspec-base`, `superspec → superpowers`. Поэтому init показывает совместимую
+связку, добавляет requirement автоматически и отклоняет `--no-extensions` для обоих
+bundled Template. Дополнительные Extensions по-прежнему выбираются явно.
 
 Порядок задаётся повторяемыми флагами `init --extension <id>`. `connect` последовательно
 передаёт выбранные standalone Extension и contributions всех сохранённых Plugin

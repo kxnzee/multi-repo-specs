@@ -133,6 +133,9 @@ Plugin — ESM package с `package.json`:
 Standalone Extension выбираются повторяемым `init --extension <id>` и хранятся в
 порядке выбора. Повторный `init` без Extension-флагов сохраняет набор, а явный
 `--extension`/`--no-extensions` заменяет его без повторного применения Template.
+Required Extensions из bundled Template всегда добавляются к выбору; для `base` это
+`openspec-base`, для `superspec` — `superpowers`. Поэтому `--no-extensions` с этими
+Template отклоняется.
 Общий `connect` сначала проверяет native CLI и manifests всех выбранных standalone
 Extension, затем активирует их в Store scope и восстанавливает Extension
 contributions всех сохранённых Plugin bindings. Общий `disconnect` отключает оба вида

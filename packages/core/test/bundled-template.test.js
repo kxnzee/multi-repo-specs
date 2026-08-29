@@ -33,7 +33,11 @@ test("bundled Template provider discovers checked packages by stable ID", async 
     name,
     requiredExtensions,
   })), [
-    { id: "base", name: "Base Store Template", requiredExtensions: [] },
+    {
+      id: "base",
+      name: "Base Store Template",
+      requiredExtensions: ["openspec-base"],
+    },
     {
       id: "superspec",
       name: "Superspec Multi-Repository",
@@ -41,7 +45,7 @@ test("bundled Template provider discovers checked packages by stable ID", async 
     },
   ]);
   assert.equal(provider.resolve("base").root, await fs.realpath(TEMPLATE_ROOT));
-  assert.deepEqual(provider.catalog.requiredExtensionsFor("base"), []);
+  assert.deepEqual(provider.catalog.requiredExtensionsFor("base"), ["openspec-base"]);
   assert.deepEqual(provider.catalog.requiredExtensionsFor("superspec"), ["superpowers"]);
   assert.deepEqual(provider.resolve("superspec").requiredExtensions, ["superpowers"]);
   assert.throws(

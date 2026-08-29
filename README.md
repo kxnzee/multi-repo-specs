@@ -22,7 +22,8 @@ CI, deployment или ручное тестирование. Он также н�
 ## Project Templates и Extensions
 
 Без `--template` команда `openspec-orch init` использует
-[`templates/base/`](templates/base/). Этот Template устанавливает только:
+[`templates/base/`](templates/base/). Он требует Extension `openspec-base` и
+устанавливает:
 
 - project-local schema `base-v1`:
   `intake → proposal → specs → design → tasks`;
@@ -42,14 +43,16 @@ openspec-orch init /absolute/path/to/store \
   --template superspec
 ```
 
-В интерактивном init Project Template выбирается перед Agent и Extensions. После
-`superspec` Extension `superpowers` показан выбранным и недоступным для снятия;
-`--no-extensions` для этой композиции отклоняется.
+В интерактивном init Project Template выбирается перед Agent и Extensions. CLI
+показывает обязательный Extension-профиль: `base → openspec-base`,
+`superspec → superpowers`. Required Extension уже выбран и недоступен для снятия;
+`--no-extensions` для обеих bundled-композиций отклоняется.
 
-Agent, optional Extensions и Plugins выбираются отдельно. Bundled Extension `openspec-base`
+Agent, дополнительные Extensions и Plugins выбираются отдельно. Bundled Extension `openspec-base`
 поставляет workflow-инструкции, `/openspec-base-*`, project skills и repository
 evidence subagent. Bundled `superpowers` поставляет локальный MIT-снимок общей
-библиотеки skills. Оба поддерживают Claude, Qwen и GigaCode и не зависят от Template.
+библиотеки skills. Оба поддерживают Claude, Qwen и GigaCode. Template не владеет их
+payload, а только объявляет требуемую совместимую композицию.
 OpenSpec Graph, CodeGraph и Change Tracking остаются отдельными Plugins и доставляют
 свою Agent-часть как target-scoped Extension.
 
@@ -295,6 +298,7 @@ Store (`qwen` или `claude`). Orchestrator не проксирует Agent com
 `init` поддерживает два режима: с обязательными `--store`/`--agent` он не открывает
 prompts, а в TTY без одного из них запускает интерактивный выбор Template, Agent,
 Extensions, Code Repositories и strict/relaxed mode с подтверждением до записи.
+В списке Template виден его required Extension-профиль.
 В non-TTY `--store` и `--agent` обязательны.
 
 Plugin может добавить собственный namespace, например `openspec-orch graph ...` или
@@ -319,8 +323,6 @@ agent:
 extensions:
   - id: openspec-base
     source: bundled:openspec-base
-  - id: superpowers
-    source: bundled:superpowers
 plugins: []
 
 repositories:

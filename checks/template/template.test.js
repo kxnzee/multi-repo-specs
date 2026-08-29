@@ -70,8 +70,9 @@ function assertAcyclic(artifacts) {
 
 test("Base Template is copy-only and applies identically for every independent Agent", async (t) => {
   const descriptor = parse(await fs.readFile(path.join(TEMPLATE_ROOT, "template.yaml"), "utf8"));
-  assert.deepEqual(Object.keys(descriptor).sort(), ["copy", "id", "name"]);
+  assert.deepEqual(Object.keys(descriptor).sort(), ["copy", "id", "name", "requires"]);
   assert.equal(descriptor.id, "base");
+  assert.deepEqual(descriptor.requires, { extensions: ["openspec-base"] });
   assert.equal(Object.hasOwn(descriptor, "agents"), false);
   const agentDirectories = (await fs.readdir(AGENTS_ROOT, { withFileTypes: true }))
     .filter((entry) => entry.isDirectory())

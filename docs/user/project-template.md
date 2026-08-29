@@ -1,15 +1,15 @@
 # Project Template
 
 Project Template — copy-only каталог, который `openspec-orch init` один раз безопасно
-накладывает на результат штатного OpenSpec init. Он не выбирает Agent, Extension или
-Plugin.
+накладывает на результат штатного OpenSpec init. Он не выбирает Agent или Plugin, но
+может объявить обязательный совместимый Extension-профиль через `requires.extensions`.
 
 ## Bundled Project Templates
 
-| ID | Schema | Назначение |
-|---|---|---|
-| `base` | `base-v1` | Product-first Intake, Planning, multi-repository Gates и внешний verification checkpoint |
-| `superspec` | `superspec-multirepo` | Полный Superspec lifecycle с multi-repository Apply, Verify и Finalize |
+| ID | Required Extension | Schema | Назначение |
+|---|---|---|---|
+| `base` | `openspec-base` | `base-v1` | Product-first Intake, Planning, multi-repository Gates и внешний verification checkpoint |
+| `superspec` | `superpowers` | `superspec-multirepo` | Полный Superspec lifecycle с multi-repository Apply, Verify и Finalize |
 
 Без `--template` используется `base`. `superspec` полностью заменяет его и не
 наследует Base-specific Intake, instructions или skills.
@@ -22,7 +22,9 @@ Plugin.
 - `.gitignore` из явного asset mapping.
 
 Команды, skills, bootstrap instructions и subagent принадлежат отдельному bundled
-Extension `openspec-base` и активируются нативным механизмом выбранного Agent.
+Extension `openspec-base` и активируются нативным механизмом выбранного Agent. Base
+декларативно требует этот Extension: init показывает связку, блокирует снятие выбора и
+добавляет его автоматически в flag mode.
 
 Change Tracking не входит в Base Template как обязательный Plugin. Его Apply context
 поставляется Store-scoped Extension самого Plugin и активируется при подключении

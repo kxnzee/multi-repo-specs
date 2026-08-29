@@ -1,5 +1,8 @@
 id: base
 name: Base Store Template
+requires:
+  extensions:
+    - openspec-base
 copy:
   - from: context
     to: openspec/context

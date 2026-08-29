@@ -77,6 +77,7 @@ export class InitializationService {
     agentId,
     templateId,
     extensions,
+    replaceExtensions,
     templateRoot,
     repositories = [],
     noStrict = false,
@@ -110,7 +111,13 @@ export class InitializationService {
       throw new Error(`${CORE_FILES.storeMetadata} должна быть обычным файлом`);
     }
     if (metadataStat) {
-      return this.#restoreExisting({ storeTarget, agent, templateId, extensions });
+      return this.#restoreExisting({
+        storeTarget,
+        agent,
+        templateId,
+        extensions,
+        replaceExtensions: replaceExtensions ?? extensions !== undefined,
+      });
     }
     return this.#initializeNew({
       storeTarget,
@@ -132,7 +139,13 @@ export class InitializationService {
     return new StoreTarget(storeId, await fs.realpath(requestedRoot));
   }
 
-  async #restoreExisting({ storeTarget, agent, templateId, extensions }) {
+  async #restoreExisting({
+    storeTarget,
+    agent,
+    templateId,
+    extensions,
+    replaceExtensions,
+  }) {
     const metadata = this.#configuration.parseStore(
       await fs.readFile(path.join(storeTarget.root, CORE_FILES.storeMetadata), "utf8"),
     );
@@ -155,8 +168,14 @@ export class InitializationService {
     let currentProject = project;
     const updated = [];
     if (extensions !== undefined) {
-      currentProject = new Project({ ...project.toConfig(), extensions });
       const current = project.extensionDeclarations.map((entry) => entry.toConfig());
+      const requestedExtensions = replaceExtensions
+        ? extensions
+        : [
+            ...extensions,
+            ...current.filter(({ id }) => !extensions.some((entry) => entry.id === id)),
+          ];
+      currentProject = new Project({ ...project.toConfig(), extensions: requestedExtensions });
       const requested = currentProject.extensionDeclarations.map((entry) => entry.toConfig());
       if (JSON.stringify(current) !== JSON.stringify(requested)) {
         await atomicWriter.write(

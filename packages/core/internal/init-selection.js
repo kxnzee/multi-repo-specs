@@ -10,13 +10,23 @@ import { configuration } from "./configuration.js";
 import { CORE_EXECUTION_MODE, CORE_PATTERNS } from "./constants.js";
 import { extensionCatalog } from "./extension-catalog.js";
 import { INIT_SELECTION_UI } from "./init-selection-config.js";
-import { CHECKBOX_THEME } from "./prompt-config.js";
+import { REQUIRED_CHECKBOX_THEME } from "./prompt-config.js";
 
 const { localTemplateToken, messages } = INIT_SELECTION_UI;
 
 /** Приводит Agent и Extension catalogs к одному формату checkbox/select. */
 function catalogChoices(catalog) {
   return catalog.entries.map(({ id, name }) => ({ name: `${name} (${id})`, value: id }));
+}
+
+/** Показывает Template вместе с его обязательным Extension-профилем. */
+function templateChoices(catalog) {
+  return catalog.entries.map(({ id, name, requiredExtensions = [] }) => {
+    const profile = requiredExtensions.length === 0
+      ? `${name} (${id})`
+      : `${name} (${id}) — требует: ${requiredExtensions.join(", ")}`;
+    return { name: profile, value: id };
+  });
 }
 
 /** Нормализует оба режима init до одного immutable domain input. */
@@ -122,7 +132,7 @@ export class InitSelectionService {
       ? []
       : options.extension ?? await this.#checkbox({
         message: messages.extensions,
-        theme: CHECKBOX_THEME,
+        theme: REQUIRED_CHECKBOX_THEME,
         choices: this.#extensionChoices(template),
       });
     const repositories = options.repo ?? await this.#repositories();
@@ -164,7 +174,7 @@ export class InitSelectionService {
       agentId,
       template,
       extensions,
-      extensionsSpecified: extensionsSpecified || requiredExtensionIds.length > 0,
+      extensionsSpecified,
       repositories: Object.freeze([...repositories]),
       noStrict,
     });
@@ -234,7 +244,7 @@ export class InitSelectionService {
     let template = selected ?? await this.#select({
       message: messages.template,
       choices: [
-        ...catalogChoices(this.#templateCatalog),
+        ...templateChoices(this.#templateCatalog),
         { name: messages.localTemplate, value: localTemplateToken },
       ],
     });

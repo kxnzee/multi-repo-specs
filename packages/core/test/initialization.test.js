@@ -309,6 +309,21 @@ test("custom Template is applied once and its source is not needed for repeated 
     ["superpowers"],
   );
 
+  const augmented = await service.initialize({
+    target: root,
+    storeId: "payments-specs",
+    agentId: "claude",
+    extensions: [{ id: "openspec-base", source: "bundled:openspec-base" }],
+    replaceExtensions: false,
+  });
+  assert.deepEqual(augmented.updated, ["openspec-orch.yaml"]);
+  assert.deepEqual(
+    configurationService.parseProject(
+      await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"),
+    ).extensions,
+    ["openspec-base", "superpowers"],
+  );
+
   const callCount = fake.calls.length;
   const changed = await service.initialize({
     target: root,
@@ -412,6 +427,10 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
     initCommand.options.find((option) => option.long === "--template").flags,
     "--template <id-or-path>",
   );
+  assert.equal(
+    initCommand.options.find((option) => option.long === "--template").description,
+    "bundled Template ID с Extension-профилем или локальный Project Template",
+  );
   await program.parseAsync([
     "node",
     "openspec-orch",
@@ -439,6 +458,7 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
     { id: "superpowers", source: "bundled:superpowers" },
     { id: "company-tools", source: "bundled:company-tools" },
   ]);
+  assert.equal(calls[0].replaceExtensions, true);
   assert.equal(calls[0].repositories[0].id, "frontend");
   assert.equal(calls[0].noStrict, true);
 });
@@ -568,8 +588,16 @@ test("CandidateCli interactive init builds the same normalized domain input", as
     }),
   ]);
   const templateCatalog = new TemplateCatalog([
-    new TemplateCatalogEntry({ id: "superspec", name: "Superspec Multi-Repository" }),
-    new TemplateCatalogEntry({ id: "base", name: "Base Store Template" }),
+    new TemplateCatalogEntry({
+      id: "superspec",
+      name: "Superspec Multi-Repository",
+      requiredExtensions: ["superpowers"],
+    }),
+    new TemplateCatalogEntry({
+      id: "base",
+      name: "Base Store Template",
+      requiredExtensions: ["openspec-base"],
+    }),
   ]);
   const cli = new CandidateCli({
     initSelectionService: new InitSelectionService({
@@ -587,7 +615,17 @@ test("CandidateCli interactive init builds the same normalized domain input", as
       },
       selectPrompt: async ({ message, choices }) => {
         if (message === "Выберите Project Template") {
-          assert.deepEqual(choices.map(({ value }) => value), ["base", "superspec", "__local__"]);
+          assert.deepEqual(choices.map(({ name, value }) => ({ name, value })), [
+            {
+              name: "Base Store Template (base) — требует: openspec-base",
+              value: "base",
+            },
+            {
+              name: "Superspec Multi-Repository (superspec) — требует: superpowers",
+              value: "superspec",
+            },
+            { name: "Локальный Project Template", value: "__local__" },
+          ]);
           return "base";
         }
         if (message === "Выберите Agent") {
@@ -597,9 +635,24 @@ test("CandidateCli interactive init builds the same normalized domain input", as
         throw new Error(`unexpected select prompt: ${message}`);
       },
       checkboxPrompt: async ({ choices, theme }) => {
-        assert.deepEqual(choices.map(({ value }) => value), ["openspec-base", "superpowers"]);
+        assert.deepEqual(choices.map(({ value, checked, disabled }) => ({
+          value,
+          checked: checked ?? false,
+          disabled: disabled ?? false,
+        })), [
+          {
+            value: "openspec-base",
+            checked: true,
+            disabled: "Требуется Project Template base",
+          },
+          { value: "superpowers", checked: false, disabled: false },
+        ]);
         assert.deepEqual(theme.icon, { checked: "[✓]", unchecked: "[ ]" });
-        return ["openspec-base", "superpowers"];
+        assert.equal(
+          theme.style.disabledChoice("Superpowers (superpowers) required"),
+          "[✓] Superpowers (superpowers) required",
+        );
+        return ["superpowers"];
       },
       confirmPrompt: async (options) => {
         confirmations.push(options);
@@ -638,6 +691,7 @@ test("CandidateCli interactive init builds the same normalized domain input", as
       { id: "openspec-base", source: "bundled:openspec-base" },
       { id: "superpowers", source: "bundled:superpowers" },
     ],
+    replaceExtensions: true,
     repositories: undefined,
     noStrict: false,
   });
@@ -725,12 +779,17 @@ test("init selects Template before Extensions and locks its required Extensions"
   ]);
 });
 
-test("init rejects --no-extensions when the selected Template requires one", async () => {
+test("init applies required Extension profiles in flag mode and rejects disabling them", async () => {
   const service = new InitSelectionService({
     agentCatalog: new AgentCatalog([
       new AgentCatalogEntry({ id: "qwen", name: "Qwen Code" }),
     ]),
     extensionCatalog: new ExtensionCatalog([
+      new ExtensionCatalogEntry({
+        id: "openspec-base",
+        name: "OpenSpec Base",
+        source: "bundled:openspec-base",
+      }),
       new ExtensionCatalogEntry({
         id: "superpowers",
         name: "Superpowers",
@@ -739,20 +798,44 @@ test("init rejects --no-extensions when the selected Template requires one", asy
     ]),
     templateCatalog: new TemplateCatalog([
       new TemplateCatalogEntry({
+        id: "base",
+        name: "Base Store Template",
+        requiredExtensions: ["openspec-base"],
+      }),
+      new TemplateCatalogEntry({
         id: "superspec",
         name: "Superspec Multi-Repository",
         requiredExtensions: ["superpowers"],
       }),
     ]),
-    defaultTemplateId: "superspec",
+    defaultTemplateId: "base",
   });
 
-  await assert.rejects(service.resolve({
+  assert.deepEqual((await service.resolve({
+    store: "payments-specs",
+    agent: "qwen",
+  })).extensions, [
+    { id: "openspec-base", source: "bundled:openspec-base" },
+  ]);
+  assert.deepEqual((await service.resolve({
     store: "payments-specs",
     agent: "qwen",
     template: "superspec",
-    extensions: false,
-  }), /TEMPLATE_REQUIRES_EXTENSION.*superspec.*superpowers/u);
+  })).extensions, [
+    { id: "superpowers", source: "bundled:superpowers" },
+  ]);
+
+  for (const [template, extension] of [
+    ["base", "openspec-base"],
+    ["superspec", "superpowers"],
+  ]) {
+    await assert.rejects(service.resolve({
+      store: "payments-specs",
+      agent: "qwen",
+      template,
+      extensions: false,
+    }), new RegExp(`TEMPLATE_REQUIRES_EXTENSION.*${template}.*${extension}`, "u"));
+  }
 });
 
 test("CandidateCli interactive init cancels before mutation and non-TTY requires flags", async () => {
