@@ -27,7 +27,7 @@
     "yaml": "2.9.0"
   },
   "scripts": {
-    "test": "node ../../scripts/run-tests.js test"
+    "test": "node --test --test-concurrency=1"
   },
   "engines": {
     "node": ">=20.19.0"
