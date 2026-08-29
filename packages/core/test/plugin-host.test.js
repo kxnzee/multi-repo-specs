@@ -11,6 +11,7 @@ import {
   PluginRegistry,
 } from "@openspec-orch/core";
 import { loadPluginExport } from "./helpers/plugin-materializer.js";
+import { createDirectoryLink } from "../fixtures/filesystem.js";
 
 /** Создаёт structurally valid Plugin export с наблюдаемым lifecycle. */
 function pluginExport(
@@ -166,7 +167,7 @@ test("PluginHost rejects a Plugin Extension root symlink before Agent invocation
   const external = path.join(path.dirname(loadedPlugin.root), "external-extension");
   t.after(() => fs.rm(external, { recursive: true, force: true }));
   await fs.mkdir(external);
-  await fs.symlink(external, path.join(loadedPlugin.root, "extension"));
+  await createDirectoryLink(external, path.join(loadedPlugin.root, "extension"));
   const adapterCalls = [];
   const context = Object.freeze({
     agent: Object.freeze({ id: "qwen" }),

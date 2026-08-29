@@ -35,8 +35,7 @@ function confirmCli(cwd, ...args) {
 
 /** Создаёт fake Qwen с общей установкой packages и workspace-scoped activation. */
 async function writeFakeQwen(fakeBin) {
-  await fs.writeFile(path.join(fakeBin, "qwen"), [
-    "#!/usr/bin/env node",
+  await fs.writeFile(path.join(fakeBin, "qwen.js"), [
     'const fs = require("node:fs");',
     "const args = process.argv.slice(2);",
     "const log = process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;",
@@ -57,7 +56,17 @@ async function writeFakeQwen(fakeBin) {
     '  process.stdout.write(installed.map((id) => `✓ ${id} (1.0.0)\\n Enabled (Workspace): true`).join("\\n\\n"));',
     "}",
     "",
-  ].join("\n"), { mode: 0o755 });
+  ].join("\n"));
+  await fs.writeFile(
+    path.join(fakeBin, "qwen"),
+    '#!/usr/bin/env node\nrequire("./qwen.js");\n',
+    { mode: 0o755 },
+  );
+  // Windows не исполняет shebang-скрипты: cross-spawn резолвит `qwen` в qwen.cmd через PATHEXT.
+  await fs.writeFile(
+    path.join(fakeBin, "qwen.cmd"),
+    '@echo off\r\nnode "%~dp0qwen.js" %*\r\n',
+  );
 }
 
 /** Инициализирует реальный Git Repository для distribution smoke. */

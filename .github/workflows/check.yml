@@ -1,0 +1,38 @@
+name: check
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check (node ${{ matrix.node }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: ["20", "22"]
+        include:
+          # Windows-джоба обязательна наравне с остальными: merge в master без неё заблокирован.
+          - os: windows-latest
+            node: "22"
+    steps:
+      - name: Disable git CRLF conversion
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install global openspec CLI (distribution tests call it)
+        run: npm install --global @fission-ai/openspec@1
+      - run: npm ci
+      - run: npm run check

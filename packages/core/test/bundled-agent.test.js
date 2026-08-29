@@ -8,6 +8,8 @@ import test from "node:test";
 
 import { BundledAgentPackage, BundledAgentProvider } from "@openspec-orch/core";
 
+import { createDirectoryLink } from "../fixtures/filesystem.js";
+
 /** Создаёт минимальный Agent descriptor fixture. */
 async function agentFixture(t, id = "qwen") {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-bundled-agent-"));
@@ -67,7 +69,7 @@ test("BundledAgentPackage rejects extra fields, identity mismatch and symlink ro
   const target = await agentFixture(t, "target");
   const link = path.join(path.dirname(target), `agent-link-${path.basename(target)}`);
   t.after(() => fs.rm(link, { force: true }));
-  await fs.symlink(target, link);
+  await createDirectoryLink(target, link);
   await assert.rejects(BundledAgentPackage.load(link), /symlink/);
 
   const nested = await agentFixture(t, "nested");
@@ -75,7 +77,7 @@ test("BundledAgentPackage rejects extra fields, identity mismatch and symlink ro
   t.after(() => fs.rm(external, { recursive: true, force: true }));
   await fs.writeFile(path.join(external, "adapter.js"), "export default {};\n");
   await fs.rm(path.join(nested, "adapter.js"));
-  await fs.symlink(external, path.join(nested, "runtime"));
+  await createDirectoryLink(external, path.join(nested, "runtime"));
   const descriptor = await fs.readFile(path.join(nested, "agent.yaml"), "utf8");
   await fs.writeFile(
     path.join(nested, "agent.yaml"),
