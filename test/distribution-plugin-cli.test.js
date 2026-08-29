@@ -438,8 +438,9 @@ test("candidate distribution completes Change Tracking through the public CLI", 
   assert.equal(extensionCalls.length, 1);
   assert.equal(extensionCalls[0].cwd, await fs.realpath(store.checkout));
   assert.deepEqual(extensionCalls[0].args.slice(0, 2), ["extensions", "install"]);
+  const extensionReference = extensionCalls[0].args[2].split(path.sep).join("/");
   assert.match(
-    extensionCalls[0].args[2],
+    extensionReference,
     /plugins\/change-tracking\/extension:change-tracking-agent$/u,
   );
   await runCommand("git", ["-C", store.checkout, "add", "openspec-orch.yaml"]);
