@@ -19,6 +19,14 @@ export {
   bundledPlugins,
 } from "./internal/bundled-plugin.js";
 export {
+  BundledTemplatePackage,
+  BundledTemplateProvider,
+  TemplateCatalog,
+  TemplateCatalogEntry,
+  bundledTemplates,
+  isBundledTemplateProvider,
+} from "./internal/bundled-template.js";
+export {
   BundledExtensionPackage,
   BundledExtensionProvider,
   bundledExtensions,
@@ -94,6 +102,7 @@ import { PluginPlatform } from "./internal/plugin-platform.js";
 export async function createCandidateProgram({
   bundledAgentProvider,
   bundledExtensionProvider,
+  bundledTemplateProvider,
   bundledProvider,
   currentRepositoryService,
   loadedPlugins,
@@ -108,6 +117,7 @@ export async function createCandidateProgram({
   const platform = await PluginPlatform.create({
     bundledAgentProvider,
     bundledExtensionProvider,
+    bundledTemplateProvider,
     bundledProvider,
     contextFactory: pluginContextFactory,
     currentRepositoryService,

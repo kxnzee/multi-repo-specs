@@ -5,6 +5,9 @@ import { randomUUID } from "node:crypto";
 import {
   assertChangeId,
   CHANGE_TRACKING_CONTRACT,
+  CHANGE_TRACKING_REPOSITORY_STATE,
+  CHANGE_TRACKING_RESULT_STATUS,
+  CHANGE_TRACKING_WRITE_STATUS,
   isGitRevision,
 } from "./contracts.js";
 import { CycleRecord } from "./cycle-record.js";
@@ -90,7 +93,7 @@ function assertCycleRepositories(context, cycle, { requireConnected = true } = {
 function completedImplementations(cycle, state) {
   return Object.freeze([...cycle.repositories].sort().map((repositoryId) => {
     const receipt = state.result(cycle.cycleId, repositoryId);
-    if (!receipt || receipt.status !== "completed") {
+    if (!receipt || receipt.status !== CHANGE_TRACKING_RESULT_STATUS.completed) {
       throw new Error(
         `CYCLE_MISMATCH: для repository-id '${repositoryId}' ` +
           "нужен текущий Result Receipt completed",
@@ -208,7 +211,7 @@ export class ChangeTrackingService {
     const receipt = new ChangeTrackingState().recordResult(candidate)
       .result(current.cycle.cycleId, repositoryId);
     const proceed = await confirm(Object.freeze({ receipt, existing, head }));
-    if (!proceed) return Object.freeze({ status: "cancelled" });
+    if (!proceed) return Object.freeze({ status: CHANGE_TRACKING_WRITE_STATUS.cancelled });
 
     await this.#state.update(async (latest) => {
       const latestCycle = await this.currentCycle(changeId);
@@ -224,7 +227,9 @@ export class ChangeTrackingService {
       return latest.recordResult(receipt);
     });
     return Object.freeze({
-      status: existing ? "replaced" : "created",
+      status: existing
+        ? CHANGE_TRACKING_WRITE_STATUS.replaced
+        : CHANGE_TRACKING_WRITE_STATUS.created,
       receipt,
       replaced: existing ?? null,
       headMatches: head === implementationRevision,
@@ -264,7 +269,7 @@ export class ChangeTrackingService {
       };
       const next = state.recordSnapshot(candidate);
       const snapshot = next.snapshot(latest.cycle.cycleId);
-      result = Object.freeze({ status: "created", snapshot });
+      result = Object.freeze({ status: CHANGE_TRACKING_WRITE_STATUS.created, snapshot });
       return next;
     });
     return result;
@@ -313,7 +318,7 @@ export class ChangeTrackingService {
     const receipt = new ChangeTrackingState().recordVerification(candidate)
       .verification(current.cycle.cycleId);
     const proceed = await confirm(Object.freeze({ receipt, existing, snapshot }));
-    if (!proceed) return Object.freeze({ status: "cancelled" });
+    if (!proceed) return Object.freeze({ status: CHANGE_TRACKING_WRITE_STATUS.cancelled });
 
     await this.#state.update(async (latestState) => {
       const latest = await this.#committedCycle(changeId);
@@ -339,7 +344,9 @@ export class ChangeTrackingService {
       return latestState.recordVerification(receipt);
     });
     return Object.freeze({
-      status: existing ? "replaced" : "created",
+      status: existing
+        ? CHANGE_TRACKING_WRITE_STATUS.replaced
+        : CHANGE_TRACKING_WRITE_STATUS.created,
       receipt,
       replaced: existing ?? null,
     });
@@ -358,14 +365,18 @@ export class ChangeTrackingService {
       current.cycle.repositories.map(async (repositoryId) => {
         const receipt = state.result(current.cycle.cycleId, repositoryId);
         if (!this.#context.repositories.isConnected(repositoryId)) {
-          return repositoryStatus(repositoryId, "disconnected", receipt);
+          return repositoryStatus(
+            repositoryId,
+            CHANGE_TRACKING_REPOSITORY_STATE.disconnected,
+            receipt,
+          );
         }
         if (!receipt) {
-          return repositoryStatus(repositoryId, "missing");
+          return repositoryStatus(repositoryId, CHANGE_TRACKING_REPOSITORY_STATE.missing);
         }
         const repositoryGit = await this.#context.repositories.git(repositoryId);
         if (!repositoryGit) {
-          return repositoryStatus(repositoryId, "commit_unavailable", receipt, {
+          return repositoryStatus(repositoryId, CHANGE_TRACKING_REPOSITORY_STATE.commitUnavailable, receipt, {
             commitAvailable: false,
           });
         }
@@ -375,7 +386,7 @@ export class ChangeTrackingService {
         ]);
         return repositoryStatus(
           repositoryId,
-          available ? receipt.status : "commit_unavailable",
+          available ? receipt.status : CHANGE_TRACKING_REPOSITORY_STATE.commitUnavailable,
           receipt,
           {
             commitAvailable: available,
@@ -385,7 +396,9 @@ export class ChangeTrackingService {
         );
       }),
     ));
-    const allCompleted = repositories.every((repository) => repository.state === "completed");
+    const allCompleted = repositories.every((repository) => (
+      repository.state === CHANGE_TRACKING_RESULT_STATUS.completed
+    ));
     const expectedSnapshotId = allCompleted
       ? currentSnapshotId(current.cycle, state)
       : null;
@@ -407,7 +420,7 @@ export class ChangeTrackingService {
     if (!current.committed) nextAction = "закоммитьте Cycle Record обычным процессом Git";
     else if (!allCompleted) {
       const pending = repositories
-        .filter((repository) => repository.state !== "completed")
+        .filter((repository) => repository.state !== CHANGE_TRACKING_RESULT_STATUS.completed)
         .map((repository) => repository.repositoryId);
       nextAction = `записать результаты для репозиториев: ${pending.join(", ")}`;
     } else if (!snapshot?.current) nextAction = "вызвать verify";
@@ -493,7 +506,9 @@ export class ChangeTrackingService {
       planningRevision,
       repositories: Object.freeze([...repositoryIds]),
     }));
-    if (!proceed) return Object.freeze({ status: "cancelled", path: relativePath });
+    if (!proceed) {
+      return Object.freeze({ status: CHANGE_TRACKING_WRITE_STATUS.cancelled, path: relativePath });
+    }
 
     const cycle = CycleRecord.create({
       changeId,
@@ -502,7 +517,9 @@ export class ChangeTrackingService {
     });
     await this.#records.write(cycle);
     return Object.freeze({
-      status: existing ? "replaced" : "created",
+      status: existing
+        ? CHANGE_TRACKING_WRITE_STATUS.replaced
+        : CHANGE_TRACKING_WRITE_STATUS.created,
       cycle,
       path: relativePath,
     });

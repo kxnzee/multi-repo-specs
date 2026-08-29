@@ -1,0 +1,14 @@
+id: superspec
+name: Superspec Multi-Repository
+requires:
+  extensions:
+    - superpowers
+copy:
+  - from: context
+    to: openspec/context
+  - from: openspec/config.yaml
+    to: openspec/config.yaml
+  - from: openspec/schemas
+    to: openspec/schemas
+  - from: assets/gitignore.template
+    to: .gitignore

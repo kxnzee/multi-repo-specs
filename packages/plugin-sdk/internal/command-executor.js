@@ -1,8 +1,14 @@
 /** @fileoverview Dependency-free argv executor for one Plugin command contribution. */
 
-const COMMAND_NAME_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
-const CONTEXT_KEYS = new Set(["scope", "requireBinding"]);
-const CONTEXT_SCOPES = new Set(["current", "store"]);
+import {
+  COMMAND_CONTEXT,
+  COMMAND_PATTERNS,
+  COMMAND_SCOPE,
+  REPOSITORY_ROLE,
+} from "./constants.js";
+
+const CONTEXT_KEYS = new Set(COMMAND_CONTEXT.keys);
+const CONTEXT_SCOPES = new Set(COMMAND_CONTEXT.scopes);
 const OPTION_NAME_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
 /** Creates one stable execution error. */
@@ -37,7 +43,7 @@ function commandDefinition(definition) {
   }
   const parts = definition.trim().split(/\s+/u);
   const name = parts.shift();
-  if (!COMMAND_NAME_PATTERN.test(name)) {
+  if (!COMMAND_PATTERNS.name.test(name)) {
     invalid(`command '${definition.trim()}' должна начинаться с kebab-case name`);
   }
   const args = parts.map((part) => argumentDefinition(part, definition.trim()));
@@ -126,7 +132,7 @@ class ExecutionCommandBuilder {
   }
 
   action(handler) {
-    this.#setAction(handler, { context: false, scope: "current" });
+    this.#setAction(handler, { context: false, scope: COMMAND_CONTEXT.defaultScope });
     return this;
   }
 
@@ -139,7 +145,7 @@ class ExecutionCommandBuilder {
     ) {
       invalid("context config должен быть object");
     }
-    const scope = config.scope ?? "current";
+    const scope = config.scope ?? COMMAND_CONTEXT.defaultScope;
     if (!CONTEXT_SCOPES.has(scope)) invalid("context scope должен быть current или store");
     if (config.requireBinding !== undefined && typeof config.requireBinding !== "boolean") {
       invalid("requireBinding должен быть boolean");
@@ -351,7 +357,11 @@ export async function executePluginCommands(registerCommands, context, args) {
   const parsed = parseCommandArgs(selected.node, selected.argv);
   const values = positionalValues(selected.node, parsed.positional);
   const action = selected.node.action;
-  if (action.context && action.scope === "store" && context.repository?.role !== "store") {
+  if (
+    action.context &&
+    action.scope === COMMAND_SCOPE.store &&
+    context.repository?.role !== REPOSITORY_ROLE.store
+  ) {
     throw new Error(
       `PLUGIN_EXEC_SCOPE_MISMATCH: ${selected.path.join(" ")} требует Store instance`,
     );

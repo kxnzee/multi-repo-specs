@@ -32,6 +32,13 @@ optional contribution `repository.exec` требуется только для n
 `registerCommands` и `repository.exec` продолжает загружаться, но универсальный
 passthrough для него недоступен.
 
+Повторяемые значения публичного контракта не нужно дублировать в Plugin-коде. SDK
+экспортирует immutable `REPOSITORY_ROLE`, `COMMAND_SCOPE`, `COMMAND_CONTEXT`,
+`COMMAND_PATTERNS` и `PLUGIN_PATTERNS`, а также CLI parsers `singleValue` и
+`collectValues`. Например, `supports: [REPOSITORY_ROLE.store]` и
+`{ scope: COMMAND_SCOPE.store }` используют те же значения, которые проверяют SDK и
+Core.
+
 `supports` можно не указывать для commands-only Plugin: SDK использует пустой
 список. Если объявлен `repository`, требуется хотя бы одна role в `supports` и
 обязательные callbacks `connect/status`.

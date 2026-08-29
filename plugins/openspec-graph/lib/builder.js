@@ -24,9 +24,12 @@ import {
   edge,
   fatal,
   finalizeReport,
+  GRAPH_REPORT_CONTRACT,
   node,
   source,
 } from "./report.js";
+
+const { error: ERROR, warning: WARNING } = GRAPH_REPORT_CONTRACT.severity;
 
 /** Owns one in-memory compilation while keeping every projection stage explicit. */
 class GraphCompilation {
@@ -263,7 +266,7 @@ class GraphCompilation {
     if (archived && !currentMasterExists) {
       this.#diagnostics.push(diagnostic(
         "ARCHIVED_MASTER_SPEC_MISSING",
-        "error",
+        ERROR,
         `Archived Change '${change.id}' has no current Master Spec for '${capability}'`,
         {
           elements: [deltaNodeId, affectsEdgeId, masterNodeId],
@@ -274,7 +277,7 @@ class GraphCompilation {
     if (operations.length === 0) {
       this.#diagnostics.push(diagnostic(
         "DELTA_OPERATIONS_MISSING",
-        "error",
+        ERROR,
         `${file} has no configured Delta operation section`,
         {
           elements: [deltaNodeId, affectsEdgeId],
@@ -285,7 +288,7 @@ class GraphCompilation {
     for (const duplicate of parsedOperations.duplicates) {
       this.#diagnostics.push(diagnostic(
         "DELTA_OPERATION_DUPLICATE",
-        "error",
+        ERROR,
         `${file} repeats ${duplicate.operation} Requirements from line ${duplicate.firstLine}`,
         {
           elements: [deltaNodeId, affectsEdgeId],
@@ -319,7 +322,7 @@ class GraphCompilation {
     if (change.capabilities.size === 0 && !change.skipSpecs) {
       this.#diagnostics.push(diagnostic(
         "CHANGE_WITHOUT_DELTA_SPECS",
-        "warning",
+        WARNING,
         `Change '${change.id}' has no Delta Specs`,
         {
           elements: [change.nodeId],
@@ -339,7 +342,7 @@ class GraphCompilation {
     if (!impact.present && change.capabilities.size > 0) {
       this.#diagnostics.push(diagnostic(
         "REPOSITORY_IMPACT_MISSING",
-        "warning",
+        WARNING,
         `Change '${change.id}' has Delta Specs but no Repository Impact table`,
         {
           elements: [change.nodeId],
@@ -383,7 +386,7 @@ class GraphCompilation {
         }
         this.#diagnostics.push(diagnostic(
           "GRAPH_UNKNOWN_REPOSITORY",
-          "error",
+          ERROR,
           `Repository '${entry.repositoryId}' is absent from openspec-orch.yaml`,
           {
             elements: [repositoryNodeId, changesEdgeId, ...linkEdgeIds],
@@ -395,7 +398,7 @@ class GraphCompilation {
         if (!change.capabilities.has(capability.id)) {
           this.#diagnostics.push(diagnostic(
             "REPOSITORY_IMPACT_UNKNOWN_CAPABILITY",
-            "error",
+            ERROR,
             `Capability '${capability.id}' has no Delta Spec in Change '${change.id}'`,
             {
               elements: [change.nodeId, changesEdgeId],
@@ -425,7 +428,7 @@ class GraphCompilation {
       if (this.#linkedCapabilities.has(master.capability)) continue;
       this.#diagnostics.push(diagnostic(
         "UNLINKED_MASTER_SPEC",
-        "warning",
+        WARNING,
         `Master Spec '${master.capability}' has no known Repository relation`,
         {
           elements: [master.id],

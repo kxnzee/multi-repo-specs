@@ -6,6 +6,9 @@ import test from "node:test";
 
 import {
   CliProgressRenderer,
+  collectValues,
+  COMMAND_CONTEXT,
+  COMMAND_SCOPE,
   createCliProgress,
   defineExtension,
   definePlugin,
@@ -13,6 +16,9 @@ import {
   Plugin,
   PluginPackage,
   PLUGIN_API_VERSION,
+  PLUGIN_PATTERNS,
+  REPOSITORY_ROLE,
+  singleValue,
 } from "@openspec-orch/plugin-sdk";
 import {
   assertPluginContract,
@@ -59,6 +65,21 @@ test("CLI progress renders a TTY spinner and reports failures without swallowing
 const SAMPLE_ROOT = new URL("../../../test-fixtures/plugin-sdk/sample-plugin/", import.meta.url);
 const SAMPLE_MANIFEST = JSON.parse(await fs.readFile(new URL("package.json", SAMPLE_ROOT), "utf8"));
 const { default: SAMPLE_PLUGIN } = await import(new URL("index.js", SAMPLE_ROOT));
+
+test("SDK exposes one immutable source for roles, scopes, patterns and CLI values", () => {
+  assert.deepEqual(REPOSITORY_ROLE, { code: "code", store: "store" });
+  assert.deepEqual(COMMAND_SCOPE, { current: "current", store: "store" });
+  assert.equal(COMMAND_CONTEXT.defaultScope, COMMAND_SCOPE.current);
+  assert.deepEqual(COMMAND_CONTEXT.scopes, Object.values(COMMAND_SCOPE));
+  assert.equal(PLUGIN_PATTERNS.id.test("change-tracking"), true);
+  assert.equal(PLUGIN_PATTERNS.id.test("ChangeTracking"), false);
+  assert.equal(PLUGIN_PATTERNS.exactSemanticVersion.test("1.2.3"), true);
+  assert.equal(PLUGIN_PATTERNS.exactSemanticVersion.test("^1.2.3"), false);
+  assert.equal(singleValue("store"), "store");
+  assert.deepEqual(collectValues("store", ["code"]), ["code", "store"]);
+  assert.equal(Object.isFrozen(REPOSITORY_ROLE), true);
+  assert.equal(Object.isFrozen(COMMAND_CONTEXT.scopes), true);
+});
 
 testPluginContract({ plugin: SAMPLE_PLUGIN, packageManifest: SAMPLE_MANIFEST });
 

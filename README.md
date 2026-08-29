@@ -19,7 +19,7 @@ Core не планирует Change, не интерпретирует треб�
 CI, deployment или ручное тестирование. Он также не выполняет `git add`, `commit`,
 `push`, `merge` или `rebase`. Эти действия остаются в действующем процессе команды.
 
-## Base Template и Extensions
+## Project Templates и Extensions
 
 Без `--template` команда `openspec-orch init` использует
 [`templates/base/`](templates/base/). Этот Template устанавливает только:
@@ -29,7 +29,24 @@ CI, deployment или ручное тестирование. Он также н�
 - `openspec/config.yaml` и project context в `openspec/context/`;
 - дополнительные assets, включая `.gitignore`.
 
-Agent, Extensions и Plugins выбираются отдельно. Bundled Extension `openspec-base`
+Bundled [`templates/superspec/`](templates/superspec/) — альтернативный, а не
+дополнительный Template. Он устанавливает schema `superspec-multirepo` с pipeline
+`brainstorm → proposal → optional design → specs → tasks → plan → apply → verify →
+finalize`, Apply/Verify convergence и multi-repository gates. Template декларативно
+требует независимый Extension `superpowers`, поэтому init добавляет его автоматически:
+
+```bash
+openspec-orch init /absolute/path/to/store \
+  --store specs \
+  --agent qwen \
+  --template superspec
+```
+
+В интерактивном init Project Template выбирается перед Agent и Extensions. После
+`superspec` Extension `superpowers` показан выбранным и недоступным для снятия;
+`--no-extensions` для этой композиции отклоняется.
+
+Agent, optional Extensions и Plugins выбираются отдельно. Bundled Extension `openspec-base`
 поставляет workflow-инструкции, `/openspec-base-*`, project skills и repository
 evidence subagent. Bundled `superpowers` поставляет локальный MIT-снимок общей
 библиотеки skills. Оба поддерживают Claude, Qwen и GigaCode и не зависят от Template.
@@ -50,11 +67,14 @@ Scenarios, в том числе нейтральную структуру для
 
 Агент не закрывает этот пункт самостоятельно. Новая версия или deployment после
 подтверждения снова делают его незавершённым. Archive дополнительно требует
-фактический Release; отдельный verification artifact в schema не создаётся.
+фактический Release. Base schema хранит checkpoint только в Tasks; Superspec также
+создаёт технический `verify.md`, который не заменяет внешнее подтверждение.
 
-Template применяется только во время `init`. Скопированные файлы принадлежат Store и
-не обновляются автоматически. Custom Project Template полностью заменяет Base
-Template, но не меняет отдельно выбранные Agent, Extensions или Plugins.
+Template применяется только во время `init`. Bundled IDs `base` и `superspec`
+разрешаются из каталога поставки; локальный путь указывают явно, например
+`--template ./team-template`. Скопированные файлы принадлежат Store и не обновляются
+автоматически. Custom Project Template полностью заменяет Base Template, но не меняет
+отдельно выбранные Agent, Extensions или Plugins.
 
 ## Требования и локальная установка
 

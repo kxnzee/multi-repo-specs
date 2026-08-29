@@ -27,9 +27,16 @@ const COPY_SCHEMA = z.strictObject({
   from: RELATIVE_PATH_SCHEMA,
   to: RELATIVE_PATH_SCHEMA,
 });
+const REQUIRED_EXTENSIONS_SCHEMA = z.array(ID_SCHEMA).min(1).refine(
+  (extensionIds) => new Set(extensionIds).size === extensionIds.length,
+  { message: "requires.extensions не должен содержать повторяющиеся ID" },
+);
 const TEMPLATE_SCHEMA = z.strictObject({
   id: ID_SCHEMA,
   name: z.string().trim().min(1),
+  requires: z.strictObject({
+    extensions: REQUIRED_EXTENSIONS_SCHEMA,
+  }).optional(),
   copy: z.array(COPY_SCHEMA).min(1),
 });
 const PROTECTED_ROOTS = new Set([
@@ -83,6 +90,13 @@ async function readTemplateDescriptor(templateRoot, schema) {
     await fs.readFile(path.join(templateRoot, CORE_FILES.templateDescriptor), "utf8"),
     schema,
   );
+}
+
+/** Загружает полностью проверенный descriptor и canonical root Project Template. */
+export async function loadTemplateDefinition(requestedTemplateRoot) {
+  const root = await resolveDirectoryRoot(requestedTemplateRoot, "Template root");
+  const descriptor = await readTemplateDescriptor(root, TEMPLATE_SCHEMA);
+  return deepFreeze({ descriptor, root });
 }
 
 /** Разрешает проверенный POSIX path относительно root текущей платформы. */
@@ -342,7 +356,7 @@ export class TemplatePlan {
 /** Загружает отдельный Project Template и строит безопасный plan без записи. */
 export class ProjectTemplateService {
   async plan({ templateRoot: requestedTemplateRoot, targetRoot: requestedTargetRoot, agent }) {
-    const templateRoot = await resolveDirectoryRoot(requestedTemplateRoot, "Template root");
+    const { descriptor, root: templateRoot } = await loadTemplateDefinition(requestedTemplateRoot);
     const targetRoot = await resolveDirectoryRoot(requestedTargetRoot, "Target root");
     if (
       isContainedPath(templateRoot, targetRoot, { allowRoot: true }) ||
@@ -350,7 +364,6 @@ export class ProjectTemplateService {
     ) {
       throw new Error("Template root и target root не должны пересекаться");
     }
-    const descriptor = await readTemplateDescriptor(templateRoot, TEMPLATE_SCHEMA);
     if (!(agent instanceof AgentDefinition)) {
       throw new Error("TEMPLATE_AGENT_INVALID: требуется независимый AgentDefinition");
     }

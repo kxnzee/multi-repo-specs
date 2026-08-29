@@ -1,6 +1,7 @@
 /** @fileoverview Доменный каталог доступных для инициализации Plugin packages. */
 
-import { CORE_PATTERNS } from "./constants.js";
+import { PLUGIN_PATTERNS } from "@openspec-orch/plugin-sdk";
+
 import { PluginSource } from "./plugin-source.js";
 
 /** Завершает операцию стабильной ошибкой Plugin catalog. */
@@ -15,7 +16,7 @@ export class PluginCatalogEntry {
   #source;
 
   constructor({ id, name, source } = {}) {
-    if (typeof id !== "string" || !CORE_PATTERNS.pluginId.test(id)) {
+    if (typeof id !== "string" || !PLUGIN_PATTERNS.id.test(id)) {
       invalid(`некорректный plugin-id '${id ?? ""}'`);
     }
     if (typeof name !== "string" || !name.trim()) {

@@ -7,10 +7,25 @@
     "plugins/*"
   ],
   "openspecOrchestrator": {
+    "defaultTemplateId": "base",
     "bundledPlugins": [
-      "@openspec-orch/plugin-change-tracking",
-      "@openspec-orch/plugin-codegraph",
-      "@openspec-orch/plugin-openspec-graph"
+      {
+        "id": "change-tracking",
+        "name": "Change Tracking",
+        "packageName": "@openspec-orch/plugin-change-tracking",
+        "rootCommands": ["assign", "status", "record", "verify"]
+      },
+      {
+        "id": "codegraph",
+        "name": "CodeGraph",
+        "packageName": "@openspec-orch/plugin-codegraph"
+      },
+      {
+        "id": "openspec-graph",
+        "name": "OpenSpec Graph",
+        "packageName": "@openspec-orch/plugin-openspec-graph",
+        "rootCommands": ["graph"]
+      }
     ]
   },
   "files": [

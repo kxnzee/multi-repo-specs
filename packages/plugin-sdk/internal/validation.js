@@ -1,7 +1,9 @@
 /** @fileoverview Общие внутренние проверки публичных definitions Plugin SDK. */
 
-export const DEFINITION_ID_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
-export const REPOSITORY_ROLES = new Set(["store", "code"]);
+import { PLUGIN_PATTERNS, REPOSITORY_ROLE } from "./constants.js";
+
+export const DEFINITION_ID_PATTERN = PLUGIN_PATTERNS.id;
+export const REPOSITORY_ROLES = new Set(Object.values(REPOSITORY_ROLE));
 
 /** Проверяет plain object без зависимости от конкретного prototype SDK. */
 export function assertPlainObject(value, label, invalid) {

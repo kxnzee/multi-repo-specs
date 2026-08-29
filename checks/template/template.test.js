@@ -15,6 +15,9 @@ import {
 import { parse } from "yaml";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/base/", import.meta.url));
+const SUPERSPEC_TEMPLATE_ROOT = fileURLToPath(
+  new URL("../../templates/superspec/", import.meta.url),
+);
 const AGENTS_ROOT = fileURLToPath(new URL("../../agents/", import.meta.url));
 
 /** Возвращает POSIX paths всех обычных файлов ниже directory. */
@@ -30,10 +33,10 @@ async function listFiles(directory, relative = "") {
 }
 
 /** Вычисляет ожидаемые target files одной agent mapping без фиксированного inventory. */
-async function expectedTargets(copy) {
+async function expectedTargets(copy, templateRoot = TEMPLATE_ROOT) {
   const targets = [];
   for (const operation of copy) {
-    const source = path.join(TEMPLATE_ROOT, operation.from);
+    const source = path.join(templateRoot, operation.from);
     const stat = await fs.stat(source);
     if (stat.isFile()) {
       targets.push(operation.to);
@@ -157,4 +160,112 @@ test("base-v1 keeps verification as one final external task checkpoint", async (
     tasks.match(/^- \[ \] \d+\.\d+ Получить подтверждение, что текущая версия изменения успешно проверена/gmu)?.length,
     1,
   );
+});
+
+test("Superspec Template preserves the complete skill-driven lifecycle", async () => {
+  const descriptor = parse(
+    await fs.readFile(path.join(SUPERSPEC_TEMPLATE_ROOT, "template.yaml"), "utf8"),
+  );
+  assert.equal(descriptor.id, "superspec");
+  assert.deepEqual(Object.keys(descriptor).sort(), ["copy", "id", "name", "requires"]);
+  assert.deepEqual(descriptor.requires, { extensions: ["superpowers"] });
+
+  const configuration = parse(
+    await fs.readFile(path.join(SUPERSPEC_TEMPLATE_ROOT, "openspec/config.yaml"), "utf8"),
+  );
+  assert.equal(configuration.schema, "superspec-multirepo");
+  const schemaRoot = path.join(
+    SUPERSPEC_TEMPLATE_ROOT,
+    "openspec/schemas/superspec-multirepo",
+  );
+  const schemaSource = await fs.readFile(path.join(schemaRoot, "schema.yaml"), "utf8");
+  const schema = parse(schemaSource);
+  assert.deepEqual(schema.artifacts.map(({ id }) => id), [
+    "brainstorm",
+    "proposal",
+    "design",
+    "specs",
+    "tasks",
+    "plan",
+    "apply",
+    "verify",
+    "finalize",
+  ]);
+  assert.match(schema.artifacts[0].instruction, /superpowers:brainstorming/u);
+  assert.match(schema.artifacts.find(({ id }) => id === "plan").instruction, /superpowers:writing-plans/u);
+  assert.match(schema.artifacts[0].instruction, /brainstorm\.md/u);
+  assert.match(schema.artifacts.find(({ id }) => id === "plan").instruction, /plan\.md/u);
+  assert.deepEqual(schema.artifacts.find(({ id }) => id === "apply").requires, ["plan"]);
+  assert.deepEqual(schema.artifacts.find(({ id }) => id === "verify").requires, ["apply"]);
+  assert.deepEqual(schema.artifacts.find(({ id }) => id === "finalize").requires, ["verify"]);
+  assert.deepEqual(schema.apply.requires, ["plan"]);
+  assert.equal(schema.apply.tracks, "tasks.md");
+  for (const skill of [
+    "using-superpowers",
+    "using-git-worktrees",
+    "dispatching-parallel-agents",
+    "subagent-driven-development",
+    "executing-plans",
+    "test-driven-development",
+    "systematic-debugging",
+    "requesting-code-review",
+    "receiving-code-review",
+    "verification-before-completion",
+    "finishing-a-development-branch",
+  ]) {
+    assert.match(schemaSource, new RegExp(`superpowers:${skill}`, "u"), skill);
+  }
+  assert.match(schemaSource, /openspec-verify-change/u);
+  assert.match(schemaSource, /Change Tracking/u);
+  assert.match(schemaSource, /Result Receipt/u);
+  assert.match(schemaSource, /Snapshot/u);
+  assert.match(schemaSource, /Repository ID/u);
+  assert.doesNotMatch(
+    schemaSource,
+    /\bgit\s+(?:add|commit|checkout|pull|merge|push|branch)\b|\bgh\s+pr\b/iu,
+  );
+
+  for (const artifact of ["apply", "verify", "finalize"]) {
+    await fs.access(path.join(schemaRoot, `templates/${artifact}.md`));
+  }
+
+  const tasks = await fs.readFile(path.join(schemaRoot, "templates/tasks.md"), "utf8");
+  assert.equal(
+    tasks.match(/^- \[ \] \d+\.\d+ Получить подтверждение, что текущая версия изменения успешно проверена/gmu)?.length,
+    1,
+  );
+  const notice = await fs.readFile(path.join(schemaRoot, "NOTICE.md"), "utf8");
+  assert.match(notice, /danielhanold\/superspec/u);
+  assert.match(notice, /e1c8f417ee3601208416d988ba3b37d83ddb63f2/u);
+});
+
+test("Superspec Template applies identically for every independent Agent", async (t) => {
+  const descriptor = parse(
+    await fs.readFile(path.join(SUPERSPEC_TEMPLATE_ROOT, "template.yaml"), "utf8"),
+  );
+  const agentDirectories = (await fs.readdir(AGENTS_ROOT, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const provider = new BundledAgentProvider(await Promise.all(agentDirectories.map(({ name }) => (
+    BundledAgentPackage.load(path.join(AGENTS_ROOT, name), { expectedId: name })
+  ))));
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-superspec-template-"));
+  const temporaryRoot = await fs.realpath(temporary);
+  t.after(() => fs.rm(temporaryRoot, { recursive: true, force: true }));
+
+  for (const { id: agentId } of provider.catalog.entries) {
+    const targetRoot = path.join(temporaryRoot, agentId);
+    await fs.mkdir(targetRoot);
+    const expected = await expectedTargets(descriptor.copy, SUPERSPEC_TEMPLATE_ROOT);
+    const plan = await new ProjectTemplateService().plan({
+      templateRoot: SUPERSPEC_TEMPLATE_ROOT,
+      targetRoot,
+      agent: provider.resolve(agentId),
+    });
+    const result = await plan.apply(await plan.inspectPreExistingFiles());
+
+    assert.deepEqual(result.created, expected, agentId);
+    assert.deepEqual(result.updated, [], agentId);
+    for (const relative of expected) await fs.access(path.join(targetRoot, relative));
+  }
 });

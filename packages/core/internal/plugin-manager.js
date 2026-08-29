@@ -4,11 +4,12 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
+import { PLUGIN_PATTERNS } from "@openspec-orch/plugin-sdk";
+
 import { bundledPlugins } from "./bundled-plugin.js";
 import {
   CORE_PACKAGES,
   CORE_PACKAGE_VERSIONS,
-  CORE_PATTERNS,
   CORE_SERVICE_PATHS,
 } from "./constants.js";
 import { ensureDirectory, lstatOrNull } from "./fs.js";
@@ -216,7 +217,7 @@ export class StorePluginManager {
   }
 
   async remove(pluginId, publish = async () => {}) {
-    if (typeof pluginId !== "string" || !CORE_PATTERNS.pluginId.test(pluginId)) {
+    if (typeof pluginId !== "string" || !PLUGIN_PATTERNS.id.test(pluginId)) {
       invalid(`некорректный plugin-id '${pluginId ?? ""}'`);
     }
     if (typeof publish !== "function") invalid("publish должен быть function");
@@ -258,7 +259,7 @@ export class StorePluginManager {
   }
 
   #assertInput(pluginId, source) {
-    if (typeof pluginId !== "string" || !CORE_PATTERNS.pluginId.test(pluginId)) {
+    if (typeof pluginId !== "string" || !PLUGIN_PATTERNS.id.test(pluginId)) {
       invalid(`некорректный plugin-id '${pluginId ?? ""}'`);
     }
     if (!(source instanceof PluginSource)) invalid("требуется PluginSource");

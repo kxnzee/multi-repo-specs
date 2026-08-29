@@ -1,9 +1,19 @@
 /** @fileoverview Graph report primitives, diagnostics and deterministic finalization. */
 
-const GRAPH_VERSION = 1;
-const REPORT_VERSION = 1;
-const SEVERITIES = new Set(["error", "warning"]);
-const STATUS_PRIORITY = Object.freeze({ ok: 0, warning: 1, error: 2 });
+export const GRAPH_REPORT_CONTRACT = Object.freeze({
+  graphVersion: 1,
+  reportVersion: 1,
+  severity: Object.freeze({ error: "error", warning: "warning" }),
+  state: Object.freeze({ invalid: "invalid", ready: "ready" }),
+  status: Object.freeze({ error: "error", ok: "ok", warning: "warning" }),
+});
+
+const SEVERITIES = new Set(Object.values(GRAPH_REPORT_CONTRACT.severity));
+const STATUS_PRIORITY = Object.freeze({
+  [GRAPH_REPORT_CONTRACT.status.ok]: 0,
+  [GRAPH_REPORT_CONTRACT.status.warning]: 1,
+  [GRAPH_REPORT_CONTRACT.status.error]: 2,
+});
 
 /** Creates one stable graph node. */
 export function node(id, type, label, attributes = {}) {
@@ -60,7 +70,10 @@ export function addProvenance(candidate, location, changeId) {
 
 /** Freezes an element and assigns its most severe diagnostic state. */
 function reportElement(value, statuses) {
-  return Object.freeze({ ...value, status: statuses.get(value.id) ?? "ok" });
+  return Object.freeze({
+    ...value,
+    status: statuses.get(value.id) ?? GRAPH_REPORT_CONTRACT.status.ok,
+  });
 }
 
 /** Sorts source locations without serializing them into lossy strings. */
@@ -80,7 +93,7 @@ export function finalizeReport(nodes, edges, diagnostics) {
   const statuses = new Map();
   for (const value of normalizedDiagnostics) {
     for (const elementId of value.elements) {
-      const current = statuses.get(elementId) ?? "ok";
+      const current = statuses.get(elementId) ?? GRAPH_REPORT_CONTRACT.status.ok;
       if (STATUS_PRIORITY[value.severity] > STATUS_PRIORITY[current]) {
         statuses.set(elementId, value.severity);
       }
@@ -99,12 +112,18 @@ export function finalizeReport(nodes, edges, diagnostics) {
     }))
     .sort((left, right) => left.id.localeCompare(right.id))
     .map((value) => reportElement(value, statuses));
-  const errors = normalizedDiagnostics.filter(({ severity }) => severity === "error").length;
-  const warnings = normalizedDiagnostics.filter(({ severity }) => severity === "warning").length;
+  const errors = normalizedDiagnostics.filter(
+    ({ severity }) => severity === GRAPH_REPORT_CONTRACT.severity.error,
+  ).length;
+  const warnings = normalizedDiagnostics.filter(
+    ({ severity }) => severity === GRAPH_REPORT_CONTRACT.severity.warning,
+  ).length;
   return Object.freeze({
-    report_version: REPORT_VERSION,
-    graph_version: GRAPH_VERSION,
-    state: errors > 0 ? "invalid" : "ready",
+    report_version: GRAPH_REPORT_CONTRACT.reportVersion,
+    graph_version: GRAPH_REPORT_CONTRACT.graphVersion,
+    state: errors > 0
+      ? GRAPH_REPORT_CONTRACT.state.invalid
+      : GRAPH_REPORT_CONTRACT.state.ready,
     nodes: Object.freeze(sortedNodes),
     edges: Object.freeze(sortedEdges),
     diagnostics: Object.freeze(normalizedDiagnostics),

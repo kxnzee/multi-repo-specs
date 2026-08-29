@@ -1,9 +1,11 @@
 /** @fileoverview Доменная модель Repository из проектного реестра. */
 
+import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
+
 import { CORE_PATTERNS } from "./constants.js";
 import { deepFreeze } from "./value.js";
 
-const REPOSITORY_ROLES = new Set(["store", "code"]);
+const REPOSITORY_ROLES = new Set(Object.values(REPOSITORY_ROLE));
 
 /** Завершает создание Repository стабильной доменной ошибкой. */
 function invalid(message) {
@@ -61,11 +63,11 @@ export class Repository {
   }
 
   isStore() {
-    return this.#role === "store";
+    return this.#role === REPOSITORY_ROLE.store;
   }
 
   isCode() {
-    return this.#role === "code";
+    return this.#role === REPOSITORY_ROLE.code;
   }
 
   hasPlugin(pluginId) {

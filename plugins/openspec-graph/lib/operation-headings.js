@@ -2,16 +2,13 @@
 
 import { parse as parseYaml } from "yaml";
 
+import { OPEN_SPEC_GRAPH_CONFIG } from "./config.js";
 import { readOptionalFile } from "./compiler-input.js";
-import { diagnostic, source as graphSource } from "./report.js";
+import { diagnostic, GRAPH_REPORT_CONTRACT, source as graphSource } from "./report.js";
 
-const OPERATION_CONFIG_FILE = "openspec-graph.yaml";
-const DEFAULT_OPERATION_HEADINGS = Object.freeze({
-  ADDED: "## ADDED Requirements",
-  MODIFIED: "## MODIFIED Requirements",
-  REMOVED: "## REMOVED Requirements",
-  RENAMED: "## RENAMED Requirements",
-});
+const { operationHeadings: DEFAULT_OPERATION_HEADINGS } = OPEN_SPEC_GRAPH_CONFIG;
+const OPERATION_CONFIG_FILE = OPEN_SPEC_GRAPH_CONFIG.files.operationHeadings;
+const { error: ERROR } = GRAPH_REPORT_CONTRACT.severity;
 
 /** Normalizes harmless Unicode, case and whitespace differences in a complete heading. */
 function normalizeOperationHeading(value) {
@@ -40,7 +37,7 @@ export async function operationHeadingConfig(root) {
   const diagnostics = [];
   const invalid = (message) => diagnostics.push(diagnostic(
     "OPERATION_HEADINGS_CONFIG_INVALID",
-    "error",
+    ERROR,
     `${OPERATION_CONFIG_FILE}: ${message}`,
     { source: graphSource(OPERATION_CONFIG_FILE, 1, "operation_headings") },
   ));

@@ -59,6 +59,27 @@ Repositories: последнее делает последующий `connect` �
 а явные `--extension` или `--no-extensions` обновляют только desired composition в
 `openspec-orch.yaml`, не применяя Template повторно.
 
+Для полного Superspec workflow вместо default Base выберите Template. Его обязательный
+Extension `superpowers` init добавит автоматически:
+
+```bash
+openspec-orch init /absolute/path/to/workspace/specs \
+  --store specs \
+  --agent qwen \
+  --template superspec \
+  --repo frontend=ssh://git.example.org/product/frontend.git#main
+```
+
+Интерактивный порядок: Store ID, Project Template, Agent, Extensions, Code
+Repositories, strict mode, итоговое подтверждение. После выбора `superspec`
+`superpowers` показан выбранным и заблокированным; `--no-extensions` несовместим с
+этим Template.
+
+Superspec хранит brainstorming, plan, Apply/Verify/Finalize receipts внутри текущего
+OpenSpec Change. Finalize использует structured branch closeout Superpowers отдельно
+для каждого Code Repository, но внешние мутации требуют явной авторизации. Deployment,
+Release и Archive остаются отдельными командными gates.
+
 После `connect` запускайте глобальный CLI выбранного Agent напрямую из Store:
 
 ```bash
@@ -91,8 +112,8 @@ openspec/
 Base Template применяется только во время `init` и не создаёт provider-specific
 instructions, commands или skills. Выбранный `openspec-base` подключает их нативно при
 `connect`. Template-файлы становятся частью Store и автоматически не обновляются.
-`superpowers` при выборе подключает локально поставляемую библиотеку skills; сеть и
-GitHub для её регистрации не нужны.
+`superpowers` подключает локально поставляемую библиотеку skills; сеть и GitHub для её
+регистрации не нужны. Для `superspec` этот Extension является required composition.
 
 ## Подключение workspace
 

@@ -11,11 +11,12 @@ bin/openspec-orch.js                  composition root
 ├── @openspec-orch/plugin-openspec-graph
 ├── agents/                           definitions и native adapters
 ├── extensions/                       bundled standalone payloads
-└── templates/base/                   default Project Template
+└── templates/                        bundled Project Template catalog
 ```
 
-Composition root проверяет Node.js, собирает каталог bundled Plugins и задает только
-distribution policy: package sources и разрешенные root commands. Core не содержит
+Composition root проверяет Node.js и собирает каталоги bundled Agents, Extensions,
+Project Templates и Plugins. Distribution policy хранится в root `package.json`:
+default Template, Plugin package metadata и разрешенные root commands. Core не содержит
 ветвлений по `change-tracking`, `codegraph` или `openspec-graph`.
 
 ## Границы компонентов
@@ -38,12 +39,15 @@ ESLint закрепляет статическую границу: Plugin code �
 
 ```text
 CLI input
-→ validate Store ID, Agent ID, Repository specs и paths
+→ validate Store ID и выбрать Project Template
+→ добавить и заблокировать declarative required Extensions
+→ выбрать Agent, optional Extensions, Repository specs и mode
 → проверить заранее существующий Store target
 → вызвать OpenSpec init с OpenSpec ID выбранного Agent
 → адаптировать созданный OpenSpec pack через Agent Adapter
+→ разрешить bundled Template ID или явный локальный path
 → применить Project Template безопасным copy engine
-→ разрешить ID/source standalone Extensions из каталога без native Agent mutation
+→ разрешить required и optional ID/source standalone Extensions без native Agent mutation
 → записать openspec-orch.yaml v2 с Template, Agent и Extensions
 → вывести явный следующий шаг connect
 ```

@@ -1,20 +1,21 @@
 /** @fileoverview Thin native CLI adapter for Change Tracking operations. */
 
 import { confirm } from "@inquirer/prompts";
-import { createCliProgress } from "@openspec-orch/plugin-sdk";
+import {
+  collectValues,
+  COMMAND_SCOPE,
+  createCliProgress,
+  singleValue,
+} from "@openspec-orch/plugin-sdk";
 
+import {
+  CHANGE_TRACKING_RECEIPT_SOURCE,
+  CHANGE_TRACKING_REPOSITORY_STATE,
+  CHANGE_TRACKING_RESULT_STATUS,
+  CHANGE_TRACKING_VERIFICATION_RESULT,
+  CHANGE_TRACKING_WRITE_STATUS,
+} from "./contracts.js";
 import { ChangeTrackingService } from "./service.js";
-
-/** Collects a repeatable Commander option without exposing Commander to the Plugin. */
-function collectValues(value, previous = []) {
-  return [...previous, value];
-}
-
-/** Rejects a repeated scalar option. */
-function singleValue(value, previous) {
-  if (previous !== undefined) throw new Error("опцию можно указать только один раз");
-  return value;
-}
 
 /** Prints and confirms one Cycle Record preview. */
 async function confirmAssign(preview, write, prompt) {
@@ -115,17 +116,18 @@ export function formatStatusJson(status, currentRepository) {
 /** Переводит machine state только для human status; JSON contract не меняется. */
 function resultStateLabel(state) {
   return {
-    blocked: "заблокирован",
-    commit_unavailable: "commit недоступен",
-    completed: "завершён",
-    failed: "ошибка",
-    missing: "результат не записан",
+    [CHANGE_TRACKING_RESULT_STATUS.blocked]: "заблокирован",
+    [CHANGE_TRACKING_REPOSITORY_STATE.commitUnavailable]: "commit недоступен",
+    [CHANGE_TRACKING_RESULT_STATUS.completed]: "завершён",
+    [CHANGE_TRACKING_RESULT_STATUS.failed]: "ошибка",
+    [CHANGE_TRACKING_REPOSITORY_STATE.missing]: "результат не записан",
   }[state] ?? state;
 }
 
 /** Prints the human-readable status contract. */
 function printStatus(status, currentRepository, write) {
-  const verificationFailed = status.verification?.current && status.verification.result === "fail";
+  const verificationFailed = status.verification?.current &&
+    status.verification.result === CHANGE_TRACKING_VERIFICATION_RESULT.fail;
   const complete = status.nextAction === "готово" && !verificationFailed;
   write(
     `${verificationFailed ? "✗" : complete ? "✓" : "⚠"} Change ${status.changeId} — ` +
@@ -145,9 +147,12 @@ function printStatus(status, currentRepository, write) {
   write("");
   write(`  Репозитории (${status.repositories.length})`);
   for (const repository of status.repositories) {
-    const icon = repository.state === "completed"
+    const icon = repository.state === CHANGE_TRACKING_RESULT_STATUS.completed
       ? "✓"
-      : ["failed", "commit_unavailable"].includes(repository.state) ? "✗" : "⚠";
+      : [
+          CHANGE_TRACKING_RESULT_STATUS.failed,
+          CHANGE_TRACKING_REPOSITORY_STATE.commitUnavailable,
+        ].includes(repository.state) ? "✗" : "⚠";
     const state = resultStateLabel(repository.state);
     if (!repository.receipt) {
       write(`    ${icon} ${repository.repositoryId} — ${state}`);
@@ -170,10 +175,13 @@ function printStatus(status, currentRepository, write) {
     );
   }
   if (status.verification) {
-    const passed = status.verification.current && status.verification.result === "pass";
+    const passed = status.verification.current &&
+      status.verification.result === CHANGE_TRACKING_VERIFICATION_RESULT.pass;
     write(
       `  ${passed ? "✓" : "✗"} Проверка: ` +
-        `${status.verification.result === "pass" ? "пройдена" : "не пройдена"} ` +
+        `${status.verification.result === CHANGE_TRACKING_VERIFICATION_RESULT.pass
+          ? "пройдена"
+          : "не пройдена"} ` +
         `(${status.verification.source}, ` +
         `${status.verification.current ? "актуальна" : "устарела"})`,
     );
@@ -211,14 +219,16 @@ export function registerChangeTrackingCommands(
           },
         }),
       );
-      if (result.status === "cancelled") {
+      if (result.status === CHANGE_TRACKING_WRITE_STATUS.cancelled) {
         write("Отменено пользователем; Cycle Record не записан.");
       } else if (result.status === "unchanged") {
         write(`Cycle не изменился: ${result.cycle.cycleId}`);
         write(`Cycle Record: ${result.path}`);
       } else {
         write(
-          `Cycle Record ${result.status === "created" ? "создан" : "заменён"}: ` +
+          `Cycle Record ${result.status === CHANGE_TRACKING_WRITE_STATUS.created
+            ? "создан"
+            : "заменён"}: ` +
             result.cycle.cycleId,
         );
         write(`Cycle Record: ${result.path}`);
@@ -226,7 +236,7 @@ export function registerChangeTrackingCommands(
           "Закоммитьте файл обычным процессом Git; до коммита record и verify недоступны.",
         );
       }
-    }, { scope: "store" });
+    }, { scope: COMMAND_SCOPE.store });
 
   commands.command("status <change-id>")
     .description("показать текущий Cycle Record и следующее действие")
@@ -242,7 +252,7 @@ export function registerChangeTrackingCommands(
       } else {
         printStatus(status, context.invocation, write);
       }
-    }, { scope: "store", requireBinding: false });
+    }, { scope: COMMAND_SCOPE.store, requireBinding: false });
 
   const record = commands.command("record")
     .description("записать внешний результат в локальное состояние");
@@ -257,11 +267,11 @@ export function registerChangeTrackingCommands(
       required: true,
     })
     .option("--status <status>", "статус результата", {
-      choices: ["completed", "failed", "blocked"],
+      choices: Object.values(CHANGE_TRACKING_RESULT_STATUS),
       required: true,
     })
     .option("--source <source>", "источник результата", {
-      choices: ["human", "agent", "ci"],
+      choices: Object.values(CHANGE_TRACKING_RECEIPT_SOURCE),
       required: true,
     })
     .option("--note <text>", "необязательная заметка", { parser: singleValue })
@@ -283,15 +293,17 @@ export function registerChangeTrackingCommands(
           },
         }),
       );
-      if (result.status === "cancelled") {
+      if (result.status === CHANGE_TRACKING_WRITE_STATUS.cancelled) {
         write("Отменено пользователем; Result Receipt не записан.");
       } else {
         write(
-          `Result Receipt ${result.status === "created" ? "создан" : "заменён"}: ` +
+          `Result Receipt ${result.status === CHANGE_TRACKING_WRITE_STATUS.created
+            ? "создан"
+            : "заменён"}: ` +
             result.receipt.receipt_id,
         );
       }
-    }, { scope: "store" });
+    }, { scope: COMMAND_SCOPE.store });
 
   commands.command("verify <change-id>")
     .description("вычислить Snapshot текущих completed Result Receipts")
@@ -306,16 +318,16 @@ export function registerChangeTrackingCommands(
         write(`${repositoryId}: ${revision}`);
       }
       write("Orchestrator не выполнял checkout и не запускал проектные проверки.");
-    }, { scope: "store" });
+    }, { scope: COMMAND_SCOPE.store });
 
   record.command("verification <change-id>")
     .description("записать Verification Receipt последнего текущего Snapshot")
     .option("--result <result>", "результат внешней проверки", {
-      choices: ["pass", "fail"],
+      choices: Object.values(CHANGE_TRACKING_VERIFICATION_RESULT),
       required: true,
     })
     .option("--source <source>", "источник результата", {
-      choices: ["human", "agent", "ci"],
+      choices: Object.values(CHANGE_TRACKING_RECEIPT_SOURCE),
       required: true,
     })
     .option("--note <text>", "необязательная заметка", { parser: singleValue })
@@ -335,13 +347,15 @@ export function registerChangeTrackingCommands(
           },
         }),
       );
-      if (result.status === "cancelled") {
+      if (result.status === CHANGE_TRACKING_WRITE_STATUS.cancelled) {
         write("Отменено пользователем; Verification Receipt не записан.");
       } else {
         write(
-          `Verification Receipt ${result.status === "created" ? "создан" : "заменён"}: ` +
+          `Verification Receipt ${result.status === CHANGE_TRACKING_WRITE_STATUS.created
+            ? "создан"
+            : "заменён"}: ` +
             result.receipt.receipt_id,
         );
       }
-    }, { scope: "store" });
+    }, { scope: COMMAND_SCOPE.store });
 }

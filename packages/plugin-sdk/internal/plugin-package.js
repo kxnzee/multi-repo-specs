@@ -1,19 +1,11 @@
 /** @fileoverview Доменная модель package.json одного Plugin package. */
 
-import { PLUGIN_API_VERSION } from "./constants.js";
-
-const EXACT_VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+import { PLUGIN_API_VERSION, PLUGIN_PATTERNS } from "./constants.js";
+import { assertPlainObject } from "./validation.js";
 
 /** Завершает проверку Package contract стабильной ошибкой. */
 function invalid(message) {
   throw new Error(`PLUGIN_CONTRACT_INVALID: ${message}`);
-}
-
-/** Проверяет object из разобранного package.json. */
-function assertPlainObject(value, label) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    invalid(`${label} должен быть plain object`);
-  }
 }
 
 /** Проверяет безопасный относительный ESM entrypoint. */
@@ -47,15 +39,18 @@ export class PluginPackage {
 
   /** @param {Record<string, unknown>} manifest Parsed package.json. */
   constructor(manifest) {
-    assertPlainObject(manifest, "package.json");
+    assertPlainObject(manifest, "package.json", invalid);
     if (typeof manifest.name !== "string" || manifest.name.length === 0) {
       invalid("package name обязателен");
     }
-    if (typeof manifest.version !== "string" || !EXACT_VERSION_PATTERN.test(manifest.version)) {
+    if (
+      typeof manifest.version !== "string" ||
+      !PLUGIN_PATTERNS.exactSemanticVersion.test(manifest.version)
+    ) {
       invalid("package version должна быть exact semantic version");
     }
     if (manifest.type !== "module") invalid("Plugin package должен использовать type=module");
-    assertPlainObject(manifest.openspecOrchestrator, "openspecOrchestrator");
+    assertPlainObject(manifest.openspecOrchestrator, "openspecOrchestrator", invalid);
     const metadata = manifest.openspecOrchestrator;
     const metadataKeys = Object.keys(metadata);
     const nativeMetadata = metadataKeys.length === 2 && metadataKeys.includes("apiVersion") &&

@@ -2,6 +2,8 @@
 
 import * as z from "zod";
 
+import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
+
 import { CORE_CONTRACT_VERSIONS, CORE_FILES, CORE_PATTERNS } from "./constants.js";
 
 const ID_SCHEMA = z.string().regex(CORE_PATTERNS.id, "должен быть в lowercase kebab-case");
@@ -9,7 +11,7 @@ const ID_LIST_SCHEMA = z.array(ID_SCHEMA).default([]);
 const IDENTITY_SCHEMA = z.strictObject({ id: ID_SCHEMA });
 const REPOSITORY_FIELDS = {
   id: ID_SCHEMA,
-  roles: z.array(z.enum(["store", "code"])).length(1),
+  roles: z.array(z.enum(Object.values(REPOSITORY_ROLE))).length(1),
   remote: z.string().min(1),
   default_branch: z.string().min(1),
 };

@@ -3,10 +3,17 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
+
 import { atomicWriter } from "./atomic-writer.js";
 import { bundledAgents } from "./bundled-agent.js";
 import { configuration } from "./configuration.js";
-import { CORE_CONTRACT_VERSIONS, CORE_FILES, CORE_PATTERNS } from "./constants.js";
+import {
+  CORE_CONTRACT_VERSIONS,
+  CORE_EXECUTION_MODE,
+  CORE_FILES,
+  CORE_PATTERNS,
+} from "./constants.js";
 import { lstatOrNull } from "./fs.js";
 import { git } from "./git.js";
 import { openspec } from "./openspec.js";
@@ -203,7 +210,7 @@ export class InitializationService {
       repositories: [
         new Repository({
           id: storeTarget.id,
-          role: "store",
+          role: REPOSITORY_ROLE.store,
           remote: gitIdentity.remote,
           defaultBranch: gitIdentity.defaultBranch,
           plugins: [],
@@ -323,7 +330,7 @@ export class InitializationService {
       target: storeTarget.root,
       storeId: storeTarget.id,
       alreadyInitialized,
-      executionMode: strict ? "strict" : "relaxed",
+      executionMode: strict ? CORE_EXECUTION_MODE.strict : CORE_EXECUTION_MODE.relaxed,
       created: [...created],
       updated: [...updated],
       agent: agent.snapshot(),

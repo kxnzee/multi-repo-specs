@@ -4,6 +4,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
+
 import { coreState } from "./core-state.js";
 import { lstatOrNull } from "./fs.js";
 import { git } from "./git.js";
@@ -46,7 +48,7 @@ export class CurrentRepositoryService {
     if (repositoryRoot === storeProject.root) {
       return Object.freeze({
         id: storeProject.store.id,
-        role: "store",
+        role: REPOSITORY_ROLE.store,
         path: storeProject.root,
       });
     }
@@ -68,7 +70,7 @@ export class CurrentRepositoryService {
         });
       if (!checkout || checkout.root !== repositoryRoot) continue;
       await this.#git.forRepository(checkout).assertIdentity();
-      return Object.freeze({ id: repository.id, role: "code", path: checkout.root });
+      return Object.freeze({ id: repository.id, role: REPOSITORY_ROLE.code, path: checkout.root });
     }
     return null;
   }

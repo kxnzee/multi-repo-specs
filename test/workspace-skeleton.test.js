@@ -30,10 +30,30 @@ test("root distribution exposes the candidate entrypoint and required runtime fi
     "@openspec-orch/plugin-codegraph": "1.0.0",
     "@openspec-orch/plugin-openspec-graph": "1.0.0",
   });
+  assert.equal(manifest.openspecOrchestrator.defaultTemplateId, "base");
   assert.deepEqual(
-    manifest.openspecOrchestrator.bundledPlugins,
+    manifest.openspecOrchestrator.bundledPlugins.map(({ packageName }) => packageName),
     Object.keys(manifest.dependencies).filter((name) => name.startsWith("@openspec-orch/plugin-")),
   );
+  assert.deepEqual(manifest.openspecOrchestrator.bundledPlugins, [
+    {
+      id: "change-tracking",
+      name: "Change Tracking",
+      packageName: "@openspec-orch/plugin-change-tracking",
+      rootCommands: ["assign", "status", "record", "verify"],
+    },
+    {
+      id: "codegraph",
+      name: "CodeGraph",
+      packageName: "@openspec-orch/plugin-codegraph",
+    },
+    {
+      id: "openspec-graph",
+      name: "OpenSpec Graph",
+      packageName: "@openspec-orch/plugin-openspec-graph",
+      rootCommands: ["graph"],
+    },
+  ]);
 });
 
 test("Core and Plugin SDK are independently publishable packages", async () => {

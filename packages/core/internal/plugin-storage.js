@@ -3,8 +3,10 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { PLUGIN_PATTERNS } from "@openspec-orch/plugin-sdk";
+
 import { atomicWriter } from "./atomic-writer.js";
-import { CORE_CONTRACT_VERSIONS, CORE_PATTERNS, CORE_SERVICE_PATHS } from "./constants.js";
+import { CORE_CONTRACT_VERSIONS, CORE_SERVICE_PATHS } from "./constants.js";
 import { ensureDirectory, lstatOrNull } from "./fs.js";
 import { locks } from "./lock.js";
 import { deepFreeze } from "./value.js";
@@ -73,7 +75,7 @@ function assertStoreCheckout(checkout) {
 
 /** Проверяет Plugin ID до построения storage path. */
 function assertPluginId(pluginId) {
-  if (typeof pluginId !== "string" || !CORE_PATTERNS.pluginId.test(pluginId)) {
+  if (typeof pluginId !== "string" || !PLUGIN_PATTERNS.id.test(pluginId)) {
     throw new Error(`PLUGIN_STORAGE_INVALID: некорректный plugin-id '${pluginId ?? ""}'`);
   }
 }

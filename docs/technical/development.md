@@ -4,7 +4,7 @@
 
 | Путь | Назначение |
 |---|---|
-| `bin/openspec-orch.js` | Composition root CLI и distribution policy |
+| `bin/openspec-orch.js` | Composition root CLI; читает distribution policy из root manifest |
 | `packages/core/` | Domain, use cases, adapters и generic Plugin host |
 | `packages/plugin-sdk/` | Единственный публичный API для Plugins |
 | `plugins/change-tracking/` | Cycle/Receipts/Snapshot |
@@ -12,7 +12,7 @@
 | `plugins/openspec-graph/` | Store graph, queries и viewer |
 | `agents/` | Distribution-owned Agent definitions и provider-specific native adapters |
 | `extensions/` | Bundled standalone Agent Extensions |
-| `templates/base/` | Default Project Template |
+| `templates/` | Bundled Project Template catalog; `base` является default |
 | `packages/core/templates/plugin-extension/` | Agent artifacts scaffold создаваемого Plugin |
 | `test/` | Distribution integration tests |
 | `checks/template/` | Structural contract Project Template |
@@ -31,7 +31,7 @@ Non-code suite обнаруживается по `checks/<suite>/*.test.js` в r
 - generic Core не получает Plugin-specific grammar или методы;
 - observable behavior защищено regression tests.
 
-Новый first-party Plugin регистрируется в composition root, но его domain остается в
+Новый first-party Plugin регистрируется в `package.json`, но его domain остается в
 собственном package. Изменение Plugin lifecycle или public SDK требует проверки Core
 Loader/Host, SDK contract kit и external plain export.
 
@@ -43,8 +43,8 @@ Loader/Host, SDK contract kit и external plain export.
 4. Реализуйте `status` как фактическую проверку, а не всегда-ready stub.
 5. Для native runtime используйте `context.process`, не глобальный shell.
 6. Добавьте package tests и SDK contract test.
-7. Для bundled distribution добавьте dependency/catalog entry и, если нужны root
-   commands, точную composition policy.
+7. Для bundled distribution добавьте dependency и declaration в
+   `openspecOrchestrator.bundledPlugins`; там же укажите точные root commands.
 8. Проверьте package packing и installation smoke.
 
 ## Добавление Agent и Extension
@@ -64,6 +64,14 @@ Loader/Host, SDK contract kit и external plain export.
 `extension.yaml` и manifests Claude/Qwen/GigaCode и обнаруживается composition root
 без списка ID в Core. Plugin-owned Extension размещается внутри package и возвращается
 через `extensions(context)` с Store/Repository target.
+
+Новый bundled Project Template размещается в `templates/<id>/`; имя каталога должно
+совпадать с `template.yaml.id`. Composition root обнаруживает его без списка ID в
+Core. Добавьте structural copy-plan test для каждого Agent и реальную проверку
+project schema через установленный OpenSpec CLI. Template не должен копировать
+skills/hooks. Если workflow без конкретного Extension неработоспособен, объявите
+`requires.extensions` в descriptor: init добавит dependency в flag mode и покажет
+его locked choice после выбора Template в интерактивном режиме.
 
 ## Проверки
 
@@ -108,7 +116,15 @@ timeouts, strict default, repository directory, concurrency и параметр�
 init. Их изменение может менять project policy.
 
 Статические versions, regex и service paths собраны в
-`packages/core/internal/constants.js`. CLI grammar и YAML fields остаются рядом со
+`packages/core/internal/constants.js`. Публичные Repository roles, command scopes,
+Plugin patterns и переиспользуемые CLI value parsers принадлежат Plugin SDK и
+экспортируются из `@openspec-orch/plugin-sdk`.
+
+Узкие конфиги остаются у owning-модуля: init selection — в
+`init-selection-config.js`, checkbox presentation — в `prompt-config.js`, Plugin
+scaffold profiles — в `plugin-scaffold-config.js`, repository status presentation —
+в `status-output-config.js`, OpenSpec Graph defaults — в package-owned
+`plugins/openspec-graph/lib/config.js`. CLI grammar и YAML fields остаются рядом со
 своими command/schema contracts.
 
 ## Review checklist

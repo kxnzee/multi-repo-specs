@@ -1,6 +1,6 @@
 /** @fileoverview Каталог standalone Agent Extensions из поставки Orchestrator. */
 
-import { CORE_PATTERNS } from "./constants.js";
+import { PLUGIN_PATTERNS } from "@openspec-orch/plugin-sdk";
 
 /** Завершает операцию стабильной ошибкой Extension catalog. */
 function invalid(message) {
@@ -14,7 +14,7 @@ export class ExtensionCatalogEntry {
   #source;
 
   constructor({ id, name, source } = {}) {
-    if (typeof id !== "string" || !CORE_PATTERNS.pluginId.test(id)) {
+    if (typeof id !== "string" || !PLUGIN_PATTERNS.id.test(id)) {
       invalid(`некорректный extension-id '${id ?? ""}'`);
     }
     if (typeof name !== "string" || !name.trim()) {

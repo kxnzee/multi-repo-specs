@@ -3,6 +3,11 @@
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
+
+import { OPEN_SPEC_GRAPH_CONFIG } from "./config.js";
+import { GRAPH_REPORT_CONTRACT } from "./report.js";
+
 const launcher = fileURLToPath(new URL("../bin/openspec-graph.js", import.meta.url));
 
 /** Parses compiler JSON without accepting malformed or partial reports. */
@@ -14,9 +19,9 @@ function parseReport(source) {
     throw new Error(`OPENSPEC_GRAPH_OUTPUT_INVALID: ${error.message}`, { cause: error });
   }
   if (
-    report?.report_version !== 1
-    || report?.graph_version !== 1
-    || !["ready", "invalid"].includes(report.state)
+    report?.report_version !== GRAPH_REPORT_CONTRACT.reportVersion
+    || report?.graph_version !== GRAPH_REPORT_CONTRACT.graphVersion
+    || !Object.values(GRAPH_REPORT_CONTRACT.state).includes(report.state)
     || !Array.isArray(report.nodes)
     || !Array.isArray(report.edges)
     || !Array.isArray(report.diagnostics)
@@ -32,13 +37,13 @@ function withValidationFailure(report, error) {
   const validationDiagnostic = Object.freeze({
     id: `diagnostic:${report.diagnostics.length + 1}`,
     code: "OPENSPEC_VALIDATION_FAILED",
-    severity: "error",
+    severity: GRAPH_REPORT_CONTRACT.severity.error,
     message: error instanceof Error ? error.message : String(error),
     elements: Object.freeze([]),
   });
   return Object.freeze({
     ...report,
-    state: "invalid",
+    state: GRAPH_REPORT_CONTRACT.state.invalid,
     diagnostics: Object.freeze([...report.diagnostics, validationDiagnostic]),
     summary: Object.freeze({
       ...report.summary,
@@ -73,14 +78,14 @@ export class OpenSpecGraphService {
   /** Reports only the stateless Plugin lifecycle; graph health belongs to graph inspect. */
   status() {
     return Object.freeze({
-      state: "ready",
-      details: JSON.stringify({ mode: "compile_on_demand", command: "openspec-orch graph inspect" }),
+      state: GRAPH_REPORT_CONTRACT.state.ready,
+      details: JSON.stringify(OPEN_SPEC_GRAPH_CONFIG.lifecycle),
     });
   }
 
   async #project() {
     const repositories = this.#context.project.repositories
-      .filter(({ role }) => role === "code")
+      .filter(({ role }) => role === REPOSITORY_ROLE.code)
       .map(({ id, role }) => ({ id, role }));
     const output = await this.#context.process.run(
       process.execPath,

@@ -2,13 +2,20 @@
 
 import * as z from "zod";
 
-import { CHANGE_TRACKING_CONTRACT, isGitRevision } from "./contracts.js";
+import {
+  CHANGE_TRACKING_CONTRACT,
+  CHANGE_TRACKING_PATTERNS,
+  CHANGE_TRACKING_RECEIPT_SOURCE,
+  CHANGE_TRACKING_RESULT_STATUS,
+  CHANGE_TRACKING_VERIFICATION_RESULT,
+  isGitRevision,
+  isUuidV4,
+} from "./contracts.js";
 import { SnapshotIdentity } from "./snapshot-identity.js";
 
-const UUID_V4_SCHEMA = z.uuidv4();
-const ID_SCHEMA = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+const ID_SCHEMA = z.string().regex(CHANGE_TRACKING_PATTERNS.identifier);
 const REVISION_SCHEMA = z.string().refine(isGitRevision);
-const SOURCE_SCHEMA = z.enum(["human", "agent", "ci"]);
+const SOURCE_SCHEMA = z.enum(Object.values(CHANGE_TRACKING_RECEIPT_SOURCE));
 const SNAPSHOT_ID_SCHEMA = z.string().regex(
   new RegExp(`^${CHANGE_TRACKING_CONTRACT.snapshotPrefix}[0-9a-f]{64}$`),
 );
@@ -16,8 +23,7 @@ const SNAPSHOT_ID_SCHEMA = z.string().regex(
 /** Builds a prefixed UUID v4 schema without introducing another domain type. */
 function prefixedUuid(prefix) {
   return z.string().refine(
-    (value) => value.startsWith(prefix) &&
-      UUID_V4_SCHEMA.safeParse(value.slice(prefix.length)).success,
+    (value) => value.startsWith(prefix) && isUuidV4(value.slice(prefix.length)),
   );
 }
 
@@ -28,7 +34,7 @@ const RESULT_RECEIPT_SCHEMA = z.strictObject({
   cycle_id: CYCLE_ID_SCHEMA,
   repository_id: ID_SCHEMA,
   implementation_revision: REVISION_SCHEMA,
-  status: z.enum(["completed", "failed", "blocked"]),
+  status: z.enum(Object.values(CHANGE_TRACKING_RESULT_STATUS)),
   source: SOURCE_SCHEMA,
   note: z.string().min(1).optional(),
   created_at: z.iso.datetime({ offset: false }),
@@ -63,7 +69,7 @@ const VERIFICATION_RECEIPT_SCHEMA = z.strictObject({
   receipt_id: prefixedUuid(CHANGE_TRACKING_CONTRACT.verificationPrefix),
   cycle_id: CYCLE_ID_SCHEMA,
   snapshot_id: SNAPSHOT_ID_SCHEMA,
-  result: z.enum(["pass", "fail"]),
+  result: z.enum(Object.values(CHANGE_TRACKING_VERIFICATION_RESULT)),
   source: SOURCE_SCHEMA,
   note: z.string().min(1).optional(),
   created_at: z.iso.datetime({ offset: false }),

@@ -1,6 +1,7 @@
 /** @fileoverview Переносимая декларация standalone Extension в Project config. */
 
-import { CORE_PATTERNS } from "./constants.js";
+import { PLUGIN_PATTERNS } from "@openspec-orch/plugin-sdk";
+
 import { hasExactKeys, isPlainObject } from "./value.js";
 
 const FIELDS = Object.freeze(["id", "source"]);
@@ -21,7 +22,7 @@ export class ExtensionDeclaration {
       invalid(`разрешены только поля ${FIELDS.join(", ")}`);
     }
     const { id, source } = config;
-    if (typeof id !== "string" || !CORE_PATTERNS.pluginId.test(id)) {
+    if (typeof id !== "string" || !PLUGIN_PATTERNS.id.test(id)) {
       invalid(`некорректный extension-id '${id ?? ""}'`);
     }
     if (source !== `bundled:${id}`) {

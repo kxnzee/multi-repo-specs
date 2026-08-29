@@ -6,6 +6,8 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { OPEN_SPEC_GRAPH_CONFIG } from "./config.js";
+
 const require = createRequire(import.meta.url);
 const viewerRoot = fileURLToPath(new URL("../viewer/", import.meta.url));
 const visNetworkRoot = path.dirname(require.resolve("vis-network/package.json"));
@@ -126,7 +128,12 @@ function graphSources(graph, { readSource, sourceRoot }) {
 /** Starts a server that never binds outside loopback. */
 export async function startGraphViewer(
   graph,
-  { port = 4177, readSource, sourceRoot, createServer = http.createServer } = {},
+  {
+    port = OPEN_SPEC_GRAPH_CONFIG.viewer.defaultPort,
+    readSource,
+    sourceRoot,
+    createServer = http.createServer,
+  } = {},
 ) {
   const graphSource = `${JSON.stringify(graph)}\n`;
   const sourceActions = graphSources(graph, { readSource, sourceRoot });

@@ -2,7 +2,7 @@
 
 import process from "node:process";
 
-import { CORE_FILES, CORE_PATTERNS } from "./constants.js";
+import { CORE_EXECUTION_MODE, CORE_FILES, CORE_PATTERNS } from "./constants.js";
 import { coreState } from "./core-state.js";
 import { lstatOrNull } from "./fs.js";
 import { git } from "./git.js";
@@ -94,7 +94,9 @@ export class ConnectionService {
     onProgress("Проверка Store и OpenSpec...");
     const storeProject = await this.#storeProjects.load(start);
     const { project, root: storeRoot, store: metadata } = storeProject;
-    const executionMode = noStrict || !project.strict ? "relaxed" : "strict";
+    const executionMode = noStrict || !project.strict
+      ? CORE_EXECUTION_MODE.relaxed
+      : CORE_EXECUTION_MODE.strict;
     const storeCheckout = storeProject.checkout;
     const storeOpenSpec = this.#openspec.forRepository(storeCheckout);
     await storeOpenSpec.version();
@@ -115,7 +117,9 @@ export class ConnectionService {
       storeOption: true,
     });
     const stateStore = this.#state.forStore(storeCheckout);
-    const storedWorkspace = executionMode === "strict" ? (await stateStore.read()).workspace : null;
+    const storedWorkspace = executionMode === CORE_EXECUTION_MODE.strict
+      ? (await stateStore.read()).workspace
+      : null;
     const workspaceModel = await this.#workspace.resolve({
       storeRoot,
       storeId: metadata.id,
@@ -137,7 +141,7 @@ export class ConnectionService {
       repositories.push(connected);
       onProgress(`${prefix}: готово`, "success");
     }
-    if (requestedWorkspace && executionMode === "strict") {
+    if (requestedWorkspace && executionMode === CORE_EXECUTION_MODE.strict) {
       await stateStore.update((current) => current.rememberWorkspace(workspaceModel.root));
     }
     return new ConnectionResult({
@@ -161,7 +165,7 @@ export class ConnectionService {
     const existing = await lstatOrNull(repositoryRoot);
     let cloned = false;
     if (!existing) {
-      if (executionMode === "relaxed") {
+      if (executionMode === CORE_EXECUTION_MODE.relaxed) {
         throw new Error(
           `${repository.id}: relaxed mode требует существующий локальный каталог ${repositoryRoot}`,
         );
@@ -176,7 +180,7 @@ export class ConnectionService {
     const repositoryGit = this.#git.forRepository(checkout);
     let branch = "unpinned";
     let revision = "unpinned";
-    if (executionMode === "strict") {
+    if (executionMode === CORE_EXECUTION_MODE.strict) {
       await repositoryGit.assertIdentity();
       branch = await repositoryGit.currentBranch();
       if (branch !== repository.defaultBranch) {
@@ -192,7 +196,7 @@ export class ConnectionService {
       }
     }
     const pointerCreated = await this.#pointers.connect(checkout, storeId);
-    const pointerPending = executionMode === "strict" &&
+    const pointerPending = executionMode === CORE_EXECUTION_MODE.strict &&
       !await repositoryGit.isClean([CORE_FILES.openSpecConfig]);
     onProgress("проверка OpenSpec pointer...");
     const repositoryOpenSpec = this.#openspec.forRepository(checkout);

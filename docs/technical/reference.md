@@ -14,6 +14,7 @@
 | CodeGraph | Repository lifecycle, launcher нативного CLI и Repository-scoped Agent Extension | `plugins/codegraph/` |
 | OpenSpec Graph | Компиляция и проверка Store-level графа OpenSpec, локальный viewer | `plugins/openspec-graph/` |
 | Base Template | OpenSpec schema/config, context и project assets | `templates/base/` |
+| Superspec Template | Multi-repository OpenSpec + Superpowers schema/config и context | `templates/superspec/` |
 | OpenSpec Base Extension | Project instructions, skills, commands и subagent | `extensions/openspec-base/` |
 | Superpowers Extension | Локально vendored общая библиотека skills и bootstrap | `extensions/superpowers/` |
 | Agent adapters | Native CLI grammar Claude/Qwen/GigaCode | `agents/*/adapter.js` |
@@ -210,12 +211,20 @@ Code Repository через поставляемый executable `openspec-orch-co
 
 ## Project Template
 
+Bundled Template catalog содержит default `base` и альтернативный `superspec`.
 Base Template поставляет schema `base-v1`, context и project assets, а
 `openspec-base` Extension — project commands,
 skills, subagent и постоянные инструкции. Эти файлы управляют поведением агента, но не
 становятся проверками Core runtime. Change Tracking остаётся необязательным: без него
 Apply работает в standard mode; при установленном и связанном Plugin Base skill делает
 handoff в plugin-owned Apply context.
+
+Superspec Template поставляет schema `superspec-multirepo` с полным artifact DAG через
+Apply, Verify и Finalize. Descriptor декларативно требует отдельный `superpowers`
+Extension; init добавляет его в desired composition, а интерактивный checkbox показывает
+required choice заблокированным. Execution выполняется в точных Code Repository scopes,
+Change Tracking evidence связывается с текущим candidate Snapshot, а external
+verification и Release сохраняются отдельными gates.
 
 Template-правила Planning, Gate, Release и Archive являются политикой создаваемого
 проекта. Core их копирует и проверяет структуру, но сам не выполняет реализацию,

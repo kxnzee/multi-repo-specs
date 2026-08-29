@@ -56,14 +56,16 @@ export const CORE_CONTRACT_VERSIONS = Object.freeze({
   store: 1,
 });
 
+export const CORE_EXECUTION_MODE = Object.freeze({
+  relaxed: "relaxed",
+  strict: "strict",
+});
+
 export const CORE_PATTERNS = Object.freeze({
-  commandDefinitionName: /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?=$|\s)/,
-  exactSemanticVersion: /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/,
   gitRevision: /^[0-9a-f]{40}$/,
   gitRenameOrCopyState: /[RC]/,
   id: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
   lineBreak: /\r?\n/,
-  pluginId: /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/,
   repositoryArgument: /^([a-z0-9]+(?:-[a-z0-9]+)*)=(.+)#([^#]+)$/,
   semanticVersion: /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/,
   trailingSlashes: /\/+$/,

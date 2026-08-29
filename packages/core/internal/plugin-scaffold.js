@@ -4,13 +4,19 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { PluginPackage, PLUGIN_API_VERSION } from "@openspec-orch/plugin-sdk";
+import {
+  PluginPackage,
+  PLUGIN_API_VERSION,
+  PLUGIN_PATTERNS,
+  REPOSITORY_ROLE,
+} from "@openspec-orch/plugin-sdk";
 
-import { CORE_CLI_COMMANDS, CORE_PACKAGES, CORE_PACKAGE_VERSIONS, CORE_PATTERNS } from "./constants.js";
+import { CORE_CLI_COMMANDS, CORE_PACKAGES, CORE_PACKAGE_VERSIONS } from "./constants.js";
 import { lstatOrNull } from "./fs.js";
+import { PLUGIN_SCAFFOLD_CONFIG, PLUGIN_SCAFFOLD_PROFILE } from "./plugin-scaffold-config.js";
 
-const REPOSITORY_ROLES = new Set(["store", "code"]);
-const PLUGIN_PROFILES = new Set(["commands", "repository", "native"]);
+const REPOSITORY_ROLES = new Set(Object.values(REPOSITORY_ROLE));
+const PLUGIN_PROFILES = new Set(PLUGIN_SCAFFOLD_CONFIG.profiles);
 const PLUGIN_EXTENSION_TEMPLATE_ROOT = fileURLToPath(
   new URL("../templates/plugin-extension/", import.meta.url),
 );
@@ -45,8 +51,14 @@ function displayName(pluginId) {
 }
 
 /** Нормализует пользовательские параметры scaffold. */
-function normalize({ pluginId, name, profile = "commands", supports, extension = false }) {
-  if (typeof pluginId !== "string" || !CORE_PATTERNS.pluginId.test(pluginId)) {
+function normalize({
+  pluginId,
+  name,
+  profile = PLUGIN_SCAFFOLD_CONFIG.defaultProfile,
+  supports,
+  extension = false,
+}) {
+  if (typeof pluginId !== "string" || !PLUGIN_PATTERNS.id.test(pluginId)) {
     throw new Error(`PLUGIN_ID_INVALID: plugin-id '${pluginId ?? ""}' должен быть lowercase kebab-case`);
   }
   if (CORE_CLI_COMMANDS.reserved.includes(pluginId)) {
@@ -58,21 +70,23 @@ function normalize({ pluginId, name, profile = "commands", supports, extension =
   if (typeof extension !== "boolean") {
     throw new Error("PLUGIN_EXTENSION_INVALID: extension должен быть boolean");
   }
-  if (profile === "commands" && extension) {
+  if (profile === PLUGIN_SCAFFOLD_PROFILE.commands && extension) {
     throw new Error(
       "PLUGIN_EXTENSION_INVALID: --extension доступен только для repository и native",
     );
   }
-  if (profile === "commands" && supports !== undefined) {
+  if (profile === PLUGIN_SCAFFOLD_PROFILE.commands && supports !== undefined) {
     throw new Error("PLUGIN_SUPPORT_INVALID: --support доступен только для repository и native");
   }
-  const requestedSupports = supports ?? (profile === "commands" ? [] : ["code"]);
+  const requestedSupports = supports ?? (
+    profile === PLUGIN_SCAFFOLD_PROFILE.commands ? [] : [REPOSITORY_ROLE.code]
+  );
   if (!Array.isArray(requestedSupports)) {
     throw new Error("PLUGIN_SUPPORT_INVALID: --support должен содержать store или code");
   }
   const roles = [...new Set(requestedSupports)];
   if (
-    (profile !== "commands" && roles.length === 0) ||
+    (profile !== PLUGIN_SCAFFOLD_PROFILE.commands && roles.length === 0) ||
     roles.some((role) => !REPOSITORY_ROLES.has(role))
   ) {
     throw new Error("PLUGIN_SUPPORT_INVALID: --support должен содержать store или code");
@@ -116,7 +130,7 @@ async function scaffoldFiles({ pluginId, name, profile, supports, extension }) {
   const packagedFiles = [
     "index.js",
     "README.md",
-    ...(profile === "native" ? ["bin"] : []),
+    ...(profile === PLUGIN_SCAFFOLD_PROFILE.native ? ["bin"] : []),
     ...(extension ? ["extension"] : []),
   ];
   const manifest = {
@@ -134,18 +148,18 @@ async function scaffoldFiles({ pluginId, name, profile, supports, extension }) {
     license: "UNLICENSED",
   };
   new PluginPackage(manifest);
-  const nativeImports = profile === "native"
+  const nativeImports = profile === PLUGIN_SCAFFOLD_PROFILE.native
     ? `import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 `
     : "";
-  const launcher = profile === "native"
+  const launcher = profile === PLUGIN_SCAFFOLD_PROFILE.native
     ? `const launcher = fileURLToPath(new URL("./bin/${pluginId}.js", import.meta.url));
 
 `
     : "";
-  const repository = profile === "commands"
+  const repository = profile === PLUGIN_SCAFFOLD_PROFILE.commands
     ? ""
     : `  repository: {
     connect() {
@@ -153,13 +167,13 @@ import { fileURLToPath } from "node:url";
     },
     status() {
       throw new Error("PLUGIN_STATUS_NOT_IMPLEMENTED");
-    },${profile === "native" ? `
+    },${profile === PLUGIN_SCAFFOLD_PROFILE.native ? `
     exec(context, args) {
       return context.process.run(process.execPath, [launcher, ...args]);
     },` : ""}
   },
 `;
-  const commands = profile === "native"
+  const commands = profile === PLUGIN_SCAFFOLD_PROFILE.native
     ? ""
     : `  registerCommands(commands) {
     commands.command("inspect")
@@ -181,7 +195,7 @@ ${nativeImports}import { definePlugin } from "${CORE_PACKAGES.pluginSdk}";
 
 ${launcher}export default definePlugin({
   id: "${pluginId}",
-${profile === "commands" ? "" : `  supports: ${JSON.stringify(supports)},\n`}
+${profile === PLUGIN_SCAFFOLD_PROFILE.commands ? "" : `  supports: ${JSON.stringify(supports)},\n`}
 ${extensions}${repository}${commands}});
 `;
   const contractTest = `/** @fileoverview Contract test ${name} Plugin. */
@@ -197,9 +211,9 @@ const packageManifest = JSON.parse(
 
 testPluginContract({ plugin, packageManifest });
 `;
-  const usage = profile === "commands"
+  const usage = profile === PLUGIN_SCAFFOLD_PROFILE.commands
     ? `openspec-orch ${pluginId} inspect`
-    : profile === "repository"
+    : profile === PLUGIN_SCAFFOLD_PROFILE.repository
       ? `openspec-orch plugin connect ${pluginId} --repo <repository-id>
 openspec-orch ${pluginId} inspect
 openspec-orch plugin exec ${pluginId} --repo <repository-id> -- inspect`
@@ -217,8 +231,8 @@ openspec-orch plugin init --plugin ${pluginId} --from .
 ${usage}
 \`\`\`
 
-${profile === "repository" ? "Реализуйте lifecycle `connect/status` перед установкой. `plugin exec` автоматически исполняет grammar из `registerCommands`." : ""}
-${profile === "native" ? "Реализуйте native runtime в `bin/` и lifecycle `connect/status` перед установкой." : ""}
+${profile === PLUGIN_SCAFFOLD_PROFILE.repository ? "Реализуйте lifecycle `connect/status` перед установкой. `plugin exec` автоматически исполняет grammar из `registerCommands`." : ""}
+${profile === PLUGIN_SCAFFOLD_PROFILE.native ? "Реализуйте native runtime в `bin/` и lifecycle `connect/status` перед установкой." : ""}
 ${extension ? "Agent Extension находится в `extension/` и подключается штатным lifecycle текущего Agent." : ""}
 `;
   return new Map([
@@ -226,7 +240,7 @@ ${extension ? "Agent Extension находится в `extension/` и подкл�
     ["index.js", entrypoint],
     ["README.md", readme],
     ["test/plugin.test.js", contractTest],
-    ...(profile === "native"
+    ...(profile === PLUGIN_SCAFFOLD_PROFILE.native
       ? [[`bin/${pluginId}.js`, `#!/usr/bin/env node
 
 throw new Error("NATIVE_RUNTIME_NOT_IMPLEMENTED");

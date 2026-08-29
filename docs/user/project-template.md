@@ -4,7 +4,17 @@ Project Template — copy-only каталог, который `openspec-orch ini
 накладывает на результат штатного OpenSpec init. Он не выбирает Agent, Extension или
 Plugin.
 
-## Что поставляет Base Template
+## Bundled Project Templates
+
+| ID | Schema | Назначение |
+|---|---|---|
+| `base` | `base-v1` | Product-first Intake, Planning, multi-repository Gates и внешний verification checkpoint |
+| `superspec` | `superspec-multirepo` | Полный Superspec lifecycle с multi-repository Apply, Verify и Finalize |
+
+Без `--template` используется `base`. `superspec` полностью заменяет его и не
+наследует Base-specific Intake, instructions или skills.
+
+### Base Template
 
 - schema `base-v1`: `intake → proposal → specs → design → tasks`;
 - `openspec/config.yaml`;
@@ -21,6 +31,39 @@ Change Tracking не входит в Base Template как обязательны
 OpenSpec Graph также не выбирается Template. Полный описанный workflow
 `openspec-base` вызывает Graph после появления Delta Specs и перед Apply, поэтому для
 этого маршрута пользователь отдельно инициализирует Plugin и связывает его со Store.
+
+### Superspec Template
+
+Superspec использует pipeline
+`brainstorm → proposal → optional design → specs → tasks → plan → apply → verify →
+finalize`. Schema сохраняет полный skill-driven цикл: brainstorming, writing-plans,
+worktrees, subagent-driven TDD, task/final review, systematic debugging, fresh
+verification и structured branch closeout. `apply.md`, `verify.md` и `finalize.md`
+делают handoff и convergence loop проверяемыми.
+
+Template и Extension сохраняют раздельное владение, но `superspec` декларативно
+требует `superpowers`. В интерактивном init порядок такой:
+
+```text
+Store ID → Project Template → Agent → Extensions → Code Repositories
+→ strict mode → итоговое подтверждение
+```
+
+После выбора `superspec` required Extension уже отмечен и заблокирован. В flag mode
+он добавляется автоматически, поэтому достаточно:
+
+```bash
+openspec-orch init /absolute/path/to/store \
+  --store specs \
+  --agent qwen \
+  --template superspec
+```
+
+Upstream single-repository Git automation адаптирована, а не удалена: Finalize
+вызывает `superpowers:finishing-a-development-branch` отдельно в каждом затронутом
+Code Repository после явной авторизации и записывает выбранный outcome. Change
+Tracking receipts/Snapshot, внешняя проверка текущей версии и реальный Release gate
+остаются обязательными и не подменяются Agent Verify.
 
 ## Работа с субагентом
 
@@ -55,8 +98,10 @@ Template применяется только во время `init`. Скопи�
 автоматически не обновляются. Повторный `init` не перезаписывает отличающийся
 target-файл и не управляет Plugins.
 
-Явный `--template` полностью заменяет Base Template. Автоматического merge двух
-Project Templates нет.
+Явный bundled ID полностью заменяет default `base`. Автоматического merge двух
+Project Templates нет. Строка в форме lowercase kebab-case трактуется как bundled
+ID и при отсутствии в каталоге отклоняется. Относительный локальный путь указывайте
+с `./`, например `--template ./team-template`.
 
 ## Минимальный custom Template
 

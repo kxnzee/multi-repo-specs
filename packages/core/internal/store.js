@@ -1,5 +1,7 @@
 /** @fileoverview Доменная модель Store identity. */
 
+import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
+
 import { deepFreeze } from "./value.js";
 
 /** Завершает создание Store стабильной доменной ошибкой. */
@@ -31,7 +33,7 @@ export class Store {
   }
 
   matches(repository, sameRemote = (left, right) => left === right) {
-    return repository.role === "store" &&
+    return repository.role === REPOSITORY_ROLE.store &&
       repository.id === this.#id &&
       this.#remote !== undefined &&
       sameRemote(repository.remote, this.#remote);

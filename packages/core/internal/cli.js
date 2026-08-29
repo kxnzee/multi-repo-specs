@@ -2,12 +2,12 @@
 
 import path from "node:path";
 
-import { createCliProgress } from "@openspec-orch/plugin-sdk";
+import { collectValues, createCliProgress, singleValue } from "@openspec-orch/plugin-sdk";
 import { Command, Option } from "commander";
 
-import { collectValues, singleValue } from "./cli-values.js";
+import { isBundledTemplateProvider } from "./bundled-template.js";
 import { configuration } from "./configuration.js";
-import { CORE_FILES } from "./constants.js";
+import { CORE_EXECUTION_MODE, CORE_FILES } from "./constants.js";
 import { connection } from "./connection.js";
 import { initSelections } from "./init-selection.js";
 import { initialization } from "./initialization.js";
@@ -15,6 +15,35 @@ import { repositoryStatuses } from "./repository-status.js";
 import { hasMethods } from "./value.js";
 import { formatStatusHeading } from "./status-output.js";
 import { workspace } from "./workspace.js";
+
+const LEGACY_TEMPLATE_ID = "base";
+
+/** Собирает provider для старого constructor contract с одним templateRoot. */
+function legacyTemplateProvider(templateRoot) {
+  return Object.freeze({
+    defaultId: LEGACY_TEMPLATE_ID,
+    catalog: Object.freeze({ entries: Object.freeze([]) }),
+    resolve(templateId) {
+      if (templateId === LEGACY_TEMPLATE_ID && typeof templateRoot === "string") {
+        return Object.freeze({ id: LEGACY_TEMPLATE_ID, root: templateRoot });
+      }
+      throw new Error(`TEMPLATE_NOT_DISCOVERED: template-id '${templateId ?? ""}' не найден`);
+    },
+  });
+}
+
+/** Отличает явный local path от стабильного bundled Template ID. */
+function isLocalTemplateRequest(request) {
+  return path.isAbsolute(request) || request.startsWith(".") ||
+    request.includes("/") || request.includes("\\");
+}
+
+/** Разрешает один нормализованный Template request без catch-based control flow. */
+function resolveTemplateRequest(provider, request) {
+  return isLocalTemplateRequest(request)
+    ? Object.freeze({ id: undefined, root: request })
+    : provider.resolve(request);
+}
 
 /** Собирает повторяемую Commander option. */
 function collectRepositories(value, previous = []) {
@@ -55,6 +84,7 @@ function buildConnectHint(storeRoot, storeId) {
 
 /** Собирает candidate CLI из публичных Core application services. */
 export class CandidateCli {
+  #bundledTemplates;
   #connection;
   #extensionPreflight;
   #extensions;
@@ -64,9 +94,9 @@ export class CandidateCli {
   #pluginLifecycleCommands;
   #progress;
   #repositoryStatuses;
-  #templateRoot;
 
   constructor({
+    bundledTemplateProvider,
     connectionService = connection,
     extensionLifecycle,
     initSelectionService = initSelections,
@@ -78,6 +108,13 @@ export class CandidateCli {
     repositoryStatusService = repositoryStatuses,
     templateRoot,
   } = {}) {
+    const resolvedTemplates = bundledTemplateProvider ?? legacyTemplateProvider(templateRoot);
+    if (!isBundledTemplateProvider(resolvedTemplates)) {
+      throw new Error(
+        "CLI_INVALID: bundledTemplateProvider должен предоставлять defaultId, catalog и resolve",
+      );
+    }
+    this.#bundledTemplates = resolvedTemplates;
     this.#connection = connectionService;
     if (extensionLifecycle && !hasMethods(
       extensionLifecycle,
@@ -118,7 +155,6 @@ export class CandidateCli {
     }
     this.#progress = progress;
     this.#repositoryStatuses = repositoryStatusService;
-    this.#templateRoot = templateRoot;
     Object.freeze(this);
   }
 
@@ -169,7 +205,8 @@ export class CandidateCli {
       console.log("Инициализация отменена.");
       return;
     }
-    const bundledTemplate = selection.template === undefined || selection.template === "base";
+    const templateRequest = selection.template ?? this.#bundledTemplates.defaultId;
+    const template = resolveTemplateRequest(this.#bundledTemplates, templateRequest);
     const result = await this.#progress.run(
       "Инициализация Store и Project Template...",
       () => this.#initialization.initialize({
@@ -177,8 +214,8 @@ export class CandidateCli {
         storeId: selection.storeId,
         agentId: selection.agentId,
         extensions: selection.extensionsSpecified ? selection.extensions : undefined,
-        templateId: selection.template === "base" ? "base" : undefined,
-        templateRoot: bundledTemplate ? this.#templateRoot : selection.template,
+        templateId: template.id,
+        templateRoot: template.root,
         repositories: selection.repositories,
         noStrict: selection.noStrict,
       }),
@@ -253,7 +290,7 @@ export class CandidateCli {
     console.log(`Store: ${result.storeId} (${result.storeRoot})`);
     console.log(`Workspace: ${result.workspace}`);
     console.log(`Execution mode: ${result.executionMode}`);
-    if (options.workspace && result.executionMode === "strict") {
+    if (options.workspace && result.executionMode === CORE_EXECUTION_MODE.strict) {
       console.log("Workspace сохранён локально для следующих команд OpenSpec Orchestrator.");
     } else if (options.workspace) {
       console.log("Workspace использован только для текущего relaxed-вызова и не сохранён локально.");

@@ -1,14 +1,15 @@
 /** @fileoverview Безопасный монтаж Plugin command contributions в candidate CLI. */
 
+import { COMMAND_CONTEXT, COMMAND_PATTERNS } from "@openspec-orch/plugin-sdk";
 import { Command, InvalidArgumentError, Option } from "commander";
 
-import { CORE_CLI_COMMANDS, CORE_PATTERNS } from "./constants.js";
+import { CORE_CLI_COMMANDS } from "./constants.js";
 import { PluginRegistry } from "./plugin-host.js";
 import { ownValue } from "./value.js";
 
 const IMPLICIT_ROOT_COMMANDS = new Set(CORE_CLI_COMMANDS.implicit);
-const COMMAND_CONTEXT_SCOPES = new Set(["current", "store"]);
-const COMMAND_CONTEXT_KEYS = new Set(["scope", "requireBinding"]);
+const COMMAND_CONTEXT_SCOPES = new Set(COMMAND_CONTEXT.scopes);
+const COMMAND_CONTEXT_KEYS = new Set(COMMAND_CONTEXT.keys);
 
 /** Извлекает проверенное имя команды из Commander definition. */
 function commandName(definition, pluginId) {
@@ -16,7 +17,7 @@ function commandName(definition, pluginId) {
     throw new Error(`PLUGIN_COMMAND_INVALID: ${pluginId} передал пустую command definition`);
   }
   const normalized = definition.trim();
-  const match = normalized.match(CORE_PATTERNS.commandDefinitionName);
+  const match = normalized.match(COMMAND_PATTERNS.definitionName);
   if (!match) {
     throw new Error(
       `PLUGIN_COMMAND_INVALID: ${pluginId} command '${normalized}' должна начинаться с kebab-case name`,
@@ -94,7 +95,7 @@ export class PluginCommandBuilder {
         `PLUGIN_COMMAND_INVALID: ${this.#pluginId} context config должен быть object`,
       );
     }
-    const scope = config.scope ?? "current";
+    const scope = config.scope ?? COMMAND_CONTEXT.defaultScope;
     if (!COMMAND_CONTEXT_SCOPES.has(scope)) {
       throw new Error(
         `PLUGIN_COMMAND_INVALID: ${this.#pluginId} context scope должен быть current или store`,

@@ -4,28 +4,17 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { PluginPackage } from "@openspec-orch/plugin-sdk";
+import {
+  PLUGIN_API_METHODS,
+  PLUGIN_PATTERNS,
+  PluginPackage,
+  REPOSITORY_ROLE,
+} from "@openspec-orch/plugin-sdk";
 
-import { CORE_PATTERNS } from "./constants.js";
 import { lstatOrNull } from "./fs.js";
 import { isContainedPath } from "./path.js";
 
-const PLUGIN_API_METHODS = Object.freeze([
-  "supportsRole",
-  "assertSupports",
-  "hasRepositoryContribution",
-  "connect",
-  "status",
-  "canSync",
-  "sync",
-  "canExec",
-  "exec",
-  "hasExtensionContribution",
-  "extensions",
-  "hasCommandContribution",
-  "registerCommands",
-]);
-const REPOSITORY_ROLES = new Set(["store", "code"]);
+const REPOSITORY_ROLES = new Set(Object.values(REPOSITORY_ROLE));
 
 /** Завершает загрузку стабильной ошибкой Core Plugin Loader. */
 function invalid(message, options) {
@@ -37,7 +26,7 @@ function assertPluginExport(plugin) {
   if (!plugin || typeof plugin !== "object" || Array.isArray(plugin)) {
     invalid("default export должен быть Plugin object");
   }
-  if (typeof plugin.id !== "string" || !CORE_PATTERNS.pluginId.test(plugin.id)) {
+  if (typeof plugin.id !== "string" || !PLUGIN_PATTERNS.id.test(plugin.id)) {
     invalid("Plugin export id должен быть lowercase kebab-case");
   }
   if (!Array.isArray(plugin.supports)) {
@@ -129,7 +118,7 @@ export class PluginLoader {
     if (typeof packageRoot !== "string" || !path.isAbsolute(packageRoot)) {
       invalid("packageRoot должен быть абсолютным путём");
     }
-    if (typeof pluginId !== "string" || !CORE_PATTERNS.pluginId.test(pluginId)) {
+    if (typeof pluginId !== "string" || !PLUGIN_PATTERNS.id.test(pluginId)) {
       invalid("ожидаемый pluginId должен быть lowercase kebab-case");
     }
     const rootStat = await lstatOrNull(packageRoot);

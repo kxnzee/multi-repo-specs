@@ -2,9 +2,12 @@
 
 import process from "node:process";
 
+import { COMMAND_SCOPE } from "@openspec-orch/plugin-sdk";
+
 import { isAgentExtensionAdapter } from "./agent-extension-adapter.js";
 import { bundledAgents } from "./bundled-agent.js";
 import { bundledExtensions } from "./bundled-extension.js";
+import { bundledTemplates, isBundledTemplateProvider } from "./bundled-template.js";
 import { BundledPluginProvider } from "./bundled-plugin.js";
 import { CandidateCli } from "./cli.js";
 import { currentRepositories } from "./current-repository.js";
@@ -24,6 +27,7 @@ import { hasMethods } from "./value.js";
 
 /** Собирает Loader output, Host, lifecycle и CLI adapters без знания Plugin IDs. */
 export class PluginPlatform {
+  #bundledTemplates;
   #commands;
   #extensionLifecycle;
   #initialization;
@@ -36,6 +40,7 @@ export class PluginPlatform {
     applicationService,
     bundledAgentProvider = bundledAgents,
     bundledExtensionProvider = bundledExtensions,
+    bundledTemplateProvider = bundledTemplates,
     catalog,
     contextFactory = pluginContexts,
     currentRepositoryService = currentRepositories,
@@ -48,6 +53,12 @@ export class PluginPlatform {
     if (!pluginCommandOptions || typeof pluginCommandOptions !== "object" || Array.isArray(pluginCommandOptions)) {
       throw new Error("PLUGIN_PLATFORM_INVALID: pluginCommandOptions должен быть object");
     }
+    if (!isBundledTemplateProvider(bundledTemplateProvider)) {
+      throw new Error(
+        "PLUGIN_PLATFORM_INVALID: bundled Template provider должен предоставлять defaultId, catalog и resolve",
+      );
+    }
+    this.#bundledTemplates = bundledTemplateProvider;
     for (const key of ["applicationService", "catalog", "lifecycleService"]) {
       if (Object.hasOwn(pluginCommandOptions, key)) {
         throw new Error(`PLUGIN_PLATFORM_INVALID: ${key} управляется PluginPlatform`);
@@ -72,7 +83,9 @@ export class PluginPlatform {
     this.#initialization = new InitializationService({ agentProvider: bundledAgentProvider });
     this.#initSelection = new InitSelectionService({
       agentCatalog: bundledAgentProvider.catalog,
+      defaultTemplateId: bundledTemplateProvider.defaultId,
       extensionCatalog: bundledExtensionProvider.catalog,
+      templateCatalog: bundledTemplateProvider.catalog,
     });
     this.#extensionLifecycle = new ExtensionLifecycle({
       agentAdapter: resolvedAgentAdapter,
@@ -96,11 +109,15 @@ export class PluginPlatform {
       registry,
       resolveContext: async (pluginId, scope, requireBinding) => {
         const { storeProject, invocation } = await resolveInvocation();
-        if (scope === "current" && !invocation) {
+        if (scope === COMMAND_SCOPE.current && !invocation) {
           throw new Error("PLUGIN_COMMAND_CONTEXT_UNAVAILABLE: текущий Repository не определён");
         }
         const loadedPlugin = registry.require(pluginId);
-        if (!requireBinding && scope === "store" && !loadedPlugin.plugin.hasRepositoryContribution()) {
+        if (
+          !requireBinding &&
+          scope === COMMAND_SCOPE.store &&
+          !loadedPlugin.plugin.hasRepositoryContribution()
+        ) {
           return contextFactory.forStoreSetup({ loadedPlugin, storeProject });
         }
         const createContext = requireBinding
@@ -109,7 +126,7 @@ export class PluginPlatform {
         return createContext({
           loadedPlugin,
           storeProject,
-          repositoryId: scope === "store" ? storeProject.store.id : invocation.id,
+          repositoryId: scope === COMMAND_SCOPE.store ? storeProject.store.id : invocation.id,
           invocation,
         });
       },
@@ -171,6 +188,7 @@ export class PluginPlatform {
   createProgram(options) {
     return new CandidateCli({
       ...options,
+      bundledTemplateProvider: this.#bundledTemplates,
       extensionLifecycle: this.#extensionLifecycle,
       initSelectionService: this.#initSelection,
       initializationService: this.#initialization,

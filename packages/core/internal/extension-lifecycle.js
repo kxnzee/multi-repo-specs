@@ -2,6 +2,8 @@
 
 import process from "node:process";
 
+import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
+
 import { agentExtensions } from "./agent-extension-adapter.js";
 import { bundledExtensions } from "./bundled-extension.js";
 import { processes } from "./process.js";
@@ -93,7 +95,7 @@ export class ExtensionLifecycle {
       root: resolved.root,
       source: resolved.source,
       ...(resolved.manifests ? { manifests: resolved.manifests } : {}),
-      target: Object.freeze({ id: storeProject.store.id, role: "store" }),
+      target: Object.freeze({ id: storeProject.store.id, role: REPOSITORY_ROLE.store }),
     });
   }
 

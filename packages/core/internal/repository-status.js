@@ -10,15 +10,17 @@ import { repositoryRunner, repositorySelector } from "./repository-operations.js
 import { storeProjects } from "./store-project.js";
 import { workspace } from "./workspace.js";
 
-const REPOSITORY_STATES = new Set([
-  "connected",
-  "diverged",
-  "missing",
-  "not_a_directory",
-  "not_a_git_repository",
-  "not_a_git_root",
-  "workspace_unresolved",
-]);
+export const REPOSITORY_STATUS_STATE = Object.freeze({
+  connected: "connected",
+  diverged: "diverged",
+  missing: "missing",
+  notDirectory: "not_a_directory",
+  notGitRepository: "not_a_git_repository",
+  notGitRoot: "not_a_git_root",
+  workspaceUnresolved: "workspace_unresolved",
+});
+
+const REPOSITORY_STATES = new Set(Object.values(REPOSITORY_STATUS_STATE));
 
 /** Immutable read-only состояние одного Repository. */
 export class RepositoryStatus {
@@ -92,16 +94,19 @@ export class RepositoryStatusService {
         : workspaceModel?.checkoutPath(repository) ?? null;
       return expectedPath
         ? await this.#inspectRepository(repository, expectedPath)
-        : new RepositoryStatus({ repository, state: "workspace_unresolved" });
+        : new RepositoryStatus({
+          repository,
+          state: REPOSITORY_STATUS_STATE.workspaceUnresolved,
+        });
     });
   }
 
   async #inspectRepository(repository, expectedPath) {
     const base = { repository, path: expectedPath, connected: false };
     const stat = await lstatOrNull(expectedPath);
-    if (!stat) return new RepositoryStatus({ ...base, state: "missing" });
+    if (!stat) return new RepositoryStatus({ ...base, state: REPOSITORY_STATUS_STATE.missing });
     if (!stat.isDirectory() || stat.isSymbolicLink()) {
-      return new RepositoryStatus({ ...base, state: "not_a_directory" });
+      return new RepositoryStatus({ ...base, state: REPOSITORY_STATUS_STATE.notDirectory });
     }
     const checkout = new RepositoryCheckout(repository, expectedPath);
     const repositoryGit = this.#git.forRepository(checkout);
@@ -109,10 +114,10 @@ export class RepositoryStatusService {
     try {
       root = await repositoryGit.repositoryRoot();
     } catch {
-      return new RepositoryStatus({ ...base, state: "not_a_git_repository" });
+      return new RepositoryStatus({ ...base, state: REPOSITORY_STATUS_STATE.notGitRepository });
     }
     if (root !== expectedPath) {
-      return new RepositoryStatus({ ...base, state: "not_a_git_root" });
+      return new RepositoryStatus({ ...base, state: REPOSITORY_STATUS_STATE.notGitRoot });
     }
     const [remote, branch, clean] = await Promise.all([
       repositoryGit.originUrl().catch(() => ""),
@@ -124,7 +129,9 @@ export class RepositoryStatusService {
     return new RepositoryStatus({
       ...base,
       connected: true,
-      state: remoteMatches && branchMatches ? "connected" : "diverged",
+      state: remoteMatches && branchMatches
+        ? REPOSITORY_STATUS_STATE.connected
+        : REPOSITORY_STATUS_STATE.diverged,
       remote,
       remoteMatches,
       branch,

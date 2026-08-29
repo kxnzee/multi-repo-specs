@@ -3,6 +3,7 @@
 import path from "node:path";
 
 import { parse, stringify } from "yaml";
+import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
 import { parseProjectConfigSchema, parseStoreMetadataSchema } from "./config-schema.js";
 import { CORE_CONTRACT_VERSIONS, CORE_FILES, CORE_PATTERNS } from "./constants.js";
@@ -79,7 +80,7 @@ function assertProjectContract(extensions, plugins, repositories) {
       `CONFIG_INVALID: ${CORE_FILES.orchestratorConfig} содержит повторяющийся repository-id`,
     );
   }
-  if (repositories.filter(({ role }) => role === "store").length !== 1) {
+  if (repositories.filter(({ role }) => role === REPOSITORY_ROLE.store).length !== 1) {
     throw new Error(
       `CONFIG_INVALID: ${CORE_FILES.orchestratorConfig} должен содержать ` +
         "ровно одну запись roles: [store]",
@@ -126,7 +127,7 @@ export class CoreConfiguration {
       throw new Error(`Некорректный репозиторий '${value}'. Ожидается <id=remote#branch>`);
     }
     assertRepositoryRemote(remote, id);
-    return new Repository({ id, role: "code", remote, defaultBranch, plugins: [] });
+    return new Repository({ id, role: REPOSITORY_ROLE.code, remote, defaultBranch, plugins: [] });
   }
 
   parseProject(source) {

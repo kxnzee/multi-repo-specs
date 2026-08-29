@@ -1,13 +1,13 @@
 /** @fileoverview Public entrypoint for the OpenSpec Graph Plugin. */
 
-import { definePlugin } from "@openspec-orch/plugin-sdk";
+import { definePlugin, REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
 import { registerGraphCommands } from "./lib/commands.js";
 import { OpenSpecGraphService } from "./lib/service.js";
 
 const plugin = definePlugin({
   id: "openspec-graph",
-  supports: ["store"],
+  supports: [REPOSITORY_ROLE.store],
   extensions(context) {
     return [{
       id: "agent",

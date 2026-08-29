@@ -11,7 +11,14 @@ import {
   parseDocument,
 } from "yaml";
 
-import { diagnostic, fatal, source as graphSource } from "./report.js";
+import {
+  diagnostic,
+  fatal,
+  GRAPH_REPORT_CONTRACT,
+  source as graphSource,
+} from "./report.js";
+
+const { error: ERROR } = GRAPH_REPORT_CONTRACT.severity;
 
 /** Lists ordinary spec.md files below a Store-relative directory. */
 export async function specFiles(root, relativeRoot) {
@@ -155,7 +162,7 @@ export function parseRepositoryImpact(source, file, changeId) {
   if (headings.length > 1) {
     diagnostics.push(diagnostic(
       "REPOSITORY_IMPACT_DUPLICATE_SECTION",
-      "error",
+      ERROR,
       `Change '${changeId}' contains more than one Repository Impact section`,
       { source: graphSource(file, headings[1] + 1, "repository-impact") },
     ));
@@ -173,7 +180,7 @@ export function parseRepositoryImpact(source, file, changeId) {
   ) {
     diagnostics.push(diagnostic(
       "REPOSITORY_IMPACT_TABLE_INVALID",
-      "error",
+      ERROR,
       "Repository Impact must be a two-column Repository | Capabilities table",
       { source: graphSource(file, cursor + 1, "repository-impact") },
     ));
@@ -195,7 +202,7 @@ export function parseRepositoryImpact(source, file, changeId) {
     if (!cells || !repositoryId || capabilityIds.length === 0) {
       diagnostics.push(diagnostic(
         "REPOSITORY_IMPACT_ROW_INVALID",
-        "error",
+        ERROR,
         `Invalid Repository Impact row in Change '${changeId}'`,
         { source: rowSource },
       ));
@@ -212,7 +219,7 @@ export function parseRepositoryImpact(source, file, changeId) {
       if (declarations.has(declaration)) {
         diagnostics.push(diagnostic(
           "REPOSITORY_IMPACT_DUPLICATE_MAPPING",
-          "error",
+          ERROR,
           `Duplicate Repository Impact mapping '${repositoryId}' → '${capabilityId}'`,
           { source: capabilitySource },
         ));
@@ -232,7 +239,7 @@ export function parseRepositoryImpact(source, file, changeId) {
   if (entries.length === 0 && diagnostics.length === 0) {
     diagnostics.push(diagnostic(
       "REPOSITORY_IMPACT_EMPTY",
-      "error",
+      ERROR,
       `Repository Impact in Change '${changeId}' contains no mappings`,
       { source: graphSource(file, headings[0] + 1, "repository-impact") },
     ));
@@ -253,7 +260,7 @@ export async function changeMetadata(root, changePath, changeNodeId) {
       skipSpecs: false,
       diagnostics: [diagnostic(
         "CHANGE_METADATA_INVALID",
-        "error",
+        ERROR,
         `${file}: ${error.message}`,
         {
           elements: [changeNodeId],

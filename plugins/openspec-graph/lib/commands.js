@@ -1,17 +1,21 @@
 /** @fileoverview Human-facing stateless OpenSpec Graph commands. */
 
-import { createCliProgress } from "@openspec-orch/plugin-sdk";
+import {
+  COMMAND_SCOPE,
+  createCliProgress,
+  REPOSITORY_ROLE,
+} from "@openspec-orch/plugin-sdk";
 
+import { OPEN_SPEC_GRAPH_CONFIG } from "./config.js";
 import { OpenSpecGraphService } from "./service.js";
 import { startGraphViewer } from "./viewer.js";
-
-const MARKERS = Object.freeze({ ok: "[✓]", warning: "[!]", error: "[✗]" });
 
 /** Parses a loopback HTTP port. */
 function port(value) {
   const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 65535) {
-    throw new Error("port must be an integer between 0 and 65535");
+  const { minimumPort, maximumPort } = OPEN_SPEC_GRAPH_CONFIG.viewer;
+  if (!Number.isInteger(parsed) || parsed < minimumPort || parsed > maximumPort) {
+    throw new Error(`port must be an integer between ${minimumPort} and ${maximumPort}`);
   }
   return parsed;
 }
@@ -38,13 +42,16 @@ function printInspection(report, write) {
   write("");
   write("Nodes");
   for (const value of report.nodes) {
-    write(`${MARKERS[value.status]} ${value.id}`);
+    write(`${OPEN_SPEC_GRAPH_CONFIG.markers[value.status]} ${value.id}`);
     printElementDiagnostics(report, value.id, shown, write);
   }
   write("");
   write("Edges");
   for (const value of report.edges) {
-    write(`${MARKERS[value.status]} ${value.source} → ${value.relation} → ${value.target}`);
+    write(
+      `${OPEN_SPEC_GRAPH_CONFIG.markers[value.status]} ` +
+        `${value.source} → ${value.relation} → ${value.target}`,
+    );
     printElementDiagnostics(report, value.id, shown, write);
   }
   const graphDiagnostics = report.diagnostics.filter(({ id }) => !shown.has(id));
@@ -52,7 +59,10 @@ function printInspection(report, write) {
     write("");
     write("Graph");
     for (const value of graphDiagnostics) {
-      write(`${MARKERS[value.severity]} ${value.code}: ${value.message}${sourceLabel(value.source)}`);
+      write(
+        `${OPEN_SPEC_GRAPH_CONFIG.markers[value.severity]} ` +
+          `${value.code}: ${value.message}${sourceLabel(value.source)}`,
+      );
     }
   }
   write("");
@@ -92,11 +102,11 @@ export async function runGraphView(
     () => new OpenSpecGraphService(context).compile(),
     { success: "OpenSpec Graph скомпилирован" },
   );
-  const sourceRoot = context.invocation?.role === "store"
+  const sourceRoot = context.invocation?.role === REPOSITORY_ROLE.store
     ? context.invocation.path
     : undefined;
   const viewer = await startViewer(report, {
-    port: options.port ?? 4177,
+    port: options.port ?? OPEN_SPEC_GRAPH_CONFIG.viewer.defaultPort,
     readSource: (relativePath) => context.files.read(relativePath),
     sourceRoot,
   });
@@ -132,7 +142,7 @@ export function registerGraphCommands(
       if (options.json) output.log(JSON.stringify(report, null, 2));
       else printInspection(report, (message) => output.log(message));
       assertSuccessful(report);
-    }, { scope: "store" });
+    }, { scope: COMMAND_SCOPE.store });
 
   graph.command("view")
     .description("compile the current Store and serve the local read-only graph UI")
@@ -141,5 +151,5 @@ export function registerGraphCommands(
       context,
       options,
       { output, progress },
-    ), { scope: "store" });
+    ), { scope: COMMAND_SCOPE.store });
 }

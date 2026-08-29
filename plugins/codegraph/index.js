@@ -3,7 +3,7 @@
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { definePlugin } from "@openspec-orch/plugin-sdk";
+import { definePlugin, REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
 import { CodeGraphRepositoryStatus } from "./lib/repository.js";
 
@@ -16,7 +16,7 @@ function run(context, operation, ...args) {
 
 const plugin = definePlugin({
   id: "codegraph",
-  supports: ["store", "code"],
+  supports: [REPOSITORY_ROLE.store, REPOSITORY_ROLE.code],
   extensions(context) {
     return [{
       id: "agent",

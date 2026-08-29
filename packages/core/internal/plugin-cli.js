@@ -4,21 +4,17 @@ import path from "node:path";
 import process from "node:process";
 
 import { checkbox } from "@inquirer/prompts";
-import { createCliProgress } from "@openspec-orch/plugin-sdk";
+import { collectValues, createCliProgress, singleValue } from "@openspec-orch/plugin-sdk";
 import { Command, Option } from "commander";
 
-import { collectValues, singleValue } from "./cli-values.js";
 import { pluginApplications } from "./plugin-application.js";
 import { PluginCatalog, pluginCatalog } from "./plugin-catalog.js";
+import { PLUGIN_SCAFFOLD_CONFIG } from "./plugin-scaffold-config.js";
+import { CHECKBOX_THEME } from "./prompt-config.js";
 import { pluginScaffolds } from "./plugin-scaffold.js";
 import { PluginSource } from "./plugin-source.js";
 import { formatStatusDetails, formatStatusHeading } from "./status-output.js";
 import { storeProjects } from "./store-project.js";
-
-/** Стабильные по ширине checkbox icons для разных terminal fonts. */
-const CHECKBOX_THEME = Object.freeze({
-  icon: Object.freeze({ checked: "[✓]", unchecked: "[ ]" }),
-});
 
 /** Монтирует CLI-грамматику `plugin init/connect/status/sync/exec/disconnect/remove`. */
 export class PluginLifecycleCommands {
@@ -105,8 +101,8 @@ export class PluginLifecycleCommands {
       .addOption(new Option("--name <display-name>", "читаемое имя Plugin")
         .argParser(singleValue))
       .addOption(new Option("--profile <profile>", "commands, repository или native")
-        .choices(["commands", "repository", "native"])
-        .default("commands"))
+        .choices(PLUGIN_SCAFFOLD_CONFIG.profiles)
+        .default(PLUGIN_SCAFFOLD_CONFIG.defaultProfile))
       .addOption(new Option("--support <role>", "роль для repository/native: store или code")
         .argParser(collectValues))
       .option("--extension", "добавить Plugin-owned Agent Extension")

@@ -4,24 +4,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { PluginPackage } from "./index.js";
-
-const COMMAND_NAME_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?=$|\s)/;
-const OPTION_FLAGS_PATTERN = /^(?:-[a-zA-Z],\s*)?--[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\s+(?:<[^>]+>|\[[^\]]+\]))?$/;
-const PLUGIN_API_METHODS = Object.freeze([
-  "supportsRole",
-  "assertSupports",
-  "hasRepositoryContribution",
-  "connect",
-  "status",
-  "canSync",
-  "sync",
-  "canExec",
-  "exec",
-  "hasExtensionContribution",
-  "extensions",
-  "hasCommandContribution",
-  "registerCommands",
-]);
+import {
+  COMMAND_CONTEXT,
+  COMMAND_PATTERNS,
+  PLUGIN_API_METHODS,
+} from "./internal/constants.js";
 
 /** Завершает contract test стабильной ошибкой SDK. */
 function invalid(message) {
@@ -75,8 +62,8 @@ class ContractCommand {
       !config ||
       typeof config !== "object" ||
       Array.isArray(config) ||
-      Object.keys(config).some((key) => !["scope", "requireBinding"].includes(key)) ||
-      (config.scope !== undefined && !["current", "store"].includes(config.scope)) ||
+      Object.keys(config).some((key) => !COMMAND_CONTEXT.keys.includes(key)) ||
+      (config.scope !== undefined && !COMMAND_CONTEXT.scopes.includes(config.scope)) ||
       (config.requireBinding !== undefined && typeof config.requireBinding !== "boolean")
     ) {
       invalid(`Command '${this.#definition}' имеет неверный context scope`);
@@ -88,7 +75,7 @@ class ContractCommand {
     if (typeof definition !== "string" || definition.trim().length === 0) {
       invalid(`Command '${this.#definition}' передала пустую вложенную command`);
     }
-    const name = definition.trim().match(COMMAND_NAME_PATTERN)?.[0]?.trim();
+    const name = definition.trim().match(COMMAND_PATTERNS.definitionName)?.[0]?.trim();
     if (!name) invalid(`Command '${definition}' должна начинаться с kebab-case name`);
     if (this.#commands.has(name)) invalid(`повторяющаяся Command path '${name}'`);
     const command = new ContractCommand(definition.trim());
@@ -99,7 +86,7 @@ class ContractCommand {
   option(flags, description, config = {}) {
     if (
       typeof flags !== "string" ||
-      !OPTION_FLAGS_PATTERN.test(flags) ||
+      !COMMAND_PATTERNS.optionFlags.test(flags) ||
       typeof description !== "string" || description.trim().length === 0 ||
       !config ||
       typeof config !== "object" ||
@@ -140,7 +127,7 @@ class ContractCommandRegistry {
       invalid("Command definition должна быть непустой строкой");
     }
     const normalized = definition.trim();
-    const match = normalized.match(COMMAND_NAME_PATTERN);
+    const match = normalized.match(COMMAND_PATTERNS.definitionName);
     if (!match) invalid(`Command '${normalized}' должна начинаться с kebab-case name`);
     const name = match[0].trim();
     if (this.#commands.has(name)) invalid(`повторяющаяся Command path '${name}'`);
