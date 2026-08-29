@@ -24,7 +24,7 @@
     "zod": "4.4.3"
   },
   "scripts": {
-    "test": "node --test --test-concurrency=1 test/*.test.js"
+    "test": "node --test --test-concurrency=1 test/"
   },
   "engines": {
     "node": ">=20.19.0"

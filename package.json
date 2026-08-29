@@ -48,10 +48,10 @@
     "test": "npm run test:code",
     "test:code": "npm run test:workspaces && npm run test:integration",
     "test:workspaces": "npm test --workspaces --if-present",
-    "test:integration": "node --test --test-concurrency=1 test/*.test.js",
+    "test:integration": "node --test --test-concurrency=1 test/",
     "check:template": "node scripts/run-checks.js template",
     "check:agent-artifacts": "node scripts/run-checks.js agent-artifacts",
-    "test:coverage": "node --experimental-test-coverage --test --test-concurrency=1 packages/*/test/*.test.js plugins/*/test/*.test.js test/*.test.js",
+    "test:coverage": "node --experimental-test-coverage --test --test-concurrency=1 packages/core/test packages/plugin-sdk/test plugins/change-tracking/test plugins/codegraph/test plugins/openspec-graph/test test",
     "lint": "eslint .",
     "check": "npm run lint && npm run test:code && npm run check:template && npm run check:agent-artifacts"
   },
