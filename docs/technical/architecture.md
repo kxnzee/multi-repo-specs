@@ -110,7 +110,7 @@ Extensions и portable configuration не меняет.
 
 Plugin command grammar строится ограниченным SDK builder и монтируется по умолчанию в
 `openspec-orch <plugin-id>`. Composition root может разрешить точный набор root command
-paths first-party Plugin, например `graph` или `assign/status/record/verify`.
+paths first-party Plugin, например `graph` или `track/done/status/verify`.
 
 Универсальный `plugin exec` выбирает Plugin instance и Repository context, но Core не
 понимает native grammar. Если существует `repository.exec`, argv передается ему.

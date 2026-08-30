@@ -110,8 +110,9 @@ scope, implementation revisions и проверки публикуются фа�
    через OpenSpec 1.11 проверяет готовность `apply.requires` и их транзитивных
    зависимостей, затем начинает сбор evidence и фиксирует scope из принятого
    `Repository Impact`. Она не назначает Tasks и не означает начало работы над ними.
-2. Разработчики получают Store через Git и видят evidence scope командой
-   `openspec-orch status <change-id>`.
+2. Разработчики получают Store через Git и видят сводку всех активных Changes командой
+   `openspec-orch status`. Ещё не отслеживаемые Changes остаются в списке, а подробный
+   evidence одного Change открывается через `openspec-orch status <change-id>`.
 3. Каждый реализует свою часть, коммитит и пушит её, затем из чистого Code Repository
    вызывает `openspec-orch done`. Plugin определяет Repository, Cycle и `HEAD`, после
    чего публикует repository-owned receipt. Активные Changes читаются через
@@ -122,6 +123,8 @@ scope, implementation revisions и проверки публикуются фа�
 5. Тестировщик читает актуальный `status`, разворачивает указанную версию, выполняет
    проверку и вызывает
    `openspec-orch verify pass --change <change-id>` либо `verify fail`.
+   Только актуальный `pass` для текущей версии выводит готовность к человеческому
+   решению о выпуске; сам Release команда не выполняет.
 
 `source: human` по умолчанию честно означает человеческое решение. Для CI укажите
 `--source ci`. Plugin не делает pass/fail автоматически.

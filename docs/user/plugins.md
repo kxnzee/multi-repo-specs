@@ -91,7 +91,7 @@ workflow и не устанавливает Agent Extension. Его CLI и Store
 openspec-orch track <change-id>
 openspec-orch done
 openspec-orch verify pass
-openspec-orch status <change-id>
+openspec-orch status [change-id]
 ```
 
 `track` сначала читает artifact graph через `openspec status --change <id> --json` и
@@ -110,6 +110,13 @@ Code Repository, требует чистое рабочее дерево и в �
 `done` передаёт только implementation revision. Выполнение Tasks, блокировки и
 неуспешная реализация остаются в нативных артефактах и workflow OpenSpec; Plugin не
 создаёт для них параллельные статусы.
+
+`status` без аргумента одним batch-вызовом показывает все активные OpenSpec Changes.
+Change без Cycle остаётся видимым как «отслеживание ещё не начато»; для Change с Cycle
+накладываются текущие repository receipts, Snapshot и Verification. Подробный экран
+открывается через `status <change-id>`. Готовность к человеческому решению о выпуске
+вычисляется только для актуального Snapshot с актуальной проверкой `pass`; выпуск
+автоматически не выполняется.
 
 Последний `done` автоматически собирает точную версию. После её реальной проверки
 человек или CI вызывает `verify pass` либо `verify fail`. Новый `done` меняет версию,

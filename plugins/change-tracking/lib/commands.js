@@ -22,6 +22,7 @@ function noPushRequested(options) {
 export function formatStatusJson(status, currentRepository) {
   return Object.freeze({
     change_id: status.changeId,
+    tracked: true,
     cycle_id: status.cycle.cycleId,
     planning_revision: status.cycle.planningRevision,
     repositories: status.cycle.repositories,
@@ -45,7 +46,59 @@ export function formatStatusJson(status, currentRepository) {
     }))),
     snapshot: status.snapshot,
     verification: status.verification,
+    release_ready: status.releaseReady,
   });
+}
+
+/** Produces one batch envelope for every active OpenSpec Change. */
+function formatStatusesJson(statuses, currentRepository) {
+  return Object.freeze({
+    changes: Object.freeze(statuses.map((status) => (
+      status.tracked
+        ? formatStatusJson(status, currentRepository)
+        : Object.freeze({ change_id: status.changeId, tracked: false })
+    ))),
+  });
+}
+
+/** Returns one concise verification label for the all-Changes summary. */
+function verificationLabel(verification) {
+  if (!verification) return "не выполнена";
+  if (!verification.current) return "устарела";
+  return verification.result === CHANGE_TRACKING_VERIFICATION_RESULT.pass
+    ? "пройдена"
+    : "не пройдена";
+}
+
+/** Prints a compact overview without hiding active Changes that are not tracked yet. */
+function printStatuses(statuses, write) {
+  write(`Активные изменения (${statuses.length})`);
+  if (statuses.length === 0) {
+    write("  • Активных Changes нет");
+    return;
+  }
+  for (const status of statuses) {
+    write("");
+    if (!status.tracked) {
+      write(`  • ${status.changeId}`);
+      write("    Отслеживание ещё не начато");
+      write(`    Команда: openspec-orch track ${status.changeId}`);
+      continue;
+    }
+    const failed = status.verification?.current &&
+      status.verification.result === CHANGE_TRACKING_VERIFICATION_RESULT.fail;
+    const stale = status.verification && !status.verification.current;
+    const icon = status.releaseReady ? "✓" : failed ? "✗" : stale || !status.committed ? "⚠" : "•";
+    const submitted = status.repositories.filter(({ receipt }) => receipt !== null).length;
+    write(`  ${icon} ${status.changeId}`);
+    write(`    Части: ${submitted}/${status.repositories.length}`);
+    write(`    Версия: ${status.snapshot ? "собрана" : "ожидает остальные части"}`);
+    write(`    Проверка: ${verificationLabel(status.verification)}`);
+    write(
+      `    Выпуск: ${status.releaseReady ? "готово" : "пока не готово"} ` +
+        "к решению о выпуске",
+    );
+  }
 }
 
 /** Prints the human-readable status contract. */
@@ -103,6 +156,10 @@ function printStatus(status, currentRepository, write) {
   } else {
     write("  ⚠ Проверка: не выполнена");
   }
+  write(
+    `  ${status.releaseReady ? "✓" : "•"} Выпуск: ` +
+      `${status.releaseReady ? "готово" : "пока не готово"} к решению о выпуске`,
+  );
 }
 
 /** Registers the public Change Tracking flow through the SDK builder. */
@@ -197,20 +254,31 @@ export function registerChangeTrackingCommands(
       );
     }, { scope: COMMAND_SCOPE.store });
 
-  commands.command("status <change-id>")
-    .description("показать implementation evidence и привязанную проверку")
-    .option("--json", "вывести машиночитаемый контекст Cycle и текущего Repository")
+  commands.command("status [change-id]")
+    .description("показать активные Changes или подробный implementation evidence")
+    .option("--json", "вывести машиночитаемый status")
     .actionWithContext(async (context, changeId, options) => {
       await synchronize(context);
-      const status = await progress.run(
-        `Проверка текущего состояния Change ${changeId}...`,
-        () => new ChangeTrackingService(context).status(changeId),
-        { success: `Состояние Change ${changeId} проверено` },
+      const service = new ChangeTrackingService(context);
+      const result = await progress.run(
+        changeId
+          ? `Проверка текущего состояния Change ${changeId}...`
+          : "Чтение активных Changes и командного состояния...",
+        () => changeId ? service.status(changeId) : service.statuses(),
+        { success: changeId ? "Состояние Change проверено" : "Активные Changes проверены" },
       );
       if (options.json) {
-        write(JSON.stringify(formatStatusJson(status, context.invocation), null, 2));
+        write(JSON.stringify(
+          changeId
+            ? formatStatusJson(result, context.invocation)
+            : formatStatusesJson(result, context.invocation),
+          null,
+          2,
+        ));
+      } else if (changeId) {
+        printStatus(result, context.invocation, write);
       } else {
-        printStatus(status, context.invocation, write);
+        printStatuses(result, write);
       }
     }, { scope: COMMAND_SCOPE.store, requireBinding: false });
 

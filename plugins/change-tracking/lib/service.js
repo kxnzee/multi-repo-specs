@@ -6,6 +6,7 @@ import {
   assertChangeId,
   CHANGE_TRACKING_CONTRACT,
   CHANGE_TRACKING_RECEIPT_SOURCE,
+  CHANGE_TRACKING_VERIFICATION_RESULT,
   isGitRevision,
 } from "./contracts.js";
 import { CycleRecord } from "./cycle-record.js";
@@ -368,6 +369,26 @@ export class ChangeTrackingService {
    */
   async status(changeId) {
     await requireOpenSpec11(this.#context.process);
+    return this.#readStatus(changeId);
+  }
+
+  /** Reads every active OpenSpec Change with an optional current tracking overlay. */
+  async statuses() {
+    await requireOpenSpec11(this.#context.process);
+    const [changeIds, cycles] = await Promise.all([
+      activeChangeIds(this.#context.process),
+      this.#records.list(),
+    ]);
+    const tracked = new Set(cycles.map(({ changeId }) => changeId));
+    return Object.freeze(await Promise.all(changeIds.map(async (changeId) => (
+      tracked.has(changeId)
+        ? Object.freeze({ ...await this.#readStatus(changeId), tracked: true })
+        : Object.freeze({ changeId, tracked: false })
+    ))));
+  }
+
+  /** Builds the detailed overlay for one tracked Change without another OpenSpec call. */
+  async #readStatus(changeId) {
     const current = await this.#currentCycle(changeId, { requireConnected: false });
     const receipts = await this.#tracking.resultsForCycle(changeId, current.cycle);
     const repositories = Object.freeze(await Promise.all(
@@ -414,6 +435,10 @@ export class ChangeTrackingService {
         current: Boolean(snapshot && storedVerification.snapshot_id === snapshot.snapshot_id),
       })
       : null;
+    const releaseReady = current.committed &&
+      snapshot?.current === true &&
+      verification?.current === true &&
+      verification.result === CHANGE_TRACKING_VERIFICATION_RESULT.pass;
     return Object.freeze({
       changeId,
       cycle: current.cycle,
@@ -422,6 +447,7 @@ export class ChangeTrackingService {
       repositories,
       snapshot,
       verification,
+      releaseReady,
     });
   }
 
