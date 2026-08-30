@@ -124,7 +124,7 @@ Declaration не связывает Plugin с Repository. Binding хранитс
 | `default_branch` | Ветка, ожидаемая strict `connect` и repository status |
 | `plugins` | Уникальные ID из верхнеуровневого `plugins` |
 
-Store владеет Specs, Changes и Cycle Records. Только Code Repositories могут входить
+Store владеет Specs, Changes и командным состоянием Change Tracking. Только Code Repositories могут входить
 в Cycle. Repository ID не обязан совпадать с именем Git repository, но локальный
 standard layout использует его как имя каталога в `workspace/src/`.
 
@@ -134,7 +134,7 @@ standard layout использует его как имя каталога в `w
 |---|---|---|
 | `openspec-orch.yaml` | Project configuration | tracked |
 | `.openspec-store/store.yaml` | Identity OpenSpec Store | tracked |
-| `.openspec-orch/changes/*.json` | Cycle Records | tracked |
+| `tracking/cycles/<change-id>/` | Cycle, repository receipts и verification | tracked |
 | `.openspec-orch/state.json` | Последний strict workspace | local/ignored |
 | `.openspec-orch/plugins/<id>/state.json` | Versioned Plugin state | local/ignored |
 | `.openspec-orch/cache/plugin-runtimes/<id>/` | External Plugin runtime | local/ignored |

@@ -205,11 +205,12 @@ export class PluginCommandRegistry {
 
 /** Монтирует все command contributions в стабильном порядке Plugin registry. */
 export class PluginCommandMounter {
+  #onError;
   #registry;
   #resolveContext;
   #rootCommands;
 
-  constructor({ registry, resolveContext, rootCommands = new Map() } = {}) {
+  constructor({ onError, registry, resolveContext, rootCommands = new Map() } = {}) {
     if (!(registry instanceof PluginRegistry)) {
       throw new Error("PLUGIN_COMMAND_MOUNTER_INVALID: требуется PluginRegistry");
     }
@@ -218,6 +219,9 @@ export class PluginCommandMounter {
     }
     if (typeof resolveContext !== "function") {
       throw new Error("PLUGIN_COMMAND_MOUNTER_INVALID: resolveContext должен быть функцией");
+    }
+    if (onError !== undefined && typeof onError !== "function") {
+      throw new Error("PLUGIN_COMMAND_MOUNTER_INVALID: onError должен быть функцией");
     }
     const loadedIds = new Set(registry.list().map(({ id }) => id));
     const checkedRootCommands = new Map();
@@ -247,6 +251,7 @@ export class PluginCommandMounter {
       checkedRootCommands.set(pluginId, new Set(checkedNames));
     }
     this.#registry = registry;
+    this.#onError = onError;
     this.#resolveContext = resolveContext;
     this.#rootCommands = checkedRootCommands;
     Object.freeze(this);
@@ -257,55 +262,62 @@ export class PluginCommandMounter {
       throw new Error("PLUGIN_COMMAND_MOUNTER_INVALID: требуется Commander program");
     }
     for (const { plugin } of this.#registry.list()) {
-      const contributes = plugin.hasCommandContribution();
-      if (typeof contributes !== "boolean") {
-        throw new Error(
-          `PLUGIN_CONTRACT_INVALID: ${plugin.id}.hasCommandContribution должен вернуть boolean`,
-        );
-      }
-      const allowedRootCommands = this.#rootCommands.get(plugin.id);
-      if (!contributes) {
+      const initialCommandCount = program.commands.length;
+      try {
+        const contributes = plugin.hasCommandContribution();
+        if (typeof contributes !== "boolean") {
+          throw new Error(
+            `PLUGIN_CONTRACT_INVALID: ${plugin.id}.hasCommandContribution должен вернуть boolean`,
+          );
+        }
+        const allowedRootCommands = this.#rootCommands.get(plugin.id);
+        if (!contributes) {
+          if (allowedRootCommands) {
+            throw new Error(
+              `PLUGIN_CONTRACT_INVALID: ${plugin.id} не предоставляет разрешённые root commands`,
+            );
+          }
+          continue;
+        }
+        const root = allowedRootCommands !== undefined;
+        let parent = program;
+        if (!root) {
+          if (
+            IMPLICIT_ROOT_COMMANDS.has(plugin.id) ||
+            program.commands.some((command) => command.name() === plugin.id)
+          ) {
+            throw new Error(
+              `PLUGIN_COMMAND_CONFLICT: command path '${plugin.id}' уже зарегистрирован`,
+            );
+          }
+          parent = program.command(plugin.id).description(`Команды Plugin ${plugin.id}`);
+        }
+        const registry = new PluginCommandRegistry({
+          allowedCommands: allowedRootCommands,
+          parent,
+          path: root ? [] : [plugin.id],
+          pluginId: plugin.id,
+          resolveContext: this.#resolveContext,
+        });
+        plugin.registerCommands(registry);
+        if (registry.size === 0) {
+          throw new Error(
+            `PLUGIN_CONTRACT_INVALID: ${plugin.id}.registerCommands не зарегистрировал команды`,
+          );
+        }
         if (allowedRootCommands) {
-          throw new Error(
-            `PLUGIN_CONTRACT_INVALID: ${plugin.id} не предоставляет разрешённые root commands`,
-          );
+          const missing = [...allowedRootCommands].filter((name) => !registry.list().includes(name));
+          if (missing.length > 0) {
+            throw new Error(
+              `PLUGIN_CONTRACT_INVALID: ${plugin.id} не зарегистрировал root commands: ` +
+                missing.join(", "),
+            );
+          }
         }
-        continue;
-      }
-      const root = allowedRootCommands !== undefined;
-      let parent = program;
-      if (!root) {
-        if (
-          IMPLICIT_ROOT_COMMANDS.has(plugin.id) ||
-          program.commands.some((command) => command.name() === plugin.id)
-        ) {
-          throw new Error(
-            `PLUGIN_COMMAND_CONFLICT: command path '${plugin.id}' уже зарегистрирован`,
-          );
-        }
-        parent = program.command(plugin.id).description(`Команды Plugin ${plugin.id}`);
-      }
-      const registry = new PluginCommandRegistry({
-        allowedCommands: allowedRootCommands,
-        parent,
-        path: root ? [] : [plugin.id],
-        pluginId: plugin.id,
-        resolveContext: this.#resolveContext,
-      });
-      plugin.registerCommands(registry);
-      if (registry.size === 0) {
-        throw new Error(
-          `PLUGIN_CONTRACT_INVALID: ${plugin.id}.registerCommands не зарегистрировал команды`,
-        );
-      }
-      if (allowedRootCommands) {
-        const missing = [...allowedRootCommands].filter((name) => !registry.list().includes(name));
-        if (missing.length > 0) {
-          throw new Error(
-            `PLUGIN_CONTRACT_INVALID: ${plugin.id} не зарегистрировал root commands: ` +
-              missing.join(", "),
-          );
-        }
+      } catch (error) {
+        program.commands.splice(initialCommandCount);
+        if (!this.#onError) throw error;
+        this.#onError(plugin.id, error);
       }
     }
     return program;

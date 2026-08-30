@@ -169,7 +169,7 @@ export class CandidateCli {
   createProgram() {
     const program = new Command()
       .name("openspec-orch")
-      .description("OpenSpec Orchestrator: Cycle и Snapshot для multi-repo Change")
+      .description("OpenSpec Orchestrator для multi-repository OpenSpec workflow")
       .showHelpAfterError()
       .exitOverride();
     program.command("init [path]")

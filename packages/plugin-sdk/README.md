@@ -96,6 +96,14 @@ action поле `invocation` отдельно сообщает `{ id, role, path
 автоматически работают в проверенном checkout, а `storage` — только в namespace
 текущего Plugin.
 
+`files.listFiles(relativePath)` и `files.listDirectories(relativePath)` возвращают
+только непосредственные ordinary entries нужного типа в стабильном порядке и
+отклоняют symlink. `git.latestRevision(pathspec)` возвращает последний commit,
+изменявший переданные repository-relative paths. `git.isRemoteReachable(revision)` проверяет
+достижимость commit только из локально известных remote-tracking refs и не выполняет
+network fetch. `process.run(..., { acceptedExitCodes })` позволяет Plugin явно принять
+ограниченный набор nonzero exit codes, сохраняя остальные ошибки fail-closed.
+
 `repository.status` возвращает `{ state: string, details?: string }`. Core добавляет
 Plugin и Repository identity, а ошибка одного status превращается в `unavailable`,
 не прерывая вывод остальных bindings.

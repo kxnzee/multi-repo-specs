@@ -1,73 +1,79 @@
 /** @fileoverview Contract and domain tests for the Change Tracking Plugin. */
 
 import assert from "node:assert/strict";
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { parse, stringify } from "yaml";
 
 import {
   assertPluginContract,
   testPluginContract,
 } from "@openspec-orch/plugin-sdk/testing";
 
-import plugin, {
-  ChangeTrackingService,
-  CycleRecord,
-  CycleRecordRepository,
-  SnapshotIdentity,
-} from "../index.js";
+import * as publicApi from "../index.js";
+import plugin from "../index.js";
+import { CycleRecord } from "../lib/cycle-record.js";
+import { CycleRecordRepository } from "../lib/cycle-record-repository.js";
+import { activeChangeIds } from "../lib/openspec-compatibility.js";
+import { ChangeTrackingService } from "../lib/service.js";
+import { snapshotId } from "../lib/snapshot-identity.js";
 import packageManifest from "../package.json" with { type: "json" };
 import { assignmentContext } from "./assignment-context.js";
 
-const packageRoot = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
-
 testPluginContract({ plugin, packageManifest });
 
-test("change-tracking contributes only the preserved root command set", () => {
+test("change-tracking contributes only the simple public evidence flow", () => {
   assert.deepEqual(
     assertPluginContract({ plugin, packageManifest }).commands,
-    ["assign", "status", "record", "verify"],
+    ["track", "done", "status", "verify"],
   );
   assert.equal(plugin.canExec(), true);
 });
 
-test("change-tracking contributes one Store-scoped Agent Extension without extra state", async () => {
-  assert.equal(plugin.hasExtensionContribution(), true);
-  const store = Object.freeze({ id: "specs", role: "store" });
-  const code = Object.freeze({ id: "frontend", role: "code" });
-  assert.deepEqual(plugin.extensions(Object.freeze({ repository: store })).map((extension) => ({
-    id: extension.id,
-    root: extension.root,
-    target: extension.target,
-  })), [{
-    id: "agent",
-    root: "./extension",
-    target: store,
-  }]);
-  assert.deepEqual(plugin.extensions(Object.freeze({ repository: code })), []);
-
-  const extensionRoot = path.join(packageRoot, "extension");
-  const [qwen, gigacode, claude, skill] = await Promise.all([
-    fs.readFile(path.join(extensionRoot, "qwen-extension.json"), "utf8").then(JSON.parse),
-    fs.readFile(path.join(extensionRoot, "gigacode-extension.json"), "utf8").then(JSON.parse),
-    fs.readFile(path.join(extensionRoot, ".claude-plugin", "plugin.json"), "utf8").then(JSON.parse),
-    fs.readFile(
-      path.join(extensionRoot, "skills", "change-tracking-apply-context", "SKILL.md"),
-      "utf8",
-    ),
-  ]);
-  assert.equal(qwen.name, "change-tracking-agent");
-  assert.equal(qwen.contextFileName, "agent-instructions.md");
-  assert.equal(gigacode.name, "change-tracking-agent");
-  assert.equal(gigacode.contextFileName, "agent-instructions.md");
-  assert.equal(claude.name, "change-tracking-agent");
-  assert.match(skill, /name: change-tracking-apply-context/);
+test("change-tracking contributes CLI evidence without an Agent Extension", () => {
+  assert.equal(plugin.hasExtensionContribution(), false);
+  assert.equal(packageManifest.files.includes("extension"), false);
   assert.equal(packageManifest.files.includes("template"), false);
+});
+
+test("change-tracking requires the OpenSpec 1.11 runtime contract", async () => {
+  const incompatible = assignmentContext({ openSpecVersion: "1.10.0" });
+  await assert.rejects(plugin.connect(incompatible), /OPENSPEC_11_REQUIRED.*1\.10\.0/u);
   await assert.rejects(
-    fs.access(path.join(packageRoot, "template", "template.yaml")),
-    { code: "ENOENT" },
+    new ChangeTrackingService(incompatible).status("checkout-flow"),
+    /OPENSPEC_11_REQUIRED.*1\.10\.0/u,
   );
+});
+
+test("OpenSpec 1.11 batch preserves active identities when one Change has diagnostics", async () => {
+  const process = Object.freeze({
+    async run(executable, args, options) {
+      assert.equal(executable, "openspec");
+      assert.deepEqual(args, ["status", "--all", "--json"]);
+      assert.deepEqual(options, { acceptedExitCodes: [0, 1] });
+      return JSON.stringify({
+        changes: [
+          { changeName: "checkout-flow", artifacts: [] },
+          { changeName: "broken-change", status: [{ severity: "error" }] },
+        ],
+      });
+    },
+  });
+
+  assert.deepEqual(await activeChangeIds(process), ["checkout-flow", "broken-change"]);
+});
+
+test("change-tracking does not expose its internal service or low-level operations", () => {
+  assert.deepEqual(Object.keys(publicApi), ["default"]);
+  const service = new ChangeTrackingService(assignmentContext());
+  for (const operation of [
+    "assign",
+    "currentCycle",
+    "recordAssignment",
+    "verify",
+    "recordVerification",
+  ]) {
+    assert.equal(operation in service, false);
+  }
 });
 
 test("CycleRecord creates and serializes the frozen v1 contract", () => {
@@ -113,9 +119,19 @@ test("CycleRecord rejects malformed and mismatched persisted records", () => {
   );
 });
 
-test("CycleRecordRepository persists the legacy Store path through Files facade", async () => {
+test("CycleRecordRepository persists the Git-native Store path through Files facade", async () => {
   const values = new Map();
   const files = Object.freeze({
+    async listDirectories() { return Object.freeze([]); },
+    async listFiles(relativePath, { optional } = {}) {
+      const prefix = `${relativePath}/`;
+      const names = [...values.keys()]
+        .filter((value) => value.startsWith(prefix) && !value.slice(prefix.length).includes("/"))
+        .map((value) => value.slice(prefix.length))
+        .sort();
+      if (names.length === 0 && !optional) throw new Error(`missing ${relativePath}`);
+      return Object.freeze(names);
+    },
     async read(relativePath, { optional } = {}) {
       if (values.has(relativePath)) return values.get(relativePath);
       if (optional) return null;
@@ -135,7 +151,7 @@ test("CycleRecordRepository persists the legacy Store path through Files facade"
   assert.equal(await repository.read("checkout-flow"), null);
   assert.equal(
     await repository.write(record),
-    ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json",
+    "tracking/cycles/checkout-flow/cycle.yaml",
   );
   assert.deepEqual(
     (await repository.read("checkout-flow")).toDocument(),
@@ -145,6 +161,8 @@ test("CycleRecordRepository persists the legacy Store path through Files facade"
 
 test("CycleRecordRepository preserves corruption errors", async () => {
   const files = Object.freeze({
+    async listDirectories() { return Object.freeze([]); },
+    async listFiles() { return Object.freeze([]); },
     async read() { return "{"; },
     async write() {},
   });
@@ -156,332 +174,274 @@ test("CycleRecordRepository preserves corruption errors", async () => {
   );
 });
 
-test("ChangeTrackingService creates and then preserves an unchanged Cycle", async () => {
+test("ChangeTrackingService creates and preserves evidence scope through track", async () => {
   const service = new ChangeTrackingService(assignmentContext());
-  const previews = [];
-  const input = {
-    changeId: "checkout-flow",
-    repositoryIds: ["frontend", "backend"],
-    confirm: async (preview) => {
-      previews.push(preview);
-      return true;
-    },
-  };
+  const input = { changeId: "checkout-flow" };
 
-  const created = await service.assign(input);
-  const unchanged = await service.assign(input);
-  const current = await service.currentCycle("checkout-flow");
+  const created = await service.track(input);
+  const unchanged = await service.track(input);
+  const current = await service.status("checkout-flow");
 
-  assert.equal(created.status, "created");
-  assert.equal(unchanged.status, "unchanged");
+  assert.equal(created.changed, true);
+  assert.equal(unchanged.changed, false);
   assert.equal(unchanged.cycle.cycleId, created.cycle.cycleId);
   assert.equal(current.cycle.cycleId, created.cycle.cycleId);
   assert.equal(current.committed, true);
-  assert.equal(created.path, ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json");
-  assert.equal(previews.length, 1);
-  assert.deepEqual(previews[0].repositories, ["frontend", "backend"]);
+  assert.equal(created.path, "tracking/cycles/checkout-flow/cycle.yaml");
 });
 
-test("ChangeTrackingService reports missing and uncommitted Cycle records", async () => {
-  const path = ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json";
-  const service = new ChangeTrackingService(assignmentContext({ changedPaths: [path] }));
-  await assert.rejects(service.currentCycle("checkout-flow"), /CYCLE_NOT_FOUND/);
+test("track delegates the Apply-ready Planning gate to OpenSpec 1.11", async () => {
+  const service = new ChangeTrackingService(assignmentContext({ applyReady: false }));
 
-  await service.assign({
-    changeId: "checkout-flow",
-    repositoryIds: ["frontend"],
-    confirm: async () => true,
+  await assert.rejects(
+    service.track({ changeId: "checkout-flow" }),
+    /PLANNING_INCOMPLETE/u,
+  );
+});
+
+test("zero-argument done resolves active Changes through OpenSpec 1.11 batch status", async () => {
+  const activeChanges = ["checkout-flow"];
+  const context = assignmentContext({
+    activeChanges,
+    impactRepositories: ["frontend"],
+    invocation: { id: "frontend", role: "code", path: "/workspace/frontend" },
   });
-  const current = await service.currentCycle("checkout-flow");
+  const service = new ChangeTrackingService(context);
+  await service.track({ changeId: "checkout-flow" });
+
+  activeChanges.length = 0;
+  await assert.rejects(
+    service.done({ source: "human" }),
+    /CYCLE_NOT_FOUND: для repository-id 'frontend' нет активного Cycle/u,
+  );
+});
+
+test("ChangeTrackingService reports missing and uncommitted evidence scope", async () => {
+  const path = "tracking/cycles/checkout-flow/cycle.yaml";
+  const service = new ChangeTrackingService(assignmentContext({
+    changedPaths: [path],
+    impactRepositories: ["frontend"],
+  }));
+  await assert.rejects(service.status("checkout-flow"), /CYCLE_NOT_FOUND/);
+
+  await service.track({ changeId: "checkout-flow" });
+  const current = await service.status("checkout-flow");
   assert.equal(current.committed, false);
   assert.equal(current.path, path);
 });
 
-test("ChangeTrackingService preserves preview cancellation without writing", async () => {
-  const service = new ChangeTrackingService(assignmentContext());
-  const result = await service.assign({
-    changeId: "checkout-flow",
-    repositoryIds: ["frontend"],
-    confirm: async () => false,
-  });
-
-  assert.deepEqual(result, {
-    status: "cancelled",
-    path: ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json",
-  });
-});
-
-test("ChangeTrackingService rejects invalid scope and dirty Store before preview", async () => {
+test("ChangeTrackingService rejects invalid Repository Impact and dirty Store", async () => {
   const dirty = new ChangeTrackingService(assignmentContext({ changedPaths: ["README.md"] }));
   await assert.rejects(
-    dirty.assign({
-      changeId: "checkout-flow",
-      repositoryIds: ["frontend"],
-      confirm: async () => true,
-    }),
+    dirty.track({ changeId: "checkout-flow" }),
     /STORE_DIRTY/,
   );
   await assert.rejects(
-    new ChangeTrackingService(assignmentContext()).assign({
+    new ChangeTrackingService(assignmentContext({ impactRepositories: ["specs"] })).track({
       changeId: "checkout-flow",
-      repositoryIds: ["specs"],
-      confirm: async () => true,
     }),
     /Cycle принимает только roles: \[code\]/,
   );
   await assert.rejects(
-    new ChangeTrackingService(assignmentContext({ connected: [] })).assign({
-      changeId: "checkout-flow",
-      repositoryIds: ["frontend"],
-      confirm: async () => true,
-    }),
+    new ChangeTrackingService(assignmentContext({
+      connected: [],
+      impactRepositories: ["frontend"],
+    })).track({ changeId: "checkout-flow" }),
     /PLUGIN_NOT_CONNECTED/,
   );
 });
 
 test("ChangeTrackingService reports an unknown persisted repository as corrupted state", async () => {
-  const context = assignmentContext();
+  const context = assignmentContext({ impactRepositories: ["frontend"] });
   await context.files.write(
-    ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json",
-    `${JSON.stringify({
+    "tracking/cycles/checkout-flow/cycle.yaml",
+    stringify({
       contract_version: 1,
       cycle_id: "cycle-550e8400-e29b-41d4-a716-446655440000",
       change_id: "checkout-flow",
       planning_revision: "a".repeat(40),
       repositories: ["removed-repository"],
       created_at: "2026-08-23T10:00:00.000Z",
-    })}\n`,
+    }),
   );
   const service = new ChangeTrackingService(context);
 
   await assert.rejects(
-    service.assign({
-      changeId: "checkout-flow",
-      repositoryIds: ["frontend"],
-      confirm: async () => true,
-    }),
+    service.track({ changeId: "checkout-flow" }),
     /STATE_CORRUPTED: Cycle Record содержит неизвестный Code Repository 'removed-repository'/,
   );
 });
 
-test("ChangeTrackingService records and replaces a Result Receipt with history", async () => {
-  const context = assignmentContext();
+test("done appends and supersedes implementation revisions", async () => {
+  const heads = { frontend: "a".repeat(40) };
+  const context = assignmentContext({
+    impactRepositories: ["frontend"],
+    implementationHeads: heads,
+    invocation: { id: "frontend", role: "code", path: "/workspace/frontend" },
+  });
   const service = new ChangeTrackingService(context);
-  await service.assign({
-    changeId: "checkout-flow",
-    repositoryIds: ["frontend"],
-    confirm: async () => true,
-  });
-  const base = {
-    changeId: "checkout-flow",
-    repositoryId: "frontend",
-    status: "completed",
-    source: "human",
-    confirm: async () => true,
-  };
+  await service.track({ changeId: "checkout-flow" });
 
-  const created = await service.recordAssignment({
-    ...base,
-    implementationRevision: "a".repeat(40),
-  });
-  const replaced = await service.recordAssignment({
-    ...base,
-    implementationRevision: "b".repeat(40),
-  });
-  const state = await context.storage.read();
+  const created = await service.done({ changeId: "checkout-flow", source: "human" });
+  heads.frontend = "b".repeat(40);
+  const replaced = await service.done({ changeId: "checkout-flow", source: "human" });
+  const journal = parse(await context.files.read(replaced.result.path));
 
-  assert.equal(created.status, "created");
-  assert.equal(created.headMatches, true);
-  assert.equal(replaced.status, "replaced");
-  assert.equal(replaced.headMatches, false);
-  assert.equal(replaced.replaced.receipt_id, created.receipt.receipt_id);
-  assert.deepEqual(state.result_receipt_history, [created.receipt]);
+  assert.deepEqual(journal.receipts, [created.result.receipt, replaced.result.receipt]);
+  assert.equal(replaced.result.receipt.supersedes, created.result.receipt.receipt_id);
 });
 
-test("ChangeTrackingService blocks Result Receipt without committed Cycle or commit", async () => {
-  const path = ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json";
-  const uncommitted = new ChangeTrackingService(
-    assignmentContext({ changedPaths: [path] }),
-  );
-  await uncommitted.assign({
-    changeId: "checkout-flow",
-    repositoryIds: ["frontend"],
-    confirm: async () => true,
-  });
+test("done blocks an uncommitted scope or unavailable commit", async () => {
+  const path = "tracking/cycles/checkout-flow/cycle.yaml";
+  const invocation = { id: "frontend", role: "code", path: "/workspace/frontend" };
+  const uncommitted = new ChangeTrackingService(assignmentContext({
+    changedPaths: [path],
+    impactRepositories: ["frontend"],
+    invocation,
+  }));
+  await uncommitted.track({ changeId: "checkout-flow" });
   await assert.rejects(
-    uncommitted.recordAssignment({
-      changeId: "checkout-flow",
-      repositoryId: "frontend",
-      implementationRevision: "a".repeat(40),
-      status: "completed",
-      source: "human",
-      confirm: async () => true,
-    }),
+    uncommitted.done({ changeId: "checkout-flow", source: "human" }),
     /CYCLE_NOT_COMMITTED/,
   );
 
-  const missing = new ChangeTrackingService(
-    assignmentContext({ implementationAvailable: false }),
-  );
-  await missing.assign({
-    changeId: "checkout-flow",
-    repositoryIds: ["frontend"],
-    confirm: async () => true,
-  });
+  const missing = new ChangeTrackingService(assignmentContext({
+    impactRepositories: ["frontend"],
+    implementationAvailable: false,
+    invocation,
+  }));
+  await missing.track({ changeId: "checkout-flow" });
   await assert.rejects(
-    missing.recordAssignment({
-      changeId: "checkout-flow",
-      repositoryId: "frontend",
-      implementationRevision: "a".repeat(40),
-      status: "completed",
-      source: "human",
-      confirm: async () => true,
-    }),
+    missing.done({ changeId: "checkout-flow", source: "human" }),
     /COMMIT_NOT_FOUND: commit/,
   );
 });
 
-test("ChangeTrackingService verifies, records verification and reports current status", async () => {
-  const context = assignmentContext();
-  const service = new ChangeTrackingService(context);
-  await service.assign({
-    changeId: "checkout-flow",
-    repositoryIds: ["frontend"],
-    confirm: async () => true,
+test("done and verifyResult maintain current and stale verification", async () => {
+  const heads = { frontend: "a".repeat(40) };
+  const context = assignmentContext({
+    impactRepositories: ["frontend"],
+    implementationHeads: heads,
+    invocation: { id: "frontend", role: "code", path: "/workspace/frontend" },
   });
+  const service = new ChangeTrackingService(context);
+  await service.track({ changeId: "checkout-flow" });
 
   const missing = await service.status("checkout-flow");
-  assert.equal(missing.repositories[0].state, "missing");
-  assert.equal(missing.nextAction, "записать результаты для репозиториев: frontend");
+  assert.equal(missing.repositories[0].receipt, null);
 
-  await service.recordAssignment({
+  const firstDone = await service.done({
     changeId: "checkout-flow",
-    repositoryId: "frontend",
-    implementationRevision: "a".repeat(40),
-    status: "completed",
     source: "agent",
-    confirm: async () => true,
   });
-  const createdSnapshot = await service.verify("checkout-flow");
-  const unchangedSnapshot = await service.verify("checkout-flow");
-  const createdVerification = await service.recordVerification({
+  const createdVerification = await service.verifyResult({
     changeId: "checkout-flow",
     result: "pass",
     source: "human",
-    confirm: async () => true,
   });
   const ready = await service.status("checkout-flow");
 
-  assert.equal(createdSnapshot.status, "created");
-  assert.equal(unchangedSnapshot.status, "unchanged");
-  assert.equal(createdVerification.status, "created");
+  assert.equal(ready.snapshot.snapshot_id, firstDone.snapshot.snapshot_id);
   assert.equal(ready.snapshot.current, true);
   assert.equal(ready.verification.current, true);
-  assert.equal(ready.nextAction, "готово");
 
-  await service.recordAssignment({
-    changeId: "checkout-flow",
-    repositoryId: "frontend",
-    implementationRevision: "b".repeat(40),
-    status: "completed",
-    source: "agent",
-    confirm: async () => true,
-  });
+  heads.frontend = "b".repeat(40);
+  await service.done({ changeId: "checkout-flow", source: "agent" });
   const stale = await service.status("checkout-flow");
-  assert.equal(stale.snapshot.current, false);
+  assert.equal(stale.snapshot.current, true);
   assert.equal(stale.verification.current, false);
-  assert.equal(stale.nextAction, "вызвать verify");
-  await assert.rejects(
-    service.recordVerification({
-      changeId: "checkout-flow",
-      result: "fail",
-      source: "human",
-      confirm: async () => true,
-    }),
-    /SNAPSHOT_MISMATCH: сначала вызовите verify/,
-  );
-
-  const replacementSnapshot = await service.verify("checkout-flow");
-  const replacedVerification = await service.recordVerification({
+  const replacedVerification = await service.verifyResult({
     changeId: "checkout-flow",
     result: "fail",
     source: "human",
-    confirm: async () => true,
   });
-  const state = await context.storage.read();
+  const journal = parse(await context.files.read(replacedVerification.path));
 
-  assert.equal(replacementSnapshot.status, "created");
-  assert.equal(replacedVerification.status, "replaced");
-  assert.equal(replacedVerification.replaced.receipt_id, createdVerification.receipt.receipt_id);
-  assert.deepEqual(state.verification_receipt_history, [createdVerification.receipt]);
+  assert.deepEqual(journal.verifications, [replacedVerification.receipt]);
+  assert.equal(
+    replacedVerification.receipt.supersedes,
+    createdVerification.receipt.receipt_id,
+  );
 });
 
-test("ChangeTrackingService keeps read-only history after repository disconnect", async () => {
+test("status keeps shared evidence after repository disconnect", async () => {
   const connected = ["frontend"];
-  const context = assignmentContext({ connected });
+  const context = assignmentContext({
+    connected,
+    impactRepositories: ["frontend"],
+    invocation: { id: "frontend", role: "code", path: "/workspace/frontend" },
+  });
   const service = new ChangeTrackingService(context);
-  await service.assign({
-    changeId: "checkout-flow",
-    repositoryIds: ["frontend"],
-    confirm: async () => true,
-  });
-  await service.recordAssignment({
-    changeId: "checkout-flow",
-    repositoryId: "frontend",
-    implementationRevision: "a".repeat(40),
-    status: "completed",
-    source: "agent",
-    confirm: async () => true,
-  });
+  await service.track({ changeId: "checkout-flow" });
+  await service.done({ changeId: "checkout-flow", source: "agent" });
 
   connected.length = 0;
   const status = await service.status("checkout-flow");
-  assert.equal(status.repositories[0].state, "disconnected");
+  assert.equal(status.repositories[0].connected, false);
   assert.equal(status.repositories[0].receipt.implementation_revision, "a".repeat(40));
   await assert.rejects(
-    service.recordAssignment({
-      changeId: "checkout-flow",
-      repositoryId: "frontend",
-      implementationRevision: "a".repeat(40),
-      status: "completed",
-      source: "agent",
-      confirm: async () => true,
-    }),
+    service.done({ changeId: "checkout-flow", source: "agent" }),
     /PLUGIN_NOT_CONNECTED/,
   );
 });
 
-test("ChangeTrackingService verify requires completed results for the whole Cycle", async () => {
-  const service = new ChangeTrackingService(assignmentContext());
-  await service.assign({
-    changeId: "checkout-flow",
-    repositoryIds: ["frontend", "backend"],
-    confirm: async () => true,
-  });
-  await service.recordAssignment({
-    changeId: "checkout-flow",
-    repositoryId: "frontend",
-    implementationRevision: "a".repeat(40),
-    status: "completed",
-    source: "ci",
-    confirm: async () => true,
-  });
+test("verifyResult requires revisions for the whole evidence scope", async () => {
+  const service = new ChangeTrackingService(assignmentContext({
+    invocation: { id: "frontend", role: "code", path: "/workspace/frontend" },
+  }));
+  await service.track({ changeId: "checkout-flow" });
+  await service.done({ changeId: "checkout-flow", source: "ci" });
 
   await assert.rejects(
-    service.verify("checkout-flow"),
-    /CYCLE_MISMATCH: для repository-id 'backend' нужен текущий Result Receipt completed/,
+    service.verifyResult({ changeId: "checkout-flow", result: "pass", source: "ci" }),
+    /SNAPSHOT_MISMATCH: .*backend.*implementation revision/,
   );
 });
 
-test("SnapshotIdentity follows the frozen canonical v1 projection", () => {
-  const identity = new SnapshotIdentity("cycle-550e8400-e29b-41d4-a716-446655440000", [
+test("verifyResult accepts decisions only from a human or CI", async () => {
+  const service = new ChangeTrackingService(assignmentContext({
+    impactRepositories: ["frontend"],
+    invocation: { id: "frontend", role: "code", path: "/workspace/frontend" },
+  }));
+  await service.track({ changeId: "checkout-flow" });
+  await service.done({ changeId: "checkout-flow", source: "agent" });
+
+  await assert.rejects(
+    service.verifyResult({
+      changeId: "checkout-flow",
+      result: "pass",
+      source: "agent",
+    }),
+    /VERIFY_SOURCE_INVALID/u,
+  );
+});
+
+test("snapshotId follows the canonical v1 projection", () => {
+  const identity = snapshotId("cycle-550e8400-e29b-41d4-a716-446655440000", [
     { repository_id: "frontend", implementation_revision: "a".repeat(40) },
     { repository_id: "backend", implementation_revision: "b".repeat(40) },
   ]);
 
   assert.equal(
-    identity.value,
-    "snap-v1-2ba71c37ac19b64b03f36a6a6a5fda8ce1c7809e6fca17619e6ac20352ca90a2",
+    identity,
+    "snap-v1-0877570c1ce261025a08129dd51afb9fb9fb39b450be4d5f105a82900c11cdd5",
   );
-  assert.equal(String(identity), identity.value);
+});
+
+test("snapshotId changes when current receipt changes at the same implementation SHA", () => {
+  const cycleId = "cycle-550e8400-e29b-41d4-a716-446655440000";
+  const implementation = {
+    repository_id: "frontend",
+    implementation_revision: "a".repeat(40),
+  };
+  const first = snapshotId(cycleId, [{
+    ...implementation,
+    receipt_id: "result-550e8400-e29b-41d4-a716-446655440001",
+  }]);
+  const second = snapshotId(cycleId, [{
+    ...implementation,
+    receipt_id: "result-550e8400-e29b-41d4-a716-446655440002",
+  }]);
+
+  assert.notEqual(first, second);
 });

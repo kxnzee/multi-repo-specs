@@ -23,8 +23,7 @@ rules:
     - "Use superpowers:writing-plans to create the detailed execution plan in the current Change plan.md, separated by repository ID."
   apply:
     - "Use isolated repository-owned worktrees, RED-GREEN TDD, task reviews, final review and fresh verification; record one apply.md receipt for the complete iteration."
-    - "When Change Tracking is connected, use Assignments and current Result Receipts rather than inventing repository completion evidence."
   verify:
-    - "Verify the exact Apply iteration and candidate Snapshot; technical evidence and the responsible participant's current-version confirmation are separate mandatory checks."
+    - "Verify the exact Apply iteration and candidate identity; technical evidence and the responsible participant's current-version confirmation are separate mandatory checks."
   finalize:
     - "Invoke superpowers:finishing-a-development-branch per Code Repository only after explicit user or accepted team-process authorization, then record every outcome in finalize.md."

@@ -1,5 +1,5 @@
 # OpenSpec Orchestrator local data. Do not ignore openspec/, the provider-specific agent directory,
-# .openspec-orch/changes/ (Cycle Records, committed to Git), or .openspec-orch/ as a whole.
+# or .openspec-orch/ as a whole.
 .openspec-orch/state.json
 .openspec-orch/cache/
 .openspec-orch/logs/

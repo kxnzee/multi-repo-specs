@@ -6,12 +6,7 @@ import { CHANGE_TRACKING_CONTRACT, parseCycleRecordDocument } from "./contracts.
 
 /** Domain representation of a validated Cycle Record v1. */
 export class CycleRecord {
-  #contractVersion;
-  #cycleId;
-  #changeId;
-  #planningRevision;
-  #repositories;
-  #createdAt;
+  #document;
 
   /**
    * @param {unknown} document Serialized Cycle Record document.
@@ -25,12 +20,10 @@ export class CycleRecord {
           `ожидался '${expectedChangeId}'`,
       );
     }
-    this.#contractVersion = parsed.contract_version;
-    this.#cycleId = parsed.cycle_id;
-    this.#changeId = parsed.change_id;
-    this.#planningRevision = parsed.planning_revision;
-    this.#repositories = Object.freeze([...parsed.repositories]);
-    this.#createdAt = parsed.created_at;
+    this.#document = Object.freeze({
+      ...parsed,
+      repositories: Object.freeze([...parsed.repositories]),
+    });
     Object.freeze(this);
   }
 
@@ -52,38 +45,31 @@ export class CycleRecord {
   }
 
   get contractVersion() {
-    return this.#contractVersion;
+    return this.#document.contract_version;
   }
 
   get cycleId() {
-    return this.#cycleId;
+    return this.#document.cycle_id;
   }
 
   get changeId() {
-    return this.#changeId;
+    return this.#document.change_id;
   }
 
   get planningRevision() {
-    return this.#planningRevision;
+    return this.#document.planning_revision;
   }
 
   get repositories() {
-    return this.#repositories;
+    return this.#document.repositories;
   }
 
   get createdAt() {
-    return this.#createdAt;
+    return this.#document.created_at;
   }
 
   /** @returns {Readonly<Record<string, unknown>>} Strict serialized Cycle Record document. */
   toDocument() {
-    return Object.freeze({
-      contract_version: this.#contractVersion,
-      cycle_id: this.#cycleId,
-      change_id: this.#changeId,
-      planning_revision: this.#planningRevision,
-      repositories: this.#repositories,
-      created_at: this.#createdAt,
-    });
+    return this.#document;
   }
 }

@@ -9,11 +9,16 @@ CLI grammar и Agent Extension, не изменяя Core.
 | Plugin ID | Scope | Обязательность | Назначение |
 |---|---|---|---|
 | `openspec-graph` | Store | Опциональный | Компилирует и проверяет текущий граф Store/Repositories/Master Specs/Changes/Delta Specs |
-| `change-tracking` | Store и Code Repository | Опциональный | Фиксирует Cycle, Results, Snapshot и результат проверки точного multi-repository candidate; команды Change выполняются в Store scope |
+| `change-tracking` | Store и Code Repository | Опциональный | Фиксирует implementation revisions, собирает точную multi-repository версию и связывает с ней проверку |
 | `codegraph` | Store и Code Repository | Опциональный | Управляет repository-local CodeGraph index, native CLI passthrough и Repository-scoped Agent Extension для навигации по выбранному checkout |
 
 Все три package поставляются как dependencies дистрибутива. Template не
 выбирает, не устанавливает и не удаляет Plugins.
+
+Ошибка автоматической загрузки одного установленного Plugin не блокирует Core CLI.
+Core и `doctor` продолжают запускаться, а команды неисправного Plugin не монтируются;
+его bindings отображаются диагностикой как `unavailable`. Восстановление выполняется
+через `plugin init --plugin <id> [--from <source>]`, без удаления Store-конфигурации.
 
 ## OpenSpec Graph
 
@@ -66,8 +71,8 @@ operation_headings:
 
 ## Change Tracking
 
-Сначала свяжите Plugin со Store и всеми Code Repositories, которые могут входить в
-Cycle:
+Сначала свяжите Plugin со Store и всеми Code Repositories, чьи implementation
+revisions могут войти в evidence:
 
 ```bash
 openspec-orch plugin init --plugin change-tracking
@@ -75,22 +80,62 @@ openspec-orch plugin connect change-tracking \
   --repo specs --repo frontend --repo backend
 ```
 
+Change Tracking не читает метаданные Project Template, не выбирает внешний Apply
+workflow и не устанавливает Agent Extension. Его CLI и Store-файлы образуют
+самостоятельный evidence-контракт после явного подключения Plugin. Требуется OpenSpec
+`>=1.11.0 <2`.
+
 Основные команды:
 
 ```bash
-openspec-orch assign <change-id> --repo <repository-id>...
-openspec-orch status <change-id> --json
-openspec-orch record assignment <change-id> \
-  --repo <repository-id> --commit <full-sha1> \
-  --status <completed|failed|blocked> --source <human|agent|ci>
-openspec-orch verify <change-id>
-openspec-orch record verification <change-id> \
-  --result <pass|fail> --source <human|agent|ci>
+openspec-orch track <change-id>
+openspec-orch done
+openspec-orch verify pass
+openspec-orch status <change-id>
 ```
 
-Cycle Record tracked в Store. Results, Snapshots и Verification Receipts локальны и
-не переносятся через Git. `verify` только вычисляет идентичность набора версий и не
-проводит проверку.
+`track` сначала читает artifact graph через `openspec status --change <id> --json` и
+начинает сбор implementation evidence только когда готовы `apply.requires` и все их
+транзитивные зависимости. Затем команда читает строгую таблицу `Repository Impact`
+из Proposal и фиксирует scope указанных там Code Repositories. Команда не
+назначает Tasks, не означает «взять задачу в работу» и не меняет OpenSpec Apply. Она
+сама создаёт tracking-коммит и публикует его в Store. `done` вызывается из каталога
+Code Repository, требует чистое рабочее дерево и в счастливом пути сам выбирает
+единственный активный Change и текущий `HEAD`. При нескольких активных Changes укажите
+`--change`; список активных Changes берётся одним batch-вызовом OpenSpec 1.11
+`status --all --json`. `--sha` оставлен как аварийный override. Если commit не входит ни в одну
+локально известную remote-tracking ветку, команда предупреждает, что команда
+разработки может не видеть этот SHA.
+
+`done` передаёт только implementation revision. Выполнение Tasks, блокировки и
+неуспешная реализация остаются в нативных артефактах и workflow OpenSpec; Plugin не
+создаёт для них параллельные статусы.
+
+Последний `done` автоматически собирает точную версию. После её реальной проверки
+человек или CI вызывает `verify pass` либо `verify fail`. Новый `done` меняет версию,
+и прежняя проверка становится устаревшей. Plugin не запускает тесты, deployment или
+checkout самостоятельно.
+
+Всё командное состояние хранится в Store: `tracking/cycles/<change-id>/cycle.yaml`,
+`receipts/<repository-id>.yaml` и `verification/<snapshot-id>.yaml`. Receipt-файл —
+append-only журнал; исправление добавляет запись `supersedes`, а не переписывает
+evidence. Snapshot не хранится отдельно: он детерминированно вычисляется из текущих
+receipts, поэтому любая новая текущая receipt — в том числе исправление через
+`supersedes` при том же SHA — создаёт новый хэш и делает прежнюю verification
+устаревшей.
+
+`track`, `done`, `verify pass|fail` и `status` скрывают pull/push и используют
+говорящие commit messages. `--no-push` оставляет tracking-коммит локально. При
+одновременной записи разных repository-файлов Plugin один раз повторяет push после
+rebase; конфликт одного файла возвращает `TRACKING_CONFLICT` для решения человеком.
+Видимость обновляется по pull, права совпадают с правами на Store. Сервер понадобится
+только при требованиях к частым конкурентным записям, real-time или тонкому access
+control.
+
+Та же файловая раскладка доступна CLI, Agent/MCP и CI. Публичный контракт Plugin
+ограничен командами `track`, `done`, `status` и `verify pass|fail`; CI передаёт SHA
+через `done --sha <hash> --source ci`, а результат проверки — через
+`verify pass|fail --source ci`.
 
 Change Tracking не компилирует и не проверяет OpenSpec Graph и не заменяет OpenSpec
 Apply, PR, CI, deployment, QA, Release или Archive.

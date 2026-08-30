@@ -12,9 +12,9 @@
 
 ## Repository results
 
-| Repository ID | Worktree | Branch | Executor | Commit / Result Receipt | State |
+| Repository ID | Worktree | Branch | Executor | Commit | State |
 | --- | --- | --- | --- | --- | --- |
-| `<repository-id>` | `<path>` | `<branch>` | `subagent-driven-development` / `executing-plans` | `<sha and receipt identity or pending>` | `complete` / `incomplete` |
+| `<repository-id>` | `<path>` | `<branch>` | `subagent-driven-development` / `executing-plans` | `<sha or pending>` | `complete` / `incomplete` |
 
 ## Superpowers execution evidence
 

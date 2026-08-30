@@ -17,7 +17,9 @@ OpenSpec Orchestrator — локальный CLI для подготовки Ope
 
 Core не планирует Change, не интерпретирует требования и не запускает Jira, Zephyr,
 CI, deployment или ручное тестирование. Он также не выполняет `git add`, `commit`,
-`push`, `merge` или `rebase`. Эти действия остаются в действующем процессе команды.
+`push`, `merge` или `rebase` по собственной логике. Конкретный Plugin может владеть
+таким lifecycle через ограниченные публичные facades; Change Tracking использует их
+только для файлов `tracking/cycles/` в Store.
 
 ## Project Templates и Extensions
 
@@ -53,8 +55,9 @@ Agent, дополнительные Extensions и Plugins выбираются �
 evidence subagent. Bundled `superpowers` поставляет локальный MIT-снимок общей
 библиотеки skills. Оба поддерживают Claude, Qwen и GigaCode. Template не владеет их
 payload, а только объявляет требуемую совместимую композицию.
-OpenSpec Graph, CodeGraph и Change Tracking остаются отдельными Plugins и доставляют
-свою Agent-часть как target-scoped Extension.
+OpenSpec Graph, CodeGraph и Change Tracking остаются отдельными Plugins. OpenSpec Graph
+и CodeGraph доставляют Agent-часть как target-scoped Extension; Change Tracking
+предоставляет только собственный CLI и Git-native состояние.
 
 `openspec-base-test-cases` может сформировать тест-кейсы из принятых Requirements и
 Scenarios, в том числе нейтральную структуру для последующего переноса в Zephyr. Он
@@ -85,7 +88,7 @@ Template применяется только во время `init`. Bundled IDs
 - npm;
 - Git;
 - OpenSpec CLI, чей `--version` возвращает semantic version; minimum и exact pin Core
-  не задаёт.
+  не задаёт. Опциональный Change Tracking требует OpenSpec `>=1.11.0 <2`.
 
 Из корня репозитория:
 
@@ -196,11 +199,13 @@ OpenSpec, repositories, standalone Extensions и Plugin bindings. Для CI до
 ### 2. Planning и Apply
 
 Proposal, Delta Specs, Design и Tasks создаются штатным OpenSpec workflow. Перед
-встроенным Apply `openspec-base-apply-context` проверяет Graph и Repository Impact,
-затем передаёт управление OpenSpec Apply.
+встроенным Apply `openspec-base-apply-context` проверяет Repository Impact, Tasks и
+текущий Repository, затем передаёт управление OpenSpec Apply.
 
-Без Change Tracking используется Standard Apply. Его отсутствие не является ошибкой
-и не приводит к автоматической установке Plugin.
+Change Tracking не выбирает и не изменяет Apply. Если он подключён, `track` после
+Planning отдельно начинает сбор implementation evidence по scope из Repository
+Impact. Отсутствие Plugin не является ошибкой и не приводит к его автоматической
+установке.
 
 ### 3. Проверка, Release и Archive
 
@@ -229,15 +234,15 @@ diff и отдельного подтверждения пользователя
 |---|---|---|
 | `openspec-graph` | Store-level связи Repository, Master Spec, Change и Delta Spec | Store |
 | `codegraph` | Локальная навигация по файлам и symbols одного выбранного checkout | Store или Code Repository |
-| `change-tracking` | Cycle, Result Receipts, Snapshot и Verification Receipt | Store и выбранные Code Repositories |
+| `change-tracking` | Точные implementation revisions и привязанная к ним проверка | Store и выбранные Code Repositories |
 
 OpenSpec Graph, CodeGraph и Change Tracking подключаются по решению команды. Template
 и Core продолжают работать без них в доступном Standard flow.
 
-При этом полный workflow bundled Extension `openspec-base` использует OpenSpec Graph
-после появления Delta Specs и перед Apply. Plugin остаётся отдельным выбором и не
-устанавливается автоматически: для этого маршрута его нужно явно инициализировать и
-связать со Store.
+Ни Base, ни Superspec не вызывают конкретные Plugins и не содержат их внутренние
+сущности. Каждый Plugin остаётся отдельным выбором и подключает собственный runtime
+независимо от Template; Agent Extension поставляется только теми Plugins, которым он
+действительно нужен.
 
 ```bash
 openspec-orch plugin init --plugin codegraph
@@ -250,9 +255,8 @@ openspec-orch plugin sync codegraph --all
 сложным repository lifecycle может поставлять свой target-scoped Extension; его Agent
 payload активируется нативным CLI во время `plugin connect`.
 
-Change Tracking является необязательным расширением Apply. После его установки и
-подключения Base skill передаёт plugin-owned `change-tracking-apply-context` проверки
-Cycle, а затем продолжает общий Graph preflight. Команды расширения:
+Change Tracking является необязательным CLI-расширением для implementation evidence и
+не меняет Base/Superspec или нативный OpenSpec workflow. Команды Plugin:
 
 ```bash
 openspec-orch plugin init --plugin change-tracking
@@ -261,16 +265,28 @@ openspec-orch plugin connect change-tracking \
 ```
 
 ```text
-openspec-orch assign <change-id> --repo <repository-id>...
+openspec-orch track <change-id>
+openspec-orch done [--change <change-id>]
 openspec-orch status <change-id> [--json]
-openspec-orch record assignment <change-id> --repo <repository-id> --commit <sha> --status <completed|failed|blocked> --source <human|agent|ci>
-openspec-orch verify <change-id>
-openspec-orch record verification <change-id> --result <pass|fail> --source <human|agent|ci>
+openspec-orch verify <pass|fail> [--change <change-id>]
 ```
 
-`verify` вычисляет точный Snapshot, но не запускает тесты. Результат внешней проверки
-записывается отдельно и не заменяет человеческое подтверждение финального checkpoint
-в `tasks.md`.
+`track` начинает сбор implementation evidence только когда artifact graph OpenSpec
+1.11 показывает готовность `apply.requires` и их транзитивных зависимостей, после чего
+фиксирует состав Code Repositories из принятого `Repository Impact`. Взятие задачи в
+работу и выполнение Tasks остаются в OpenSpec. `done` вызывается из чистого Code
+Repository, автоматически фиксирует
+`HEAD`, а последняя переданная revision автоматически собирает точную версию.
+Состояние Tasks, блокировки и неуспешная реализация не записываются Plugin.
+`verify pass|fail` записывает результат внешней проверки этой версии, но не запускает
+тесты и не заменяет человеческое подтверждение финального checkpoint в `tasks.md`.
+
+`track`, `done`, `verify pass|fail` и `status` синхронизируют командное состояние
+через Git Store и по умолчанию публикуют говорящий tracking-коммит. `--no-push`
+оставляет созданный commit только локально. Видимость обновляется при pull, а не в
+real-time.
+Вызов `done` без аргументов получает список активных Changes одним вызовом нового
+`openspec status --all --json`.
 
 Подробнее: [Plugins](docs/user/plugins.md),
 [OpenSpec Graph](plugins/openspec-graph/README.md) и
@@ -352,7 +368,7 @@ relaxed behavior описаны в [справочнике конфигурац�
 | Project config | `openspec-orch.yaml` | да |
 | Specs, Changes, Template assets и upstream OpenSpec pack | `openspec/`, provider directories | да |
 | Native registration Extensions | локальный project/local scope выбранного Agent | нет |
-| Cycle Records Change Tracking | `.openspec-orch/changes/*.json` | да |
+| Командное состояние Change Tracking | `tracking/cycles/<change-id>/` | да |
 | Локальный workspace Core | `.openspec-orch/state.json` | нет |
 | Plugin state | `.openspec-orch/plugins/<plugin-id>/state.json` | нет |
 | Runtime внешних Plugins | `.openspec-orch/cache/plugin-runtimes/<plugin-id>/` | нет |
@@ -372,8 +388,6 @@ relaxed behavior описаны в [справочнике конфигурац�
 ```bash
 npm run lint
 npm run test:code
-npm run check:template
-npm run check:agent-artifacts
 npm run check
 ```
 

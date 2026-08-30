@@ -37,12 +37,12 @@ security/compliance, миграция данных, несколько доме�
 |---|---|
 | PR | Требуемые реализации прошли review и связаны с Change |
 | Repository checks | В каждом затронутом Code Repository выполнены его локальные обязательные проверки |
-| Candidate identity | В Standard flow зафиксированы точные commits и artifact; при Change Tracking используется текущий Snapshot |
+| Candidate identity | Зафиксированы точные commits и поставляемый artifact |
 | Artifact | Определён build, image или другой поставляемый результат |
 | Deviations | Отклонения от OpenSpec отсутствуют или явно разрешены |
 
-Gate 2 фиксирует одного кандидата для IFT и QA, но не подтверждает их результат. Ручной
-набор версий Standard flow не называется Change Tracking Snapshot.
+Gate 2 фиксирует одного кандидата для IFT и QA, но не подтверждает их результат. Способ
+фиксации identity определяется действующим командным процессом.
 
 ## Gate 3 — Release ready
 
@@ -50,7 +50,7 @@ Gate 2 фиксирует одного кандидата для IFT и QA, но
 |---|---|
 | IFT | Выполнен на кандидате Gate 2 |
 | QA | OpenSpec Scenarios проверены на том же кандидате |
-| Zephyr | Cases и executions связаны со Scenario IDs и identity кандидата; при Change Tracking — со Snapshot |
+| Zephyr | Cases и executions связаны со Scenario IDs и identity кандидата |
 | Defects | Нет блокирующих дефектов |
 | Release | Владелец подтвердил результат; rollout, наблюдение и rollback согласованы, Лид привлечён по риск-триггерам |
 
@@ -58,7 +58,7 @@ Gate 2 фиксирует одного кандидата для IFT и QA, но
 
 - Новая planning revision или новый состав репозиториев требует повторного Gate 1.
 - Новый implementation commit или artifact инвалидирует кандидата Gate 2, IFT, QA и
-  Gate 3; при Change Tracking предыдущий Snapshot становится нетекущим.
+  Gate 3.
 - Изменение наблюдаемого поведения возвращает Change в Planning.
 
 ## Критичные сценарии

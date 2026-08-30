@@ -75,6 +75,28 @@ export class RepositoryGit {
     return this.#run(["rev-parse", ref]);
   }
 
+  /** Returns the newest commit that changed one or more repository-relative paths. */
+  latestRevision(pathspec) {
+    if (
+      !Array.isArray(pathspec) || pathspec.length === 0 ||
+      pathspec.some((value) => typeof value !== "string" || value.length === 0)
+    ) {
+      throw new Error("GIT_PATHSPEC_INVALID: latestRevision требует непустой массив путей");
+    }
+    return this.#run(["log", "-1", "--format=%H", "HEAD", "--", ...pathspec]);
+  }
+
+  /** Returns whether a commit is reachable from a locally known remote-tracking ref. */
+  async isRemoteReachable(revision = "HEAD") {
+    const refs = await this.#run([
+      "for-each-ref",
+      "--format=%(refname)",
+      `--contains=${revision}`,
+      "refs/remotes/",
+    ]);
+    return refs.split(/\r?\n/u).some(Boolean);
+  }
+
   async hasCommit(revision) {
     try {
       await this.#run(["cat-file", "-e", `${revision}^{commit}`]);

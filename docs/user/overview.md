@@ -12,7 +12,8 @@ workspace/
 ├── specs/                         Store Repository
 │   ├── openspec/                  Specs, Changes, schema и project context
 │   ├── openspec-orch.yaml         реестр проекта и Plugin bindings
-│   └── .openspec-orch/            tracked Cycle Records и локальное состояние
+│   ├── tracking/cycles/           командное состояние Change Tracking
+│   └── .openspec-orch/            локальное состояние и runtime cache
 └── src/
     ├── frontend/                  Code Repository
     └── backend/                   Code Repository
@@ -59,7 +60,8 @@ Intent
   → Proposal → Delta Specs → Design → Tasks
   → Graph inspection и проверка scope
   → Gate 1
-  → Standard Apply или Cycle + Apply
+  → опциональный сбор implementation evidence через Change Tracking
+  → Apply
   → PR / checks / merge / deployment
   → проверка текущей версии
   → Gate 2 → Gate 3 → Release
@@ -79,11 +81,13 @@ OpenSpec adapter, но собственный `gigacode-extension.json`.
 
 ## Важные ограничения
 
-- Core не обновляет существующие checkout командой `connect` и не выполняет Git
-  mutation кроме clone отсутствующего Code Repository в strict mode.
-- Change Tracking v1 хранит Receipts и Snapshots локально; между машинами через Git
-  переносится только Cycle Record.
-- `verify` вычисляет Snapshot, но не делает checkout и не запускает тесты.
+- Core не обновляет существующие checkout командой `connect` и сам не задаёт
+  Plugin-specific Git lifecycle. Change Tracking выполняет pull/commit/push только для
+  собственного `tracking/cycles/`; остальные Git mutation остаются вне Core.
+- Change Tracking хранит Cycle, repository-owned receipts и verification в общем Git
+  Store; Snapshot детерминированно вычисляется из receipts и не образует вторую базу.
+- последний `done` собирает точную версию, а `verify pass|fail` фиксирует внешнее
+  решение; Plugin не делает checkout и не запускает тесты.
 - OpenSpec Graph компилирует модель Store из OpenSpec-артефактов; CodeGraph индексирует
   файлы и symbols одного явно связанного Store или Code Repository. Это разные модели.
 - Jira, Zephyr, Confluence, CI и deployment не интегрированы в текущем репозитории.

@@ -183,3 +183,17 @@ test("PluginScaffoldService rejects invalid, reserved and existing targets", asy
     /PLUGIN_TARGET_EXISTS/,
   );
 });
+
+test("PluginScaffoldService does not reserve distribution-owned Plugin command names", async (t) => {
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-scaffold-command-"));
+  t.after(() => fs.rm(temporary, { recursive: true, force: true }));
+  const scaffolds = new PluginScaffoldService();
+
+  for (const pluginId of ["track", "done"]) {
+    const result = await scaffolds.register({
+      pluginId,
+      targetRoot: path.join(temporary, pluginId),
+    });
+    assert.equal(path.basename(result.root), pluginId);
+  }
+});

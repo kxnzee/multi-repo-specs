@@ -75,6 +75,23 @@ test("ProcessService redacts sensitive values from failed invocation and output"
   );
 });
 
+test("ProcessService returns output for an explicitly accepted nonzero exit code", async (t) => {
+  const { checkout } = await checkoutFixture(t);
+  const service = new ProcessService(async () => ({
+    failed: true,
+    exitCode: 1,
+    stderr: "",
+    stdout: "partial result",
+  }));
+
+  assert.equal(
+    await service.forRepository(checkout).run("tool", ["status"], {
+      acceptedExitCodes: [0, 1],
+    }),
+    "partial result",
+  );
+});
+
 test("GitService exposes domain operations without accepting arbitrary cwd", async (t) => {
   const { root, repository, checkout } = await checkoutFixture(t);
   const calls = [];
@@ -82,10 +99,16 @@ test("GitService exposes domain operations without accepting arbitrary cwd", asy
     calls.push({ executable, args, options });
     const stdout = args[0] === "status"
       ? " M file.js\0R  renamed.js\0old.js\0"
+      : args[0] === "log" ? "b".repeat(40)
       : args[0] === "rev-parse" && args[1] === "--git-path"
         ? `.git/${args[2]}`
       : args.includes("--show-toplevel") ? root : "main";
-    return { failed: false, stderr: "", stdout };
+    return {
+      failed: args[0] === "status" && args.includes("--all"),
+      exitCode: args[0] === "status" && args.includes("--all") ? 1 : 0,
+      stderr: "",
+      stdout,
+    };
   });
   const service = new GitService(processService);
   const repositoryGit = service.forRepository(checkout);
@@ -94,6 +117,12 @@ test("GitService exposes domain operations without accepting arbitrary cwd", asy
   assert.equal(await repositoryGit.currentBranch(), "main");
   assert.deepEqual(await repositoryGit.statusPaths(), ["file.js", "renamed.js", "old.js"]);
   assert.equal(await repositoryGit.isClean(["README.md"]), false);
+  assert.equal(
+    await repositoryGit.latestRevision(["openspec/changes/checkout-flow"]),
+    "b".repeat(40),
+  );
+  assert.throws(() => repositoryGit.latestRevision([]), /GIT_PATHSPEC_INVALID/u);
+  assert.equal(await repositoryGit.isRemoteReachable("a".repeat(40)), true);
   assert.equal(await repositoryGit.hasCommit("a".repeat(40)), true);
   await repositoryGit.assertNoOperation();
   await fs.mkdir(path.join(root, ".git"));
@@ -124,8 +153,10 @@ test("OpenSpecService binds openspec execution to Repository checkout", async (t
     return { failed: false, stderr: "", stdout: "{}" };
   });
 
+  const repositoryOpenSpec = new OpenSpecService(processService).forRepository(checkout);
+
   assert.equal(
-    await new OpenSpecService(processService).forRepository(checkout).execute(["context", "--json"]),
+    await repositoryOpenSpec.execute(["context", "--json"]),
     "{}",
   );
   assert.deepEqual(calls[0], {
@@ -151,6 +182,12 @@ test("FileService reads and atomically writes only inside Repository checkout", 
   assert.equal(await service.read("config/project.txt"), "after");
   await service.write("config/new.txt", "new");
   assert.equal(await service.read("config/new.txt"), "new");
+  assert.deepEqual(await service.listFiles("config"), ["new.txt", "project.txt"]);
+  await fs.mkdir(path.join(root, "config", "alpha"));
+  await fs.mkdir(path.join(root, "config", "zeta"));
+  assert.deepEqual(await service.listDirectories("config"), ["alpha", "zeta"]);
+  assert.deepEqual(await service.listDirectories("missing", { optional: true }), []);
+  assert.deepEqual(await service.listFiles("missing", { optional: true }), []);
   assert.equal(await service.read("config/missing.txt", { optional: true }), null);
   await service.write("generated/nested/file.txt", "nested");
   assert.equal(await service.read("generated/nested/file.txt"), "nested");
@@ -164,4 +201,6 @@ test("FileService reads and atomically writes only inside Repository checkout", 
   t.after(() => fs.rm(outside, { recursive: true, force: true }));
   await createDirectoryLink(outside, path.join(root, "linked"));
   await assert.rejects(service.write("linked/file.txt", "blocked"), /symlink/);
+  await createDirectoryLink(outside, path.join(root, "config", "linked"));
+  await assert.rejects(service.listFiles("config"), /symlink/);
 });

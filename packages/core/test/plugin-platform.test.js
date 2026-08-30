@@ -417,7 +417,7 @@ test("bundled provider initializes and restores a Plugin without Store runtime",
   ]);
 });
 
-test("automatic composition skips unavailable runtime but rejects corrupted cache", async (t) => {
+test("automatic composition keeps Core available for unavailable or corrupted Plugins", async (t) => {
   const storeRoot = await storeFixture(t);
   const project = configuration.parseProject(
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
@@ -457,7 +457,20 @@ test("automatic composition skips unavailable runtime but rejects corrupted cach
     );
     await fs.mkdir(runtimeDirectory, { recursive: true });
     await fs.writeFile(path.join(runtimeDirectory, "unexpected"), "corrupted");
-    await assert.rejects(createCandidateProgram(), /PLUGIN_MANAGER_INVALID/);
+    const corrupted = await createCandidateProgram();
+    assert.equal(corrupted.commands.some((command) => command.name() === "plugin"), true);
+    assert.equal(corrupted.commands.some((command) => command.name() === "sample"), false);
+
+    await assert.rejects(
+      createCandidateProgram({
+        pluginManagerService: {
+          forStore() {
+            return { async resolve() { throw new Error("unexpected Core defect"); } };
+          },
+        },
+      }),
+      /unexpected Core defect/u,
+    );
   } finally {
     process.chdir(previousCwd);
   }

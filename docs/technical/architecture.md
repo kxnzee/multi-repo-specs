@@ -123,26 +123,28 @@ Change Tracking поддерживает bindings Store и Code Repository, а �
 получают Store-scoped context:
 
 ```text
-assign
-→ проверить Store/Planning/scope
-→ записать tracked Cycle Record
+track
+→ получить artifact graph через OpenSpec 1.11 status --change --json
+→ потребовать готовность apply.requires и их транзитивных зависимостей
+→ прочитать Repository Impact принятого Change
+→ зафиксировать evidence scope внутренним Cycle Record
 
-record assignment
-→ прочитать current Cycle из working tree
+done
+→ получить активные Changes через OpenSpec 1.11 status --all --json
+→ определить текущий Code Repository, Cycle и HEAD
 → проверить committed Cycle и существование SHA в выбранном checkout
-→ атомарно обновить local Plugin state
+→ добавить implementation evidence в Store journal
 
-verify
-→ потребовать completed Result каждого Repository
+verify pass|fail
+→ потребовать implementation revision каждого Repository
 → канонизировать Repository/SHA pairs
-→ вычислить snap-v1 SHA-256
-
-record verification
+→ вычислить детерминированный Snapshot SHA-256
 → связать pass/fail с current Cycle и latest Snapshot
 ```
 
-Change Tracking не вызывает Graph и не запускает реализацию/проверки. Интеграция с
-общим flow происходит через Base Apply skill и plugin-owned Apply context.
+Change Tracking не вызывает Graph, Templates или другие Plugins и не запускает
+реализацию/проверки. Его CLI и Store-файлы образуют самостоятельную evidence-границу;
+Plugin не поставляет Agent Extension и не вмешивается в OpenSpec Apply.
 
 ## Два графа
 

@@ -42,6 +42,7 @@ export class ScopedProcess {
       onStderr = () => {},
       sensitiveValues = [],
       timeout = CORE_SETTINGS.execution.externalCommandTimeoutMs,
+      acceptedExitCodes = [0],
     } = {},
   ) {
     if (typeof executable !== "string" || executable.length === 0 || executable.startsWith("-")) {
@@ -53,13 +54,19 @@ export class ScopedProcess {
     if (!Number.isFinite(timeout) || timeout <= 0) {
       throw new Error("Timeout внешней команды должен быть положительным числом");
     }
+    if (
+      !Array.isArray(acceptedExitCodes) || acceptedExitCodes.length === 0 ||
+      acceptedExitCodes.some((code) => !Number.isInteger(code) || code < 0)
+    ) {
+      throw new Error("acceptedExitCodes должен быть непустым массивом exit codes");
+    }
     const result = await this.#executor(executable, args, {
       cwd: this.#cwd,
       env: { ...environment, ...COMMAND_ENV },
       reject: false,
       timeout,
     });
-    if (result.failed) {
+    if (result.failed && !acceptedExitCodes.includes(result.exitCode)) {
       const invocation = redact(`${executable} ${args.join(" ")}`, sensitiveValues);
       const details = redact(
         [result.stderr, result.stdout].filter(Boolean).join("\n").trim(),

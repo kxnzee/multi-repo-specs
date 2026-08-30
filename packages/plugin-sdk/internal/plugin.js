@@ -44,11 +44,16 @@ const REPOSITORY_KEYS = new Set(["connect", "status", "sync", "exec"]);
  * @property {(pathspec?: readonly string[]) => Promise<readonly string[]>} statusPaths
  * @property {(pathspec?: readonly string[]) => Promise<boolean>} isClean
  * @property {() => Promise<string>} revision
+ * @property {(pathspec: readonly string[]) => Promise<string>} latestRevision
+ * @property {(revision?: string) => Promise<boolean>} isRemoteReachable
  * @property {(revision: string) => Promise<boolean>} hasCommit
  * @property {() => Promise<void>} assertNoOperation
  */
 
-/** @typedef {{version: () => Promise<string>}} OpenSpecFacade */
+/**
+ * @typedef {object} OpenSpecFacade
+ * @property {() => Promise<string>} version
+ */
 
 /**
  * @typedef {object} PluginRepositoryStatus
@@ -59,12 +64,21 @@ const REPOSITORY_KEYS = new Set(["connect", "status", "sync", "exec"]);
 /**
  * @typedef {object} FilesFacade
  * @property {(relativePath: string, options?: {optional?: boolean}) => Promise<string | null>} read
+ * @property {(relativePath: string, options?: {optional?: boolean}) =>
+ *   Promise<readonly string[]>} listFiles
+ * @property {(relativePath: string, options?: {optional?: boolean}) =>
+ *   Promise<readonly string[]>} listDirectories
  * @property {(relativePath: string, contents: string, options?: object) => Promise<void>} write
  */
 
 /**
  * @typedef {object} ProcessFacade
- * @property {(executable: string, args: readonly string[], options?: object) => Promise<string>} run
+ * @property {(executable: string, args: readonly string[], options?: {
+ *   acceptedExitCodes?: readonly number[],
+ *   environment?: Readonly<Record<string, string>>,
+ *   onStderr?: (message: string) => void,
+ *   sensitiveValues?: readonly string[]
+ * }) => Promise<string>} run
  */
 
 /**

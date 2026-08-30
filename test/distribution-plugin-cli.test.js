@@ -310,11 +310,18 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   );
   assert.match(execAll.stdout, /✓ codegraph → specs — команда выполнена/);
   assert.match(execAll.stdout, /✓ codegraph → frontend — команда выполнена/);
-  for (const command of ["assign", "status", "record", "verify"]) {
+  for (const command of ["track", "done", "status", "verify"]) {
     assert.match(stdout, new RegExp(`\\b${command}\\b`));
   }
+  assert.doesNotMatch(stdout, /\b(?:assign|record)\b/u);
   assert.doesNotMatch(stdout, /\bmcp\b/);
   assert.doesNotMatch(stdout, /change-tracking\s+Команды Plugin/);
+  for (const removedCommand of ["assign", "record"]) {
+    await assert.rejects(
+      runCli(storeRoot, removedCommand),
+      (error) => error.exitCode === 2 && /unknown command/u.test(error.stderr),
+    );
+  }
 
   const disconnectAll = await runCli(storeRoot, "plugin", "disconnect", "codegraph", "--all");
   assert.match(disconnectAll.stdout, /✓ codegraph → specs — отключён/);
@@ -354,6 +361,16 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
 
 test("candidate distribution completes Change Tracking through the public CLI", async (t) => {
   const root = await temporaryDirectory(t, "openspec-orch-distribution-cycle-");
+  const originalXdgConfigHome = process.env.XDG_CONFIG_HOME;
+  const originalXdgDataHome = process.env.XDG_DATA_HOME;
+  process.env.XDG_CONFIG_HOME = path.join(root, "xdg-config");
+  process.env.XDG_DATA_HOME = path.join(root, "xdg-data");
+  t.after(() => {
+    if (originalXdgConfigHome === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
+    if (originalXdgDataHome === undefined) delete process.env.XDG_DATA_HOME;
+    else process.env.XDG_DATA_HOME = originalXdgDataHome;
+  });
   const fakeBin = path.join(root, "bin");
   const nativeLog = path.join(root, "qwen-native.jsonl");
   await fs.mkdir(fakeBin);
@@ -372,6 +389,7 @@ test("candidate distribution completes Change Tracking through the public CLI", 
     "workspace/specs",
     "specs",
     { "openspec/config.yaml": "schema: spec-driven\n" },
+    { transportable: true },
   );
   const frontend = await createCheckoutWithRemote(
     root,
@@ -419,84 +437,127 @@ test("candidate distribution completes Change Tracking through the public CLI", 
       "",
     ].join("\n"),
     "openspec-orch.yaml": configuration.serializeProject(project),
+    "openspec/changes/checkout-flow/proposal.md": [
+      "## Repository Impact",
+      "",
+      "| Repository | Capabilities |",
+      "| --- | --- |",
+      "| `frontend` | `checkout/ui` |",
+      "| `backend` | `checkout/api` |",
+      "",
+    ].join("\n"),
+    "openspec/changes/checkout-flow/design.md": "# Design\n",
+    "openspec/changes/checkout-flow/specs/checkout/spec.md": "# Checkout spec\n",
+    "openspec/changes/checkout-flow/tasks.md": "# Tasks\n",
+    "openspec/changes/duplicate-impact/proposal.md": [
+      "## Repository Impact",
+      "",
+      "| Repository | Capabilities |",
+      "| --- | --- |",
+      "| `frontend` | `checkout/ui` |",
+      "| `frontend` | `checkout/ui` |",
+      "",
+    ].join("\n"),
+    "openspec/changes/duplicate-impact/design.md": "# Design\n",
+    "openspec/changes/duplicate-impact/specs/checkout/spec.md": "# Checkout spec\n",
+    "openspec/changes/duplicate-impact/tasks.md": "# Tasks\n",
+    "openspec/changes/refund-flow/proposal.md": [
+      "## Repository Impact",
+      "",
+      "| Repository | Capabilities |",
+      "| --- | --- |",
+      "| `frontend` | `refund/ui` |",
+      "",
+    ].join("\n"),
+    "openspec/changes/refund-flow/design.md": "# Design\n",
+    "openspec/changes/refund-flow/specs/refund/spec.md": "# Refund spec\n",
+    "openspec/changes/refund-flow/tasks.md": "# Tasks\n",
   });
   await commitFiles(store.checkout, {}, { message: "configure distribution Store" });
+  await execa(
+    "openspec",
+    ["store", "register", store.checkout, "--id", "specs", "--yes", "--json"],
+    { cwd: store.checkout },
+  );
+  for (const checkout of [frontend.checkout, backend.checkout]) {
+    await commitFiles(
+      checkout,
+      { "openspec/config.yaml": "store: specs\n" },
+      { message: "connect Store pointer" },
+    );
+  }
 
   await runCli(store.checkout, "plugin", "init", "--plugin", "change-tracking");
-  const applySkill = ".qwen/skills/change-tracking-apply-context/SKILL.md";
-  await assert.rejects(fs.access(path.join(store.checkout, applySkill)), { code: "ENOENT" });
   await runCli(
     store.checkout,
     "plugin", "connect", "change-tracking",
     "--repo", "specs", "--repo", "frontend", "--repo", "backend",
   );
-  const extensionCalls = (await fs.readFile(nativeLog, "utf8"))
-    .trim()
-    .split("\n")
-    .map((line) => JSON.parse(line))
-    .filter(({ args }) => args[1] === "install");
-  assert.equal(extensionCalls.length, 1);
-  assert.equal(extensionCalls[0].cwd, await fs.realpath(store.checkout));
-  assert.deepEqual(extensionCalls[0].args.slice(0, 2), ["extensions", "install"]);
-  const extensionReference = extensionCalls[0].args[2].split(path.sep).join("/");
-  assert.match(
-    extensionReference,
-    /plugins\/change-tracking\/extension:change-tracking-agent$/u,
-  );
+  const nativeCalls = await fs.readFile(nativeLog, "utf8").catch((error) => (
+    error.code === "ENOENT" ? "" : Promise.reject(error)
+  ));
+  assert.doesNotMatch(nativeCalls, /change-tracking-agent/u);
   await runCommand("git", ["-C", store.checkout, "add", "openspec-orch.yaml"]);
   await runCommand("git", ["-C", store.checkout, "commit", "-m", "enable change tracking"]);
 
-  await confirmCli(
-    store.checkout,
-    "assign", "checkout-flow", "--repo", "frontend", "--repo", "backend",
+  await assert.rejects(
+    confirmCli(store.checkout, "track", "duplicate-impact"),
+    (error) => error.exitCode === 1 && /REPOSITORY_IMPACT_INVALID/u.test(error.stderr),
   );
-  const cyclePath = ".openspec-orch/changes/Y2hlY2tvdXQtZmxvdw.json";
-  await runCommand("git", ["-C", store.checkout, "add", cyclePath]);
-  await runCommand("git", ["-C", store.checkout, "commit", "-m", "assign checkout flow"]);
+  const tracked = await runCli(store.checkout, "track", "checkout-flow");
+  assert.match(tracked.stdout, /Repository scope: frontend, backend/u);
+  assert.match(tracked.stdout, /Сбор evidence начат/u);
+  assert.doesNotMatch(tracked.stdout, /взят|задач.*работ/u);
 
   await assert.rejects(
     runCli(store.checkout, "verify", "checkout-flow"),
-    (error) => error.exitCode === 1 && /CYCLE_MISMATCH/.test(error.stderr),
-  );
-  await assert.rejects(
-    runCli(
-      store.checkout,
-      "record", "assignment", "checkout-flow",
-      "--repo", "frontend", "--commit", "0000000000000000000000000000000000000000",
-      "--status", "completed", "--source", "agent",
-    ),
-    (error) => error.exitCode === 1 && /COMMIT_NOT_FOUND/.test(error.stderr),
+    (error) => error.exitCode === 1 && /VERIFY_INVALID/.test(error.stderr),
   );
 
-  for (const [repositoryId, checkout] of [
-    ["frontend", frontend.checkout],
-    ["backend", backend.checkout],
-  ]) {
-    const revision = await runCommand("git", ["-C", checkout, "rev-parse", "HEAD"]);
-    await confirmCli(
-      store.checkout,
-      "record", "assignment", "checkout-flow",
-      "--repo", repositoryId, "--commit", revision,
-      "--status", "completed", "--source", "agent",
-    );
-  }
-  const verified = await runCli(store.checkout, "verify", "checkout-flow");
-  assert.match(verified.stdout, /snapshot_id: snap-v1-/);
-  await confirmCli(
-    store.checkout,
-    "record", "verification", "checkout-flow", "--result", "pass", "--source", "human",
+  const workInProgress = path.join(frontend.checkout, "work-in-progress.txt");
+  await fs.writeFile(workInProgress, "not committed\n", "utf8");
+  await assert.rejects(
+    runCli(frontend.checkout, "done"),
+    (error) => error.exitCode === 1 && /WORKTREE_DIRTY/u.test(error.stderr),
   );
+  await fs.rm(workInProgress);
+  await assert.rejects(
+    runCli(frontend.checkout, "done", "--sha", "f".repeat(40)),
+    (error) => error.exitCode === 1 && /COMMIT_NOT_FOUND/u.test(error.stderr),
+  );
+
+  const frontendDone = await runCli(frontend.checkout, "done");
+  assert.match(frontendDone.stdout, /frontend @ [0-9a-f]{40}/u);
+  assert.match(frontendDone.stdout, /не найден в известных remote-tracking refs/u);
+  assert.doesNotMatch(frontendDone.stdout, /Версия собрана/u);
+  const backendDone = await runCli(backend.checkout, "done");
+  assert.match(backendDone.stdout, /backend @ [0-9a-f]{40}/u);
+  assert.match(backendDone.stdout, /Версия собрана: snap-v1-/u);
+  const awaitingVerification = (await runCli(
+    store.checkout,
+    "status", "checkout-flow",
+  )).stdout;
+  assert.match(awaitingVerification, /Проверка: не выполнена/u);
+  assert.doesNotMatch(awaitingVerification, /→ Далее:/u);
+  assert.doesNotMatch(awaitingVerification, /\b(?:Cycle|Snapshot|Receipt|Planning revision)\b/u);
+  const verification = await runCli(store.checkout, "verify", "pass");
+  assert.match(verification.stdout, /Проверка пройдена для версии snap-v1-/u);
   const status = JSON.parse((await runCli(
     store.checkout,
     "status", "checkout-flow", "--json",
   )).stdout);
+  const humanStatus = (await runCli(store.checkout, "status", "checkout-flow")).stdout;
+  assert.match(humanStatus, /Implementation revisions/u);
+  assert.match(humanStatus, /Версия: собрана/u);
+  assert.match(humanStatus, /Проверка: пройдена/u);
+  assert.doesNotMatch(humanStatus, /\b(?:Cycle|Snapshot|Receipt|Planning revision)\b/u);
   const execStatus = JSON.parse((await runCli(
     store.checkout,
     "plugin", "exec", "change-tracking", "--repo", "specs", "--",
     "status", "checkout-flow", "--json",
   )).stdout);
 
-  assert.equal(status.next_action, "готово");
+  assert.equal("next_action" in status, false);
   assert.equal(execStatus.current_repository, null);
   assert.equal(execStatus.change_id, status.change_id);
   assert.equal(execStatus.cycle_id, status.cycle_id);
@@ -504,8 +565,35 @@ test("candidate distribution completes Change Tracking through the public CLI", 
   assert.deepEqual(execStatus.snapshot, status.snapshot);
   assert.deepEqual(execStatus.verification, status.verification);
   assert.equal(status.verification.result, "pass");
-  assert.deepEqual(status.results.map(({ repository_id: id, status: state }) => ({ id, state })), [
-    { id: "frontend", state: "completed" },
-    { id: "backend", state: "completed" },
-  ]);
+  assert.equal(status.results.every((result) => !("status" in result)), true);
+  assert.equal(status.results.every((result) => result.implementation_revision), true);
+
+  await commitFiles(
+    backend.checkout,
+    { "README.md": "backend v2\n" },
+    { message: "change backend implementation" },
+  );
+  await runCli(backend.checkout, "done");
+  const stale = JSON.parse((await runCli(
+    store.checkout,
+    "status", "checkout-flow", "--json",
+  )).stdout);
+  assert.equal(stale.snapshot.current, true);
+  assert.equal(stale.verification.current, false);
+  const failedVerification = await runCli(
+    store.checkout,
+    "verify", "fail", "--change", "checkout-flow", "--note", "regression",
+  );
+  assert.match(failedVerification.stdout, /Проверка не пройдена для версии snap-v1-/u);
+
+  await runCli(store.checkout, "track", "refund-flow");
+  await assert.rejects(
+    runCli(frontend.checkout, "done"),
+    (error) => error.exitCode === 1 &&
+      /CYCLE_AMBIGUOUS/u.test(error.stderr) && /--change/u.test(error.stderr),
+  );
+  await assert.rejects(
+    runCli(frontend.checkout, "done", "--change", "refund-flow", "--blocked", "waiting"),
+    (error) => error.exitCode === 2 && /unknown option '--blocked'/u.test(error.stderr),
+  );
 });

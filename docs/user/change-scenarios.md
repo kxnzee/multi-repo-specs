@@ -13,9 +13,9 @@ Scenarios принадлежат центральному OpenSpec Store, а Gat
 | Меняется существующее поведение | Delta operation на существующем capability path, обычно `MODIFIED` |
 | Поведение не меняется | Принятый `skip_specs`, прямой scope check по Impact/Tasks |
 | Во время Apply найден новый Repository/capability | Стоп Apply → Planning → Graph → новый Gate 1 |
-| Change Tracking не подключен | Standard Apply после явного выбора |
-| Cycle существует | Только orchestrated Apply для текущего Cycle |
-| Появился новый implementation commit | Новый Result → новый Snapshot → повторная проверка/Gates |
+| Change Tracking не подключен | Штатный OpenSpec Apply; evidence передаётся действующим каналом команды |
+| Нужен точный набор implementation revisions | После Planning вызвать `track`, не меняя OpenSpec Apply |
+| Появился новый implementation commit | Новый `done` → новая собранная версия → повторная проверка/Gates |
 | Change B зависит от принятого поведения активного A | Planning PR A → отдельный Sync A → Change B |
 | Реализация и ручная проверка завершены | Release → Archive → post-Archive Graph handoff |
 
@@ -83,54 +83,47 @@ ID retained Scenarios. Ambiguity операции разрешает Владе�
 3. обновите Delta Specs, если изменилось поведение/capability;
 4. повторите `openspec-orch graph inspect --json` и сверку scope;
 5. получите новый Gate 1;
-6. при Change Tracking создайте новый Cycle.
+6. при Change Tracking заново зафиксируйте evidence scope командой `track`.
 
-## 7. Standard Apply без Change Tracking
+## 7. Apply и опциональный Change Tracking
 
-Если plugin-owned preflight возвращает `CYCLE_NOT_FOUND`, человек выбирает Standard
-Apply или создание Cycle. При Standard Apply штатный OpenSpec получает исходные
-contextFiles и Tasks. Команда самостоятельно фиксирует набор commits и evidence.
+Apply всегда выполняется штатным OpenSpec по принятым contextFiles и Tasks. Change
+Tracking не участвует в выборе Apply и не блокирует его. Если команде нужен общий
+Git-native журнал implementation evidence, после Planning отдельно вызовите `track`.
+Ошибки Plugin относятся только к этому журналу и не меняют состояние OpenSpec Tasks.
 
-Другие ошибки Change Tracking не разрешают fallback. Нельзя трактовать corruption,
-scope mismatch или незакоммиченный Cycle как отсутствие Cycle.
-
-## 8. Создание и замена Cycle
+## 8. Начало и обновление сбора evidence
 
 После Gate 1 и commit Planning:
 
 ```bash
-openspec-orch assign <change-id> --repo <repository-id>...
+openspec-orch track <change-id>
 ```
 
-Повтор с теми же planning revision и repository set идемпотентен. Другой scope или
-revision создает новый Cycle после предупреждения; Receipts прежнего Cycle остаются в
-истории, но не считаются текущими. Cycle Record нужно вручную закоммитить.
+Команда начинает сбор implementation evidence; состав Code Repositories автоматически
+берётся из принятого `Repository Impact`. Она не назначает Tasks и не означает, что
+кто-либо взял задачу в работу. Повтор с теми же planning revision и repository set
+идемпотентен. Другой scope или revision создаёт новый внутренний Cycle после
+предупреждения; прежние данные остаются в audit-истории, но не считаются текущими.
+Команда сама коммитит и публикует evidence scope в Store.
 
-## 9. Result `failed` или `blocked`
+## 9. Заблокированная или неуспешная работа
 
-Запишите фактический статус, не закрывая Tasks:
-
-```bash
-openspec-orch record assignment <change-id> \
-  --repo <repository-id> --commit <full-sha1> \
-  --status blocked --source human --note "причина"
-```
-
-`verify` требует текущий `completed` Result для каждого Repository Cycle. Новый
-Receipt той же пары Cycle/Repository заменяет текущий с предупреждением и сохраняет
-предыдущий в локальной истории.
+Фиксируйте незавершённые Tasks, блокировки и результат реализации в нативном workflow
+OpenSpec. Не вызывайте `done`, пока Repository не передаёт конкретную implementation
+revision в состав проверяемой версии. Plugin не хранит параллельные task-статусы.
 
 ## 10. Новый commit после проверки
 
-Любой новый implementation commit требует нового Result Receipt. Состав Snapshot
-меняется, а прежняя Verification Receipt становится нетекущей. Повторите:
+Любой новый implementation commit требует нового `done`. Каждая новая текущая receipt,
+включая исправление при том же SHA, меняет хэш собранной версии, а прежняя проверка
+становится нетекущей. Повторите:
 
-1. `record assignment` для нового SHA;
-2. `verify`;
-3. checkout/deployment точных версий;
-4. IFT/QA;
-5. `record verification`;
-6. Gate 2/3 и финальный checkpoint.
+1. `done` из изменённого Code Repository;
+2. checkout/deployment автоматически собранной точной версии;
+3. IFT/QA;
+4. `verify pass` или `verify fail`;
+5. Gate 2/3 и финальный checkpoint.
 
 ## 11. Зависимые Changes и ранний Sync
 

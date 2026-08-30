@@ -1,8 +1,0 @@
-{
-  "name": "change-tracking-agent",
-  "version": "1.0.0",
-  "description": "Store-scoped Change Tracking Apply workflow",
-  "author": {
-    "name": "OpenSpec Orchestrator"
-  }
-}

@@ -30,7 +30,8 @@ OpenSpec Graph получают разрешённые root namespaces (`assign/
 - Внешний executable `openspec` должен находиться в `PATH` для `init`, `connect` и
   `doctor`.
 - Версия OpenSpec принимается, если `openspec --version` возвращает строку semantic
-  version. Минимальный номер и exact pin кодом не заданы.
+  version. Core не задаёт общий minimum; Change Tracking требует
+  `>=1.11.0 <2` и его JSON status contract.
 - Git используется без shell-строк: Core передаёт executable и argv через process
   facade и привязывает вызовы к проверенному checkout.
 
@@ -60,7 +61,7 @@ Repository, standalone Extension и Plugin status contracts. Human-readable вы
 Итоговые состояния: `ready`, `degraded` и `blocked`; только `blocked` возвращает exit
 code `1`. Ошибка одного независимого источника не прекращает остальные проверки.
 
-Команды `assign`, `status`, `record`, `verify` и `graph` появляются только после
+Команды `track`, `done`, `status`, `verify` и `graph` появляются только после
 загрузки соответствующих установленных Plugin declarations. Статический `--help` в
 неинициализированном checkout поэтому показывает только Core namespaces.
 
@@ -109,7 +110,7 @@ singleton-role — `[code]`. ID уникальны и имеют lowercase kebab
 |---|---|---|
 | `openspec-orch.yaml` | Project configuration и bindings | tracked в Store |
 | `.openspec-store/store.yaml` | Identity Store, созданная OpenSpec | tracked в Store |
-| `.openspec-orch/changes/<base64url(change-id)>.json` | Cycle Record | tracked в Store |
+| `tracking/cycles/<change-id>/cycle.yaml` | Cycle Record | tracked в Store |
 | `.openspec-orch/state.json` | Последний strict workspace | локально |
 | `.openspec-orch/plugins/<plugin-id>/state.json` | Версионированный envelope Plugin storage | локально |
 | `.openspec-orch/cache/plugin-runtimes/<plugin-id>/` | Материализованный внешний Plugin runtime | локально |
@@ -170,19 +171,27 @@ machine-readable stdout.
 Команды Plugin Store-scoped:
 
 ```text
-assign <change-id> --repo <code-repository-id>...
+track <change-id> [--no-push]
+done [--change <change-id>] [--sha <40-char-sha1>]
+  [--source <human|agent|ci>] [--no-push]
 status <change-id> [--json]
-record assignment <change-id> --repo <id> --commit <40-char-sha1>
-  --status <completed|failed|blocked> --source <human|agent|ci> [--note <text>]
-verify <change-id>
-record verification <change-id> --result <pass|fail>
-  --source <human|agent|ci> [--note <text>]
+verify <pass|fail> [--change <change-id>]
+  [--source <human|ci>] [--note <text>] [--no-push]
 ```
 
-`assign` требует минимум один явно указанный connected Code Repository, отсутствие
+`track` начинает сбор implementation evidence после того, как нормализованный
+`openspec status --change <id> --json` подтверждает готовность `apply.requires` и
+всех их транзитивных зависимостей, затем автоматически извлекает Code Repositories
+из принятого `Repository Impact`. Он не назначает Tasks и не меняет OpenSpec Apply.
+Команда требует OpenSpec `>=1.11.0 <2`, минимум один connected Code Repository, отсутствие
 незавершённой Git operation и чистый Store, кроме нормативного файла заменяемого Cycle
-Record. `planning_revision` — текущий Store HEAD. Cycle ID всегда
+Record. `planning_revision` — последний commit, изменявший каталог Planning-артефактов
+текущего Change; tracking-коммиты не меняют эту ревизию. Cycle ID всегда
 `cycle-<uuid-v4>`.
+
+Вызов `done` без аргументов сопоставляет Repository с активными Cycles по стабильному batch
+OpenSpec 1.11 `status --all --json`; обход каталога Changes как отдельный источник
+активности не используется.
 
 Текущий Cycle читается из файла рабочего дерева Store, а не напрямую из Git object
 HEAD. Отдельная `git status -- <cycle-record>` проверка определяет, закоммичен ли этот
@@ -190,11 +199,11 @@ HEAD. Отдельная `git status -- <cycle-record>` проверка опр�
 `verify`.
 
 Result Receipt принимает только полный lowercase SHA-1, существующий в выбранном
-Repository. Последний Receipt пары Cycle/Repository заменяется с сохранением истории.
-`verify` требует `completed` для каждого Repository и вычисляет стабильный
-`snap-v1-<sha256>` из version, Cycle ID и отсортированных Repository/SHA. Он не делает
-checkout и не запускает тесты. Verification Receipt относится только к текущему
-Snapshot.
+Repository, и не содержит task-статус. Последний Receipt пары Cycle/Repository
+заменяется с сохранением истории. `verify` требует implementation revision для каждого
+Repository и вычисляет стабильный `snap-v1-<sha256>` из версии контракта, Cycle ID и
+отсортированных Repository/SHA/Receipt ID. Он не делает checkout и не запускает тесты.
+Verification Receipt относится только к текущему Snapshot.
 
 ## OpenSpec Graph и CodeGraph
 
@@ -226,16 +235,15 @@ Bundled Template catalog содержит default `base` и альтернати
 Base Template поставляет schema `base-v1`, context и project assets, а
 `openspec-base` Extension — project commands,
 skills, subagent и постоянные инструкции. Эти файлы управляют поведением агента, но не
-становятся проверками Core runtime. Change Tracking остаётся необязательным: без него
-Apply работает в standard mode; при установленном и связанном Plugin Base skill делает
-handoff в plugin-owned Apply context.
+становятся проверками Core runtime. Base не обнаруживает и не вызывает конкретные
+Plugins; runtime каждого Plugin подключается независимо от Template, а Agent Extension
+активируется только для Plugin, который действительно его поставляет.
 
 Superspec Template поставляет schema `superspec-multirepo` с полным artifact DAG через
 Apply, Verify и Finalize. Descriptor декларативно требует отдельный `superpowers`
 Extension; init добавляет его в desired composition, а интерактивный checkbox показывает
 required choice заблокированным. Execution выполняется в точных Code Repository scopes,
-Change Tracking evidence связывается с текущим candidate Snapshot, а external
-verification и Release сохраняются отдельными gates.
+а external verification и Release сохраняются отдельными gates.
 
 Template-правила Planning, Gate, Release и Archive являются политикой создаваемого
 проекта. Core их копирует и проверяет структуру, но сам не выполняет реализацию,

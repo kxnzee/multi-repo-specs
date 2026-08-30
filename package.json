@@ -13,7 +13,7 @@
         "id": "change-tracking",
         "name": "Change Tracking",
         "packageName": "@openspec-orch/plugin-change-tracking",
-        "rootCommands": ["assign", "status", "record", "verify"]
+        "rootCommands": ["track", "done", "status", "verify"]
       },
       {
         "id": "codegraph",
@@ -47,8 +47,6 @@
   "scripts": {
     "test": "npm run test:code",
     "test:code": "node --test --test-concurrency=1",
-    "check:template": "node scripts/run-checks.js template",
-    "check:agent-artifacts": "node scripts/run-checks.js agent-artifacts",
     "test:coverage": "node --experimental-test-coverage --test --test-concurrency=1",
     "lint": "eslint .",
     "check": "npm run lint && npm run test:code"
