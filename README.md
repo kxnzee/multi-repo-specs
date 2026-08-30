@@ -267,7 +267,7 @@ openspec-orch plugin connect change-tracking \
 ```text
 openspec-orch track <change-id>
 openspec-orch done [--change <change-id>]
-openspec-orch status <change-id> [--json]
+openspec-orch status [change-id] [--json]
 openspec-orch verify <pass|fail> [--change <change-id>]
 ```
 
@@ -280,6 +280,10 @@ Repository, автоматически фиксирует
 Состояние Tasks, блокировки и неуспешная реализация не записываются Plugin.
 `verify pass|fail` записывает результат внешней проверки этой версии, но не запускает
 тесты и не заменяет человеческое подтверждение финального checkpoint в `tasks.md`.
+`status` без аргумента показывает сводку всех активных OpenSpec Changes, включая ещё
+не переданные в `track`; `status <change-id>` открывает подробный evidence одного
+Change. Экран показывает, готова ли текущая версия к человеческому решению о выпуске,
+но не принимает это решение.
 
 `track`, `done`, `verify pass|fail` и `status` синхронизируют командное состояние
 через Git Store и по умолчанию публикуют говорящий tracking-коммит. `--no-push`

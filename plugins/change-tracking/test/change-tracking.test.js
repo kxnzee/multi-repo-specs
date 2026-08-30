@@ -182,12 +182,36 @@ test("ChangeTrackingService creates and preserves evidence scope through track",
   const unchanged = await service.track(input);
   const current = await service.status("checkout-flow");
 
+  assert.equal(current.changeId, "checkout-flow");
   assert.equal(created.changed, true);
   assert.equal(unchanged.changed, false);
   assert.equal(unchanged.cycle.cycleId, created.cycle.cycleId);
   assert.equal(current.cycle.cycleId, created.cycle.cycleId);
   assert.equal(current.committed, true);
+  assert.equal(current.releaseReady, false);
   assert.equal(created.path, "tracking/cycles/checkout-flow/cycle.yaml");
+});
+
+test("statuses overlays tracked evidence on every active OpenSpec Change", async () => {
+  const activeChanges = ["checkout-flow", "payments-flow"];
+  const context = assignmentContext({ activeChanges });
+  const service = new ChangeTrackingService(context);
+  await service.track({ changeId: "checkout-flow" });
+
+  const statuses = await service.statuses();
+
+  assert.equal(statuses.length, 2);
+  assert.equal(statuses[0].changeId, "checkout-flow");
+  assert.equal(statuses[0].tracked, true);
+  assert.equal(statuses[0].releaseReady, false);
+  assert.deepEqual(statuses[0].cycle.repositories, ["frontend", "backend"]);
+  assert.deepEqual(statuses[1], {
+    changeId: "payments-flow",
+    tracked: false,
+  });
+
+  activeChanges.length = 0;
+  assert.deepEqual(await service.statuses(), []);
 });
 
 test("track delegates the Apply-ready Planning gate to OpenSpec 1.11", async () => {
@@ -329,6 +353,7 @@ test("done and verifyResult maintain current and stale verification", async () =
 
   const missing = await service.status("checkout-flow");
   assert.equal(missing.repositories[0].receipt, null);
+  assert.equal(missing.releaseReady, false);
 
   const firstDone = await service.done({
     changeId: "checkout-flow",
@@ -344,12 +369,14 @@ test("done and verifyResult maintain current and stale verification", async () =
   assert.equal(ready.snapshot.snapshot_id, firstDone.snapshot.snapshot_id);
   assert.equal(ready.snapshot.current, true);
   assert.equal(ready.verification.current, true);
+  assert.equal(ready.releaseReady, true);
 
   heads.frontend = "b".repeat(40);
   await service.done({ changeId: "checkout-flow", source: "agent" });
   const stale = await service.status("checkout-flow");
   assert.equal(stale.snapshot.current, true);
   assert.equal(stale.verification.current, false);
+  assert.equal(stale.releaseReady, false);
   const replacedVerification = await service.verifyResult({
     changeId: "checkout-flow",
     result: "fail",

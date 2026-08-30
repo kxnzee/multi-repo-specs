@@ -142,6 +142,10 @@ async function collaborationFixture(t) {
     "openspec/changes/checkout-flow/design.md": "# Design\n",
     "openspec/changes/checkout-flow/specs/checkout/spec.md": "# Checkout spec\n",
     "openspec/changes/checkout-flow/tasks.md": "# Tasks\n",
+    "openspec/changes/profile-redesign/proposal.md": "# Profile redesign\n",
+    "openspec/changes/profile-redesign/design.md": "# Design\n",
+    "openspec/changes/profile-redesign/specs/profile/spec.md": "# Profile spec\n",
+    "openspec/changes/profile-redesign/tasks.md": "# Tasks\n",
   });
   await commitFiles(storeSource, {}, { message: "plan checkout flow" });
   await runCommand("git", ["clone", "--bare", storeSource, storeRemotePath]);
@@ -155,8 +159,10 @@ test("track publishes one Git-native Cycle that another machine can read", async
   const { alice, bob } = await collaborationFixture(t);
 
   await runCli(alice, alice.store, "track", "checkout-flow");
-  const remoteStatus = await runCli(bob, bob.store, "status", "checkout-flow", "--json");
-  const status = JSON.parse(remoteStatus.stdout);
+  const remoteStatus = await runCli(bob, bob.store, "status", "--json");
+  const summary = JSON.parse(remoteStatus.stdout);
+  const [status, untracked] = summary.changes;
+  const humanSummary = (await runCli(bob, bob.store, "status")).stdout;
   const repeated = await runCli(alice, alice.store, "track", "checkout-flow");
   const repeatedStatus = JSON.parse((await runCli(
     bob,
@@ -165,7 +171,17 @@ test("track publishes one Git-native Cycle that another machine can read", async
   )).stdout);
 
   assert.equal(status.change_id, "checkout-flow");
+  assert.equal(status.tracked, true);
+  assert.equal(status.release_ready, false);
   assert.deepEqual(status.repositories, ["frontend", "backend"]);
+  assert.deepEqual(untracked, {
+    change_id: "profile-redesign",
+    tracked: false,
+  });
+  assert.match(humanSummary, /Активные изменения \(2\)/u);
+  assert.match(humanSummary, /• profile-redesign/u);
+  assert.match(humanSummary, /Отслеживание ещё не начато/u);
+  assert.match(humanSummary, /openspec-orch track profile-redesign/u);
   assert.equal(repeatedStatus.cycle_id, status.cycle_id);
   assert.match(repeated.stdout, /Сбор evidence уже настроен/u);
   assert.equal(
@@ -241,6 +257,7 @@ test("Snapshot is deterministic and a new receipt makes shared verification stal
   )).stdout);
   assert.equal(beforeVerification.snapshot.current, true);
   assert.equal(beforeVerification.verification, null);
+  assert.equal(beforeVerification.release_ready, false);
 
   await runCli(bob, bob.store, "verify", "pass");
   const verified = JSON.parse((await runCli(
@@ -251,6 +268,11 @@ test("Snapshot is deterministic and a new receipt makes shared verification stal
   assert.equal(verified.snapshot.snapshot_id, beforeVerification.snapshot.snapshot_id);
   assert.equal(verified.verification.result, "pass");
   assert.equal(verified.verification.current, true);
+  assert.equal(verified.release_ready, true);
+  assert.match(
+    (await runCli(alice, alice.store, "status")).stdout,
+    /Выпуск: готово к решению о выпуске/u,
+  );
 
   await runCli(alice, alice.repositories.frontend, "done");
   const changed = JSON.parse((await runCli(
@@ -261,6 +283,7 @@ test("Snapshot is deterministic and a new receipt makes shared verification stal
   assert.notEqual(changed.snapshot.snapshot_id, verified.snapshot.snapshot_id);
   assert.equal(changed.verification.result, "pass");
   assert.equal(changed.verification.current, false);
+  assert.equal(changed.release_ready, false);
 
   const receiptSource = await fs.readFile(
     path.join(alice.store, "tracking/cycles/checkout-flow/receipts/frontend.yaml"),

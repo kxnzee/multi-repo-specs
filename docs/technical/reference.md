@@ -20,7 +20,7 @@
 | Agent adapters | Native CLI grammar Claude/Qwen/GigaCode | `agents/*/adapter.js` |
 
 Composition root фактически регистрирует все три Plugin packages. Change Tracking и
-OpenSpec Graph получают разрешённые root namespaces (`assign/status/record/verify` и
+OpenSpec Graph получают разрешённые root namespaces (`track/done/status/verify` и
 `graph`); остальные команды внешнего Plugin
 монтируются под его ID.
 
@@ -174,7 +174,7 @@ machine-readable stdout.
 track <change-id> [--no-push]
 done [--change <change-id>] [--sha <40-char-sha1>]
   [--source <human|agent|ci>] [--no-push]
-status <change-id> [--json]
+status [change-id] [--json]
 verify <pass|fail> [--change <change-id>]
   [--source <human|ci>] [--note <text>] [--no-push]
 ```
@@ -192,6 +192,13 @@ Record. `planning_revision` — последний commit, изменявший 
 Вызов `done` без аргументов сопоставляет Repository с активными Cycles по стабильному batch
 OpenSpec 1.11 `status --all --json`; обход каталога Changes как отдельный источник
 активности не используется.
+
+Вызов `status` без аргументов тем же batch-контрактом получает все активные OpenSpec
+Changes и возвращает JSON envelope `changes[]`. Для Change без Cycle элемент содержит
+`tracked: false`; для отслеживаемого Change в него накладывается полный текущий evidence.
+`status <change-id>` сохраняет подробный JSON одного Change. Поле `release_ready`
+истинно только для закоммиченного Cycle, текущего Snapshot и актуальной Verification
+Receipt с результатом `pass`; это readiness, а не автоматическое решение о выпуске.
 
 Текущий Cycle читается из файла рабочего дерева Store, а не напрямую из Git object
 HEAD. Отдельная `git status -- <cycle-record>` проверка определяет, закоммичен ли этот
