@@ -22,6 +22,7 @@
 |---|---|---|
 | OpenSpec workflow | Ведёт Planning, Tasks, Apply и Archive независимо от Plugins |
 | Change Tracking | Опционально фиксирует evidence scope, точные implementation revisions и проверку собранной версии |
+| Orchestrator MCP | Даёт Agent workflow context и строгие `init/connect`, не выставляя human-only gates |
 
 `track` не переводит Change в другой режим и не означает «взять задачу в работу».
 Команда только начинает сбор evidence по принятому `Repository Impact`. Отсутствие
@@ -29,7 +30,8 @@ Change Tracking не является ошибкой и не меняет шта
 
 ## Где выполнять команды
 
-Команды `openspec-orch`, `graph` и project commands агента запускаются из Store, если
-в конкретном примере не указано иное. Реализация и repository-local проверки
+`openspec-orch agent setup|status|remove` запускаются из любого существующего каталога
+и не требуют Store. Остальные команды `openspec-orch`, `graph` и project commands
+агента запускаются из Store, если в конкретном примере не указано иное. Реализация и repository-local проверки
 выполняются в соответствующем Code Repository. Git-команды, PR, merge, deployment и
 Release остаются действиями пользователя или внешней автоматизации.

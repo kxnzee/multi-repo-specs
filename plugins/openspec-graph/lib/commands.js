@@ -6,8 +6,8 @@ import {
   REPOSITORY_ROLE,
 } from "@openspec-orch/plugin-sdk";
 
+import { OpenSpecGraphApplication } from "./application.js";
 import { OPEN_SPEC_GRAPH_CONFIG } from "./config.js";
-import { OpenSpecGraphService } from "./service.js";
 import { startGraphViewer } from "./viewer.js";
 
 /** Parses a loopback HTTP port. */
@@ -99,7 +99,7 @@ export async function runGraphView(
 ) {
   const report = await progress.run(
     "Компиляция OpenSpec Graph и запуск viewer...",
-    () => new OpenSpecGraphService(context).compile(),
+    () => new OpenSpecGraphApplication(context).compile(),
     { success: "OpenSpec Graph скомпилирован" },
   );
   const sourceRoot = context.invocation?.role === REPOSITORY_ROLE.store
@@ -136,7 +136,7 @@ export function registerGraphCommands(
     .actionWithContext(async (context, options) => {
       const report = await progress.run(
         "Компиляция и проверка OpenSpec Graph...",
-        () => new OpenSpecGraphService(context).compile(),
+        () => new OpenSpecGraphApplication(context).compile(),
         { success: "OpenSpec Graph проверен" },
       );
       if (options.json) output.log(JSON.stringify(report, null, 2));

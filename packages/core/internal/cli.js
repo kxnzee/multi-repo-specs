@@ -6,46 +6,14 @@ import process from "node:process";
 import { collectValues, createCliProgress, singleValue } from "@openspec-orch/plugin-sdk";
 import { Command, Option } from "commander";
 
-import { isBundledTemplateProvider } from "./bundled-template.js";
 import { configuration } from "./configuration.js";
 import { CORE_EXECUTION_MODE, CORE_FILES } from "./constants.js";
-import { connection } from "./connection.js";
 import { doctor } from "./doctor.js";
-import { initSelections } from "./init-selection.js";
-import { initialization } from "./initialization.js";
+import { ProjectSetupService } from "./project-setup.js";
 import { repositoryStatuses } from "./repository-status.js";
 import { hasMethods } from "./value.js";
 import { formatDoctorReport, formatStatusHeading } from "./status-output.js";
 import { workspace } from "./workspace.js";
-
-const LEGACY_TEMPLATE_ID = "base";
-
-/** Собирает provider для старого constructor contract с одним templateRoot. */
-function legacyTemplateProvider(templateRoot) {
-  return Object.freeze({
-    defaultId: LEGACY_TEMPLATE_ID,
-    catalog: Object.freeze({ entries: Object.freeze([]) }),
-    resolve(templateId) {
-      if (templateId === LEGACY_TEMPLATE_ID && typeof templateRoot === "string") {
-        return Object.freeze({ id: LEGACY_TEMPLATE_ID, root: templateRoot });
-      }
-      throw new Error(`TEMPLATE_NOT_DISCOVERED: template-id '${templateId ?? ""}' не найден`);
-    },
-  });
-}
-
-/** Отличает явный local path от стабильного bundled Template ID. */
-function isLocalTemplateRequest(request) {
-  return path.isAbsolute(request) || request.startsWith(".") ||
-    request.includes("/") || request.includes("\\");
-}
-
-/** Разрешает один нормализованный Template request без catch-based control flow. */
-function resolveTemplateRequest(provider, request) {
-  return isLocalTemplateRequest(request)
-    ? Object.freeze({ id: undefined, root: request })
-    : provider.resolve(request);
-}
 
 /** Собирает повторяемую Commander option. */
 function collectRepositories(value, previous = []) {
@@ -86,40 +54,38 @@ function buildConnectHint(storeRoot, storeId) {
 
 /** Собирает candidate CLI из публичных Core application services. */
 export class CandidateCli {
-  #bundledTemplates;
-  #connection;
+  #agentGateway;
   #doctor;
-  #extensionPreflight;
-  #extensions;
-  #initSelection;
-  #initialization;
   #pluginCommands;
   #pluginLifecycleCommands;
   #progress;
   #repositoryStatuses;
+  #setup;
 
   constructor({
+    agentGatewayService,
     bundledTemplateProvider,
-    connectionService = connection,
+    connectionService,
     doctorService = doctor,
     extensionLifecycle,
-    initSelectionService = initSelections,
-    initializationService = initialization,
+    initSelectionService,
+    initializationService,
     pluginCommandMounter,
     pluginExtensionConnector,
     pluginLifecycleCommands,
     progress = createCliProgress(),
     repositoryStatusService = repositoryStatuses,
+    setupService,
+    start = process.cwd(),
     templateRoot,
   } = {}) {
-    const resolvedTemplates = bundledTemplateProvider ?? legacyTemplateProvider(templateRoot);
-    if (!isBundledTemplateProvider(resolvedTemplates)) {
-      throw new Error(
-        "CLI_INVALID: bundledTemplateProvider должен предоставлять defaultId, catalog и resolve",
-      );
+    if (agentGatewayService && !hasMethods(
+      agentGatewayService,
+      ["listAgents", "remove", "setup", "status"],
+    )) {
+      throw new Error("CLI_INVALID: agentGatewayService несовместим");
     }
-    this.#bundledTemplates = resolvedTemplates;
-    this.#connection = connectionService;
+    this.#agentGateway = agentGatewayService;
     if (!hasMethods(doctorService, ["inspect"])) {
       throw new Error("CLI_INVALID: doctorService должен предоставлять inspect");
     }
@@ -132,12 +98,6 @@ export class CandidateCli {
         "CLI_INVALID: extensionLifecycle должен предоставлять preflight и selected lifecycle",
       );
     }
-    this.#extensionPreflight = extensionLifecycle;
-    if (typeof initSelectionService?.resolve !== "function") {
-      throw new Error("CLI_INVALID: initSelectionService должен предоставлять resolve");
-    }
-    this.#initSelection = initSelectionService;
-    this.#initialization = initializationService;
     if (pluginCommandMounter && typeof pluginCommandMounter.mount !== "function") {
       throw new Error("CLI_INVALID: pluginCommandMounter должен предоставлять mount");
     }
@@ -151,9 +111,6 @@ export class CandidateCli {
           "statusSelected и disconnectSelected",
       );
     }
-    this.#extensions = Object.freeze(
-      [extensionLifecycle, pluginExtensionConnector].filter(Boolean),
-    );
     if (pluginLifecycleCommands && typeof pluginLifecycleCommands.mount !== "function") {
       throw new Error("CLI_INVALID: pluginLifecycleCommands должен предоставлять mount");
     }
@@ -163,6 +120,16 @@ export class CandidateCli {
     }
     this.#progress = progress;
     this.#repositoryStatuses = repositoryStatusService;
+    this.#setup = setupService ?? new ProjectSetupService({
+      bundledTemplateProvider,
+      connectionService,
+      extensionLifecycle,
+      initializationService,
+      initSelectionService,
+      pluginExtensionConnector,
+      start,
+      templateRoot,
+    });
     Object.freeze(this);
   }
 
@@ -199,6 +166,7 @@ export class CandidateCli {
     program.command("disconnect")
       .description("локально отключить Agent Extensions без изменения Store config")
       .action(() => this.#disconnect());
+    if (this.#agentGateway) this.#mountAgentGateway(program);
     this.#pluginLifecycleCommands?.mount(program);
     const repository = program.command("repository")
       .description("операции только чтения над репозиториями реестра");
@@ -211,29 +179,71 @@ export class CandidateCli {
     return program;
   }
 
+  #mountAgentGateway(program) {
+    const agent = program.command("agent")
+      .description("одноразовая user-level настройка Agent gateway");
+    const agentOption = () => new Option("--agent <agent-id>", "Agent provider")
+      .choices(this.#agentGateway.listAgents().map(({ id }) => id))
+      .makeOptionMandatory();
+    agent.command("setup")
+      .description("установить и проверить gateway в user scope")
+      .addOption(agentOption())
+      .action((options) => this.#setupAgentGateway(options.agent));
+    agent.command("status")
+      .description("проверить user-level gateway без изменений")
+      .addOption(agentOption())
+      .action((options) => this.#statusAgentGateway(options.agent));
+    agent.command("remove")
+      .description("удалить user-level gateway")
+      .addOption(agentOption())
+      .action((options) => this.#removeAgentGateway(options.agent));
+  }
+
+  async #setupAgentGateway(agentId) {
+    const result = await this.#progress.run(
+      `Настройка Agent gateway для ${agentId}...`,
+      () => this.#agentGateway.setup(agentId),
+      { success: `Agent gateway для ${agentId} готов` },
+    );
+    this.#printAgentGateway(result);
+  }
+
+  async #statusAgentGateway(agentId) {
+    const result = await this.#progress.run(
+      `Проверка Agent gateway для ${agentId}...`,
+      () => this.#agentGateway.status(agentId),
+      { success: `Agent gateway для ${agentId} готов` },
+    );
+    this.#printAgentGateway(result);
+  }
+
+  async #removeAgentGateway(agentId) {
+    const result = await this.#progress.run(
+      `Удаление Agent gateway для ${agentId}...`,
+      () => this.#agentGateway.remove(agentId),
+      { success: `Agent gateway для ${agentId} удалён` },
+    );
+    this.#printAgentGateway(result);
+  }
+
+  #printAgentGateway(result) {
+    console.log(`Agent: ${result.agent_id}`);
+    console.log(`Extension: ${result.extension_id}`);
+    console.log(`Scope: ${result.scope}`);
+    console.log(`Status: ${result.status}`);
+  }
+
   async #initialize(target, options) {
-    const selection = await this.#initSelection.resolve(options);
-    if (!selection) {
+    const operation = await this.#progress.run(
+      "Инициализация Store и Project Template...",
+      () => this.#setup.initialize({ target, options }),
+      { success: "Store и Project Template проверены" },
+    );
+    if (!operation) {
       console.log("Инициализация отменена.");
       return;
     }
-    const templateRequest = selection.template ?? this.#bundledTemplates.defaultId;
-    const template = resolveTemplateRequest(this.#bundledTemplates, templateRequest);
-    const result = await this.#progress.run(
-      "Инициализация Store и Project Template...",
-      () => this.#initialization.initialize({
-        target,
-        storeId: selection.storeId,
-        agentId: selection.agentId,
-        extensions: selection.extensions,
-        replaceExtensions: selection.extensionsSpecified,
-        templateId: template.id,
-        templateRoot: template.root,
-        repositories: selection.repositories,
-        noStrict: selection.noStrict,
-      }),
-      { success: "Store и Project Template проверены" },
-    );
+    const { result, selection } = operation;
     if (result.alreadyInitialized) {
       console.log(`Store ${result.storeId} уже инициализирован.`);
       console.log(`Execution mode: ${result.executionMode}`);
@@ -253,16 +263,11 @@ export class CandidateCli {
     let result;
     try {
       this.#progress.update("Проверка native CLI выбранного Agent...");
-      await this.#extensionPreflight?.preflight();
-      result = await this.#connection.connect({
+      result = await this.#setup.connect({
         workspace: options.workspace,
         noStrict: options.strict === false,
         onProgress: (message, status) => this.#renderConnectionProgress(message, status),
       });
-      this.#progress.update("Подключение выбранных Extensions...");
-      for (const lifecycle of this.#extensions) await lifecycle.connectSelected();
-      this.#progress.update("Проверка состояния Extensions и Plugins...");
-      for (const lifecycle of this.#extensions) await lifecycle.statusSelected();
       this.#progress.succeed("Store и Code Repositories подключены");
     } catch (error) {
       this.#progress.fail("Подключение Store и Code Repositories: ошибка");
@@ -284,9 +289,7 @@ export class CandidateCli {
   async #disconnect() {
     this.#progress.start("Отключение Agent Extensions на текущей машине...");
     try {
-      for (const lifecycle of [...this.#extensions].reverse()) {
-        await lifecycle.disconnectSelected();
-      }
+      await this.#setup.disconnect();
       this.#progress.succeed("Agent Extensions отключены; Store config не изменён");
     } catch (error) {
       this.#progress.fail("Отключение Agent Extensions: ошибка");
@@ -310,22 +313,22 @@ export class CandidateCli {
   }
 
   #printConnection(result, options) {
-    console.log(`Store: ${result.storeId} (${result.storeRoot})`);
+    console.log(`Store: ${result.store_id} (${result.store_root})`);
     console.log(`Workspace: ${result.workspace}`);
-    console.log(`Execution mode: ${result.executionMode}`);
-    if (options.workspace && result.executionMode === CORE_EXECUTION_MODE.strict) {
+    console.log(`Execution mode: ${result.execution_mode}`);
+    if (options.workspace && result.execution_mode === CORE_EXECUTION_MODE.strict) {
       console.log("Workspace сохранён локально для следующих команд OpenSpec Orchestrator.");
     } else if (options.workspace) {
       console.log("Workspace использован только для текущего relaxed-вызова и не сохранён локально.");
     }
     console.log("Локальная регистрация Store проверена OpenSpec.");
     for (const repository of result.repositories) {
-      console.log(formatStatusHeading(repository.id, repository.status));
+      console.log(formatStatusHeading(repository.repository_id, repository.status));
       console.log(`  ✓ Checkout: ${repository.cloned ? "клонирован" : "уже существовал"}`);
       console.log(`  Путь: ${repository.path}`);
-      if (repository.pointerCreated) {
+      if (repository.pointer_created) {
         console.log(`  ⚠ Создан ${CORE_FILES.openSpecConfig}; требуется setup PR`);
-      } else if (repository.pointerPending) {
+      } else if (repository.pointer_pending) {
         console.log(`  ⚠ ${CORE_FILES.openSpecConfig} ещё не принят; требуется setup PR`);
       }
     }

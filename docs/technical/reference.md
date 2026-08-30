@@ -13,10 +13,12 @@
 | Change Tracking | Cycle Record, Result/Verification Receipts и Snapshot | `plugins/change-tracking/` |
 | CodeGraph | Repository lifecycle, launcher нативного CLI и Repository-scoped Agent Extension | `plugins/codegraph/` |
 | OpenSpec Graph | Компиляция и проверка Store-level графа OpenSpec, локальный viewer | `plugins/openspec-graph/` |
+| Orchestrator MCP | Built-in governed Agent API и Store resources | `packages/mcp/`, `bin/openspec-orch-mcp.js` |
 | Base Template | OpenSpec schema/config, context и project assets | `templates/base/` |
 | Superspec Template | Multi-repository OpenSpec + Superpowers schema/config и context | `templates/superspec/` |
 | OpenSpec Base Extension | Project instructions, skills, commands и subagent | `extensions/openspec-base/` |
 | Superpowers Extension | Локально vendored общая библиотека skills и bootstrap | `extensions/superpowers/` |
+| Agent gateway | Явный user-level setup/status/remove общей MCP Extension | `packages/core/internal/agent-gateway.js`, `extensions/orchestrator-agent/` |
 | Agent adapters | Native CLI grammar Claude/Qwen/GigaCode | `agents/*/adapter.js` |
 
 Composition root фактически регистрирует все три Plugin packages. Change Tracking и
@@ -29,6 +31,8 @@ OpenSpec Graph получают разрешённые root namespaces (`track/d
 - Node.js `20.19.0` или новее проверяется до импорта Core и Plugins.
 - Внешний executable `openspec` должен находиться в `PATH` для `init`, `connect` и
   `doctor`.
+- `openspec-orch-mcp` должен оставаться в `PATH` после user-level `agent setup`, чтобы
+  Agent мог запускать локальный stdio server из любого workspace.
 - Версия OpenSpec принимается, если `openspec --version` возвращает строку semantic
   version. Core не задаёт общий minimum; Change Tracking требует
   `>=1.11.0 <2` и его JSON status contract.
@@ -46,6 +50,7 @@ openspec-orch init [path] --store <id> --agent <id>
 openspec-orch doctor [--json]
 openspec-orch connect [--workspace <path>] [--no-strict]
 openspec-orch disconnect
+openspec-orch agent setup|status|remove --agent <claude|qwen|gigacode>
 openspec-orch repository status [--repo <id>]...
 openspec-orch plugin register|init|connect|status|sync|exec|disconnect|remove ...
 ```
@@ -236,20 +241,41 @@ Code Repository через поставляемый executable `openspec-orch-co
 `CLAUDE.md`, `QWEN.md`, `GIGACODE.md` и project MCP settings Plugin больше не
 редактирует.
 
+## Orchestrator MCP
+
+Executable `openspec-orch-mcp` обслуживает только stdio. MCP SDK `1.30.0` закреплён
+exact-зависимостью workspace package и lock-файлом. Server contract:
+
+- read-only: `get_status`, `get_change_context`, `get_next_action`,
+  `get_assignment_scope`, `get_doctor_report`, `get_setup_context`, `query_graph`;
+- controlled write: `initialize_project` только для cwd/strict и `connect_project`
+  только без workspace/relaxed overrides; оба делегируют общему `ProjectSetupService`;
+- resources: allowlist Project registry, OpenSpec config, Specs, Change artifacts и
+  Change Tracking journals через `openspec-orch://store/` URI;
+- отсутствуют receipt, verification, Release, Archive, произвольный Git write,
+  planning write, disconnect, Plugin lifecycle, Agent management и network transport.
+
+`get_doctor_report` использует тот же Core Doctor и ту же distribution composition,
+что CLI. Setup handlers и CLI используют одну setup application; остальные handlers
+вызывают Core и публичные Plugin application services. Общая standalone Extension
+`orchestrator-agent` устанавливается явным `agent setup --agent <id>` один раз в
+user scope и поставляет MCP manifests поддерживаемому Agent provider.
+
 ## Project Template
 
 Bundled Template catalog содержит default `base` и альтернативный `superspec`.
-Base Template поставляет schema `base-v1`, context и project assets, а
-`openspec-base` Extension — project commands,
-skills, subagent и постоянные инструкции. Эти файлы управляют поведением агента, но не
+Base Template поставляет schema `base-v1`, context и project assets,
+`openspec-base` Extension — project commands, skills, subagent и постоянные
+инструкции. Общий MCP gateway `orchestrator-agent` принадлежит distribution-level
+Agent setup, а не Template. Эти файлы управляют поведением агента, но не
 становятся проверками Core runtime. Base не обнаруживает и не вызывает конкретные
 Plugins; runtime каждого Plugin подключается независимо от Template, а Agent Extension
 активируется только для Plugin, который действительно его поставляет.
 
 Superspec Template поставляет schema `superspec-multirepo` с полным artifact DAG через
-Apply, Verify и Finalize. Descriptor декларативно требует отдельный `superpowers`
-Extension; init добавляет его в desired composition, а интерактивный checkbox показывает
-required choice заблокированным. Execution выполняется в точных Code Repository scopes,
+Apply, Verify и Finalize. Descriptor декларативно требует `superpowers`; init добавляет
+его в desired composition, а интерактивные checkbox
+показывают required choices заблокированными. Execution выполняется в точных Code Repository scopes,
 а external verification и Release сохраняются отдельными gates.
 
 Template-правила Planning, Gate, Release и Archive являются политикой создаваемого

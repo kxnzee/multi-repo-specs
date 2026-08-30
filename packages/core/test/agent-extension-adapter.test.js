@@ -19,16 +19,20 @@ const agentPackages = await Promise.all(["claude", "gigacode", "qwen"].map((id) 
 const agentAdapter = new BundledAgentProvider(agentPackages).adapter;
 
 /** Создаёт Extension payload с manifests всех Agent поставки. */
-async function extensionFixture(t, prefix = "openspec-agent-extension-") {
+async function extensionFixture(
+  t,
+  prefix = "openspec-agent-extension-",
+  nativeId = "codegraph-agent",
+) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   await fs.mkdir(path.join(root, ".claude-plugin"));
-  const manifest = `${JSON.stringify({ name: "codegraph-agent" })}\n`;
+  const manifest = `${JSON.stringify({ name: nativeId })}\n`;
   await Promise.all([
     fs.writeFile(path.join(root, ".claude-plugin", "plugin.json"), manifest),
     fs.writeFile(path.join(root, ".claude-plugin", "marketplace.json"), `${JSON.stringify({
-      name: "openspec-orch-codegraph-agent",
-      plugins: [{ name: "codegraph-agent", source: "./" }],
+      name: `openspec-orch-${nativeId}`,
+      plugins: [{ name: nativeId, source: "./" }],
     })}\n`),
     fs.writeFile(path.join(root, "qwen-extension.json"), manifest),
     fs.writeFile(path.join(root, "gigacode-extension.json"), manifest),
@@ -149,6 +153,51 @@ test("GigaCode adapter requires gigacode-extension.json while using Qwen CLI", a
   );
 });
 
+for (const agentId of ["qwen", "gigacode"]) {
+  test(`${agentId} adapter selects and removes the gateway in explicit user scope`, async (t) => {
+    const root = await extensionFixture(
+      t,
+      `openspec-${agentId}-user-gateway-`,
+      "orchestrator-agent",
+    );
+    const fixture = invocationContext(agentId, (calls) => {
+      if (calls.length === 1) {
+        throw new Error("Extension with name orchestrator-agent does not exist.");
+      }
+      if (calls.at(-1)[1].join(" ") === "extensions list") {
+        return "✓ orchestrator-agent (1.0.0)\n Enabled (User): true";
+      }
+      return "done";
+    });
+    const payload = extension(root, "orchestrator-agent");
+
+    await agentAdapter.invokeExtension(
+      fixture.context,
+      payload,
+      { operation: "connect", scope: "user" },
+    );
+    await agentAdapter.invokeExtension(
+      fixture.context,
+      payload,
+      { operation: "status", scope: "user" },
+    );
+    await agentAdapter.invokeExtension(
+      fixture.context,
+      payload,
+      { operation: "remove", scope: "user" },
+    );
+    assert.deepEqual(fixture.calls, [
+      ["qwen", ["extensions", "enable", "orchestrator-agent", "--scope", "user"]],
+      ["qwen", [
+        "extensions", "install", `${root}:orchestrator-agent`,
+        "--scope", "user", "--consent",
+      ]],
+      ["qwen", ["extensions", "list"]],
+      ["qwen", ["extensions", "uninstall", "orchestrator-agent"]],
+    ]);
+  });
+}
+
 test("Qwen adapter does not replace an enable failure with install", async (t) => {
   const root = await extensionFixture(t, "openspec-qwen-enable-failure-");
   const fixture = invocationContext("qwen", () => {
@@ -200,6 +249,45 @@ test("Claude adapter proxies local marketplace lifecycle", async (t) => {
     ["claude", ["plugin", "list", "--json"]],
     ["claude", ["plugin", "uninstall", qualified, "--scope", "local"]],
     ["claude", ["plugin", "marketplace", "remove", "openspec-orch-codegraph-agent", "--scope", "local"]],
+  ]);
+});
+
+test("Claude adapter honors explicit user scope for the gateway", async (t) => {
+  const root = await extensionFixture(t, "openspec-claude-user-gateway-");
+  const qualified = "codegraph-agent@openspec-orch-codegraph-agent";
+  const fixture = invocationContext("claude", (calls) => (
+    calls.at(-1)[1].includes("list")
+      ? JSON.stringify([{ id: qualified, enabled: true, scope: "user" }])
+      : "done"
+  ));
+
+  await agentAdapter.invokeExtension(
+    fixture.context,
+    extension(root, "codegraph-agent"),
+    { operation: "connect", scope: "user" },
+  );
+  await agentAdapter.invokeExtension(
+    fixture.context,
+    extension(root, "codegraph-agent"),
+    { operation: "status", scope: "user" },
+  );
+  await agentAdapter.invokeExtension(
+    fixture.context,
+    extension(root, "codegraph-agent"),
+    { operation: "remove", scope: "user" },
+  );
+  assert.deepEqual(fixture.calls, [
+    ["claude", ["plugin", "marketplace", "add", root, "--scope", "user"]],
+    ["claude", [
+      "plugin", "install", "codegraph-agent@openspec-orch-codegraph-agent", "--scope", "user",
+    ]],
+    ["claude", ["plugin", "list", "--json"]],
+    ["claude", [
+      "plugin", "uninstall", "codegraph-agent@openspec-orch-codegraph-agent", "--scope", "user",
+    ]],
+    ["claude", [
+      "plugin", "marketplace", "remove", "openspec-orch-codegraph-agent", "--scope", "user",
+    ]],
   ]);
 });
 

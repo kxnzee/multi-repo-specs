@@ -1,4 +1,4 @@
-/** @fileoverview Возвращает Claude canonical OpenSpec Graph instructions. */
+/** @fileoverview Emits the short canonical Agent gateway bootstrap. */
 
 import { readFile } from "node:fs/promises";
 import process from "node:process";

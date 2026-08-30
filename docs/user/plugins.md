@@ -177,12 +177,54 @@ settings вручную. `plugin disconnect` сначала отключает E
 штатной командой Agent и только затем удаляет binding; установленный Qwen package
 остаётся доступным другим Repository.
 
-## Простые MCP
+## MCP в Agent Extensions
 
 Статический MCP входит в Agent Extension: Claude, Qwen и GigaCode получают его через
 собственный native manifest вместе с инструкциями использования. Один Extension может
 объявить несколько MCP. Если MCP требует repository lifecycle, состояния или своих
 команд, владельцем остаётся Plugin, который поставляет target-scoped Agent Extension.
+Orchestrator MCP не требует такого lifecycle: он является встроенным Agent API.
+
+## Orchestrator MCP
+
+`openspec-orch-mcp` — встроенная локальная stdio-обёртка над текущими сервисами Core и
+публичными application API Plugins. Общая Extension `orchestrator-agent` устанавливается
+один раз в user scope явной командой `openspec-orch agent setup --agent <id>` и не
+входит в Project Template или Plugin lifecycle.
+
+После перезапуска Claude, Qwen или GigaCode должен видеть read tools `get_status`,
+`get_setup_context`, `get_change_context`, `get_next_action`, `get_assignment_scope`,
+`get_doctor_report`, `query_graph`, setup tools `initialize_project`, `connect_project`
+и read-only resources нормативных Store-артефактов. Базовые
+Core/OpenSpec tools работают без Plugins. Tracking и Graph добавляют данные, только
+если соответствующие Plugins подключены к Project.
+
+Setup tools вызываются только после явного запроса пользователя. `initialize_project`
+фиксирован на cwd MCP, использует bundled catalog и strict mode. `connect_project` не
+принимает workspace или relaxed overrides, но может клонировать remotes из Project
+registry и активировать Agent Extensions. Оба используют тот же application service,
+что CLI, и сохраняют его fail-closed/idempotent проверки.
+
+Намеренно отсутствуют tools для receipt, `verify pass|fail`, Release, Archive,
+произвольного Git write, lifecycle Plugins, planning artifacts, disconnect,
+произвольного процесса и управления Agent. Сервер не имеет сетевого transport и не
+может закрыть человеческий verification или Release gate.
+
+SDK `@modelcontextprotocol/sdk` зафиксирован exact-версией `1.30.0` в lock-файле.
+Обновление требует повторного handshake-smoke всех трёх Agent clients. Поставка для
+GigaCode добавлена на основании его native extension/MCP формата, но реальный
+GigaCode handshake остаётся отдельным rollout-gate.
+
+На новой машине человек выполняет ровно один явный bootstrap через CLI, после чего
+перезапускает Agent:
+
+```bash
+openspec-orch agent setup --agent claude
+openspec-orch agent status --agent claude
+```
+
+Дальнейшие Projects можно инициализировать и подключать через MCP. Bootstrap обратим
+командой `openspec-orch agent remove --agent claude`; скрытого `postinstall` нет.
 
 ## Общий lifecycle
 

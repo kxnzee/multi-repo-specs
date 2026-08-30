@@ -19,7 +19,7 @@ function escapePattern(value) {
 }
 
 /** Requires the requested Extension to be enabled in the current workspace. */
-function assertExtensionEnabled(output, nativeId) {
+function assertExtensionEnabled(output, nativeId, scope) {
   const plain = output.replace(ANSI_ESCAPE, "");
   const entry = plain.split(/\n\s*\n/gu).find((block) => (
     new RegExp(`^[✓✗]\\s+${escapePattern(nativeId)}\\s+\\(`, "u").test(block)
@@ -29,6 +29,12 @@ function assertExtensionEnabled(output, nativeId) {
   }
   if (!entry.startsWith("✓")) {
     throw new Error(`AGENT_EXTENSION_STATUS_DISABLED: ${nativeId}`);
+  }
+  if (scope !== undefined) {
+    const label = `${scope[0].toUpperCase()}${scope.slice(1)}`;
+    if (!entry.includes(`Enabled (${label}): true`)) {
+      throw new Error(`AGENT_EXTENSION_STATUS_SCOPE_MISSING: ${nativeId} (${scope})`);
+    }
   }
 }
 
@@ -57,26 +63,30 @@ const qwenAdapter = Object.freeze({
 
   async invokeExtension(context, extension, request) {
     const resolvedNativeId = nativeExtensionId(extension.id, request.ownerId);
+    const activationScope = request.scope ?? WORKSPACE_SCOPE;
+    const installationScope = request.scope ?? context.agent.scope;
     let args;
     if (request.operation === "connect") {
       await this.validateExtension(extension, context.agent, { nativeId: resolvedNativeId });
       try {
         return await runNative(context, extension, [
-          "extensions", "enable", resolvedNativeId, "--scope", WORKSPACE_SCOPE,
+          "extensions", "enable", resolvedNativeId, "--scope", activationScope,
         ]);
       } catch (error) {
         if (!isMissingExtension(error, resolvedNativeId)) throw error;
         args = [
           "extensions", "install", `${extension.root}:${resolvedNativeId}`,
-          "--scope", context.agent.scope, "--consent",
+          "--scope", installationScope, "--consent",
         ];
       }
     } else if (request.operation === "status") {
       const output = await runNative(context, extension, ["extensions", "list"]);
-      assertExtensionEnabled(output, resolvedNativeId);
+      assertExtensionEnabled(output, resolvedNativeId, request.scope);
       return output;
+    } else if (request.operation === "remove") {
+      args = ["extensions", "uninstall", resolvedNativeId];
     } else {
-      args = ["extensions", "disable", resolvedNativeId, "--scope", WORKSPACE_SCOPE];
+      args = ["extensions", "disable", resolvedNativeId, "--scope", activationScope];
     }
     return runNative(context, extension, args);
   },

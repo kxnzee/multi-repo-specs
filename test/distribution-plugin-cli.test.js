@@ -37,6 +37,7 @@ function confirmCli(cwd, ...args) {
 async function writeFakeQwen(fakeBin) {
   await fs.writeFile(path.join(fakeBin, "qwen.js"), [
     'const fs = require("node:fs");',
+    'const path = require("node:path");',
     "const args = process.argv.slice(2);",
     "const log = process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;",
     "const installedPath = `${log}.installed.json`;",
@@ -48,12 +49,18 @@ async function writeFakeQwen(fakeBin) {
     "  process.exit(1);",
     "}",
     'if (args[0] === "extensions" && args[1] === "install") {',
-    '  const nativeId = args[2].slice(args[2].lastIndexOf(":") + 1);',
+    '  const suffix = args[2].slice(args[2].lastIndexOf(":") + 1);',
+    '  const nativeId = suffix.includes(path.sep) ? path.basename(args[2]) : suffix;',
     "  if (!installed.includes(nativeId)) installed.push(nativeId);",
     '  fs.writeFileSync(installedPath, JSON.stringify(installed));',
     "}",
+    'if (args[0] === "extensions" && args[1] === "uninstall") {',
+    "  const index = installed.indexOf(args[2]);",
+    "  if (index !== -1) installed.splice(index, 1);",
+    '  fs.writeFileSync(installedPath, JSON.stringify(installed));',
+    "}",
     'if (args[0] === "extensions" && args[1] === "list") {',
-    '  process.stdout.write(installed.map((id) => `✓ ${id} (1.0.0)\\n Enabled (Workspace): true`).join("\\n\\n"));',
+    '  process.stdout.write(installed.map((id) => `✓ ${id} (1.0.0)\\n Enabled (Workspace): true\\n Enabled (User): true`).join("\\n\\n"));',
     "}",
     "",
   ].join("\n"));
@@ -68,6 +75,56 @@ async function writeFakeQwen(fakeBin) {
     '@echo off\r\nnode "%~dp0qwen.js" %*\r\n',
   );
 }
+
+test("candidate distribution bootstraps the Agent gateway once in user scope", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-agent-bootstrap-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const fakeBin = path.join(root, "bin");
+  const nativeLog = path.join(root, "qwen-native.jsonl");
+  await fs.mkdir(fakeBin);
+  await writeFakeQwen(fakeBin);
+  const originalPath = process.env.PATH;
+  const originalNativeLog = process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
+  process.env.PATH = `${fakeBin}${path.delimiter}${originalPath}`;
+  process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG = nativeLog;
+  t.after(() => {
+    process.env.PATH = originalPath;
+    if (originalNativeLog === undefined) delete process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
+    else process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG = originalNativeLog;
+  });
+
+  const setup = await runCli(root, "agent", "setup", "--agent", "qwen");
+  const status = await runCli(root, "agent", "status", "--agent", "qwen");
+  const repeated = await runCli(root, "agent", "setup", "--agent", "qwen");
+  const removed = await runCli(root, "agent", "remove", "--agent", "qwen");
+
+  assert.match(setup.stdout, /Scope: user/u);
+  assert.match(status.stdout, /Status: ready/u);
+  assert.match(repeated.stdout, /Status: ready/u);
+  assert.match(removed.stdout, /Status: removed/u);
+  const calls = (await fs.readFile(nativeLog, "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line).args);
+  assert.deepEqual(calls, [
+    ["--version"],
+    ["extensions", "list"],
+    ["extensions", "enable", "orchestrator-agent", "--scope", "user"],
+    [
+      "extensions", "install",
+      `${await fs.realpath(path.join(
+        path.dirname(CLI_PATH),
+        "../extensions/orchestrator-agent",
+      ))}:orchestrator-agent`,
+      "--scope", "user", "--consent",
+    ],
+    ["extensions", "list"],
+    ["extensions", "list"],
+    ["--version"],
+    ["extensions", "list"],
+    ["extensions", "uninstall", "orchestrator-agent"],
+  ]);
+});
 
 /** Инициализирует реальный Git Repository для distribution smoke. */
 async function initializeGitRepository(root) {
@@ -234,11 +291,6 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
       operation: ["extensions", "install"],
       scope: ["--scope", "project", "--consent"],
     },
-    {
-      cwd: await fs.realpath(storeRoot),
-      operation: ["extensions", "install"],
-      scope: ["--scope", "project", "--consent"],
-    },
   ]);
   const enabledExtensions = (await fs.readFile(nativeLog, "utf8"))
     .trim()
@@ -246,7 +298,6 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     .map((line) => JSON.parse(line))
     .filter(({ args }) => args[1] === "enable");
   assert.deepEqual(enabledExtensions.map(({ cwd }) => cwd), [
-    await fs.realpath(storeRoot),
     await fs.realpath(storeRoot),
     await fs.realpath(codeRoot),
   ]);

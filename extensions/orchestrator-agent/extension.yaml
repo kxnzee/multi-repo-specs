@@ -1,0 +1,6 @@
+id: orchestrator-agent
+name: OpenSpec Orchestrator Agent Gateway
+manifests:
+  claude: .claude-plugin/plugin.json
+  qwen: qwen-extension.json
+  gigacode: gigacode-extension.json

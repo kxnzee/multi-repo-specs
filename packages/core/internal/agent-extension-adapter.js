@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { hasMethods } from "./value.js";
 
-const OPERATIONS = new Set(["connect", "disconnect", "status"]);
+const OPERATIONS = new Set(["connect", "disconnect", "remove", "status"]);
 
 /** Завершает проверку стабильной ошибкой Agent Adapter. */
 function invalid(message) {
@@ -79,11 +79,15 @@ export class AgentExtensionAdapter {
     this.#assertExtension(extension);
     if (
       !OPERATIONS.has(request?.operation) ||
+      (request.scope !== undefined && request.scope !== "user") ||
       (request.ownerId !== undefined && (
         typeof request.ownerId !== "string" || request.ownerId.trim().length === 0
       ))
     ) {
-      invalid("требуется поддерживаемая operation; ownerId должен быть непустой строкой");
+      invalid(
+        "требуется поддерживаемая operation; scope может быть только user; " +
+          "ownerId должен быть непустой строкой",
+      );
     }
     const provider = this.#provider(context);
     return provider.adapter.invokeExtension(

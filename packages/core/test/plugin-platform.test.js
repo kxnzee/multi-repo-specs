@@ -217,6 +217,7 @@ test("automatic composition tolerates a missing Store through the injected resol
     },
     start,
     storeProjectService: {
+      async load() { assert.fail("load is only used by MCP init"); },
       async resolve(received) {
         calls.push(received);
         throw Object.assign(new Error("Store not found"), { code: "STORE_ROOT_NOT_FOUND" });
@@ -243,6 +244,7 @@ test("Doctor reports an invalid Store even when automatic Plugin composition can
     },
     start,
     storeProjectService: {
+      async load() { assert.fail("load is only used by MCP init"); },
       async resolve() {
         throw Object.assign(new Error("CONFIG_INVALID: malformed project"), {
           code: "CONFIG_INVALID",
@@ -281,6 +283,7 @@ test("automatic composition restores declared Plugins through injected services"
     },
     start,
     storeProjectService: {
+      async load() { assert.fail("load is only used by MCP init"); },
       async resolve(received) {
         calls.push(["resolveStore", received]);
         return Object.freeze({
@@ -343,6 +346,7 @@ test("command context preserves start and selects current or Store scope explici
     },
     start,
     storeProjectService: {
+      async load() { assert.fail("load is only used by MCP init"); },
       async resolve(received) {
         storeStarts.push(received);
         return storeProject;

@@ -8,6 +8,82 @@ import { CORE_FILES, CORE_PATTERNS } from "./constants.js";
 import { processes } from "./process.js";
 import { CORE_SETTINGS } from "./settings.js";
 
+const OPEN_SPEC_IDENTIFIER = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+/** Rejects values that could alter the fixed OpenSpec argv grammar. */
+function assertOpenSpecIdentifier(value, label) {
+  if (typeof value !== "string" || !OPEN_SPEC_IDENTIFIER.test(value)) {
+    throw new Error(`OPENSPEC_INPUT_INVALID: ${label} должен быть lowercase kebab-case`);
+  }
+}
+
+/** Interprets only the stable OpenSpec artifact status vocabulary. */
+function nextArtifactAction(status, changeId) {
+  if (!Array.isArray(status.artifacts)) {
+    return Object.freeze({
+      action: "consult_change_context",
+      actor: "agent",
+      reason: "OpenSpec status не содержит artifact graph для автоматической маршрутизации",
+      change_id: changeId,
+    });
+  }
+  const artifacts = status.artifacts.filter((artifact) => (
+    artifact && typeof artifact === "object" && !Array.isArray(artifact) &&
+    typeof artifact.id === "string" && typeof artifact.status === "string"
+  ));
+  if (artifacts.length !== status.artifacts.length) {
+    return Object.freeze({
+      action: "consult_change_context",
+      actor: "agent",
+      reason: "OpenSpec status содержит несовместимый artifact graph",
+      change_id: changeId,
+    });
+  }
+  const ready = artifacts.filter(({ status: value }) => value === "ready");
+  if (ready.length === 1) {
+    return Object.freeze({
+      action: "prepare_artifact",
+      actor: "agent",
+      reason: "OpenSpec разблокировал следующий artifact",
+      change_id: changeId,
+      artifact: ready[0].id,
+    });
+  }
+  if (ready.length > 1) {
+    return Object.freeze({
+      action: "choose_ready_artifact",
+      actor: "human",
+      reason: "OpenSpec допускает несколько следующих artifacts; выбор не должен быть угадан",
+      change_id: changeId,
+      artifacts: Object.freeze(ready.map(({ id }) => id)),
+    });
+  }
+  const blocked = artifacts.filter(({ status: value }) => value === "blocked");
+  if (blocked.length > 0) {
+    return Object.freeze({
+      action: "resolve_artifact_blocker",
+      actor: "human",
+      reason: "OpenSpec artifact graph содержит заблокированные artifacts",
+      change_id: changeId,
+      artifacts: Object.freeze(blocked.map(({ id }) => id)),
+    });
+  }
+  const applyRequires = Array.isArray(status.applyRequires) ? new Set(status.applyRequires) : null;
+  const planningComplete = status.isPlanningComplete === true || (
+    applyRequires && [...applyRequires].every((id) => artifacts.some((artifact) => (
+      artifact.id === id && ["done", "skipped"].includes(artifact.status)
+    )))
+  );
+  return Object.freeze({
+    action: planningComplete ? "apply_change" : "consult_change_context",
+    actor: "agent",
+    reason: planningComplete
+      ? "OpenSpec подтвердил готовность Planning prerequisites для Apply"
+      : "OpenSpec не объявил однозначный следующий artifact",
+    change_id: changeId,
+  });
+}
+
 /** Проверяет базовую JSON response и diagnostic errors OpenSpec. */
 export function parseOpenSpecJson(source, command) {
   let value;
@@ -174,6 +250,33 @@ export class RepositoryOpenSpec {
       },
     });
     return output;
+  }
+
+  /** Reads the exact machine-readable list used by Agent and CLI application adapters. */
+  async listChanges() {
+    const args = ["list", "--json"];
+    return parseOpenSpecJson(await this.execute(args), `openspec ${args.join(" ")}`);
+  }
+
+  /** Reads one current Change status without interpreting schema-specific workflow. */
+  async changeStatus(changeId) {
+    assertOpenSpecIdentifier(changeId, "change-id");
+    const args = ["status", "--change", changeId, "--json"];
+    return parseOpenSpecJson(await this.execute(args), `openspec ${args.join(" ")}`);
+  }
+
+  /** Reads canonical schema instructions for one exact Change artifact. */
+  async artifactInstructions(changeId, artifact) {
+    assertOpenSpecIdentifier(changeId, "change-id");
+    assertOpenSpecIdentifier(artifact, "artifact");
+    const args = ["instructions", artifact, "--change", changeId, "--json"];
+    return parseOpenSpecJson(await this.execute(args), `openspec ${args.join(" ")}`);
+  }
+
+  /** Derives a conservative read-only recommendation from canonical OpenSpec status. */
+  async nextAction(changeId) {
+    assertOpenSpecIdentifier(changeId, "change-id");
+    return nextArtifactAction(await this.changeStatus(changeId), changeId);
   }
 
   async assertContext({ storeId, storeRoot, source, storeOption = false }) {

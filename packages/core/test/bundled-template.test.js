@@ -45,9 +45,18 @@ test("bundled Template provider discovers checked packages by stable ID", async 
     },
   ]);
   assert.equal(provider.resolve("base").root, await fs.realpath(TEMPLATE_ROOT));
-  assert.deepEqual(provider.catalog.requiredExtensionsFor("base"), ["openspec-base"]);
-  assert.deepEqual(provider.catalog.requiredExtensionsFor("superspec"), ["superpowers"]);
-  assert.deepEqual(provider.resolve("superspec").requiredExtensions, ["superpowers"]);
+  assert.deepEqual(
+    provider.catalog.requiredExtensionsFor("base"),
+    ["openspec-base"],
+  );
+  assert.deepEqual(
+    provider.catalog.requiredExtensionsFor("superspec"),
+    ["superpowers"],
+  );
+  assert.deepEqual(
+    provider.resolve("superspec").requiredExtensions,
+    ["superpowers"],
+  );
   assert.throws(
     () => provider.resolve("unknown"),
     /TEMPLATE_NOT_DISCOVERED: template-id 'unknown' не найден/u,
