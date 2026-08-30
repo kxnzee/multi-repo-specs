@@ -1,0 +1,32 @@
+{
+  "name": "@openspec-orch/plugin-change-tracking",
+  "version": "1.0.0",
+  "description": "Cycle, Receipt and Snapshot domain for OpenSpec Orchestrator",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "extension",
+    "index.js",
+    "lib"
+  ],
+  "openspecOrchestrator": {
+    "apiVersion": 1,
+    "plugin": "./index.js"
+  },
+  "peerDependencies": {
+    "@openspec-orch/plugin-sdk": "0.1.0"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "7.10.1",
+    "zod": "4.4.3"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": __MARKETPLACE_NAME_JSON__,
+  "description": __EXTENSION_DESCRIPTION_JSON__,
+  "owner": {
+    "name": __PLUGIN_DISPLAY_NAME_JSON__
+  },
+  "plugins": [
+    {
+      "name": __EXTENSION_NAME_JSON__,
+      "source": "./"
+    }
+  ]
+}

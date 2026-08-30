@@ -1,0 +1,13 @@
+id: gigacode
+name: GigaCode
+openspec:
+  adapter: qwen
+  generatedDirectory: .qwen
+  targetDirectory: .gigacode
+  commandsDirectory: .gigacode/commands
+  instructionsFile: GIGACODE.md
+native:
+  adapter: adapter.js
+  executable: qwen
+  scope: project
+  manifest: gigacode-extension.json

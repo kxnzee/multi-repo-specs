@@ -1,0 +1,30 @@
+schema: superspec-multirepo
+
+context: |
+  Before planning, read openspec/context/00-start-here.md and openspec-orch.yaml.
+  OpenSpec Change artifacts are the source of truth. Superpowers is the execution
+  discipline and must not create parallel specs or plans outside the current Change.
+  Use exact registered Code Repository IDs. Keep implementation work repository-scoped
+  and never treat the central Store as the implementation checkout.
+
+rules:
+  brainstorm:
+    - "Use superpowers:brainstorming as the structured dialogue, but write the validated result only to the current Change brainstorm.md and optional design.md."
+    - "Present alternatives and obtain user approval before promoting the selected approach into later OpenSpec artifacts."
+  proposal:
+    - "Describe Why and What before implementation details, and include a Repository Impact table with only registered Code Repository IDs that are expected to change."
+  specs:
+    - "Requirements and Scenarios describe observable behavior, not repository paths, code symbols, libraries or implementation steps."
+  design:
+    - "Use Code Repositories only to validate current-state and feasibility claims; distinguish evidence from the accepted technical decision."
+  tasks:
+    - "Group implementation work by exact repository ID and retain one final external verification checkpoint for the current version."
+  plan:
+    - "Use superpowers:writing-plans to create the detailed execution plan in the current Change plan.md, separated by repository ID."
+  apply:
+    - "Use isolated repository-owned worktrees, RED-GREEN TDD, task reviews, final review and fresh verification; record one apply.md receipt for the complete iteration."
+    - "When Change Tracking is connected, use Assignments and current Result Receipts rather than inventing repository completion evidence."
+  verify:
+    - "Verify the exact Apply iteration and candidate Snapshot; technical evidence and the responsible participant's current-version confirmation are separate mandatory checks."
+  finalize:
+    - "Invoke superpowers:finishing-a-development-branch per Code Repository only after explicit user or accepted team-process authorization, then record every outcome in finalize.md."

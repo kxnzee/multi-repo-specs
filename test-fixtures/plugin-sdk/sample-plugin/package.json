@@ -1,0 +1,14 @@
+{
+  "name": "@test/openspec-orch-plugin-sample",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./index.js",
+  "openspecOrchestrator": {
+    "apiVersion": 1,
+    "plugin": "./index.js"
+  },
+  "peerDependencies": {
+    "@openspec-orch/plugin-sdk": "*"
+  }
+}

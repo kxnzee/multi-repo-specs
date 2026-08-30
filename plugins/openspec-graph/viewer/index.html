@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Граф OpenSpec</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/vendor/vis-network.min.css">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <h1>Граф OpenSpec</h1>
+        <p id="summary">Загрузка…</p>
+      </div>
+      <div class="toolbar">
+        <label class="search-field">
+          <span class="sr-only">Поиск по графу</span>
+          <span class="search-control">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <circle cx="8.5" cy="8.5" r="5.5"></circle>
+              <path d="m13 13 4 4"></path>
+            </svg>
+            <input id="search" type="search" placeholder="Найти репозиторий, спеку или изменение…">
+          </span>
+        </label>
+        <details id="layers-menu" class="layers-menu">
+          <summary>
+            <span aria-hidden="true">◉</span>
+            Слои
+            <strong id="layer-count">3/4</strong>
+          </summary>
+          <div class="layers-popover">
+            <fieldset id="node-type-filters" class="node-type-filters">
+              <legend>Показывать в графе</legend>
+              <div class="filter-options">
+                <label>
+                  <input type="checkbox" value="repository" checked>
+                  <i class="filter-dot repository" aria-hidden="true"></i>Репозитории
+                </label>
+                <label>
+                  <input type="checkbox" value="master-spec" checked>
+                  <i class="filter-dot master" aria-hidden="true"></i>Мастер-спеки
+                </label>
+                <label>
+                  <input type="checkbox" value="change" checked>
+                  <i class="filter-dot change" aria-hidden="true"></i>Изменения
+                </label>
+                <label>
+                  <input type="checkbox" value="delta-spec">
+                  <i class="filter-dot delta" aria-hidden="true"></i>Дельта-спеки
+                </label>
+              </div>
+            </fieldset>
+          </div>
+        </details>
+        <button id="reset-view" class="reset-view" type="button"
+          aria-label="Сбросить поиск и фильтры">
+          <span aria-hidden="true">↺</span>Сбросить
+        </button>
+      </div>
+    </header>
+    <main>
+      <section class="graph-stage" aria-label="Граф OpenSpec">
+        <div id="graph"></div>
+        <div class="legend" aria-label="Легенда узлов">
+          <span><i class="legend-dot repository"></i>Репозиторий</span>
+          <span><i class="legend-dot master"></i>Мастер-спека</span>
+          <span><i class="legend-dot change"></i>Изменение</span>
+          <span><i class="legend-dot delta"></i>Дельта-спека</span>
+        </div>
+        <div id="layout-status" class="layout-status" role="status">Расположение графа…</div>
+      </section>
+      <aside aria-label="Выбранный элемент графа">
+        <div class="inspector-heading">
+          <div>
+            <h2>Детали</h2>
+            <p id="selection-kind">Ничего не выбрано</p>
+          </div>
+        </div>
+        <section id="graph-diagnostics" class="details-diagnostics graph-diagnostics" hidden></section>
+        <div id="details" class="details-empty">Выберите узел или связь.</div>
+      </aside>
+    </main>
+    <script src="/vendor/vis-network.min.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

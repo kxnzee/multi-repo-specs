@@ -1,0 +1,85 @@
+/** @fileoverview ESLint flat config для production-кода и тестов OpenSpec Orchestrator. */
+
+import js from "@eslint/js";
+import jsdoc from "eslint-plugin-jsdoc";
+
+export default [
+  {
+    ignores: [
+      "coverage/**",
+      "extensions/superpowers/skills/**",
+      "node_modules/**",
+    ],
+  },
+  js.configs.recommended,
+  {
+    files: ["**/*.js"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        console: "readonly",
+        URL: "readonly",
+      },
+    },
+    plugins: {
+      jsdoc,
+    },
+    rules: {
+      "jsdoc/require-jsdoc": "error",
+      "jsdoc/check-param-names": "error",
+      "jsdoc/check-types": "error",
+      "no-unused-vars": "error",
+      eqeqeq: "error",
+      "no-unreachable": "error",
+    },
+  },
+  {
+    files: ["plugins/**/*.js"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [{
+          group: ["**/packages/core/**", "@openspec-orch/core", "@openspec-orch/core/**"],
+          message: "Plugin должен использовать только публичный Plugin SDK и Core facades.",
+        }],
+      }],
+    },
+  },
+  {
+    files: ["packages/core/**/*.js"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["**/plugins/**"],
+            message: "Core не должен импортировать конкретные Plugins.",
+          },
+          {
+            regex: "^@openspec-orch/plugin-(?!sdk(?:/|$))",
+            message: "Core не должен импортировать конкретные Plugins.",
+          },
+        ],
+      }],
+    },
+  },
+  {
+    files: ["packages/plugin-sdk/**/*.js"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [{
+          group: [
+            "**/packages/core/**",
+            "**/plugins/**",
+            "**/core/**",
+            "@openspec-orch/core",
+            "@openspec-orch/core/**",
+          ],
+          message: "Plugin SDK должен оставаться независимым от Core internals и конкретных Plugins.",
+        }, {
+          regex: "^@openspec-orch/plugin-(?!sdk(?:/|$))",
+          message: "Plugin SDK должен оставаться независимым от конкретных Plugins.",
+        }],
+      }],
+    },
+  },
+];

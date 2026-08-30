@@ -1,33 +1,34 @@
-# OpenSpec project rules
+# Repository instructions
 
-## Change ownership
+## Architecture boundaries
 
-All OpenSpec changes belong to the central sdd-specs repository.
+- Keep Orchestrator Core generic. Product process, provider behavior and
+  Plugin-specific commands must not become special cases in `packages/core/`.
+- Put reusable Plugin contracts in `packages/plugin-sdk/` and concrete runtime,
+  repository lifecycle or Agent integration in the owning Plugin package.
+- Project context, custom schema/config and copy-only assets belong to Project
+  Template. Workflow and Agent artifacts belong to standalone Extensions or
+  Plugin-owned Extensions, not to Core runtime.
+- Cover changes to observable behavior with regression tests and update current
+  documentation when the public contract changes.
 
-Changes must be created only inside the OpenSpec store.
+## OpenSpec ownership
 
-Backend and frontend repositories only implement existing changes. They must not contain their own `openspec/changes` directories.
+- Requirements, Master Specs and Changes belong only to the central OpenSpec Store at
+  `sdd-specs/openspec`.
+- Do not create `openspec/changes` in this implementation repository or other Code
+  Repositories. Implement an accepted Change from the Store.
+- Follow [`docs/user/team-flow.md`](docs/user/team-flow.md) for Planning, Repository
+  Impact, Gates, dependent Changes, verification, Release and Archive.
+- Do not modify built-in OpenSpec `openspec-*` skills or `opsx-*` commands in the
+  provider-specific directory selected in `openspec-orch.yaml`.
 
-## Source of truth
+## Documentation
 
-The only source of truth for requirements is:
+- Treat code and tests as the source of truth for runtime behavior. Verify claims
+  before adding them to current documentation.
+- Current documentation lives in `docs/user/` and `docs/technical/`.
 
-```text
-sdd-specs/openspec
-```
+## Validation
 
-## Archive rule
-
-Archive is allowed only after:
-
-- backend implementation is completed;
-- frontend implementation is completed;
-- manual verification is completed.
-
-Do not modify built-in OpenSpec `openspec-*` skills or `opsx-*` commands in the provider-specific agent directory selected in `sdd.yaml`. Keep project-specific process rules in `AGENTS.md` and project documentation.
-
-## Reference flow document
-
-`docs/OpenSpec для команды.md` is a read-only reference from the workplace. It exists to keep the project's overall lifecycle recognizably aligned with the common flow, while this repository may implement that flow with custom commands, steps, and gates.
-
-Do not synchronize, normalize, or edit this file to match the local SDD implementation unless the user explicitly requests changes to this exact file. Record project-specific behavior in `docs/steps/`, `AGENTS.md`, or other local documentation instead.
+Run `npm run check` and `git diff --check` before committing repository changes.

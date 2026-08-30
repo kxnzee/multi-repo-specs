@@ -1,0 +1,5 @@
+{
+  "name": __EXTENSION_NAME_JSON__,
+  "version": "1.0.0",
+  "contextFileName": "agent-instructions.md"
+}

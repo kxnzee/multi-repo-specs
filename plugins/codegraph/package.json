@@ -1,0 +1,34 @@
+{
+  "name": "@openspec-orch/plugin-codegraph",
+  "version": "1.0.0",
+  "description": "CodeGraph Plugin Package for OpenSpec Orchestrator",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./bin/codegraph.js": "./bin/codegraph.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin",
+    "extension",
+    "index.js",
+    "lib"
+  ],
+  "openspecOrchestrator": {
+    "apiVersion": 1,
+    "plugin": "./index.js"
+  },
+  "peerDependencies": {
+    "@openspec-orch/plugin-sdk": "0.1.0"
+  },
+  "dependencies": {
+    "@colbymchenry/codegraph": "1.5.0"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "license": "MIT"
+}

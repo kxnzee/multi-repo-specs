@@ -1,0 +1,8 @@
+{
+  "name": "openspec-graph-agent",
+  "version": "1.0.0",
+  "description": "Store-scoped OpenSpec Graph workflow rules",
+  "author": {
+    "name": "OpenSpec Orchestrator"
+  }
+}

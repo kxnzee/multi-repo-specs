@@ -1,9 +1,0 @@
-version: 1
-
-# TODO:
-# question: Какие системы и code repositories входят в проект?
-# owner: Technical Owner
-# expected_source: Git remotes, deployment configuration и подтверждение владельца
-
-systems: []
-relationships: []

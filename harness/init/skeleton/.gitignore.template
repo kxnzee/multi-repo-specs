@@ -1,6 +1,0 @@
-# SDD local data. Do not ignore openspec/, the provider-specific agent directory, or .sdd/ as a whole.
-.sdd/cache/
-.sdd/logs/
-
-# Local credentials
-.sdd/credentials/
