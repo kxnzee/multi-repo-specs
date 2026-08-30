@@ -1,0 +1,12 @@
+{
+  "name": "orchestrator-agent",
+  "version": "1.0.0",
+  "contextFileName": "agent-instructions.md",
+  "mcpServers": {
+    "openspec-orchestrator": {
+      "command": "openspec-orch-mcp",
+      "args": [],
+      "cwd": "${workspacePath}"
+    }
+  }
+}

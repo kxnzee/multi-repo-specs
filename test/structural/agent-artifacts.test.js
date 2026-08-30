@@ -10,6 +10,7 @@ import { parse } from "yaml";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/base/", import.meta.url));
 const EXTENSION_ROOT = fileURLToPath(new URL("../../extensions/openspec-base/", import.meta.url));
+const GATEWAY_ROOT = fileURLToPath(new URL("../../extensions/orchestrator-agent/", import.meta.url));
 const CORE_ROOT = fileURLToPath(new URL("../../packages/core/internal/", import.meta.url));
 const SDK_ROOT = fileURLToPath(new URL("../../packages/plugin-sdk/internal/", import.meta.url));
 const PLUGINS_ROOT = fileURLToPath(new URL("../../plugins/", import.meta.url));
@@ -106,6 +107,14 @@ test("repository evidence delegation keeps one question per subagent invocation"
     assert.match(source, /пять вопросов — пять subagents/u, relative);
   }
 
+  const globalInstructions = await fs.readFile(
+    path.join(EXTENSION_ROOT, "agent-instructions.md"),
+    "utf8",
+  );
+  assert.match(globalInstructions, /Точные содержательные правила бери из `get_change_context`/u);
+  assert.doesNotMatch(globalInstructions, /question_id, status, answer и evidence/u);
+  assert.doesNotMatch(globalInstructions, /Repository \| Capabilities/u);
+
   const scout = await fs.readFile(
     path.join(EXTENSION_ROOT, "subagents/openspec-base-repository-evidence-scout.md"),
     "utf8",
@@ -131,12 +140,21 @@ test("repository evidence delegation keeps one question per subagent invocation"
   );
 });
 
+test("Agent gateway instructions defer enforceable policy to MCP", async () => {
+  const source = await fs.readFile(path.join(GATEWAY_ROOT, "agent-instructions.md"), "utf8");
+  assert.match(source, /get_change_context/u);
+  assert.match(source, /get_next_action/u);
+  assert.match(source, /do not emulate it with CLI, Git, file or process\s+tools/u);
+  assert.doesNotMatch(source, /receipt|Release|Archive|strict mode|working directory/u);
+});
+
 test("Apply context validates repository scope without Plugin-specific routing", async () => {
   const relative = "skills/openspec-base-apply-context/SKILL.md";
   const source = await fs.readFile(path.join(EXTENSION_ROOT, relative), "utf8");
 
   assert.match(source, /`Repository \| Capabilities`/, relative);
-  assert.match(source, /не обнаруживать, не вызывать и не имитировать поведение Plugins/iu, relative);
+  assert.match(source, /`get_assignment_scope`/u, relative);
+  assert.match(source, /Plugin-specific поведение остаётся вне этого skill/iu, relative);
 });
 
 test("Base and Superspec artifacts do not depend on concrete Plugins", async () => {

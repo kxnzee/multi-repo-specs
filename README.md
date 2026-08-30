@@ -36,7 +36,7 @@ Bundled [`templates/superspec/`](templates/superspec/) — альтернати�
 дополнительный Template. Он устанавливает schema `superspec-multirepo` с pipeline
 `brainstorm → proposal → optional design → specs → tasks → plan → apply → verify →
 finalize`, Apply/Verify convergence и multi-repository gates. Template декларативно
-требует независимый Extension `superpowers`, поэтому init добавляет его автоматически:
+требует Extension `superpowers`, поэтому init добавляет его автоматически:
 
 ```bash
 openspec-orch init /absolute/path/to/store \
@@ -47,7 +47,7 @@ openspec-orch init /absolute/path/to/store \
 
 В интерактивном init Project Template выбирается перед Agent и Extensions. CLI
 показывает обязательный Extension-профиль: `base → openspec-base`,
-`superspec → superpowers`. Required Extension уже выбран и недоступен для снятия;
+`superspec → superpowers`. Required Extensions уже выбраны и недоступны для снятия;
 `--no-extensions` для обеих bundled-композиций отклоняется.
 
 Agent, дополнительные Extensions и Plugins выбираются отдельно. Bundled Extension `openspec-base`
@@ -55,9 +55,21 @@ Agent, дополнительные Extensions и Plugins выбираются �
 evidence subagent. Bundled `superpowers` поставляет локальный MIT-снимок общей
 библиотеки skills. Оба поддерживают Claude, Qwen и GigaCode. Template не владеет их
 payload, а только объявляет требуемую совместимую композицию.
-OpenSpec Graph, CodeGraph и Change Tracking остаются отдельными Plugins. OpenSpec Graph
-и CodeGraph доставляют Agent-часть как target-scoped Extension; Change Tracking
-предоставляет только собственный CLI и Git-native состояние.
+OpenSpec Graph, CodeGraph и Change Tracking остаются отдельными Plugins. Встроенный
+Agent gateway доставляется общей Extension `orchestrator-agent`: она подключает
+governed MCP к Claude, Qwen и GigaCode без Project/Plugin lifecycle. Один раз явно
+установите её в user scope, затем перезапустите Agent:
+
+```bash
+openspec-orch agent setup --agent qwen
+openspec-orch agent status --agent qwen
+```
+
+После этого MCP доступен во всех workspace, а Agent может сам вызвать
+`initialize_project` и `connect_project`. `openspec-orch agent remove --agent qwen`
+удаляет gateway через native Agent CLI. CodeGraph
+поставляет собственную target-scoped Extension; Change Tracking предоставляет CLI и
+Git-native состояние.
 
 `openspec-base-test-cases` может сформировать тест-кейсы из принятых Requirements и
 Scenarios, в том числе нейтральную структуру для последующего переноса в Zephyr. Он
@@ -255,6 +267,13 @@ openspec-orch plugin sync codegraph --all
 сложным repository lifecycle может поставлять свой target-scoped Extension; его Agent
 payload активируется нативным CLI во время `plugin connect`.
 
+Встроенный `openspec-orch-mcp` выставляет workflow/Graph/Doctor tools, нормативные
+Store resources и два ограниченных setup tools. `initialize_project` работает только
+в cwd MCP и strict mode; `connect_project` не принимает workspace/relaxed overrides.
+Оба вызывают тот же `ProjectSetupService`, что CLI. MCP не выставляет receipt,
+verification, Release, Archive, произвольный Git write или Plugin lifecycle.
+Graph/Tracking overlays появляются только при подключённых Plugins.
+
 Change Tracking является необязательным CLI-расширением для implementation evidence и
 не меняет Base/Superspec или нативный OpenSpec workflow. Команды Plugin:
 
@@ -303,6 +322,7 @@ openspec-orch init [path] --store <id> --agent <id> [--template <id-or-path>] [-
 openspec-orch doctor [--json]
 openspec-orch connect [--workspace <path>] [--no-strict]
 openspec-orch disconnect
+openspec-orch agent setup|status|remove --agent <claude|qwen|gigacode>
 openspec-orch repository status [--repo <repository-id>]...
 
 openspec-orch plugin register <plugin-id> [path] [--name <display-name>] [--profile <commands|repository|native>] [--support <store|code>]... [--extension]
@@ -315,8 +335,9 @@ openspec-orch plugin disconnect <plugin-id> [--repo <repository-id>]... [--all]
 openspec-orch plugin remove <plugin-id>
 ```
 
-После `connect` пользователь запускает глобальный CLI выбранного Agent напрямую из
-Store (`qwen` или `claude`). Orchestrator не проксирует Agent commands; универсальный
+После `agent setup` и Project `connect` пользователь запускает глобальный CLI выбранного
+Agent напрямую из Store (`qwen` или `claude`). Orchestrator не проксирует Agent sessions;
+универсальный
 `exec` остаётся только у Plugins и вызывает их собственный runtime.
 
 `init` поддерживает два режима: с обязательными `--store`/`--agent` он не открывает

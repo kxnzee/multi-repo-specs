@@ -12,6 +12,7 @@ export {
   AgentExtensionAdapter,
   agentExtensions,
 } from "./internal/agent-extension-adapter.js";
+export { AgentGatewayService } from "./internal/agent-gateway.js";
 export { AtomicWriter, atomicWriter } from "./internal/atomic-writer.js";
 export {
   BundledPluginPackage,
@@ -88,6 +89,7 @@ export { PluginSource } from "./internal/plugin-source.js";
 export { PluginScaffoldService, pluginScaffolds } from "./internal/plugin-scaffold.js";
 export { PluginStorage, PluginStorageService, pluginStorage } from "./internal/plugin-storage.js";
 export { ProcessService, ScopedProcess, processes } from "./internal/process.js";
+export { ProjectSetupService } from "./internal/project-setup.js";
 export { Project, createProject } from "./internal/project.js";
 export { Repository, createRepository } from "./internal/repository.js";
 export { RepositoryRunner, RepositorySelector, repositoryRunner, repositorySelector } from "./internal/repository-operations.js";

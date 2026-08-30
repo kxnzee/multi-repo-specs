@@ -11,6 +11,27 @@ Core проверяет, что `openspec --version` возвращает semant
 pin не заданы, поэтому совместимость конкретной версии подтверждается отдельно в
 вашем окружении. Если подключается Change Tracking, нужен OpenSpec `>=1.11.0 <2`.
 
+## Одноразовое подключение Agent gateway
+
+После установки Orchestrator один раз зарегистрируйте MCP Extension в user scope
+выбранного Agent и перезапустите его:
+
+```bash
+openspec-orch agent setup --agent qwen
+openspec-orch agent status --agent qwen
+```
+
+Поддерживаемые значения: `claude`, `qwen`, `gigacode`. Команда использует native Agent
+CLI, не требует Store и не меняет Project. Удаление выполняется явно:
+
+```bash
+openspec-orch agent remove --agent qwen
+```
+
+После setup gateway доступен в любом workspace. Новый Project можно создать обычным
+CLI ниже либо попросить Agent вызвать `get_setup_context`, `initialize_project` и
+`connect_project`.
+
 ## Создание нового проекта
 
 Target должен заранее существовать, быть обычным каталогом и корнем чистого Git
@@ -63,8 +84,7 @@ bundled Template. `init` только сохраняет выбор и не вы
 `openspec-orch.yaml`, не применяя Template повторно.
 
 Default Base автоматически включает `openspec-base`. Для полного Superspec workflow
-выберите другой Template; его обязательный Extension `superpowers` init также добавит
-автоматически:
+выберите другой Template; init автоматически добавит `superpowers`:
 
 ```bash
 openspec-orch init /absolute/path/to/workspace/specs \

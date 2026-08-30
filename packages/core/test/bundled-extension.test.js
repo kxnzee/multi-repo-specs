@@ -18,6 +18,9 @@ const OPENSPEC_BASE_ROOT = fileURLToPath(
 const SUPERPOWERS_ROOT = fileURLToPath(
   new URL("../../../extensions/superpowers/", import.meta.url),
 );
+const ORCHESTRATOR_AGENT_ROOT = fileURLToPath(
+  new URL("../../../extensions/orchestrator-agent/", import.meta.url),
+);
 const AGENT_IDS = Object.freeze(["claude", "gigacode", "qwen"]);
 
 /** Загружает Extension против фактического Agent catalog тестового distribution. */
@@ -80,6 +83,20 @@ test("BundledExtensionProvider resolves a portable bundled source to its local p
     },
   });
   assert.equal(Object.isFrozen(resolved), true);
+  const distributionOnly = new BundledExtensionProvider([extensionPackage], {
+    catalogExcludeIds: ["workflow"],
+  });
+  assert.deepEqual(distributionOnly.catalog.entries, []);
+  assert.equal(
+    distributionOnly.resolve({ id: "workflow", source: "bundled:workflow" }).id,
+    "workflow",
+  );
+  assert.throws(
+    () => new BundledExtensionProvider([extensionPackage], {
+      catalogExcludeIds: ["unknown"],
+    }),
+    /catalogExcludeIds содержит неизвестный/u,
+  );
   assert.throws(
     () => provider.resolve({ id: "workflow", source: "bundled:other" }),
     /BUNDLED_EXTENSION_INVALID/,
@@ -166,6 +183,33 @@ test("shipped openspec-base owns the complete workflow payload for every Agent",
     "subagents/openspec-base-repository-evidence-scout.md",
   ]) {
     assert.equal((await fs.stat(path.join(OPENSPEC_BASE_ROOT, relative))).isFile(), true, relative);
+  }
+});
+
+test("shipped orchestrator-agent exposes the same governed MCP to every Agent", async () => {
+  const extension = await loadExtension(ORCHESTRATOR_AGENT_ROOT);
+
+  assert.equal(extension.id, "orchestrator-agent");
+  const claudePlugin = JSON.parse(await fs.readFile(
+    path.join(ORCHESTRATOR_AGENT_ROOT, ".claude-plugin/plugin.json"),
+    "utf8",
+  ));
+  const claudeMcp = JSON.parse(await fs.readFile(
+    path.join(ORCHESTRATOR_AGENT_ROOT, ".mcp.json"),
+    "utf8",
+  ));
+  const qwen = JSON.parse(await fs.readFile(
+    path.join(ORCHESTRATOR_AGENT_ROOT, "qwen-extension.json"),
+    "utf8",
+  ));
+  const gigacode = JSON.parse(await fs.readFile(
+    path.join(ORCHESTRATOR_AGENT_ROOT, "gigacode-extension.json"),
+    "utf8",
+  ));
+  assert.equal(claudePlugin.mcpServers, "./.mcp.json");
+  for (const manifest of [claudeMcp, qwen, gigacode]) {
+    assert.deepEqual(Object.keys(manifest.mcpServers), ["openspec-orchestrator"]);
+    assert.equal(manifest.mcpServers["openspec-orchestrator"].command, "openspec-orch-mcp");
   }
 });
 

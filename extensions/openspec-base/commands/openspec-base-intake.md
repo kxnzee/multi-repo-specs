@@ -43,24 +43,13 @@ Brief из `base-intent` либо явно принятая пользовате
 ## Начало или продолжение
 
 1. Получи точный `change-id` из аргументов команды или спроси его одним вопросом.
-2. Выполни `openspec list --json` и сравни `change-id` только по точному совпадению.
-   Не ищи Change через fuzzy name или обход файловой системы.
-3. Если Change существует, сначала выполни:
-
-   ```bash
-   openspec status --change <change-id> --json
-   ```
-
-   Если `schemaName` не `base-v1`, остановись с `BLOCKER: SCHEMA_MISMATCH`; не вызывай
-   для такого Change `instructions intake`. Для `base-v1` затем выполни:
-
-   ```bash
-   openspec instructions intake --change <change-id> --json
-   ```
-
-   Используй фактические `planningHome`, путь результата, template, instruction и
-   rules из ответов OpenSpec. Затем прочитай существующий содержательный `intake.md`,
-   если он есть, не затирая его template.
+2. Вызови MCP `get_status` и сравни `change-id` только по точному совпадению. Не ищи
+   Change через fuzzy name или обход файловой системы.
+3. Если Change существует, вызови `get_change_context` с `artifact: intake`. Если
+   `schemaName` не `base-v1`, остановись с `BLOCKER: SCHEMA_MISMATCH`. Используй
+   фактические `planningHome`, путь результата, template, instruction и rules из
+   ответа. Затем прочитай существующий содержательный `intake.md`, если он есть, не
+   затирая его template.
 4. Если Change не существует, проверь согласованный Intent в текущем диалоге или явно
    переданных материалах. Если его нет, остановись с `BLOCKER: INTENT_REQUIRED` и
    предложи сначала пройти `base-intent` либо передать принятый Daily Intent
@@ -73,13 +62,7 @@ Brief из `base-intent` либо явно принятая пользовате
    ```
 
    Не создавай Change до явного выбора идентификатора пользователем. После создания
-   сначала выполни `status`, проверь `schemaName: base-v1` и только затем получи
-   инструкции Intake:
-
-   ```bash
-   openspec status --change <change-id> --json
-   openspec instructions intake --change <change-id> --json
-   ```
+   вызови `get_change_context` с `artifact: intake` и проверь `schemaName: base-v1`.
 
 5. Для нового или существующего Change проверь согласованный Intent в диалоге,
    явно переданных материалах или разделе Intent source существующего Intake. Само
@@ -173,7 +156,7 @@ degraded behavior, автотесты и сквозная проверка. Эт
 Когда информации достаточно для осмысленного решения о следующем маршруте:
 
 1. Собери ответы в единственный файл `intake.md` по template из
-   `openspec instructions intake`. Пользователь не переносит ответы вручную.
+   `get_change_context`. Пользователь не переносит ответы вручную.
 2. Сохрани аналитический смысл ответов, но убери повторы и разговорные промежуточные
    формулировки. Не повышай предположение до факта.
 3. Для UI используй таблицу из template. Для доступа используй отдельную таблицу
@@ -191,7 +174,7 @@ degraded behavior, автотесты и сквозная проверка. Эт
    - `blocked` — требуется отсутствующий нормативный источник, бизнес-решение или
      разрешение конфликта, которое Explore не может придумать.
 7. Запиши файл только когда он содержит реальные ответы и выбранный маршрут. После
-   записи снова выполни `openspec status --change <change-id> --json`.
+   записи снова вызови `get_change_context` для проверки состояния.
 
 Если команда запущена повторно после `/opsx-explore`, добавь подтверждённые findings
 в `Exploration`, обнови связанные разделы Intake, пересмотри открытые вопросы и снова

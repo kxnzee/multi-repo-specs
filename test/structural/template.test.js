@@ -72,7 +72,9 @@ test("Base Template is copy-only and applies identically for every independent A
   const descriptor = parse(await fs.readFile(path.join(TEMPLATE_ROOT, "template.yaml"), "utf8"));
   assert.deepEqual(Object.keys(descriptor).sort(), ["copy", "id", "name", "requires"]);
   assert.equal(descriptor.id, "base");
-  assert.deepEqual(descriptor.requires, { extensions: ["openspec-base"] });
+  assert.deepEqual(descriptor.requires, {
+    extensions: ["openspec-base"],
+  });
   assert.equal(Object.hasOwn(descriptor, "agents"), false);
   const agentDirectories = (await fs.readdir(AGENTS_ROOT, { withFileTypes: true }))
     .filter((entry) => entry.isDirectory())
@@ -169,7 +171,9 @@ test("Superspec Template preserves the complete skill-driven lifecycle", async (
   );
   assert.equal(descriptor.id, "superspec");
   assert.deepEqual(Object.keys(descriptor).sort(), ["copy", "id", "name", "requires"]);
-  assert.deepEqual(descriptor.requires, { extensions: ["superpowers"] });
+  assert.deepEqual(descriptor.requires, {
+    extensions: ["superpowers"],
+  });
 
   const configuration = parse(
     await fs.readFile(path.join(SUPERSPEC_TEMPLATE_ROOT, "openspec/config.yaml"), "utf8"),

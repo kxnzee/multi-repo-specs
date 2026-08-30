@@ -23,6 +23,7 @@ import { PluginCommandMounter } from "./plugin-commands.js";
 import { PluginHost, PluginRegistry } from "./plugin-host.js";
 import { PluginLifecycleService } from "./plugin-lifecycle.js";
 import { PluginManagerService, pluginManagers } from "./plugin-manager.js";
+import { ProjectSetupService } from "./project-setup.js";
 import { RepositoryStatusService } from "./repository-status.js";
 import { storeProjects } from "./store-project.js";
 import { hasMethods } from "./value.js";
@@ -45,6 +46,8 @@ export class PluginPlatform {
   #initSelection;
   #pluginExtensions;
   #lifecycleCommands;
+  #setup;
+  #setupCatalog;
 
   constructor({
     agentAdapter,
@@ -110,6 +113,28 @@ export class PluginPlatform {
       repositoryStatusService: new RepositoryStatusService({ storeProjectService }),
       start,
       storeProjectService,
+    });
+    this.#setup = new ProjectSetupService({
+      bundledTemplateProvider,
+      extensionLifecycle: this.#extensionLifecycle,
+      initializationService: this.#initialization,
+      initSelectionService: this.#initSelection,
+      pluginExtensionConnector: this.#pluginExtensions,
+      start,
+      storeProjectService,
+    });
+    this.#setupCatalog = Object.freeze({
+      default_template_id: bundledTemplateProvider.defaultId,
+      agents: Object.freeze(bundledAgentProvider.catalog.entries.map(({ id, name }) => (
+        Object.freeze({ id, name })
+      ))),
+      templates: Object.freeze(bundledTemplateProvider.catalog.entries.map((entry) => (
+        Object.freeze({
+          id: entry.id,
+          name: entry.name,
+          required_extensions: entry.requiredExtensions,
+        })
+      ))),
     });
     const loadedIds = new Set(registry.list().map(({ id }) => id));
     const activeRootCommands = new Map(
@@ -217,7 +242,28 @@ export class PluginPlatform {
       pluginCommandMounter: this.#commands,
       pluginExtensionConnector: this.#pluginExtensions,
       pluginLifecycleCommands: this.#lifecycleCommands,
+      setupService: this.#setup,
     }).createProgram();
+  }
+
+  /** Runs the exact Doctor composition shared by CLI and other protocol adapters. */
+  inspectDoctor(options) {
+    return this.#doctor.inspect(options);
+  }
+
+  /** Describes the exact bundled choices accepted by strict MCP initialization. */
+  inspectSetup() {
+    return this.#setupCatalog;
+  }
+
+  /** Initializes only the Platform cwd through the shared strict setup application. */
+  initializeProject(input) {
+    return this.#setup.initializeExplicit(input);
+  }
+
+  /** Connects the current Project without relaxed mode or arbitrary workspace override. */
+  connectProject() {
+    return this.#setup.connect({ requireStrict: true });
   }
 
   static async #loadInstalled(start, managerService, storeProjectService) {

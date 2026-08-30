@@ -5,12 +5,12 @@
   "type": "module",
   "exports": {
     ".": "./index.js",
+    "./application": "./lib/application.js",
     "./package.json": "./package.json"
   },
   "files": [
     "README.md",
     "bin",
-    "extension",
     "index.js",
     "lib",
     "viewer"

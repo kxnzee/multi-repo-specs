@@ -12,14 +12,13 @@ description: Подготовить нейтральный repository scope дл
   не угадывай значение и не расширяй scope.
 
 Это единый project entrypoint Apply. Он проверяет только OpenSpec Planning и текущий
-Repository. Не обнаруживать, не вызывать и не имитировать поведение Plugins; каждый
-Plugin подключает собственный Agent Extension независимо от этого skill.
+Repository; Plugin-specific поведение остаётся вне этого skill.
 
 ## Общий preflight
 
-1. Получить Change через `openspec status --change <change-id> --json` и
-   `openspec instructions apply --change <change-id> --json`. Использовать возвращённые
-   paths, contextFiles и Tasks.
+1. Вызвать MCP `get_change_context` с `change_id` и `artifact: apply`, затем
+   `get_assignment_scope`. Использовать возвращённые rules, paths, Tasks, Repository
+   и revision; не собирать этот контекст вручную.
 2. Проверить, что Repository Impact использует строгую таблицу
    `Repository | Capabilities`, все repository-id зарегистрированы, а capability paths
    имеют Delta Specs текущего Change.
@@ -29,16 +28,16 @@ Plugin подключает собственный Agent Extension незави�
    напрямую; не создавать фиктивную Delta Spec.
 5. Неизвестный Repository/capability или расхождение принятого implementation scope
    блокирует Apply и не создаёт Repository автоматически.
-6. Классифицировать current repository как входящий или не входящий в принятый
-   Repository Impact, когда текущий контекст относится к Code Repository.
+6. Сверить полученный assignment с принятым Repository Impact. Не продолжать при
+   расхождении или отсутствии подтверждённого scope.
 
 Для Code Repository передать встроенному Apply только Tasks его принятой repository
 section. Для Store-level координации передать исходный набор Tasks без фильтрации.
 
 ## Навигация и evidence
 
-До кода проверить Git root, repository-id, полный HEAD и пользовательский worktree. Не
-очищать чужие изменения.
+До кода проверить Git root и пользовательский worktree. Repository-id и полный HEAD
+брать из `get_assignment_scope`. Не очищать чужие изменения.
 
 CodeGraph разрешён только внутри current repository и только при ready index на той же
 revision. Иначе использовать адресный read/search. Не запускать sync автоматически и не

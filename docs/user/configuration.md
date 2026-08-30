@@ -88,11 +88,14 @@ Version, revision и абсолютный путь в Store не записыв�
 
 Project без Template или Agent недопустим.
 
-`openspec-base` и `superpowers` — independently delivered bundled Extensions. Template
-не копирует их payload, но может объявить required Extensions. Bundled профили:
-`base → openspec-base`, `superspec → superpowers`. Поэтому init показывает совместимую
+`openspec-base` и `superpowers` — independently delivered bundled Project Extensions.
+Template не копирует их payload, но может объявить required Extensions.
+Bundled профили: `base → openspec-base`, `superspec → superpowers`. Поэтому init показывает совместимую
 связку, добавляет requirement автоматически и отклоняет `--no-extensions` для обоих
 bundled Template. Дополнительные Extensions по-прежнему выбираются явно.
+
+`orchestrator-agent` не хранится в `extensions[]`: это distribution-owned user-level
+gateway, устанавливаемый явной командой `openspec-orch agent setup --agent <id>`.
 
 Порядок задаётся повторяемыми флагами `init --extension <id>`. `connect` последовательно
 передаёт выбранные standalone Extension и contributions всех сохранённых Plugin

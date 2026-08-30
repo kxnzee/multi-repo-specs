@@ -22,10 +22,12 @@ test("root distribution exposes the candidate entrypoint and required runtime fi
   assert.deepEqual(manifest.bin, {
     "openspec-orch": "./bin/openspec-orch.js",
     "openspec-orch-codegraph": "./bin/openspec-orch-codegraph.js",
+    "openspec-orch-mcp": "./bin/openspec-orch-mcp.js",
   });
   assert.deepEqual(manifest.files, ["agents", "bin", "extensions", "templates"]);
   assert.deepEqual(manifest.dependencies, {
     "@openspec-orch/core": "0.1.0",
+    "@openspec-orch/mcp": "1.0.0",
     "@openspec-orch/plugin-change-tracking": "1.0.0",
     "@openspec-orch/plugin-codegraph": "1.0.0",
     "@openspec-orch/plugin-openspec-graph": "1.0.0",

@@ -11,7 +11,7 @@ import {
 } from "../native-extension.js";
 
 /** Requires the requested Claude Plugin to be installed and enabled. */
-function assertPluginEnabled(output, qualifiedId) {
+function assertPluginEnabled(output, qualifiedId, scope) {
   let plugins;
   try {
     plugins = JSON.parse(output);
@@ -23,7 +23,12 @@ function assertPluginEnabled(output, qualifiedId) {
   if (!Array.isArray(plugins)) {
     throw new Error("AGENT_EXTENSION_STATUS_INVALID: Claude plugin list должен вернуть массив");
   }
-  const plugin = plugins.find(({ id }) => id === qualifiedId);
+  const plugin = plugins.find(({ id, scope: candidateScope }) => (
+    id === qualifiedId && (scope === undefined || candidateScope === scope)
+  ));
+  if (!plugin && scope !== undefined && plugins.some(({ id }) => id === qualifiedId)) {
+    throw new Error(`AGENT_EXTENSION_STATUS_SCOPE_MISSING: ${qualifiedId} (${scope})`);
+  }
   if (!plugin) throw new Error(`AGENT_EXTENSION_STATUS_MISSING: ${qualifiedId}`);
   if (plugin.enabled !== true) {
     throw new Error(`AGENT_EXTENSION_STATUS_DISABLED: ${qualifiedId}`);
@@ -69,25 +74,26 @@ const claudeAdapter = Object.freeze({
     const resolvedNativeId = nativeExtensionId(extension.id, request.ownerId);
     const resolvedMarketplaceId = `openspec-orch-${resolvedNativeId}`;
     const qualifiedId = `${resolvedNativeId}@${resolvedMarketplaceId}`;
+    const scope = request.scope ?? context.agent.scope;
     if (request.operation === "connect") {
       await this.validateExtension(extension, context.agent, { nativeId: resolvedNativeId });
       await runNative(context, extension, [
-        "plugin", "marketplace", "add", extension.root, "--scope", context.agent.scope,
+        "plugin", "marketplace", "add", extension.root, "--scope", scope,
       ]);
       return runNative(context, extension, [
-        "plugin", "install", qualifiedId, "--scope", context.agent.scope,
+        "plugin", "install", qualifiedId, "--scope", scope,
       ]);
     }
     if (request.operation === "status") {
       const output = await runNative(context, extension, ["plugin", "list", "--json"]);
-      assertPluginEnabled(output, qualifiedId);
+      assertPluginEnabled(output, qualifiedId, request.scope);
       return output;
     }
     await runNative(context, extension, [
-      "plugin", "uninstall", qualifiedId, "--scope", context.agent.scope,
+      "plugin", "uninstall", qualifiedId, "--scope", scope,
     ]);
     return runNative(context, extension, [
-      "plugin", "marketplace", "remove", resolvedMarketplaceId, "--scope", context.agent.scope,
+      "plugin", "marketplace", "remove", resolvedMarketplaceId, "--scope", scope,
     ]);
   },
 });

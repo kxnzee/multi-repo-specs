@@ -3,8 +3,10 @@
 ## Состав дистрибутива
 
 ```text
-bin/openspec-orch.js                  composition root
+bin/openspec-orch.js                  CLI composition root
+bin/openspec-orch-mcp.js              built-in Agent adapter composition root
 ├── @openspec-orch/core               generic orchestration
+├── @openspec-orch/mcp                governed MCP transport
 ├── @openspec-orch/plugin-sdk         public extension API
 ├── @openspec-orch/plugin-change-tracking
 ├── @openspec-orch/plugin-codegraph
@@ -162,6 +164,30 @@ Repository-scoped adapter вызывает package-owned CodeGraph runtime в п
 passthrough. Plugin поставляет Repository-scoped Extension, через который Agent
 подключает общие инструкции и MCP. Внутренняя модель CodeGraph не импортируется в
 OpenSpec Graph или Store artifacts.
+
+## Orchestrator MCP
+
+`@openspec-orch/mcp` — встроенный transport adapter, а не Project Plugin. Он владеет
+только protocol allowlist и stdio server. CLI и MCP собираются через общий
+distribution composition и вызывают Core либо публичные application API Plugins;
+workflow policy в MCP не дублируется. `extensions/orchestrator-agent/` доставляет
+одинаковые настройки MCP всем Agent providers. Явный `agent setup` устанавливает её
+один раз в user scope; Project registry и Template composition в этом lifecycle не участвуют.
+
+Read handlers не делают Store pull. Два setup handlers вызывают общий
+`ProjectSetupService`: `initialize_project` ограничен cwd процесса и strict mode,
+`connect_project` запрещает relaxed Project и не принимает произвольный workspace.
+Они идемпотентны, но могут создавать Store-файлы, регистрировать Store, включать Agent
+Extensions и клонировать remotes из Project registry. MCP не содержит receipt,
+verification, Release, Archive, произвольный Git write, Plugin lifecycle, disconnect,
+произвольный процесс или сетевой transport. Graph и Tracking остаются необязательными
+overlays, а Core не знает их IDs.
+
+Agent instructions не повторяют schemas, setup constraints и artifact rules, которые
+возвращает MCP. В них остаются только невыразимые transport allowlist правила:
+когда допустимо исследовать Code Repository, как не обходить отсутствующий tool через
+shell и где требуется human gate. Детальные контракты command, skill и subagent живут
+в собственных artifacts и загружаются только для соответствующей задачи.
 
 ## Безопасные facades
 

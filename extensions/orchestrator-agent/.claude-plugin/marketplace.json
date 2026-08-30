@@ -1,0 +1,13 @@
+{
+  "name": "openspec-orch-orchestrator-agent",
+  "owner": {
+    "name": "OpenSpec Orchestrator"
+  },
+  "plugins": [
+    {
+      "name": "orchestrator-agent",
+      "source": "./",
+      "description": "Governed OpenSpec Orchestrator MCP gateway"
+    }
+  ]
+}

@@ -148,17 +148,30 @@ export class BundledExtensionProvider {
   #catalog;
   #packages;
 
-  constructor(packages = []) {
+  constructor(packages = [], { catalogExcludeIds = [] } = {}) {
     if (
       !Array.isArray(packages) ||
       packages.some((extensionPackage) => !(extensionPackage instanceof BundledExtensionPackage))
     ) {
       invalid("packages должен содержать BundledExtensionPackage");
     }
+    if (
+      !Array.isArray(catalogExcludeIds) ||
+      catalogExcludeIds.some((id) => typeof id !== "string") ||
+      new Set(catalogExcludeIds).size !== catalogExcludeIds.length
+    ) {
+      invalid("catalogExcludeIds должен содержать уникальные Extension IDs");
+    }
     const sorted = [...packages].sort((left, right) => left.id.localeCompare(right.id));
-    this.#catalog = new ExtensionCatalog(sorted.map((extensionPackage) => (
+    const availableIds = new Set(sorted.map(({ id }) => id));
+    const unknown = catalogExcludeIds.find((id) => !availableIds.has(id));
+    if (unknown) invalid(`catalogExcludeIds содержит неизвестный Extension ID ${unknown}`);
+    const excluded = new Set(catalogExcludeIds);
+    this.#catalog = new ExtensionCatalog(sorted
+      .filter(({ id }) => !excluded.has(id))
+      .map((extensionPackage) => (
       extensionPackage.toCatalogEntry()
-    )));
+      )));
     this.#packages = Object.freeze(sorted);
     Object.freeze(this);
   }

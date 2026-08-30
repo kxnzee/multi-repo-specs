@@ -10,8 +10,9 @@
 | `plugins/change-tracking/` | Cycle/Receipts/Snapshot |
 | `plugins/codegraph/` | CodeGraph lifecycle, launcher и Repository-scoped Agent Extension |
 | `plugins/openspec-graph/` | Store graph, queries и viewer |
+| `packages/mcp/` | Встроенный governed MCP adapter с read tools и ограниченным setup surface |
 | `agents/` | Distribution-owned Agent definitions и provider-specific native adapters |
-| `extensions/` | Bundled standalone Agent Extensions |
+| `extensions/` | Bundled standalone Agent Extensions, включая общий `orchestrator-agent` gateway |
 | `templates/` | Bundled Project Template catalog; `base` является default |
 | `packages/core/templates/plugin-extension/` | Agent artifacts scaffold создаваемого Plugin |
 | `test/` | Distribution integration tests |

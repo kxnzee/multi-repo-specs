@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "openspec-orchestrator": {
+      "command": "openspec-orch-mcp",
+      "args": [],
+      "cwd": "${CLAUDE_PROJECT_DIR}"
+    }
+  }
+}

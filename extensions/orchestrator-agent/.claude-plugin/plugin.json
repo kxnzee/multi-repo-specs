@@ -1,0 +1,9 @@
+{
+  "name": "orchestrator-agent",
+  "version": "1.0.0",
+  "description": "Governed OpenSpec Orchestrator MCP gateway",
+  "author": {
+    "name": "OpenSpec Orchestrator"
+  },
+  "mcpServers": "./.mcp.json"
+}

@@ -23,12 +23,14 @@ Project Template — copy-only каталог, который `openspec-orch ini
 
 Команды, skills, bootstrap instructions и subagent принадлежат отдельному bundled
 Extension `openspec-base` и активируются нативным механизмом выбранного Agent. Base
-декларативно требует этот Extension: init показывает связку, блокирует снятие выбора и
-добавляет его автоматически в flag mode.
+декларативно требует его: init блокирует снятие выбора и добавляет Extension
+автоматически в flag mode. Общий MCP gateway не входит в Project composition и
+устанавливается отдельно командой `openspec-orch agent setup` в user scope.
 
 Base Template и `openspec-base` Extension не обнаруживают и не вызывают конкретные
-Plugins. Change Tracking поставляет только собственные команды, а OpenSpec Graph —
-команды и Agent Extension; оба подключаются независимо от Template.
+Plugins. Change Tracking и OpenSpec Graph поставляют собственные application/CLI
+capabilities и подключаются независимо от Template; встроенный MCP читает их только
+когда соответствующий Plugin доступен.
 
 ### Superspec Template
 
@@ -39,8 +41,8 @@ worktrees, subagent-driven TDD, task/final review, systematic debugging, fresh
 verification и structured branch closeout. `apply.md`, `verify.md` и `finalize.md`
 делают handoff и convergence loop проверяемыми.
 
-Template и Extension сохраняют раздельное владение, но `superspec` декларативно
-требует `superpowers`. В интерактивном init порядок такой:
+Template и Extension сохраняют раздельное владение: `superspec` декларативно
+требует только `superpowers`. В интерактивном init порядок такой:
 
 ```text
 Store ID → Project Template → Agent → Extensions → Code Repositories

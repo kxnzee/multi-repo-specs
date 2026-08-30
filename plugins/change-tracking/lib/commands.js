@@ -10,44 +10,13 @@ import {
   CHANGE_TRACKING_RECEIPT_SOURCE,
   CHANGE_TRACKING_VERIFICATION_RESULT,
 } from "./contracts.js";
+import { formatStatusJson } from "./application.js";
 import { ChangeTrackingService } from "./service.js";
 import { StoreGitSync } from "./store-git-sync.js";
 
 /** Normalizes Commander negation and SDK executor camel-case option shapes. */
 function noPushRequested(options) {
   return options.noPush === true || options.push === false;
-}
-
-/** Produces the stable agent-facing status JSON. */
-export function formatStatusJson(status, currentRepository) {
-  return Object.freeze({
-    change_id: status.changeId,
-    tracked: true,
-    cycle_id: status.cycle.cycleId,
-    planning_revision: status.cycle.planningRevision,
-    repositories: status.cycle.repositories,
-    committed: status.committed,
-    current_repository: currentRepository
-      ? Object.freeze({
-        repository_id: currentRepository.id,
-        role: currentRepository.role,
-        path: currentRepository.path,
-        in_cycle: status.cycle.repositories.includes(currentRepository.id),
-      })
-      : null,
-    results: Object.freeze(status.repositories.map((repository) => Object.freeze({
-      repository_id: repository.repositoryId,
-      implementation_revision: repository.receipt?.implementation_revision ?? null,
-      source: repository.receipt?.source ?? null,
-      connected: repository.connected,
-      commit_available: repository.commitAvailable,
-      head: repository.head,
-      head_matches: repository.headMatches,
-    }))),
-    snapshot: status.snapshot,
-    verification: status.verification,
-    release_ready: status.releaseReady,
-  });
 }
 
 /** Produces one batch envelope for every active OpenSpec Change. */

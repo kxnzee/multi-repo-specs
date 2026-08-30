@@ -31,11 +31,10 @@ request проверяет один вопрос в одном Repository.
 
 ## Preflight
 
-1. Выполнить openspec status --change <change-id> --json. Использовать возвращённые
-   planningHome, changeRoot, artifactPaths и actionContext.
-2. Для отдельного артефакта выполнить openspec instructions <artifact-id> --change
-   <change-id> --json. Поле rules из этого ответа — единственный содержательный
-   checklist стадии.
+1. Вызвать MCP `get_change_context` с `change_id` и текущим `artifact`. Использовать
+   возвращённые planningHome, changeRoot, artifactPaths, actionContext и rules.
+2. `rules` из этого ответа — единственный содержательный checklist стадии. Не
+   реконструировать его из документации или памяти сессии.
 3. Прочитать только существующие outputs, их зависимости и релевантный Store context.
    Отсутствие ещё не разблокированного следующего артефакта не является finding.
 4. Если существует openspec-orch.yaml, использовать code repository records как
@@ -65,7 +64,7 @@ request проверяет один вопрос в одном Repository.
 
 ## Проверка
 
-Сопоставить текущий артефакт с фактическими rules из openspec instructions и
+Сопоставить текущий артефакт с фактическими rules из `get_change_context` и
 подтверждёнными зависимостями:
 
 - утверждение о целевом поведении проверяется по intent, Proposal и Specs;
@@ -107,8 +106,8 @@ openspec-base-repository-evidence-scout.
 - Общий или межрепозиторный вопрос сначала разложить на независимые
   repository-specific вопросы. Для каждого подготовить собственные question_id,
   полный входной контракт и отдельный результат.
-- Передать question_id, question, один repository-id, проверенный checkout, полный
-  revision и anchors. Identity, revision и чистоту worktree проверить до вызова.
+- Передать question_id, question, один repository-id, checkout, revision и anchors
+  из `get_assignment_scope`. Чистоту worktree проверить до вызова.
 - Для каждого вызова принять только один YAML-объект `repository_evidence` с тем же
   question_id и полями status, answer и evidence. Текст до или после YAML
   считать нарушением контракта и не использовать как evidence.
