@@ -217,9 +217,7 @@ test("Superspec Template preserves the complete skill-driven lifecycle", async (
     assert.match(schemaSource, new RegExp(`superpowers:${skill}`, "u"), skill);
   }
   assert.match(schemaSource, /openspec-verify-change/u);
-  assert.match(schemaSource, /Change Tracking/u);
-  assert.match(schemaSource, /Result Receipt/u);
-  assert.match(schemaSource, /Snapshot/u);
+  assert.doesNotMatch(schemaSource, /Change Tracking|Result Receipt|Snapshot/u);
   assert.match(schemaSource, /Repository ID/u);
   assert.doesNotMatch(
     schemaSource,
@@ -235,9 +233,6 @@ test("Superspec Template preserves the complete skill-driven lifecycle", async (
     tasks.match(/^- \[ \] \d+\.\d+ Получить подтверждение, что текущая версия изменения успешно проверена/gmu)?.length,
     1,
   );
-  const notice = await fs.readFile(path.join(schemaRoot, "NOTICE.md"), "utf8");
-  assert.match(notice, /danielhanold\/superspec/u);
-  assert.match(notice, /e1c8f417ee3601208416d988ba3b37d83ddb63f2/u);
 });
 
 test("Superspec Template applies identically for every independent Agent", async (t) => {

@@ -6,7 +6,7 @@
   принадлежат каталогу openspec/; Code Repositories только реализуют принятые Changes.
 - openspec/context/ содержит подтверждённый долговечный контекст, но не заменяет
   Requirements. Его обновляет только команда /openspec-base-context.
-- openspec-orch.yaml — реестр точных repository-id и подключённых Plugin.
+- openspec-orch.yaml — реестр точных repository-id и состава проекта.
 - Локальное устройство, test/build commands и implementation evidence принадлежат
   конкретному Code Repository и не копируются в Store context.
 
@@ -45,10 +45,9 @@
   дополнительное уточнение; агент не запускает следующий маршрут автоматически.
 - Проверка Proposal, Specs, Design, Tasks, impact или полного Planning:
   openspec-base-meta-planning.
-- Единый entrypoint preflight штатного Apply: openspec-base-apply-context. Без Change
-  Tracking он готовит standard mode; при подключённом Plugin передаёт его часть
-  установленному plugin-owned skill change-tracking-apply-context, затем продолжает
-  общий Apply preflight.
+- Единый нейтральный entrypoint preflight штатного Apply:
+  openspec-base-apply-context. Он проверяет принятый Repository Impact, repository
+  sections Tasks и текущий Repository, не обнаруживая и не вызывая Plugins.
 - Трассируемые test cases: openspec-base-test-cases.
 - Инициализация, общий или change/spec/domain-scoped аудит и обновление Store context
   и ADR: /openspec-base-context. После Archive context audit является необязательным
@@ -95,14 +94,14 @@ context command.
 ## Доступ к Code Repository
 
 - Открывай Code Repository только для одного конкретного технического утверждения,
-  которое нельзя проверить по Store, Specs, Graph и подтверждённой архитектуре.
+  которое нельзя проверить по Store, Specs и подтверждённой архитектуре.
 - Путь принимай только из разрешённого runtime/workset root, явного абсолютного пути
   пользователя или openspec-orch repository status --repo <repository-id>. Не читай
   .openspec-orch/state.json напрямую.
 - Канонизируй path, проверь Git root, repository identity, полный HEAD и допустимое
   состояние worktree. Не ищи workspace или checkout обходом файловой системы.
-- Ограничивай чтение одним checkout. Не открывай родительские, соседние repositories
-  и другой repository Cycle в том же evidence request.
+- Ограничивай чтение одним checkout. Не открывай родительские или соседние repositories
+  в том же evidence request.
 - CodeGraph используй только внутри уже разрешённого Repository и только когда его
   index соответствует revision. Он ускоряет навигацию, но не доказывает runtime
   behavior или выполнение проверки.

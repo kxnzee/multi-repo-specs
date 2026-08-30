@@ -43,7 +43,7 @@ Orchestrator. Один человек может совмещать нескол
     ↓
 Разработчики: Apply → PR → repository checks
     ↓
-Тестировщик: candidate/Snapshot → IFT/QA
+Тестировщик: собранная версия → IFT/QA
     ↓
 Команда: Gate 2 → Gate 3 → Release
     ↓
@@ -98,31 +98,33 @@ Rollout выполняйте в порядке, не создающем несо
 необязательное поле сначала начинает отдавать producer, затем его использует consumer;
 удаление старого поведения оформляется отдельным Change после миграции всех клиентов.
 
-В Standard flow точные commits передаются действующим каналом команды. В Change
-Tracking flow каждый Result Receipt локален. Разработчик может записать его на своей
-машине, но тестировщику все равно потребуется полный SHA, потому что Receipts не
-переносятся между машинами.
+OpenSpec workflow реализации не зависит от Change Tracking. Без Plugin точные commits
+передаются действующим каналом команды. При подключённом Change Tracking evidence
+scope, implementation revisions и проверки публикуются файлами в общем Git Store.
+Команды автоматически выполняют необходимую синхронизацию; состояние коллег становится
+видимым после pull, а не в real-time.
 
-### Передача SHA в Change Tracking v1
+### Передача частей в Change Tracking
 
-1. Аналитик создает и коммитит Cycle Record в Store.
-2. Разработчики получают Store через Git и видят Cycle командой
+1. После Planning ответственный вызывает `openspec-orch track <change-id>`: команда
+   через OpenSpec 1.11 проверяет готовность `apply.requires` и их транзитивных
+   зависимостей, затем начинает сбор evidence и фиксирует scope из принятого
+   `Repository Impact`. Она не назначает Tasks и не означает начало работы над ними.
+2. Разработчики получают Store через Git и видят evidence scope командой
    `openspec-orch status <change-id>`.
-3. Каждый реализует свою часть, пушит commit и передает полный SHA обычным каналом.
-4. Тестировщик fetch-ит commits и записывает Results локально:
+3. Каждый реализует свою часть, коммитит и пушит её, затем из чистого Code Repository
+   вызывает `openspec-orch done`. Plugin определяет Repository, Cycle и `HEAD`, после
+   чего публикует repository-owned receipt. Активные Changes читаются через
+   `openspec status --all --json`; при неоднозначности нужен `--change`.
+4. Последний `done` автоматически вычисляет точную версию. Если implementation commit
+   отсутствует в известных remote-tracking refs, команда предупреждает о риске
+   недоступного SHA.
+5. Тестировщик читает актуальный `status`, разворачивает указанную версию, выполняет
+   проверку и вызывает
+   `openspec-orch verify pass --change <change-id>` либо `verify fail`.
 
-   ```bash
-   openspec-orch record assignment <change-id> \
-     --repo frontend --commit <full-sha1> \
-     --status completed --source human \
-     --note "SHA от разработчика, PR #42"
-   ```
-
-5. Тестировщик вызывает `verify`, разворачивает/checkout-ит точные версии Snapshot,
-   выполняет проверку и записывает Verification Receipt.
-
-`source: human` честно означает ручной перенос подтвержденного SHA; он не делает
-Receipt автоматически полученным из CI.
+`source: human` по умолчанию честно означает человеческое решение. Для CI укажите
+`--source ci`. Plugin не делает pass/fail автоматически.
 
 ## Gate 2 — implementation candidate
 
@@ -130,7 +132,7 @@ Receipt автоматически полученным из CI.
 - точные implementation commits и поставляемый artifact зафиксированы;
 - candidate соответствует принятому Change;
 - отклонения либо отсутствуют, либо возвращены в Planning и приняты повторно;
-- в Change Tracking flow Gate относится к текущему Snapshot.
+- в Change Tracking flow Gate относится к текущей собранной версии.
 
 ## Gate 3 — release ready
 
@@ -139,7 +141,7 @@ Receipt автоматически полученным из CI.
 - блокирующих дефектов нет;
 - rollout, наблюдение и rollback подтверждены;
 - финальный checkpoint `tasks.md` закрыт человеком для текущей версии;
-- в Change Tracking flow Verification Receipt относится к текущему Snapshot.
+- в Change Tracking flow результат проверки относится к текущей собранной версии.
 
 ## Release и Archive
 

@@ -124,17 +124,17 @@ test("Plugin parser errors use the Commander invalid-argument contract", async (
 
 test("explicit composition policy can mount trusted Plugin commands at root", async (t) => {
   const actions = [];
-  const tracking = await loadPluginExport(t, commandPlugin("change-tracking", (commands) => {
+  const sample = await loadPluginExport(t, commandPlugin("sample", (commands) => {
     commands.command("assign <change-id>")
       .description("Назначить Change")
       .action((changeId) => actions.push(changeId));
   }));
   const program = candidate(
-    new PluginRegistry([tracking]),
-    new Map([["change-tracking", ["assign"]]]),
+    new PluginRegistry([sample]),
+    new Map([["sample", ["assign"]]]),
   ).createProgram();
 
-  assert.equal(program.commands.some((command) => command.name() === "change-tracking"), false);
+  assert.equal(program.commands.some((command) => command.name() === "sample"), false);
   assert.equal(program.commands.some((command) => command.name() === "assign"), true);
   await program.parseAsync(["node", "openspec-orch", "assign", "checkout-flow"]);
   assert.deepEqual(actions, ["checkout-flow"]);
@@ -189,6 +189,25 @@ test("duplicate Plugin command paths fail while building CLI before any action",
     /PLUGIN_COMMAND_CONFLICT: command path 'duplicate check'/,
   );
   assert.equal(actionCalls, 0);
+});
+
+test("recoverable Plugin command failure rolls back its namespace without blocking Core", async (t) => {
+  const failures = [];
+  const broken = await loadPluginExport(t, commandPlugin("broken", (commands) => {
+    commands.command("partial").description("Partial").action(() => {});
+    throw new Error("broken contribution");
+  }));
+  const mounter = new PluginCommandMounter({
+    registry: new PluginRegistry([broken]),
+    resolveContext: async () => undefined,
+    onError: (pluginId, error) => failures.push([pluginId, error.message]),
+  });
+
+  const program = new CandidateCli({ pluginCommandMounter: mounter }).createProgram();
+
+  assert.equal(program.commands.some((command) => command.name() === "doctor"), true);
+  assert.equal(program.commands.some((command) => command.name() === "broken"), false);
+  assert.deepEqual(failures, [["broken", "broken contribution"]]);
 });
 
 test("two root Plugins cannot contribute the same command path", async (t) => {

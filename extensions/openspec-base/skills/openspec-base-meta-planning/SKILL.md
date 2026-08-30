@@ -1,6 +1,6 @@
 ---
 name: openspec-base-meta-planning
-description: Единая read-only проверка Proposal, Specs, Design, Tasks, impact или полного Planning OpenSpec Change. Использует фактические artifact rules, текущий Graph Report и адресные вызовы repository evidence scout по правилу «один вопрос — один subagent»; не изменяет артефакты и не принимает Gate.
+description: Единая read-only проверка Proposal, Specs, Design, Tasks, impact или полного Planning OpenSpec Change. Использует фактические artifact rules, Store-артефакты и адресные вызовы repository evidence scout по правилу «один вопрос — один subagent»; не изменяет артефакты и не принимает Gate.
 ---
 
 # Meta Planning
@@ -18,7 +18,7 @@ planning-review. Не создавать параллельный workflow и н
 ## Границы
 
 - Не изменять Change, Master Specs, код, тесты или Tasks.
-- Не изменять schema, встроенные OpenSpec skills/commands и Cycle.
+- Не изменять schema, встроенные OpenSpec skills/commands или состояние выполнения.
 - Не считать результат approval, Gate или evidence реализации.
 - Не вызывать этот meta-skill рекурсивно.
 - Не запускать все проверки формально: использовать минимальный scope текущей стадии.
@@ -41,28 +41,27 @@ request проверяет один вопрос в одном Repository.
 4. Если существует openspec-orch.yaml, использовать code repository records как
    точные identity, но не как доказательство impact.
 
-## Graph
+## Capability и repository scope
 
 До валидных Delta Specs:
 
 - capability candidates брать из Proposal;
 - неизвестный path находить через openspec list --specs --json и читать только точную
   Master Spec;
-- не выполнять `graph inspect`: полный report ещё не отражает завершённый Change;
-- не объявлять Cycle scope.
+- не объявлять repository implementation scope до принятого Repository Impact.
 
 После валидных Delta Specs:
 
-- выполнить `openspec-orch graph inspect --json`;
-- считать любую Graph error blocker и проверить каждый warning;
-- сверить таблицу Repository Impact с capabilities Delta Specs, Design map, Tasks и
-  при наличии Cycle repositories;
-- не принимать свободный список Repository как Graph mapping и не допускать неявный
+- сверить таблицу Repository Impact с capabilities Delta Specs, Design map и Tasks;
+- проверить repository-id по registry из `openspec-orch.yaml`, а capability paths —
+  по Delta Specs текущего Change;
+- не принимать свободный список Repository как mapping и не допускать неявный
   cross-product между несколькими repositories и capabilities;
-- review-only Repository не входит в Repository Impact, Design map, Tasks или Cycle;
+- review-only Repository не входит в Repository Impact, Design map или Tasks;
   если проверка подтвердила необходимое изменение, вернуть Change в Planning и только
   тогда добавить точную строку mapping;
-- `UNLINKED_MASTER_SPEC` не расширяет scope автоматически.
+- неизвестный Repository или capability является blocker и не расширяет scope
+  автоматически.
 
 ## Проверка
 
@@ -75,7 +74,7 @@ request проверяет один вопрос в одном Repository.
   либо явно сохранены в ненормативной границе без молчаливой потери;
 - техническое решение трассируется к Requirement, Scenario или ограничению Proposal;
 - Task трассируется к принятому поведению/решению и плану evidence;
-- repository scope сопоставляется с текущим Graph Report;
+- repository scope сопоставляется с Repository Impact, Delta Specs, Design map и Tasks;
 - Repository Impact содержит только repositories с планируемыми изменениями и не
   повторяет весь registry либо review-контур;
 - полный Planning Review проверяет цепочку source → Why/scope → capability →
@@ -136,7 +135,7 @@ automation_placement: unknown.
 meta_planning:
   change: <change-id>
   stage: proposal | specs | design | tasks | impact-review | planning-review
-  graph_check: not_run | ready | invalid | not_configured
+  artifact_check: ready | invalid
   scope_status: not_applicable | ready | invalid
   checks_used: []
   repository_scout_used: false

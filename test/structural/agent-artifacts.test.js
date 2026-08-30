@@ -10,6 +10,9 @@ import { parse } from "yaml";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/base/", import.meta.url));
 const EXTENSION_ROOT = fileURLToPath(new URL("../../extensions/openspec-base/", import.meta.url));
+const CORE_ROOT = fileURLToPath(new URL("../../packages/core/internal/", import.meta.url));
+const SDK_ROOT = fileURLToPath(new URL("../../packages/plugin-sdk/internal/", import.meta.url));
+const PLUGINS_ROOT = fileURLToPath(new URL("../../plugins/", import.meta.url));
 
 /** Разбирает обязательный YAML frontmatter Markdown artifact. */
 function parseFrontmatter(source, artifact) {
@@ -27,6 +30,17 @@ function parseFrontmatter(source, artifact) {
 async function entries(directory) {
   return (await fs.readdir(directory, { withFileTypes: true }))
     .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+/** Возвращает все обычные files ниже directory в стабильном порядке. */
+async function files(directory) {
+  const result = [];
+  for (const entry of await entries(directory)) {
+    const target = path.join(directory, entry.name);
+    if (entry.isDirectory()) result.push(...await files(target));
+    else if (entry.isFile()) result.push(target);
+  }
+  return result;
 }
 
 test("every skill and command is a self-describing standalone artifact", async () => {
@@ -117,35 +131,36 @@ test("repository evidence delegation keeps one question per subagent invocation"
   );
 });
 
-test("Apply context uses the stateless OpenSpec Graph inspection contract", async () => {
+test("Apply context validates repository scope without Plugin-specific routing", async () => {
   const relative = "skills/openspec-base-apply-context/SKILL.md";
   const source = await fs.readFile(path.join(EXTENSION_ROOT, relative), "utf8");
 
-  assert.match(source, /`openspec-orch graph inspect --json`/, relative);
-  assert.match(source, /`errors: 0`/, relative);
   assert.match(source, /`Repository \| Capabilities`/, relative);
-  assert.doesNotMatch(source, /graph check-scope/u, relative);
-  assert.doesNotMatch(source, /missing_required_repositories/u, relative);
+  assert.match(source, /не обнаруживать, не вызывать и не имитировать поведение Plugins/iu, relative);
 });
 
-test("Base agent artifacts do not reference the removed OpenSpec Graph lifecycle", async () => {
-  const artifacts = [
-    [EXTENSION_ROOT, "agent-instructions.md"],
-    [TEMPLATE_ROOT, "openspec/config.yaml"],
-    [EXTENSION_ROOT, "skills/openspec-base-apply-context/SKILL.md"],
-    [EXTENSION_ROOT, "skills/openspec-base-meta-planning/SKILL.md"],
-  ];
-  const removedContract = /graph (?:build|status|impact|check-scope|sync)|graph_phase|scope_check|stale \| unavailable/iu;
-
-  for (const [root, relative] of artifacts) {
-    const source = await fs.readFile(path.join(root, relative), "utf8");
-    assert.doesNotMatch(source, removedContract, relative);
+test("Base and Superspec artifacts do not depend on concrete Plugins", async () => {
+  const superspecRoot = fileURLToPath(new URL("../../templates/superspec/", import.meta.url));
+  const forbidden = /change[ -]tracking|change-tracking|result receipt|\bcycle records?\b|\bsnapshot\b|openspec-orch graph|openspec graph/iu;
+  for (const root of [EXTENSION_ROOT, TEMPLATE_ROOT, superspecRoot]) {
+    for (const file of await files(root)) {
+      const source = await fs.readFile(file, "utf8");
+      assert.doesNotMatch(source, forbidden, path.relative(root, file));
+    }
   }
+});
 
-  const metaPlanning = await fs.readFile(
-    path.join(EXTENSION_ROOT, "skills/openspec-base-meta-planning/SKILL.md"),
-    "utf8",
-  );
-  assert.match(metaPlanning, /graph_check: not_run \| ready \| invalid \| not_configured/u);
-  assert.match(metaPlanning, /scope_status: not_applicable \| ready \| invalid/u);
+test("Core, SDK and unrelated Plugins do not know Change Tracking contracts", async () => {
+  const forbidden = /change[ -]tracking|@openspec-orch\/plugin-change-tracking|change-tracking-apply-context|result receipt|cycle record/iu;
+  const unrelatedPluginFiles = (await files(PLUGINS_ROOT)).filter((file) => (
+    !file.startsWith(path.join(PLUGINS_ROOT, "change-tracking", path.sep))
+  ));
+  for (const file of [
+    ...await files(CORE_ROOT),
+    ...await files(SDK_ROOT),
+    ...unrelatedPluginFiles,
+  ]) {
+    const source = await fs.readFile(file, "utf8");
+    assert.doesNotMatch(source, forbidden, path.relative(fileURLToPath(new URL("../../", import.meta.url)), file));
+  }
 });

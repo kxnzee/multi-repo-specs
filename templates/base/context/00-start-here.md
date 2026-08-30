@@ -13,10 +13,9 @@
   Тестировщик и Лид. Один человек может совмещать несколько ролей; project policy
   назначает конкретных участников и дополнительные approvers.
 - Если существует `openspec-orch.yaml`, используйте его `repositories` как реестр
-  точных `repository-id`, а связи репозиториев и Specs читайте из валидированной
-  модели обязательного OpenSpec Graph Plugin. Отсутствие Plugin declaration или
-  Store binding является blocker; локальное техническое устройство читайте только в
-  самих Code Repositories и их файлах инструкций агента.
+  точных `repository-id`, а связи репозиториев и Specs — из принятых Repository
+  Impact и Delta Specs. Локальное техническое устройство читайте только в самих Code
+  Repositories и их файлах инструкций агента.
 - Не переносите в центральный Store структуру модулей и классов, версии технологий,
   локальные API/config-параметры, команды build/test/lint, CI и упаковку отдельного
   Code Repository.
@@ -32,7 +31,7 @@
 |---|---|
 | Назначение, пользователи и границы продукта | `01-product-context.md`, `02-domain-glossary.md` |
 | Архитектура, компоненты и интеграции | `03-architecture.md`, `ADR/` |
-| Репозитории, Specs и их связи | `openspec-orch.yaml`, Delta Specs и Repository Impact через OpenSpec Graph Plugin |
+| Репозитории, Specs и их связи | `openspec-orch.yaml`, Delta Specs и Repository Impact |
 | Локальное техническое устройство репозитория | Файл инструкций агента, документация, конфигурация, код и тесты соответствующего Code Repository |
 | Доменное поведение и общие инварианты | `04-domain-model.md`, `06-cross-system-invariants.md` |
 | Безопасность и ограничения данных | `05-security-and-compliance.md` |

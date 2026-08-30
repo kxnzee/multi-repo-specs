@@ -16,16 +16,16 @@
 5. При необходимости откройте [Plugins](plugins.md),
    [конфигурацию](configuration.md) или [Project Template](project-template.md).
 
-## Два поддерживаемых режима Change
+## Опциональный слой implementation evidence
 
-| Режим | Когда использовать | Что добавляет |
+| Слой | Что делает |
 |---|---|---|
-| Standard OpenSpec + Graph | Change Tracking не подключен или после `CYCLE_NOT_FOUND` человек явно выбрал Standard Apply | Planning, Graph scope, штатные Apply/Archive; commits и verification фиксируются процессом команды |
-| OpenSpec + Graph + Change Tracking | Нужен локальный Cycle с точной planning revision и набором implementation commits | Cycle Record, Result Receipts, Snapshot и Verification Receipt |
+| OpenSpec workflow | Ведёт Planning, Tasks, Apply и Archive независимо от Plugins |
+| Change Tracking | Опционально фиксирует evidence scope, точные implementation revisions и проверку собранной версии |
 
-Отсутствие Change Tracking не является ошибкой. Если Cycle уже существует, обходить
-его переключением на Standard Apply нельзя: нужно продолжить orchestrated flow или
-явно пересоздать Cycle после нового Planning/Gate 1.
+`track` не переводит Change в другой режим и не означает «взять задачу в работу».
+Команда только начинает сбор evidence по принятому `Repository Impact`. Отсутствие
+Change Tracking не является ошибкой и не меняет штатный OpenSpec Apply.
 
 ## Где выполнять команды
 

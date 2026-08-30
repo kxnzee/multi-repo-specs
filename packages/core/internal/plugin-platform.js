@@ -27,6 +27,14 @@ import { RepositoryStatusService } from "./repository-status.js";
 import { storeProjects } from "./store-project.js";
 import { hasMethods } from "./value.js";
 
+const RECOVERABLE_PLUGIN_RESOLUTION = /^(?:BUNDLED_PLUGIN_INVALID|PLUGIN_CONTRACT_INVALID|PLUGIN_LOAD_INVALID|PLUGIN_MANAGER_INVALID|PLUGIN_RUNTIME_UNAVAILABLE):/u;
+
+/** Keeps optional Plugin failures isolated without swallowing unrelated Core defects. */
+function isRecoverablePluginResolution(error) {
+  return error?.code === "PLUGIN_RUNTIME_UNAVAILABLE" ||
+    RECOVERABLE_PLUGIN_RESOLUTION.test(error?.message ?? "");
+}
+
 /** Собирает Loader output, Host, lifecycle и CLI adapters без знания Plugin IDs. */
 export class PluginPlatform {
   #bundledTemplates;
@@ -116,6 +124,9 @@ export class PluginPlatform {
       return invocationPromise;
     };
     this.#commands = new PluginCommandMounter({
+      onError() {
+        // Optional Plugin command failures must not prevent Core and Doctor from starting.
+      },
       registry,
       resolveContext: async (pluginId, scope, requireBinding) => {
         const { storeProject, invocation } = await resolveInvocation();
@@ -223,7 +234,9 @@ export class PluginPlatform {
       try {
         loadedPlugins.push((await manager.resolve(declaration)).loadedPlugin);
       } catch (error) {
-        if (error.code !== "PLUGIN_RUNTIME_UNAVAILABLE") throw error;
+        if (!isRecoverablePluginResolution(error)) throw error;
+        // A broken optional Plugin must not prevent Core and Doctor from starting.
+        // Plugin lifecycle diagnostics report the declared binding as unavailable.
       }
     }
     return Object.freeze(loadedPlugins);

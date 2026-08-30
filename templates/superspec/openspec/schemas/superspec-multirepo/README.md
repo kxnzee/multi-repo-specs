@@ -5,8 +5,8 @@ discipline for an OpenSpec Orchestrator Store.
 
 OpenSpec is the artifact orchestrator. Superpowers supplies the skills that conduct
 brainstorming, detailed planning, isolated implementation, TDD, debugging, reviews,
-fresh verification and branch closeout. Orchestrator supplies exact repository scope,
-optional Change Tracking evidence and the external team gates. None of the three is a
+fresh verification and branch closeout. Orchestrator supplies exact repository scope
+and the external team gates. None of the three is a
 replacement for the others.
 
 ## Lifecycle
@@ -39,15 +39,13 @@ workflow, not additional task lists.
 
 ## Multi-repository adaptation
 
-- The Store owns Change artifacts and cross-repository receipts.
+- The Store owns Change artifacts and cross-repository workflow receipts.
 - Proposal owns exact Repository Impact using IDs from `openspec-orch.yaml`.
 - Code changes, worktrees, TDD and repository verification remain in Code Repositories.
-- Change Tracking, when connected, owns Assignments, Result Receipts, candidate
-  Snapshot identity and its verification receipt.
 - Technical Verify cannot complete the external current-version checkpoint.
 - Finalize uses Superpowers' structured branch choices separately for each repository
   and requires explicit authorization for external mutations.
 - Release remains a team gate and is required before Archive.
 
 See `INTEGRATION.md` for operational handoffs and failure routes. Upstream attribution
-and the exact port baseline are recorded in `NOTICE.md`.
+and the adaptation baseline are recorded in `NOTICE.md`.

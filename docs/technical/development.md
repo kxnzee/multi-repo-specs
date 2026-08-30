@@ -15,12 +15,11 @@
 | `templates/` | Bundled Project Template catalog; `base` является default |
 | `packages/core/templates/plugin-extension/` | Agent artifacts scaffold создаваемого Plugin |
 | `test/` | Distribution integration tests |
-| `checks/template/` | Structural contract Project Template |
-| `checks/agent-artifacts/` | Skills/commands/subagents contract checks |
+| `test/structural/` | Template и Agent artifact structural contract tests |
 
 Package-specific code tests находятся в `packages/*/test/` и `plugins/*/test/`.
-Non-code suite обнаруживается по `checks/<suite>/*.test.js` в root/package/plugin без
-отдельного hardcoded npm script на каждый package.
+Все root, package, Plugin и structural tests обнаруживаются нативным `node --test`
+без отдельных списков путей.
 
 ## Правила изменения Core
 
@@ -80,8 +79,6 @@ skills/hooks. Если workflow без конкретного Extension нера
 ```bash
 npm run lint
 npm run test:code
-npm run check:template
-npm run check:agent-artifacts
 npm run check
 git diff --check
 node bin/openspec-orch.js --help

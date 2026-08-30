@@ -71,7 +71,7 @@ test("SDK exposes one immutable source for roles, scopes, patterns and CLI value
   assert.deepEqual(COMMAND_SCOPE, { current: "current", store: "store" });
   assert.equal(COMMAND_CONTEXT.defaultScope, COMMAND_SCOPE.current);
   assert.deepEqual(COMMAND_CONTEXT.scopes, Object.values(COMMAND_SCOPE));
-  assert.equal(PLUGIN_PATTERNS.id.test("change-tracking"), true);
+  assert.equal(PLUGIN_PATTERNS.id.test("sample-plugin"), true);
   assert.equal(PLUGIN_PATTERNS.id.test("ChangeTracking"), false);
   assert.equal(PLUGIN_PATTERNS.exactSemanticVersion.test("1.2.3"), true);
   assert.equal(PLUGIN_PATTERNS.exactSemanticVersion.test("^1.2.3"), false);

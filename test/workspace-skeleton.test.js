@@ -40,7 +40,7 @@ test("root distribution exposes the candidate entrypoint and required runtime fi
       id: "change-tracking",
       name: "Change Tracking",
       packageName: "@openspec-orch/plugin-change-tracking",
-      rootCommands: ["assign", "status", "record", "verify"],
+      rootCommands: ["track", "done", "status", "verify"],
     },
     {
       id: "codegraph",

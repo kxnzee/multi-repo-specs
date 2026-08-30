@@ -81,9 +81,16 @@ function contextFactory(calls, log) {
   const processService = new ProcessService(async (executable, args, options) => {
     calls.push({ executable, args, options });
     const stdout = executable === "git"
-      ? (args[0] === "status" ? "" : args[0] === "rev-parse" ? "a".repeat(40) : "main")
-      : executable === "openspec" ? "1.7.0" : "done";
-    return { failed: false, stderr: "", stdout };
+      ? (args[0] === "status" ? "" : ["rev-parse", "log"].includes(args[0])
+        ? "a".repeat(40)
+        : "main")
+      : executable === "openspec" ? "1.11.0" : "done";
+    return {
+      failed: executable === "plugin-tool",
+      exitCode: executable === "plugin-tool" ? 1 : 0,
+      stderr: "",
+      stdout,
+    };
   });
   return new PluginContextFactory({
     fileService: new FileService(),
@@ -143,14 +150,25 @@ test("PluginContextFactory creates a new immutable scoped context without exposi
   );
   const frontendGit = await context.repositories.git("frontend");
   assert.equal(await frontendGit.revision(), "a".repeat(40));
+  assert.equal(
+    await frontendGit.latestRevision(["openspec/changes/checkout-flow"]),
+    "a".repeat(40),
+  );
+  assert.equal(await frontendGit.isRemoteReachable("a".repeat(40)), true);
   assert.equal(await frontendGit.hasCommit("a".repeat(40)), true);
   await assert.rejects(context.repositories.git("backend"), /PLUGIN_NOT_CONNECTED/);
 
   await context.files.write("plugin.txt", "safe\n");
   assert.equal(await context.files.read("plugin.txt"), "safe\n");
+  await context.files.write("artifacts/result.txt", "done\n");
+  assert.deepEqual(await context.files.listFiles("artifacts"), ["result.txt"]);
+  await context.files.write("artifacts/results/record.yaml", "result: one\n");
+  assert.deepEqual(await context.files.listDirectories("artifacts"), ["results"]);
   assert.equal(await context.git.revision(), "a".repeat(40));
-  assert.equal(await context.openspec.version(), "1.7.0");
-  assert.equal(await context.process.run("plugin-tool", ["status"]), "done");
+  assert.equal(await context.openspec.version(), "1.11.0");
+  assert.equal(await context.process.run("plugin-tool", ["status"], {
+    acceptedExitCodes: [0, 1],
+  }), "done");
   assert.equal(calls.at(-1).options.cwd, scenario.frontendRoot);
   await context.storage.write({ ready: true });
   assert.deepEqual(await context.storage.read(), { ready: true });

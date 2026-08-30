@@ -5,6 +5,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { parse } from "yaml";
 
 import {
   configuration,
@@ -14,7 +15,7 @@ import {
   storeProjects,
 } from "@openspec-orch/core";
 
-import { ChangeTrackingService } from "../plugins/change-tracking/index.js";
+import { ChangeTrackingService } from "../plugins/change-tracking/lib/service.js";
 import {
   commitFiles,
   createCheckoutWithRemote,
@@ -24,7 +25,6 @@ import {
 } from "../test-fixtures/workspace.js";
 
 const PLUGIN_ROOT = fileURLToPath(new URL("../plugins/change-tracking/", import.meta.url));
-const CONFIRM = async () => true;
 
 test("candidate Change Tracking completes a real multi-repository Cycle", async (t) => {
   const root = await temporaryDirectory(t, "openspec-orch-change-tracking-candidate-");
@@ -82,6 +82,20 @@ test("candidate Change Tracking completes a real multi-repository Cycle", async 
       "",
     ].join("\n"),
     "openspec-orch.yaml": configuration.serializeProject(project),
+    "openspec/changes/checkout-flow/proposal.md": [
+      "# Checkout flow",
+      "",
+      "## Repository Impact",
+      "",
+      "| Repository | Capabilities |",
+      "|---|---|",
+      "| frontend | checkout |",
+      "| backend | checkout |",
+      "",
+    ].join("\n"),
+    "openspec/changes/checkout-flow/design.md": "# Design\n",
+    "openspec/changes/checkout-flow/specs/checkout/spec.md": "# Checkout spec\n",
+    "openspec/changes/checkout-flow/tasks.md": "# Tasks\n",
   });
   await commitFiles(store.checkout, {}, { message: "configure candidate Store" });
 
@@ -96,54 +110,54 @@ test("candidate Change Tracking completes a real multi-repository Cycle", async 
     repositoryId: "specs",
   });
   const changes = new ChangeTrackingService(context);
-  const assigned = await changes.assign({
-    changeId: "checkout-flow",
-    repositoryIds: ["frontend", "backend"],
-    confirm: CONFIRM,
-  });
+  const assigned = await changes.track({ changeId: "checkout-flow" });
   await runCommand("git", ["-C", store.checkout, "add", assigned.path]);
-  await runCommand("git", ["-C", store.checkout, "commit", "-m", "assign checkout-flow"]);
+  await runCommand("git", ["-C", store.checkout, "commit", "-m", "track checkout-flow"]);
 
+  let currentSnapshot;
   for (const [repositoryId, checkout] of [
     ["frontend", frontend.checkout],
     ["backend", backend.checkout],
   ]) {
-    const revision = await runCommand("git", ["-C", checkout, "rev-parse", "HEAD"]);
-    await changes.recordAssignment({
-      changeId: "checkout-flow",
-      repositoryId,
-      implementationRevision: revision,
-      status: "completed",
-      source: "agent",
-      confirm: CONFIRM,
+    const codeContext = await pluginContexts.forRepository({
+      loadedPlugin,
+      storeProject,
+      repositoryId: "specs",
+      invocation: { id: repositoryId, role: "code", path: checkout },
     });
+    const result = await new ChangeTrackingService(codeContext).done({
+      changeId: "checkout-flow",
+      source: "agent",
+    });
+    currentSnapshot = result.snapshot ?? currentSnapshot;
   }
-  const verified = await changes.verify("checkout-flow");
-  await changes.recordVerification({
+  await changes.verifyResult({
     changeId: "checkout-flow",
     result: "pass",
     source: "human",
-    confirm: CONFIRM,
   });
 
   const status = await changes.status("checkout-flow");
-  assert.equal(status.nextAction, "готово");
-  assert.equal(status.snapshot.snapshot_id, verified.snapshot.snapshot_id);
+  assert.equal(status.snapshot.snapshot_id, currentSnapshot.snapshot_id);
   assert.equal(status.verification.result, "pass");
-  assert.deepEqual(status.repositories.map(({ repositoryId, state }) => ({
-    repositoryId,
-    state,
-  })), [
-    { repositoryId: "frontend", state: "completed" },
-    { repositoryId: "backend", state: "completed" },
+  assert.deepEqual(status.repositories.map(({ repositoryId }) => repositoryId), [
+    "frontend",
+    "backend",
   ]);
-  const statePath = path.join(
+  assert.equal(status.repositories.every(
+    ({ receipt }) => /^[0-9a-f]{40}$/u.test(receipt.implementation_revision),
+  ), true);
+  const frontendJournal = parse(await fs.readFile(path.join(
     store.checkout,
-    ".openspec-orch/plugins/change-tracking/state.json",
+    "tracking/cycles/checkout-flow/receipts/frontend.yaml",
+  ), "utf8"));
+  assert.equal(frontendJournal.receipts.length, 1);
+  assert.equal(frontendJournal.receipts[0].repository_id, "frontend");
+  assert.equal(
+    await fs.lstat(path.join(store.checkout, ".openspec-orch/plugins/change-tracking/state.json"))
+      .catch((error) => error.code),
+    "ENOENT",
   );
-  const state = JSON.parse(await fs.readFile(statePath, "utf8"));
-  assert.equal(state.plugin_id, pluginId);
-  assert.equal(state.data.result_receipts.length, 2);
   assert.equal(
     await fs.lstat(path.join(store.checkout, ".openspec-orch/state.json"))
       .catch((error) => error.code),

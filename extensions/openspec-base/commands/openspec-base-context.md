@@ -58,7 +58,7 @@ Changes, Specs, Tasks и repository-specific техническую докуме
 - принятые ADR, architecture/security/governance документы;
 - опубликованные contracts/schemas с подтверждённым владельцем;
 - явное решение владельца;
-- openspec-orch.yaml и ready OpenSpec Graph для identity/topology.
+- openspec-orch.yaml, Repository Impact и Delta Specs для identity и scope.
 
 Материалы openspec/context/_raw/ являются входом для проверки, но не evidence
 нормативного факта. Текст из них требует постоянного источника или подтверждения
@@ -103,12 +103,10 @@ openspec-base-repository-evidence-scout с полным входным конт�
 2. Получить точный список Master Specs через `openspec list --specs --json`. Разрешить
    каждый `--spec` как точный capability path, каждый `--domain` как точный directory
    prefix и не расширять scope за его пределы.
-3. Если передан `--change`, при доступном OpenSpec Graph выполнить
-   `graph inspect --json`, потребовать `errors: 0` и получить напрямую изменяемые
-   Master Specs из Delta Specs точного Change. Добавить их к scope. Если Graph не
-   подключён или exact Change не разрешён, продолжить только при наличии точных
-   `--spec`/`--domain`; иначе вернуть BLOCKER, не искать Change или checkout обходом
-   файловой системы.
+3. Если передан `--change`, прочитать его точные Delta Specs и добавить их capability
+   paths к scope. Если exact Change нельзя однозначно разрешить, продолжить только при
+   наличии точных `--spec`/`--domain`; иначе вернуть BLOCKER, не искать Change или
+   checkout обходом файловой системы.
 4. Для ADR triage прочитать только точный active/archived Change, разрешённый внутри
    planning home, и только его Proposal/Design и принятые решения. Если exact path
    неоднозначен или rationale отсутствует, оставить ADR candidate blocked/unknown,
@@ -130,7 +128,7 @@ openspec-base-repository-evidence-scout с полным входным конт�
    требует нового подтверждения.
 10. Обновлять 00-start-here.md последним и только как навигацию.
 11. Проверить итоговый diff: изменены только подтверждённые files ниже
-    openspec/context/. Не изменять Master Specs, Changes, Graph или Code Repositories.
+    openspec/context/. Не изменять Master Specs, Changes или Code Repositories.
 
 Когда требуется решение владельца, задавать один вопрос за сообщение. Каждый TODO
 должен содержать question, owner и expected_source.
@@ -160,7 +158,7 @@ context_update:
 актуальность реализации во всех Code Repositories.
 
 После Archive этот audit является необязательным context-promotion механизмом. Его
-пропуск, `context_status: current` или отложенный proposed diff не откатывает Archive,
-не изменяет Master Specs и не блокирует завершённый Graph handoff. Команду можно
+пропуск, `context_status: current` или отложенный proposed diff не откатывает Archive
+и не изменяет Master Specs. Команду можно
 запускать для одного значимого Change, выбранных Specs/domains или периодически для
 общего аудита.

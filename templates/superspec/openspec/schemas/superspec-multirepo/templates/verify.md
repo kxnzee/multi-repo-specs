@@ -20,16 +20,15 @@
 
 ## 2. Repository technical verification
 
-| Repository ID | Commit / Result Receipt | Fresh commands | TDD and review evidence | Result |
+| Repository ID | Commit | Fresh commands | TDD and review evidence | Result |
 | --- | --- | --- | --- | --- |
 | `<repository-id>` | `<identity>` | `<commands>` | `<evidence>` | `PASS` / `FAIL` |
 
-## 3. Change Tracking candidate
+## 3. Candidate identity
 
-- **Connected:** `yes` / `no`
-- **Result Receipts:** `<current identities or N/A>`
-- **Candidate Snapshot:** `<identity or N/A>`
-- **Snapshot verification receipt:** `<identity and outcome or N/A>`
+- **Repository commits:** `<exact identities>`
+- **Build / image / artifact:** `<identity or N/A>`
+- **Current:** `yes` / `no`
 
 ## 4. Artifact coherence
 
@@ -46,7 +45,7 @@
 - **Confirmation:** `confirmed` / `pending` / `failed`
 - **Evidence:** `<reference without secrets>`
 
-Agent reasoning, local tests and a Snapshot cannot mark this confirmation complete.
+Agent reasoning, local tests and candidate identity cannot mark this confirmation complete.
 
 ## Overall Decision
 

@@ -5,22 +5,26 @@ import { randomUUID } from "node:crypto";
 import {
   assertChangeId,
   CHANGE_TRACKING_CONTRACT,
-  CHANGE_TRACKING_REPOSITORY_STATE,
-  CHANGE_TRACKING_RESULT_STATUS,
-  CHANGE_TRACKING_WRITE_STATUS,
+  CHANGE_TRACKING_RECEIPT_SOURCE,
   isGitRevision,
 } from "./contracts.js";
 import { CycleRecord } from "./cycle-record.js";
 import { CycleRecordRepository } from "./cycle-record-repository.js";
-import { SnapshotIdentity } from "./snapshot-identity.js";
-import { ChangeTrackingState, ChangeTrackingStore } from "./state.js";
+import {
+  activeChangeIds,
+  isChangeApplyReady,
+  requireOpenSpec11,
+} from "./openspec-compatibility.js";
+import { parseRepositoryImpactRepositories } from "./repository-impact.js";
+import { snapshotId } from "./snapshot-identity.js";
+import { TrackingRepository } from "./tracking-repository.js";
 
-/** Creates one stable repository status row without repeating its nullable fields. */
-function repositoryStatus(repositoryId, state, receipt = null, details = {}) {
+/** Creates one stable repository evidence row without repeating nullable Git details. */
+function repositoryEvidence(repositoryId, receipt = null, details = {}) {
   return Object.freeze({
     repositoryId,
-    state,
     receipt,
+    connected: null,
     commitAvailable: null,
     head: null,
     headMatches: null,
@@ -45,10 +49,11 @@ function assertContext(context) {
     typeof context.repositories?.requireConnected !== "function" ||
     typeof context.repositories?.git !== "function" ||
     typeof context.git?.statusPaths !== "function" ||
-    typeof context.git?.revision !== "function" ||
+    typeof context.git?.latestRevision !== "function" ||
     typeof context.git?.assertNoOperation !== "function" ||
-    typeof context.storage?.read !== "function" ||
-    typeof context.storage?.update !== "function"
+    typeof context.process?.run !== "function" ||
+    typeof context.files?.listFiles !== "function" ||
+    typeof context.files?.read !== "function"
   ) {
     throw new Error("CHANGE_TRACKING_CONTEXT_INVALID: требуется Store PluginContext");
   }
@@ -89,41 +94,158 @@ function assertCycleRepositories(context, cycle, { requireConnected = true } = {
   if (requireConnected) context.repositories.requireConnected(cycle.repositories);
 }
 
-/** Returns the completed implementation set required by one Snapshot. */
-function completedImplementations(cycle, state) {
+/** Finds one current Result Receipt in the compiled Cycle receipt set. */
+function resultFor(receipts, repositoryId) {
+  return receipts.find((receipt) => receipt.repository_id === repositoryId) ?? null;
+}
+
+/** Returns the submitted implementation set required by one Snapshot. */
+function submittedImplementations(cycle, receipts) {
   return Object.freeze([...cycle.repositories].sort().map((repositoryId) => {
-    const receipt = state.result(cycle.cycleId, repositoryId);
-    if (!receipt || receipt.status !== CHANGE_TRACKING_RESULT_STATUS.completed) {
+    const receipt = resultFor(receipts, repositoryId);
+    if (!receipt) {
       throw new Error(
         `CYCLE_MISMATCH: для repository-id '${repositoryId}' ` +
-          "нужен текущий Result Receipt completed",
+          "нужен текущий Result Receipt с implementation revision",
       );
     }
     return Object.freeze({
       repository_id: repositoryId,
       implementation_revision: receipt.implementation_revision,
+      receipt_id: receipt.receipt_id,
     });
   }));
 }
 
-/** Computes the Snapshot ID for the completed current implementation set. */
-function currentSnapshotId(cycle, state) {
-  return new SnapshotIdentity(cycle.cycleId, completedImplementations(cycle, state)).value;
+/** Compiles one deterministic Snapshot without persisting a second copy of derived state. */
+function compileSnapshot(cycle, receipts) {
+  const implementations = submittedImplementations(cycle, receipts);
+  return Object.freeze({
+    contract_version: CHANGE_TRACKING_CONTRACT.snapshotVersion,
+    snapshot_id: snapshotId(cycle.cycleId, implementations),
+    cycle_id: cycle.cycleId,
+    implementations: Object.freeze(Object.fromEntries(implementations.map((implementation) => [
+      implementation.repository_id,
+      implementation.implementation_revision,
+    ]))),
+    receipts: Object.freeze(Object.fromEntries(implementations.map((implementation) => [
+      implementation.repository_id,
+      implementation.receipt_id,
+    ]))),
+    created_at: receipts
+      .filter((receipt) => receipt.cycle_id === cycle.cycleId)
+      .map((receipt) => receipt.created_at)
+      .sort()
+      .at(-1) ?? cycle.createdAt,
+  });
 }
 
 /** Store-scoped Change Tracking facade built only on the public PluginContext contract. */
 export class ChangeTrackingService {
   #context;
   #records;
-  #state;
+  #tracking;
 
   /** @param {object} context Store-scoped public PluginContext. */
   constructor(context) {
     assertContext(context);
     this.#context = context;
     this.#records = new CycleRecordRepository(context.files);
-    this.#state = new ChangeTrackingStore(context.storage);
+    this.#tracking = new TrackingRepository(context.files);
     Object.freeze(this);
+  }
+
+  /**
+   * Creates the current Cycle from the accepted Proposal Repository Impact.
+   *
+   * @param {object} input Track input.
+   * @param {string} input.changeId Change ID.
+   * @returns {Promise<object>} Track result with the derived repository scope.
+   */
+  async track({ changeId }) {
+    assertChangeId(changeId);
+    await requireOpenSpec11(this.#context.process);
+    if (!await isChangeApplyReady(this.#context.process, changeId)) {
+      throw new Error(
+        `PLANNING_INCOMPLETE: Change '${changeId}' ещё не завершил OpenSpec Planning`,
+      );
+    }
+    const proposalPath = `openspec/changes/${changeId}/proposal.md`;
+    const proposal = await this.#context.files.read(proposalPath, { optional: true });
+    if (proposal === null) {
+      throw new Error(
+        `REPOSITORY_IMPACT_INVALID: Change '${changeId}': отсутствует ${proposalPath}`,
+      );
+    }
+    const repositoryIds = parseRepositoryImpactRepositories(proposal, changeId);
+    const result = await this.#createCycle({ changeId, repositoryIds });
+    return Object.freeze({ ...result, repositoryIds });
+  }
+
+  /**
+   * Records the current Repository HEAD and compiles a Snapshot when the scope is complete.
+   *
+   * @param {object} input Done input.
+   * @param {string} [input.changeId] Explicit Change selector for an ambiguous Repository.
+   * @param {string} [input.implementationRevision] Emergency exact commit override.
+   * @param {"human" | "agent" | "ci"} input.source Result source.
+   * @returns {Promise<object>} Recorded result and optional current Snapshot.
+   */
+  async done({ changeId, implementationRevision, source }) {
+    await requireOpenSpec11(this.#context.process);
+    const invocation = this.#context.invocation;
+    if (!invocation || invocation.role !== "code") {
+      throw new Error("DONE_CONTEXT_INVALID: вызовите done из каталога Code Repository");
+    }
+    const repositoryId = invocation.id;
+    const cycle = await this.#resolveRepositoryCycle(repositoryId, changeId);
+    const repositoryGit = await this.#context.repositories.git(repositoryId);
+    if (!repositoryGit) {
+      throw new Error(`REPOSITORY_CHECKOUT_UNAVAILABLE: ${repositoryId}`);
+    }
+    const changedPaths = await repositoryGit.statusPaths();
+    if (changedPaths.length > 0) {
+      throw new Error(
+        `WORKTREE_DIRTY: ${repositoryId} содержит незакоммиченные изменения: ` +
+          changedPaths.join(", "),
+      );
+    }
+    const revision = implementationRevision ?? await repositoryGit.revision();
+    const result = await this.#recordRevision({
+      changeId: cycle.changeId,
+      repositoryId,
+      implementationRevision: revision,
+      repositoryGit,
+      source,
+    });
+    const remoteReachable = await repositoryGit.isRemoteReachable(revision);
+    const receipts = await this.#tracking.resultsForCycle(cycle.changeId, cycle);
+    const allSubmitted = receipts.length === cycle.repositories.length;
+    const snapshot = allSubmitted ? compileSnapshot(cycle, receipts) : null;
+    return Object.freeze({
+      changeId: cycle.changeId,
+      repositoryId,
+      result,
+      remoteReachable,
+      snapshot,
+    });
+  }
+
+  /** Records one explicit human/CI decision for the current automatically resolved Snapshot. */
+  async verifyResult({ changeId, result, source, note }) {
+    await requireOpenSpec11(this.#context.process);
+    const cycle = await this.#resolveVerificationCycle(changeId);
+    const recorded = await this.#recordVerification({
+      changeId: cycle.changeId,
+      result,
+      source,
+      note,
+    });
+    return Object.freeze({
+      changeId: cycle.changeId,
+      receipt: recorded.receipt,
+      path: recorded.path,
+    });
   }
 
   /**
@@ -132,7 +254,7 @@ export class ChangeTrackingService {
    * @param {string} changeId Change ID.
    * @returns {Promise<object>} Current Cycle context with a Store-relative path.
    */
-  async currentCycle(changeId, { requireConnected = true } = {}) {
+  async #currentCycle(changeId, { requireConnected = true } = {}) {
     assertChangeId(changeId);
     const path = this.#records.pathFor(changeId);
     const cycle = await this.#records.read(changeId);
@@ -147,164 +269,71 @@ export class ChangeTrackingService {
     return Object.freeze({ cycle, committed, path });
   }
 
-  /**
-   * Records one implementation result for a Code Repository in the committed current Cycle.
-   *
-   * @param {object} input Result Receipt input.
-   * @param {string} input.changeId Change ID.
-   * @param {string} input.repositoryId Code Repository ID.
-   * @param {string} input.implementationRevision Full implementation commit.
-   * @param {"completed" | "failed" | "blocked"} input.status Result status.
-   * @param {"human" | "agent" | "ci"} input.source Result source.
-   * @param {string} [input.note] Optional note.
-   * @param {(preview: object) => Promise<boolean>} input.confirm Preview confirmation.
-   * @returns {Promise<object>} Created or replaced Result Receipt.
-   */
-  async recordAssignment({
+  /** Records one implementation revision for the public done flow. */
+  async #recordRevision({
     changeId,
     repositoryId,
     implementationRevision,
-    status,
+    repositoryGit,
     source,
-    note,
-    confirm,
   }) {
     if (!isGitRevision(implementationRevision)) {
-      throw new Error("COMMIT_NOT_FOUND: --commit должен быть полной lowercase SHA-1 ревизией");
-    }
-    if (typeof confirm !== "function") {
-      throw new Error("CHANGE_TRACKING_INVALID: confirm должен быть функцией");
+      throw new Error("COMMIT_NOT_FOUND: --sha должен быть полной lowercase SHA-1 ревизией");
     }
     const current = await this.#committedCycle(changeId);
     if (!current.cycle.repositories.includes(repositoryId)) {
       throw new Error(`REPO_UNKNOWN: repository-id '${repositoryId}' не входит в текущий Cycle`);
     }
-    const repositoryGit = await this.#context.repositories.git(repositoryId);
-    if (!repositoryGit) {
-      throw new Error(
-        `COMMIT_NOT_FOUND: commit ${implementationRevision} не существует в ${repositoryId}`,
-      );
-    }
-    const [head, available] = await Promise.all([
-      repositoryGit.revision(),
-      repositoryGit.hasCommit(implementationRevision),
-    ]);
+    const available = await repositoryGit.hasCommit(implementationRevision);
     if (!available) {
       throw new Error(
         `COMMIT_NOT_FOUND: commit ${implementationRevision} не существует в ${repositoryId}`,
       );
     }
 
-    const state = await this.#state.read();
-    const existing = state.result(current.cycle.cycleId, repositoryId);
+    const existing = await this.#tracking.latestResult(
+      changeId,
+      current.cycle.cycleId,
+      repositoryId,
+    );
     const candidate = {
-      contract_version: 1,
-      receipt_id: `result-${randomUUID()}`,
+      contract_version: CHANGE_TRACKING_CONTRACT.resultReceiptVersion,
+      receipt_id: `${CHANGE_TRACKING_CONTRACT.resultPrefix}${randomUUID()}`,
       cycle_id: current.cycle.cycleId,
       repository_id: repositoryId,
       implementation_revision: implementationRevision,
-      status,
       source,
-      ...(note ? { note } : {}),
+      supersedes: existing?.receipt_id ?? null,
       created_at: new Date().toISOString(),
     };
-    const receipt = new ChangeTrackingState().recordResult(candidate)
-      .result(current.cycle.cycleId, repositoryId);
-    const proceed = await confirm(Object.freeze({ receipt, existing, head }));
-    if (!proceed) return Object.freeze({ status: CHANGE_TRACKING_WRITE_STATUS.cancelled });
-
-    await this.#state.update(async (latest) => {
-      const latestCycle = await this.currentCycle(changeId);
-      if (!latestCycle.committed || latestCycle.cycle.cycleId !== current.cycle.cycleId) {
-        throw new Error("CYCLE_MISMATCH: текущий Cycle изменился после preview; повторите команду");
-      }
-      const latestExisting = latest.result(current.cycle.cycleId, repositoryId);
-      if ((latestExisting?.receipt_id ?? null) !== (existing?.receipt_id ?? null)) {
-        throw new Error(
-          "CYCLE_MISMATCH: текущий Result Receipt изменился после preview; повторите команду",
-        );
-      }
-      return latest.recordResult(receipt);
-    });
-    return Object.freeze({
-      status: existing
-        ? CHANGE_TRACKING_WRITE_STATUS.replaced
-        : CHANGE_TRACKING_WRITE_STATUS.created,
-      receipt,
-      replaced: existing ?? null,
-      headMatches: head === implementationRevision,
-    });
+    const latestCycle = await this.#currentCycle(changeId);
+    if (!latestCycle.committed || latestCycle.cycle.cycleId !== current.cycle.cycleId) {
+      throw new Error("CYCLE_MISMATCH: текущий Cycle изменился во время команды; повторите команду");
+    }
+    return this.#tracking.appendResult(
+      changeId,
+      candidate,
+      existing?.receipt_id ?? null,
+    );
   }
 
-  /**
-   * Verifies result completeness and records the current deterministic Snapshot.
-   *
-   * @param {string} changeId Change ID.
-   * @returns {Promise<object>} Created or unchanged Snapshot.
-   */
-  async verify(changeId) {
-    const current = await this.#committedCycle(changeId);
-    let result;
-    await this.#state.update(async (state) => {
-      const latest = await this.#committedCycle(changeId);
-      if (latest.cycle.cycleId !== current.cycle.cycleId) {
-        throw new Error("CYCLE_MISMATCH: текущий Cycle изменился; повторите команду");
-      }
-      const implementations = completedImplementations(latest.cycle, state);
-      const snapshotId = new SnapshotIdentity(latest.cycle.cycleId, implementations).value;
-      const existing = state.snapshot(latest.cycle.cycleId);
-      if (existing?.snapshot_id === snapshotId) {
-        result = Object.freeze({ status: "unchanged", snapshot: existing });
-        return state;
-      }
-      const candidate = {
-        contract_version: CHANGE_TRACKING_CONTRACT.snapshotVersion,
-        snapshot_id: snapshotId,
-        cycle_id: latest.cycle.cycleId,
-        implementations: Object.fromEntries(implementations.map((implementation) => [
-          implementation.repository_id,
-          implementation.implementation_revision,
-        ])),
-        created_at: new Date().toISOString(),
-      };
-      const next = state.recordSnapshot(candidate);
-      const snapshot = next.snapshot(latest.cycle.cycleId);
-      result = Object.freeze({ status: CHANGE_TRACKING_WRITE_STATUS.created, snapshot });
-      return next;
-    });
-    return result;
-  }
-
-  /**
-   * Records external verification for the current Snapshot.
-   *
-   * @param {object} input Verification Receipt input.
-   * @param {string} input.changeId Change ID.
-   * @param {"pass" | "fail"} input.result Verification result.
-   * @param {"human" | "agent" | "ci"} input.source Verification source.
-   * @param {string} [input.note] Optional note.
-   * @param {(preview: object) => Promise<boolean>} input.confirm Preview confirmation.
-   * @returns {Promise<object>} Created or replaced Verification Receipt.
-   */
-  async recordVerification({ changeId, result, source, note, confirm }) {
-    if (typeof confirm !== "function") {
-      throw new Error("CHANGE_TRACKING_INVALID: confirm должен быть функцией");
+  /** Records external verification for the Snapshot selected by the public verify flow. */
+  async #recordVerification({ changeId, result, source, note }) {
+    if (![
+      CHANGE_TRACKING_RECEIPT_SOURCE.human,
+      CHANGE_TRACKING_RECEIPT_SOURCE.ci,
+    ].includes(source)) {
+      throw new Error("VERIFY_SOURCE_INVALID: решение проверки может принять только human или ci");
     }
     const current = await this.#committedCycle(changeId);
-    const state = await this.#state.read();
-    let expectedSnapshotId;
+    const receipts = await this.#tracking.resultsForCycle(changeId, current.cycle);
+    let snapshot;
     try {
-      expectedSnapshotId = currentSnapshotId(current.cycle, state);
+      snapshot = compileSnapshot(current.cycle, receipts);
     } catch (error) {
       throw new Error(`SNAPSHOT_MISMATCH: ${error.message}`);
     }
-    const snapshot = state.snapshot(current.cycle.cycleId);
-    if (!snapshot || snapshot.snapshot_id !== expectedSnapshotId) {
-      throw new Error(
-        "SNAPSHOT_MISMATCH: сначала вызовите verify для текущего набора Result Receipts",
-      );
-    }
-    const existing = state.verification(current.cycle.cycleId);
+    const existing = await this.#tracking.latestVerification(changeId, current.cycle.cycleId);
     const candidate = {
       contract_version: CHANGE_TRACKING_CONTRACT.verificationReceiptVersion,
       receipt_id: `${CHANGE_TRACKING_CONTRACT.verificationPrefix}${randomUUID()}`,
@@ -312,71 +341,46 @@ export class ChangeTrackingService {
       snapshot_id: snapshot.snapshot_id,
       result,
       source,
+      supersedes: existing?.receipt_id ?? null,
       ...(note ? { note } : {}),
       created_at: new Date().toISOString(),
     };
-    const receipt = new ChangeTrackingState().recordVerification(candidate)
-      .verification(current.cycle.cycleId);
-    const proceed = await confirm(Object.freeze({ receipt, existing, snapshot }));
-    if (!proceed) return Object.freeze({ status: CHANGE_TRACKING_WRITE_STATUS.cancelled });
-
-    await this.#state.update(async (latestState) => {
-      const latest = await this.#committedCycle(changeId);
-      let latestSnapshotId;
-      try {
-        latestSnapshotId = currentSnapshotId(latest.cycle, latestState);
-      } catch {
-        throw new Error("SNAPSHOT_MISMATCH: текущий Snapshot изменился после preview; повторите команду");
-      }
-      const latestSnapshot = latestState.snapshot(latest.cycle.cycleId);
-      const latestExisting = latestState.verification(latest.cycle.cycleId);
-      if (
-        latest.cycle.cycleId !== current.cycle.cycleId ||
-        !latestSnapshot ||
-        latestSnapshot.snapshot_id !== latestSnapshotId ||
-        latestSnapshotId !== receipt.snapshot_id ||
-        (latestExisting?.receipt_id ?? null) !== (existing?.receipt_id ?? null)
-      ) {
-        throw new Error(
-          "SNAPSHOT_MISMATCH: текущий Snapshot изменился после preview; повторите команду",
-        );
-      }
-      return latestState.recordVerification(receipt);
-    });
-    return Object.freeze({
-      status: existing
-        ? CHANGE_TRACKING_WRITE_STATUS.replaced
-        : CHANGE_TRACKING_WRITE_STATUS.created,
-      receipt,
-      replaced: existing ?? null,
-    });
+    const latest = await this.#committedCycle(changeId);
+    const latestReceipts = await this.#tracking.resultsForCycle(changeId, latest.cycle);
+    if (
+      latest.cycle.cycleId !== current.cycle.cycleId ||
+      compileSnapshot(latest.cycle, latestReceipts).snapshot_id !== candidate.snapshot_id
+    ) {
+      throw new Error("SNAPSHOT_MISMATCH: текущий Snapshot изменился во время команды; повторите команду");
+    }
+    return this.#tracking.appendVerification(
+      changeId,
+      candidate,
+      existing?.receipt_id ?? null,
+    );
   }
 
   /**
-   * Reads the current Cycle progress without mutating Store or repositories.
+   * Reads current implementation evidence without mutating Store or repositories.
    *
    * @param {string} changeId Change ID.
    * @returns {Promise<object>} Current Change Tracking status.
    */
   async status(changeId) {
-    const current = await this.currentCycle(changeId, { requireConnected: false });
-    const state = await this.#state.read();
+    await requireOpenSpec11(this.#context.process);
+    const current = await this.#currentCycle(changeId, { requireConnected: false });
+    const receipts = await this.#tracking.resultsForCycle(changeId, current.cycle);
     const repositories = Object.freeze(await Promise.all(
       current.cycle.repositories.map(async (repositoryId) => {
-        const receipt = state.result(current.cycle.cycleId, repositoryId);
-        if (!this.#context.repositories.isConnected(repositoryId)) {
-          return repositoryStatus(
-            repositoryId,
-            CHANGE_TRACKING_REPOSITORY_STATE.disconnected,
-            receipt,
-          );
-        }
-        if (!receipt) {
-          return repositoryStatus(repositoryId, CHANGE_TRACKING_REPOSITORY_STATE.missing);
+        const receipt = resultFor(receipts, repositoryId);
+        const connected = this.#context.repositories.isConnected(repositoryId);
+        if (!receipt || !connected) {
+          return repositoryEvidence(repositoryId, receipt, { connected });
         }
         const repositoryGit = await this.#context.repositories.git(repositoryId);
         if (!repositoryGit) {
-          return repositoryStatus(repositoryId, CHANGE_TRACKING_REPOSITORY_STATE.commitUnavailable, receipt, {
+          return repositoryEvidence(repositoryId, receipt, {
+            connected: true,
             commitAvailable: false,
           });
         }
@@ -384,11 +388,11 @@ export class ChangeTrackingService {
           repositoryGit.revision(),
           repositoryGit.hasCommit(receipt.implementation_revision),
         ]);
-        return repositoryStatus(
+        return repositoryEvidence(
           repositoryId,
-          available ? receipt.status : CHANGE_TRACKING_REPOSITORY_STATE.commitUnavailable,
           receipt,
           {
+            connected: true,
             commitAvailable: available,
             head,
             headMatches: head === receipt.implementation_revision,
@@ -396,36 +400,20 @@ export class ChangeTrackingService {
         );
       }),
     ));
-    const allCompleted = repositories.every((repository) => (
-      repository.state === CHANGE_TRACKING_RESULT_STATUS.completed
-    ));
-    const expectedSnapshotId = allCompleted
-      ? currentSnapshotId(current.cycle, state)
+    const allSubmitted = receipts.length === current.cycle.repositories.length;
+    const snapshot = allSubmitted
+      ? Object.freeze({ ...compileSnapshot(current.cycle, receipts), current: true })
       : null;
-    const storedSnapshot = state.snapshot(current.cycle.cycleId);
-    const snapshot = storedSnapshot
-      ? Object.freeze({
-        ...storedSnapshot,
-        current: storedSnapshot.snapshot_id === expectedSnapshotId,
-      })
-      : null;
-    const storedVerification = state.verification(current.cycle.cycleId);
+    const storedVerification = await this.#tracking.latestVerification(
+      changeId,
+      current.cycle.cycleId,
+    );
     const verification = storedVerification
       ? Object.freeze({
         ...storedVerification,
-        current: Boolean(snapshot?.current && storedVerification.snapshot_id === snapshot.snapshot_id),
+        current: Boolean(snapshot && storedVerification.snapshot_id === snapshot.snapshot_id),
       })
       : null;
-    let nextAction;
-    if (!current.committed) nextAction = "закоммитьте Cycle Record обычным процессом Git";
-    else if (!allCompleted) {
-      const pending = repositories
-        .filter((repository) => repository.state !== CHANGE_TRACKING_RESULT_STATUS.completed)
-        .map((repository) => repository.repositoryId);
-      nextAction = `записать результаты для репозиториев: ${pending.join(", ")}`;
-    } else if (!snapshot?.current) nextAction = "вызвать verify";
-    else if (!verification?.current) nextAction = "записать verification";
-    else nextAction = "готово";
     return Object.freeze({
       changeId,
       cycle: current.cycle,
@@ -434,13 +422,63 @@ export class ChangeTrackingService {
       repositories,
       snapshot,
       verification,
-      nextAction,
     });
+  }
+
+  /** Resolves one active Cycle containing the current Code Repository. */
+  async #resolveRepositoryCycle(repositoryId, changeId) {
+    if (changeId !== undefined) {
+      const current = await this.#currentCycle(changeId);
+      if (!current.cycle.repositories.includes(repositoryId)) {
+        throw new Error(
+          `REPO_UNKNOWN: repository-id '${repositoryId}' не входит в Change '${changeId}'`,
+        );
+      }
+      return current.cycle;
+    }
+    const candidates = (await this.#activeCycles())
+      .filter((record) => record.repositories.includes(repositoryId));
+    if (candidates.length === 0) {
+      throw new Error(`CYCLE_NOT_FOUND: для repository-id '${repositoryId}' нет активного Cycle`);
+    }
+    if (candidates.length > 1) {
+      throw new Error(
+        `CYCLE_AMBIGUOUS: repository-id '${repositoryId}' входит в Changes: ` +
+          `${candidates.map(({ changeId: id }) => id).join(", ")}; укажите --change`,
+      );
+    }
+    return candidates[0];
+  }
+
+  /** Resolves one active Cycle for Change-level verification. */
+  async #resolveVerificationCycle(changeId) {
+    if (changeId !== undefined) return (await this.#currentCycle(changeId)).cycle;
+    if (this.#context.invocation?.role === "code") {
+      return this.#resolveRepositoryCycle(this.#context.invocation.id);
+    }
+    const candidates = await this.#activeCycles();
+    if (candidates.length === 0) {
+      throw new Error("CYCLE_NOT_FOUND: нет активного Cycle для проверки");
+    }
+    if (candidates.length > 1) {
+      throw new Error(
+        `CYCLE_AMBIGUOUS: активны Changes: ` +
+          `${candidates.map(({ changeId: id }) => id).join(", ")}; укажите --change`,
+      );
+    }
+    return candidates[0];
+  }
+
+  /** Lists Cycle Records whose Changes still exist in the active Store directory. */
+  async #activeCycles() {
+    const records = await this.#records.list();
+    const activeChanges = new Set(await activeChangeIds(this.#context.process));
+    return Object.freeze(records.filter((record) => activeChanges.has(record.changeId)));
   }
 
   /** Возвращает текущий Cycle только после общей проверки его commit gate. */
   async #committedCycle(changeId) {
-    const current = await this.currentCycle(changeId);
+    const current = await this.#currentCycle(changeId);
     if (!current.committed) {
       throw new Error(
         "CYCLE_NOT_COMMITTED: сначала закоммитьте Cycle Record обычным процессом Git",
@@ -449,26 +487,8 @@ export class ChangeTrackingService {
     return current;
   }
 
-  /**
-   * Creates, replaces or preserves the current Cycle Record after preview confirmation.
-   *
-   * @param {object} input Assign input.
-   * @param {string} input.changeId Change ID.
-   * @param {readonly string[]} input.repositoryIds Requested Code Repository IDs.
-   * @param {(preview: object) => Promise<boolean>} input.confirm Preview confirmation.
-   * @returns {Promise<object>} Assign result with a Store-relative path.
-   */
-  async assign({ changeId, repositoryIds, confirm }) {
-    assertChangeId(changeId);
-    if (!Array.isArray(repositoryIds) || repositoryIds.length === 0) {
-      throw new Error("assign требует минимум один --repo");
-    }
-    if (new Set(repositoryIds).size !== repositoryIds.length) {
-      throw new Error("REPO_UNKNOWN: один и тот же --repo передан дважды");
-    }
-    if (typeof confirm !== "function") {
-      throw new Error("CHANGE_TRACKING_INVALID: confirm должен быть функцией");
-    }
+  /** Creates, replaces or preserves the Cycle derived by the public track flow. */
+  async #createCycle({ changeId, repositoryIds }) {
     for (const repositoryId of repositoryIds) {
       requireCodeRepository(this.#context, repositoryId);
     }
@@ -482,7 +502,9 @@ export class ChangeTrackingService {
         `STORE_DIRTY: рабочее дерево Store должно быть чистым (кроме ${relativePath})`,
       );
     }
-    const planningRevision = await this.#context.git.revision();
+    const planningRevision = await this.#context.git.latestRevision([
+      `openspec/changes/${changeId}`,
+    ]);
     if (!isGitRevision(planningRevision)) {
       throw new Error("Git вернул некорректную ревизию рабочей копии Store");
     }
@@ -494,20 +516,8 @@ export class ChangeTrackingService {
         existing.planningRevision === planningRevision &&
         sameRepositorySet(existing.repositories, repositoryIds)
       ) {
-        return Object.freeze({ status: "unchanged", cycle: existing, path: relativePath });
+        return Object.freeze({ changed: false, cycle: existing, path: relativePath });
       }
-    }
-
-    const proceed = await confirm(Object.freeze({
-      kind: existing ? "replace" : "create",
-      changeId,
-      path: relativePath,
-      ...(existing ? { existing } : {}),
-      planningRevision,
-      repositories: Object.freeze([...repositoryIds]),
-    }));
-    if (!proceed) {
-      return Object.freeze({ status: CHANGE_TRACKING_WRITE_STATUS.cancelled, path: relativePath });
     }
 
     const cycle = CycleRecord.create({
@@ -517,9 +527,7 @@ export class ChangeTrackingService {
     });
     await this.#records.write(cycle);
     return Object.freeze({
-      status: existing
-        ? CHANGE_TRACKING_WRITE_STATUS.replaced
-        : CHANGE_TRACKING_WRITE_STATUS.created,
+      changed: true,
       cycle,
       path: relativePath,
     });

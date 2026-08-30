@@ -26,13 +26,9 @@ Extension `openspec-base` и активируются нативным меха�
 декларативно требует этот Extension: init показывает связку, блокирует снятие выбора и
 добавляет его автоматически в flag mode.
 
-Change Tracking не входит в Base Template как обязательный Plugin. Его Apply context
-поставляется Store-scoped Extension самого Plugin и активируется при подключении
-`change-tracking` к Store.
-
-OpenSpec Graph также не выбирается Template. Полный описанный workflow
-`openspec-base` вызывает Graph после появления Delta Specs и перед Apply, поэтому для
-этого маршрута пользователь отдельно инициализирует Plugin и связывает его со Store.
+Base Template и `openspec-base` Extension не обнаруживают и не вызывают конкретные
+Plugins. Change Tracking поставляет только собственные команды, а OpenSpec Graph —
+команды и Agent Extension; оба подключаются независимо от Template.
 
 ### Superspec Template
 
@@ -63,9 +59,9 @@ openspec-orch init /absolute/path/to/store \
 
 Upstream single-repository Git automation адаптирована, а не удалена: Finalize
 вызывает `superpowers:finishing-a-development-branch` отдельно в каждом затронутом
-Code Repository после явной авторизации и записывает выбранный outcome. Change
-Tracking receipts/Snapshot, внешняя проверка текущей версии и реальный Release gate
-остаются обязательными и не подменяются Agent Verify.
+Code Repository после явной авторизации и записывает выбранный outcome. Внешняя
+проверка текущей версии и реальный Release gate остаются обязательными и не
+подменяются Agent Verify.
 
 ## Работа с субагентом
 

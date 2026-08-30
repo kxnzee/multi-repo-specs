@@ -83,7 +83,7 @@ Requirement/Scenario или `path:line`. Уровень выбирать из `u
 Если пользователь просит подготовить экспорт для Zephyr, дополнительно вернуть
 нейтральные записи с `case_id`, `title`, `change_id`, `scenario_ids`, `level`,
 `repository_ids`, `preconditions`, `steps`, `expected_result`,
-`automation_priority` и, когда известен, `snapshot_id`. Не угадывать CSV/API-схему конкретной Zephyr edition, не загружать
+`automation_priority` и, когда известен, `candidate_id`. Не угадывать CSV/API-схему конкретной Zephyr edition, не загружать
 данные и не считать экспортированный case выполненным без явного adapter и запроса.
 
 После таблицы перечислить:

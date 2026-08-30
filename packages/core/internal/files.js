@@ -31,6 +31,36 @@ export class RepositoryFiles {
     return fs.readFile(target, "utf8");
   }
 
+  /** Lists immediate ordinary files in stable name order without exposing absolute paths. */
+  async listFiles(relativePath, { optional = false } = {}) {
+    return this.#listEntries(relativePath, "file", { optional });
+  }
+
+  /** Lists immediate ordinary directories in stable name order without exposing absolute paths. */
+  async listDirectories(relativePath, { optional = false } = {}) {
+    return this.#listEntries(relativePath, "directory", { optional });
+  }
+
+  /** Lists immediate ordinary entries of one requested kind. */
+  async #listEntries(relativePath, kind, { optional }) {
+    if (typeof optional !== "boolean") {
+      throw new Error("Параметр optional должен быть boolean");
+    }
+    const target = await this.#resolveExisting(relativePath, "directory", { optional });
+    if (target === null) return Object.freeze([]);
+    const entries = await fs.readdir(target, { withFileTypes: true });
+    const result = [];
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) {
+        throw new Error(`Путь ${path.posix.join(relativePath, entry.name)} содержит symlink`);
+      }
+      if ((kind === "file" && entry.isFile()) || (kind === "directory" && entry.isDirectory())) {
+        result.push(entry.name);
+      }
+    }
+    return Object.freeze(result.sort((left, right) => left.localeCompare(right)));
+  }
+
   async write(relativePath, contents, { mode } = {}) {
     if (typeof contents !== "string") throw new Error("Содержимое файла должно быть строкой");
     const target = await this.#resolveDeclared(relativePath);

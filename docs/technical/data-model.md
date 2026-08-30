@@ -7,13 +7,16 @@
 | Project configuration | `openspec-orch.yaml` | Пользователь/Core application service | tracked |
 | Store identity | `.openspec-store/store.yaml` | OpenSpec | tracked |
 | Specs и Changes | `openspec/` | OpenSpec/проект | tracked |
-| Cycle Record | `.openspec-orch/changes/<base64url-change-id>.json` | Change Tracking через Files facade | tracked |
+| Cycle Record | `tracking/cycles/<change-id>/cycle.yaml` | Change Tracking через Files facade | tracked |
+| Result Receipt journal | `tracking/cycles/<change-id>/receipts/<repository-id>.yaml` | Change Tracking через Files facade | tracked |
+| Verification journal | `tracking/cycles/<change-id>/verification/<snapshot-id>.yaml` | Change Tracking через Files facade | tracked |
 | Workspace pointer | `.openspec-orch/state.json` | Core | local |
 | Plugin state | `.openspec-orch/plugins/<id>/state.json` | Конкретный Plugin через Storage | local |
 | External runtime cache | `.openspec-orch/cache/plugin-runtimes/<id>/` | Plugin manager | local |
 
-Tracked и local данные не взаимозаменяемы. Потеря local Change Tracking state не
-удаляет Cycle, но Results/Snapshots нельзя восстановить без повторного evidence.
+Tracked и local данные не взаимозаменяемы. Текущее командное состояние Change Tracking
+целиком восстанавливается из файлов Store: Snapshot вычисляется из receipt journals и
+не требует отдельной локальной базы.
 
 ## Project и Repository
 
@@ -28,68 +31,74 @@ Configuration поддерживает только `version: 2`. Неизвес
 
 ## Cycle Record
 
-Нормативный путь кодирует исходный `change_id` в UTF-8 base64url без padding.
-Содержимое:
+`track` получает `change_id` от CLI, через OpenSpec 1.11 проверяет готовность
+`apply.requires` и их транзитивных зависимостей, читает Repository Impact и записывает
+внутренний Cycle Record по пути `tracking/cycles/<change-id>/cycle.yaml`. Содержимое:
 
-```json
-{
-  "contract_version": 1,
-  "cycle_id": "cycle-<uuid-v4>",
-  "change_id": "checkout-flow",
-  "planning_revision": "<full-store-sha1>",
-  "repositories": ["frontend", "backend"],
-  "created_at": "<iso-date-time>"
-}
+```yaml
+contract_version: 1
+cycle_id: cycle-<uuid-v4>
+change_id: checkout-flow
+planning_revision: <full-store-sha1>
+repositories:
+  - frontend
+  - backend
+created_at: <iso-date-time>
 ```
 
 Current Cycle читается из нормативного файла рабочего дерева Store. После чтения
 отдельный Git status этого пути определяет `committed`. Незакоммиченная замена уже
 видна status, но блокирует Results и verify.
 
-`planning_revision` фиксирует Store HEAD на `assign`. Рабочее дерево должно быть
-чистым, кроме нормативного Cycle path, который текущий assign может заменить.
+`planning_revision` фиксирует последний Git commit, изменявший каталог Planning-
+артефактов `openspec/changes/<change-id>`. Поэтому собственные tracking-коммиты не
+создают новый Cycle, а изменение принятого Planning создаёт новую evidence boundary.
+Рабочее дерево должно быть чистым, кроме Cycle path, который текущая операция может
+заменить. Cycle — граница evidence, а не состояние OpenSpec Tasks.
 
 ## Result Receipt
 
-```json
-{
-  "contract_version": 1,
-  "receipt_id": "result-<uuid-v4>",
-  "cycle_id": "cycle-...",
-  "repository_id": "frontend",
-  "implementation_revision": "<full-lowercase-sha1>",
-  "status": "completed",
-  "source": "human",
-  "note": "optional",
-  "created_at": "<iso-date-time>"
-}
+```yaml
+contract_version: 1
+receipts:
+  - contract_version: 1
+    receipt_id: result-<uuid-v4>
+    cycle_id: cycle-...
+    repository_id: frontend
+    implementation_revision: <full-lowercase-sha1>
+    source: human
+    supersedes: null
+    created_at: <iso-date-time>
 ```
 
-Проверяются current Cycle, membership Repository, допустимый status/source и
-существование commit в локальном checkout выбранного Repository. Несовпадение его
-текущего HEAD с receipt SHA — предупреждение, не ошибка.
+Проверяются current Cycle, membership Repository, допустимый source и существование
+commit в локальном checkout выбранного Repository. Task-статуса в Receipt нет.
+Несовпадение текущего HEAD с receipt SHA — предупреждение, не ошибка.
 
-Новый Result для пары `cycle_id + repository_id` заменяет текущий с сохранением
-предыдущего в local history. `supersedes` в v1 отсутствует.
+Один repository-owned YAML-файл хранит append-only журнал. Новый Result для пары
+`cycle_id + repository_id` добавляется с `supersedes`, указывающим на предыдущий
+Receipt. Git log и цепочка receipts сохраняют историю без локального state.
 
 ## Snapshot
 
-`verify` требует `completed` Result каждого Repository Cycle. Идентификатор имеет
-формат `snap-v1-<64-lowercase-hex>` и вычисляется из:
+Snapshot вычисляется, когда для каждого Repository текущего Cycle передана
+implementation revision. Идентификатор имеет формат
+`snap-v1-<64-lowercase-hex>` и вычисляется из:
 
 - версии алгоритма;
 - contract version;
 - Cycle ID;
-- канонически отсортированных пар `repository_id + implementation_revision`.
+- канонически отсортированных троек `repository_id + implementation_revision + receipt_id`.
 
 Время, machine name и local paths в identity не входят. Повтор с теми же входами дает
-тот же Snapshot. Новый Result меняет Snapshot и делает прежнюю verification
-нетекущей.
+тот же Snapshot. Новый Receipt, включая исправление с тем же SHA, меняет Snapshot и
+делает прежнюю verification нетекущей. Отдельный Snapshot-файл не создаётся.
 
 ## Verification Receipt
 
-Verification содержит `pass|fail`, source, note, Cycle ID и Snapshot ID. Запись
-разрешена только для последнего Snapshot current Cycle. Это фиксация результата
+Verification содержит `pass|fail`, human/CI source, note, Cycle ID, Snapshot ID и
+цепочку `supersedes`. Запись разрешена только для последнего Snapshot current Cycle и
+добавляется в Git-tracked journal соответствующего Snapshot. Это фиксация результата
 внешней проверки, а не сама проверка.
 
 ## Plugin storage envelope

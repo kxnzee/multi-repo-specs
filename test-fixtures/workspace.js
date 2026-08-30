@@ -113,14 +113,25 @@ export async function createBareRemote(root, name, files = {}) {
  * @param {Record<string, string>} files Начальные файлы.
  * @returns {Promise<{checkout: string, remote: string}>} Канонический checkout и remote.
  */
-export async function createCheckoutWithRemote(root, relativePath, remoteName, files) {
+export async function createCheckoutWithRemote(
+  root,
+  relativePath,
+  remoteName,
+  files,
+  { transportable = false } = {},
+) {
   const checkout = path.join(root, relativePath);
   const remotePath = path.join(root, `${remoteName}.git`);
-  const remote = `https://example.test/${path.basename(root)}/${remoteName}.git`;
+  const remote = transportable
+    ? `ext::%S ${remotePath}`
+    : `https://example.test/${path.basename(root)}/${remoteName}.git`;
   await fs.mkdir(path.dirname(checkout), { recursive: true });
   await initializeGitRepository(checkout);
   await commitFiles(checkout, files);
   await runCommand("git", ["clone", "--bare", checkout, remotePath]);
   await runCommand("git", ["-C", checkout, "remote", "add", "origin", remote]);
+  if (transportable) {
+    await runCommand("git", ["-C", checkout, "config", "protocol.ext.allow", "always"]);
+  }
   return { checkout: await fs.realpath(checkout), remote };
 }

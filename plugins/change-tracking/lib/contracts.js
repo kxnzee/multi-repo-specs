@@ -4,7 +4,6 @@ import * as z from "zod";
 
 export const CHANGE_TRACKING_CONTRACT = Object.freeze({
   cycleRecordVersion: 1,
-  stateVersion: 1,
   resultReceiptVersion: 1,
   snapshotVersion: 1,
   verificationReceiptVersion: 1,
@@ -13,13 +12,7 @@ export const CHANGE_TRACKING_CONTRACT = Object.freeze({
   resultPrefix: "result-",
   snapshotPrefix: "snap-v1-",
   verificationPrefix: "verification-",
-  cycleRecordsDirectory: ".openspec-orch/changes",
-});
-
-export const CHANGE_TRACKING_RESULT_STATUS = Object.freeze({
-  blocked: "blocked",
-  completed: "completed",
-  failed: "failed",
+  trackingDirectory: "tracking/cycles",
 });
 
 export const CHANGE_TRACKING_RECEIPT_SOURCE = Object.freeze({
@@ -33,19 +26,6 @@ export const CHANGE_TRACKING_VERIFICATION_RESULT = Object.freeze({
   pass: "pass",
 });
 
-export const CHANGE_TRACKING_WRITE_STATUS = Object.freeze({
-  cancelled: "cancelled",
-  created: "created",
-  replaced: "replaced",
-});
-
-export const CHANGE_TRACKING_REPOSITORY_STATE = Object.freeze({
-  ...CHANGE_TRACKING_RESULT_STATUS,
-  commitUnavailable: "commit_unavailable",
-  disconnected: "disconnected",
-  missing: "missing",
-});
-
 export const CHANGE_TRACKING_PATTERNS = Object.freeze({
   gitRevision: /^[0-9a-f]{40}$/,
   identifier: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
@@ -53,13 +33,29 @@ export const CHANGE_TRACKING_PATTERNS = Object.freeze({
 
 const UUID_V4_SCHEMA = z.uuidv4();
 
+/** Builds a prefixed UUID v4 schema for persisted evidence identities. */
+function prefixedUuid(prefix, message) {
+  return z.string().refine(
+    (value) => value.startsWith(prefix) &&
+      UUID_V4_SCHEMA.safeParse(value.slice(prefix.length)).success,
+    message,
+  );
+}
+
+const IDENTIFIER_SCHEMA = z.string().regex(CHANGE_TRACKING_PATTERNS.identifier);
+const REVISION_SCHEMA = z.string().regex(CHANGE_TRACKING_PATTERNS.gitRevision);
+const SOURCE_SCHEMA = z.enum(Object.values(CHANGE_TRACKING_RECEIPT_SOURCE));
+const CYCLE_ID_SCHEMA = prefixedUuid(
+  CHANGE_TRACKING_CONTRACT.cyclePrefix,
+  "должен быть в формате cycle-<uuid-v4>",
+);
+const SNAPSHOT_ID_SCHEMA = z.string().regex(
+  new RegExp(`^${CHANGE_TRACKING_CONTRACT.snapshotPrefix}[0-9a-f]{64}$`),
+);
+
 const CYCLE_RECORD_SCHEMA = z.strictObject({
   contract_version: z.literal(CHANGE_TRACKING_CONTRACT.cycleRecordVersion),
-  cycle_id: z.string().refine(
-    (value) => value.startsWith(CHANGE_TRACKING_CONTRACT.cyclePrefix) &&
-      UUID_V4_SCHEMA.safeParse(value.slice(CHANGE_TRACKING_CONTRACT.cyclePrefix.length)).success,
-    "должен быть в формате cycle-<uuid-v4>",
-  ),
+  cycle_id: CYCLE_ID_SCHEMA,
   change_id: z.string().regex(
     CHANGE_TRACKING_PATTERNS.identifier,
     "должен быть в lowercase kebab-case",
@@ -77,6 +73,38 @@ const CYCLE_RECORD_SCHEMA = z.strictObject({
   created_at: z.iso.datetime({ offset: false }),
 });
 
+const RESULT_RECEIPT_SCHEMA = z.strictObject({
+  contract_version: z.literal(CHANGE_TRACKING_CONTRACT.resultReceiptVersion),
+  receipt_id: prefixedUuid(CHANGE_TRACKING_CONTRACT.resultPrefix),
+  cycle_id: CYCLE_ID_SCHEMA,
+  repository_id: IDENTIFIER_SCHEMA,
+  implementation_revision: REVISION_SCHEMA,
+  source: SOURCE_SCHEMA,
+  supersedes: prefixedUuid(CHANGE_TRACKING_CONTRACT.resultPrefix).nullable(),
+  created_at: z.iso.datetime({ offset: false }),
+});
+
+const VERIFICATION_RECEIPT_SCHEMA = z.strictObject({
+  contract_version: z.literal(CHANGE_TRACKING_CONTRACT.verificationReceiptVersion),
+  receipt_id: prefixedUuid(CHANGE_TRACKING_CONTRACT.verificationPrefix),
+  cycle_id: CYCLE_ID_SCHEMA,
+  snapshot_id: SNAPSHOT_ID_SCHEMA,
+  result: z.enum(Object.values(CHANGE_TRACKING_VERIFICATION_RESULT)),
+  source: SOURCE_SCHEMA,
+  supersedes: prefixedUuid(CHANGE_TRACKING_CONTRACT.verificationPrefix).nullable(),
+  note: z.string().min(1).optional(),
+  created_at: z.iso.datetime({ offset: false }),
+});
+
+/** Validates and freezes one strict persisted document. */
+function parseDocument(schema, value, label) {
+  const result = schema.safeParse(value);
+  if (!result.success) {
+    throw new Error(`STATE_CORRUPTED: Некорректный ${label}: ${z.prettifyError(result.error)}`);
+  }
+  return Object.freeze(result.data);
+}
+
 /**
  * Validates a serialized Cycle Record v1.
  *
@@ -84,13 +112,17 @@ const CYCLE_RECORD_SCHEMA = z.strictObject({
  * @returns {Readonly<Record<string, unknown>>} Validated record document.
  */
 export function parseCycleRecordDocument(value) {
-  const result = CYCLE_RECORD_SCHEMA.safeParse(value);
-  if (!result.success) {
-    throw new Error(
-      `STATE_CORRUPTED: Некорректный Cycle Record: ${z.prettifyError(result.error)}`,
-    );
-  }
-  return Object.freeze(result.data);
+  return parseDocument(CYCLE_RECORD_SCHEMA, value, "Cycle Record");
+}
+
+/** Validates one strict Result Receipt v1 document. */
+export function parseResultReceiptDocument(value) {
+  return parseDocument(RESULT_RECEIPT_SCHEMA, value, "Result Receipt");
+}
+
+/** Validates one strict Verification Receipt v1 document. */
+export function parseVerificationReceiptDocument(value) {
+  return parseDocument(VERIFICATION_RECEIPT_SCHEMA, value, "Verification Receipt");
 }
 
 /** Validates a public Change ID before any repository access. */
@@ -103,9 +135,4 @@ export function assertChangeId(value) {
 /** Returns whether Git produced a full lowercase SHA-1 revision. */
 export function isGitRevision(value) {
   return typeof value === "string" && CHANGE_TRACKING_PATTERNS.gitRevision.test(value);
-}
-
-/** Returns whether a value is one exact UUID v4 string. */
-export function isUuidV4(value) {
-  return UUID_V4_SCHEMA.safeParse(value).success;
 }

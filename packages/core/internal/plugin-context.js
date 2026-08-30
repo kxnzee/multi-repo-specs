@@ -100,6 +100,8 @@ class PluginGitFacade {
   statusPaths(pathspec) { return this.#git.statusPaths(pathspec); }
   isClean(pathspec) { return this.#git.isClean(pathspec); }
   revision() { return this.#git.revision(); }
+  latestRevision(pathspec) { return this.#git.latestRevision(pathspec); }
+  isRemoteReachable(revision) { return this.#git.isRemoteReachable(revision); }
   hasCommit(revision) { return this.#git.hasCommit(revision); }
   assertNoOperation() { return this.#git.assertNoOperation(); }
 }
@@ -126,6 +128,10 @@ class PluginFilesFacade {
   }
 
   read(relativePath, options) { return this.#files.read(relativePath, options); }
+  listFiles(relativePath, options) { return this.#files.listFiles(relativePath, options); }
+  listDirectories(relativePath, options) {
+    return this.#files.listDirectories(relativePath, options);
+  }
   write(relativePath, contents, options) {
     return this.#files.write(relativePath, contents, options);
   }
@@ -140,8 +146,13 @@ class PluginProcessFacade {
     Object.freeze(this);
   }
 
-  run(executable, args, { environment, onStderr, sensitiveValues } = {}) {
-    return this.#process.run(executable, args, { environment, onStderr, sensitiveValues });
+  run(executable, args, { acceptedExitCodes, environment, onStderr, sensitiveValues } = {}) {
+    return this.#process.run(executable, args, {
+      acceptedExitCodes,
+      environment,
+      onStderr,
+      sensitiveValues,
+    });
   }
 }
 

@@ -92,10 +92,7 @@ Repository–Master Spec связи; `UNLINKED_MASTER_SPEC` не расширя�
 
 После Gate 1 закоммитьте Planning обычным Git-процессом. Orchestrator этого не делает.
 
-## Шаг 6A. Standard Apply
-
-Выберите этот режим, если Change Tracking не подключен или при `CYCLE_NOT_FOUND` вы
-явно решили продолжить без Cycle.
+## Шаг 6. Apply и опциональный сбор evidence
 
 1. Передайте Change штатному OpenSpec Apply через установленный
    `openspec-base-apply-context`.
@@ -105,44 +102,43 @@ Repository–Master Spec связи; `UNLINKED_MASTER_SPEC` не расширя�
 4. Запустите repository-local lint/tests/build и создайте implementation commits.
 5. Зафиксируйте точный набор commits и verification evidence своим обычным способом.
 
-Standard Apply не создает Cycle, Results, Snapshot или Verification Receipt.
-
-## Шаг 6B. Apply с Change Tracking
-
-Используйте режим, когда нужен воспроизводимый локальный набор версий.
+Change Tracking не меняет этот Apply. Если нужен воспроизводимый командный набор
+версий, после Planning отдельно начните сбор implementation evidence:
 
 ```bash
-openspec-orch assign <change-id> --repo frontend --repo backend
+openspec-orch track <change-id>
 ```
 
-Проверьте preview и подтвердите запись. Затем вручную закоммитьте Cycle Record в
-Store. Пока он не закоммичен, `record assignment` и `verify` заблокированы.
+Команда фиксирует evidence scope: берёт `frontend` и `backend` из принятого
+`Repository Impact`, создаёт tracking-коммит и публикует его в Store. Она не назначает
+Tasks и не означает начало работы над ними. Ручное копирование SHA или отдельный
+commit служебного файла не нужны.
 
-После реализации каждого Repository:
+После реализации вызовите из корня каждого затронутого Code Repository с чистым
+рабочим деревом:
 
 ```bash
-openspec-orch record assignment <change-id> \
-  --repo frontend \
-  --commit <full-40-char-sha1> \
-  --status completed \
-  --source human
+openspec-orch done
 ```
 
-Для незавершенного результата используйте `failed` или `blocked`, а не ложный
-`completed`. Когда все Results завершены:
+Команда сама определит Repository и `HEAD`. При нескольких активных Changes используйте
+`done --change <change-id>`. Незавершённые Tasks, блокировки и неуспешную реализацию
+фиксируйте в OpenSpec, а не в Plugin. `done` только передаёт конкретный SHA; последняя
+переданная revision автоматически собирает точную версию.
+
+Разверните или checkout-ните именно показанную версию и проведите внешнюю проверку.
+Затем зафиксируйте человеческое или CI-решение:
 
 ```bash
-openspec-orch verify <change-id>
+openspec-orch verify pass
+# либо
+openspec-orch verify fail --note "регрессия"
 ```
 
-`verify` печатает Snapshot и точные SHA, но ничего не тестирует. Выполните checkout
-или deployment именно этих версий, проведите внешнюю проверку и запишите результат:
-
-```bash
-openspec-orch record verification <change-id> \
-  --result pass \
-  --source human
-```
+`verify pass|fail` не запускает тесты. Если после проверки выполнить новый `done`,
+собранная версия изменится, а прежняя проверка будет показана как устаревшая.
+Все четыре основные команды синхронизируют tracking-файлы через Store. Для локального
+эксперимента без публикации добавьте `--no-push` к `track`, `done` или `verify`.
 
 ## Шаг 7. Проверка, Gates и Release
 
