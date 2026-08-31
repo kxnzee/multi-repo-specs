@@ -191,16 +191,18 @@ export class ProjectSetupService {
 
   /** Runs the same complete connect sequence for every protocol adapter. */
   async connect({ workspace, noStrict = false, onProgress = () => {}, requireStrict = false } = {}) {
+    let start = this.#start;
     if (requireStrict) {
       const storeProject = await this.#storeProjects.resolve(this.#start);
       if (!storeProject.project.strict) {
         throw new Error("MCP_SETUP_STRICT_REQUIRED: connect_project недоступен для relaxed Project");
       }
+      start = storeProject.root;
     }
     onProgress("Проверка native CLI выбранного Agent...");
     await this.#extensionPreflight?.preflight();
     const result = await this.#connection.connect({
-      start: this.#start,
+      start,
       workspace,
       noStrict,
       onProgress,

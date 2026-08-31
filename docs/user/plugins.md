@@ -131,13 +131,14 @@ receipts, поэтому любая новая текущая receipt — в т�
 `supersedes` при том же SHA — создаёт новый хэш и делает прежнюю verification
 устаревшей.
 
-`track`, `done`, `verify pass|fail` и `status` скрывают pull/push и используют
-говорящие commit messages. `--no-push` оставляет tracking-коммит локально. При
-одновременной записи разных repository-файлов Plugin один раз повторяет push после
-rebase; конфликт одного файла возвращает `TRACKING_CONFLICT` для решения человеком.
-Видимость обновляется по pull, права совпадают с правами на Store. Сервер понадобится
-только при требованиях к частым конкурентным записям, real-time или тонкому access
-control.
+Все четыре команды сначала выполняют `git pull --ff-only` Store. `track`, `done` и
+`verify pass|fail` затем создают говорящие tracking-коммиты и по умолчанию пушат их;
+`status` только обновляет и читает состояние. `--no-push` оставляет tracking-коммит
+изменяющей команды локально. При одновременной записи разных repository-файлов Plugin
+один раз повторяет push после rebase; конфликт одного файла возвращает
+`TRACKING_CONFLICT` для решения человеком. Видимость обновляется по pull, права
+совпадают с правами на Store. Сервер понадобится только при требованиях к частым
+конкурентным записям, real-time или тонкому access control.
 
 Та же файловая раскладка доступна CLI, Agent/MCP и CI. Публичный контракт Plugin
 ограничен командами `track`, `done`, `status` и `verify pass|fail`; CI передаёт SHA
@@ -157,7 +158,7 @@ openspec-orch plugin sync codegraph --all
 openspec-orch plugin exec codegraph --repo frontend -- status --json
 ```
 
-`connect` вызывает `codegraph init .`, `sync` — `codegraph index .`, а `exec` передает
+`connect` вызывает `codegraph init .`, `sync` — `codegraph sync .`, а `exec` передает
 argv native runtime через package-owned launcher в cwd выбранного Repository.
 `.codegraph/` добавляется в локальный `.git/info/exclude`; tracked `.gitignore` не
 изменяется.
@@ -195,9 +196,19 @@ Orchestrator MCP не требует такого lifecycle: он являетс
 После перезапуска Claude, Qwen или GigaCode должен видеть read tools `get_status`,
 `get_setup_context`, `get_change_context`, `get_next_action`, `get_assignment_scope`,
 `get_doctor_report`, `query_graph`, setup tools `initialize_project`, `connect_project`
-и read-only resources нормативных Store-артефактов. Базовые
-Core/OpenSpec tools работают без Plugins. Tracking и Graph добавляют данные, только
-если соответствующие Plugins подключены к Project.
+и read-only resources из фиксированного Store allowlist. В него входят Project
+registry, OpenSpec config, Markdown/YAML context, Master/Delta `spec.md`, Change
+artifacts с точными именами `intake.md`, `proposal.md`, `design.md`, `tasks.md` и
+YAML-журналы Change Tracking. Superspec artifacts `brainstorm.md`, `plan.md`,
+`apply.md`, `verify.md` и
+`finalize.md` resources не являются. Базовые Core/OpenSpec tools работают без
+Plugins. Tracking добавляет overlay после `plugin init`, даже до Store binding; Graph
+требует declaration и Store binding.
+
+`get_assignment_scope` возвращает `assignments[]` для всех Code Repositories Project:
+признак assignment, точный checkout, текущую revision, чистоту и состояние локального
+подключения. Поэтому основной Agent может подготовить проверяемый вход каждого
+repository-specific subagent даже при запуске MCP из Store.
 
 Setup tools вызываются только после явного запроса пользователя. `initialize_project`
 фиксирован на cwd MCP, использует bundled catalog и strict mode. `connect_project` не
@@ -247,9 +258,7 @@ Progress идет в `stderr`, поэтому JSON и raw stdout можно пе
 `connect` и `sync` Core повторно читает фактический Plugin status.
 
 `disconnect` штатно отключает Plugin-owned Extension и удаляет binding, но не данные
-внутри Repository. `remove` требует отсутствия bindings. Для старого явного `agent`
-copy API доставленные файлы автоматически не удаляются; CLI перечисляет их для ручной
-очистки.
+внутри Repository. `remove` требует отсутствия bindings.
 
 ## Внешний Plugin
 

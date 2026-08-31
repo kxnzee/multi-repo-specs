@@ -226,7 +226,7 @@ index. Repository–Master Spec связи выводятся из структ�
 
 CodeGraph поддерживает Store и Code Repository; каждый binding работает только в cwd
 своего checkout. `connect` вызывает `codegraph init .`, `sync` —
-`codegraph index .`, `exec` передаёт произвольную native-команду через package-owned
+`codegraph sync .`, `exec` передаёт произвольную native-команду через package-owned
 launcher. Перед индексированием `.codegraph/` добавляется в локальный
 `.git/info/exclude`; tracked `.gitignore` не меняется. Agent definitions и Extension
 manifests поддерживают `qwen`, `claude` и `gigacode`.
@@ -248,10 +248,15 @@ exact-зависимостью workspace package и lock-файлом. Server co
 
 - read-only: `get_status`, `get_change_context`, `get_next_action`,
   `get_assignment_scope`, `get_doctor_report`, `get_setup_context`, `query_graph`;
+- `get_assignment_scope.assignments[]` проецирует read-only status всех Code
+  Repositories: assignment, checkout, revision, clean/connected и диагностическое state;
 - controlled write: `initialize_project` только для cwd/strict и `connect_project`
   только без workspace/relaxed overrides; оба делегируют общему `ProjectSetupService`;
-- resources: allowlist Project registry, OpenSpec config, Specs, Change artifacts и
-  Change Tracking journals через `openspec-orch://store/` URI;
+- resources: exact allowlist `openspec-orch.yaml`, `openspec/config.yaml`,
+  Markdown/YAML context, Master/Delta `spec.md`, Change artifacts с точными именами
+  `intake.md`, `proposal.md`, `design.md`, `tasks.md` и YAML-журналы Change Tracking через
+  `openspec-orch://store/` URI; Superspec `brainstorm.md`, `plan.md`, `apply.md`,
+  `verify.md` и `finalize.md` не публикуются;
 - отсутствуют receipt, verification, Release, Archive, произвольный Git write,
   planning write, disconnect, Plugin lifecycle, Agent management и network transport.
 
@@ -259,7 +264,9 @@ exact-зависимостью workspace package и lock-файлом. Server co
 что CLI. Setup handlers и CLI используют одну setup application; остальные handlers
 вызывают Core и публичные Plugin application services. Общая standalone Extension
 `orchestrator-agent` устанавливается явным `agent setup --agent <id>` один раз в
-user scope и поставляет MCP manifests поддерживаемому Agent provider.
+user scope и поставляет MCP manifests поддерживаемому Agent provider. Tracking overlay
+разрешается по установленной declaration без обязательного Store binding; Graph
+overlay требует и declaration, и binding Store Repository.
 
 ## Project Template
 

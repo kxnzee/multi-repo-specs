@@ -63,7 +63,7 @@ export const ORCHESTRATOR_MCP_TOOLS = Object.freeze([
   }),
   Object.freeze({
     name: "get_assignment_scope",
-    description: "Read the current Repository assignment, revision and Graph impact.",
+    description: "Read all Code Repository assignments, checkouts, revisions and Graph impact.",
     inputSchema: CHANGE_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),

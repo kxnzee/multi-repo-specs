@@ -93,14 +93,22 @@ Capability methods возвращают boolean. Loader и SDK contract test kit
 
 ## PluginContext
 
-Context создается Core только после Project/Repository validation. Основные facades:
+Context создается Core только после Project/Repository validation. Его точная
+поверхность:
 
-- `project` и `repository` — immutable identity/role/path handles;
+- `project`, `repositories` и `repository` — immutable Project/Repository handles с
+  identity и role, но без checkout path;
+- `invocation` — nullable handle исходного Store/Code Repository с точным `path`;
 - `files` — scoped read/write и safe relative paths;
 - `git` — ограниченное чтение Git состояния;
+- `openspec` — только проверка версии OpenSpec текущего checkout;
 - `process` — executable/argv без shell interpolation, timeout и redaction;
 - `storage` — versioned local state с atomic update;
-- progress/output — человекочитаемый stderr и чистый stdout.
+- `agent` и `logger` — identity выбранного Agent и Plugin-prefixed сообщения.
+
+Progress и machine-readable output не являются полями `PluginContext`: CLI-команда
+получает их через SDK/composition и обязана сохранять progress в stderr, а
+структурированный результат — в stdout.
 
 Repository setup context используется только во время `connect`. Обычные lifecycle и
 commands могут требовать binding. Store-scoped action явно запрашивает Store context;

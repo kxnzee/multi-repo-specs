@@ -27,16 +27,17 @@ CI, deployment или ручное тестирование. Он также н�
 [`templates/base/`](templates/base/). Он требует Extension `openspec-base` и
 устанавливает:
 
-- project-local schema `base-v1`:
-  `intake → proposal → specs → design → tasks`;
+- project-local schema `base-v1`: после `intake → proposal` независимо становятся
+  доступны `specs` и `design`, а `tasks` требует завершения обоих artifacts;
 - `openspec/config.yaml` и project context в `openspec/context/`;
 - дополнительные assets, включая `.gitignore`.
 
 Bundled [`templates/superspec/`](templates/superspec/) — альтернативный, а не
-дополнительный Template. Он устанавливает schema `superspec-multirepo` с pipeline
-`brainstorm → proposal → optional design → specs → tasks → plan → apply → verify →
-finalize`, Apply/Verify convergence и multi-repository gates. Template декларативно
-требует Extension `superpowers`, поэтому init добавляет его автоматически:
+дополнительный Template. Он устанавливает schema `superspec-multirepo`: после
+`brainstorm` доступны `proposal` и optional `design`, затем цепочка продолжается как
+`proposal → specs → tasks → plan → apply → verify → finalize`. Template добавляет
+Apply/Verify convergence и multi-repository gates, декларативно требует Extension
+`superpowers`, поэтому init добавляет его автоматически:
 
 ```bash
 openspec-orch init /absolute/path/to/store \
@@ -267,12 +268,18 @@ openspec-orch plugin sync codegraph --all
 сложным repository lifecycle может поставлять свой target-scoped Extension; его Agent
 payload активируется нативным CLI во время `plugin connect`.
 
-Встроенный `openspec-orch-mcp` выставляет workflow/Graph/Doctor tools, нормативные
-Store resources и два ограниченных setup tools. `initialize_project` работает только
-в cwd MCP и strict mode; `connect_project` не принимает workspace/relaxed overrides.
-Оба вызывают тот же `ProjectSetupService`, что CLI. MCP не выставляет receipt,
-verification, Release, Archive, произвольный Git write или Plugin lifecycle.
-Graph/Tracking overlays появляются только при подключённых Plugins.
+Встроенный `openspec-orch-mcp` выставляет workflow/Graph/Doctor tools, allowlist
+Store resources и два ограниченных setup tools. В resources входят
+`openspec-orch.yaml`, `openspec/config.yaml`, Markdown/YAML context, Master/Delta
+`spec.md`, Change artifacts с точными именами `intake.md`, `proposal.md`, `design.md`,
+`tasks.md` и YAML-журналы Change Tracking. Остальные файлы Store, включая Superspec
+artifacts
+`brainstorm.md`, `plan.md`, `apply.md`, `verify.md` и `finalize.md`, через MCP resources
+не публикуются. `initialize_project` работает только в cwd MCP и strict mode;
+`connect_project` не принимает workspace/relaxed overrides. Оба вызывают тот же
+`ProjectSetupService`, что CLI. MCP не выставляет receipt, verification, Release,
+Archive, произвольный Git write или Plugin lifecycle. Tracking overlay доступен после
+`plugin init` Change Tracking, а Graph — только после Store binding OpenSpec Graph.
 
 Change Tracking является необязательным CLI-расширением для implementation evidence и
 не меняет Base/Superspec или нативный OpenSpec workflow. Команды Plugin:
@@ -304,10 +311,11 @@ Repository, автоматически фиксирует
 Change. Экран показывает, готова ли текущая версия к человеческому решению о выпуске,
 но не принимает это решение.
 
-`track`, `done`, `verify pass|fail` и `status` синхронизируют командное состояние
-через Git Store и по умолчанию публикуют говорящий tracking-коммит. `--no-push`
-оставляет созданный commit только локально. Видимость обновляется при pull, а не в
-real-time.
+Все четыре команды сначала обновляют командное состояние через `git pull --ff-only`
+в Store. `track`, `done` и `verify pass|fail` затем создают говорящий
+tracking-коммит и по умолчанию публикуют его; `status` ничего не коммитит и не пушит.
+`--no-push` оставляет commit изменяющей команды только локально. Видимость обновляется
+при pull, а не в real-time.
 Вызов `done` без аргументов получает список активных Changes одним вызовом нового
 `openspec status --all --json`.
 

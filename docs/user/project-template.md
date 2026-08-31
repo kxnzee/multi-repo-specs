@@ -16,7 +16,8 @@ Project Template — copy-only каталог, который `openspec-orch ini
 
 ### Base Template
 
-- schema `base-v1`: `intake → proposal → specs → design → tasks`;
+- schema `base-v1`: `intake → proposal`, затем параллельно доступные `specs` и
+  `design`; `tasks` требует завершения обоих artifacts;
 - `openspec/config.yaml`;
 - заготовки project context и ADR;
 - `.gitignore` из явного asset mapping.
@@ -34,8 +35,8 @@ capabilities и подключаются независимо от Template; в�
 
 ### Superspec Template
 
-Superspec использует pipeline
-`brainstorm → proposal → optional design → specs → tasks → plan → apply → verify →
+Superspec использует DAG: после `brainstorm` доступны `proposal` и optional `design`;
+основная зависимая цепочка — `proposal → specs → tasks → plan → apply → verify →
 finalize`. Schema сохраняет полный skill-driven цикл: brainstorming, writing-plans,
 worktrees, subagent-driven TDD, task/final review, systematic debugging, fresh
 verification и structured branch closeout. `apply.md`, `verify.md` и `finalize.md`

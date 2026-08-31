@@ -83,7 +83,9 @@ test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence"
     start: root,
     storeProjectService: Object.freeze({
       async load() { throw new Error("load не ожидается для нового Project"); },
-      async resolve() { return Object.freeze({ project: Object.freeze({ strict: true }) }); },
+      async resolve() {
+        return Object.freeze({ root, project: Object.freeze({ strict: true }) });
+      },
     }),
   });
 
@@ -155,4 +157,39 @@ test("ProjectSetupService rejects an existing relaxed Project before initializat
     /MCP_SETUP_STRICT_REQUIRED/u,
   );
   assert.equal(initializationCalled, false);
+});
+
+test("ProjectSetupService connects a strict Project from its resolved Code Repository pointer", async () => {
+  const storeRoot = "/workspace/specs";
+  const codeRoot = "/workspace/src/frontend";
+  const starts = [];
+  const service = new ProjectSetupService({
+    bundledTemplateProvider: templates,
+    connectionService: Object.freeze({
+      async connect(options) {
+        starts.push(options.start);
+        return {
+          storeId: "specs",
+          storeRoot,
+          workspace: "/workspace",
+          executionMode: "strict",
+          status: "ready",
+          repositories: [],
+        };
+      },
+    }),
+    initializationService: Object.freeze({ async initialize() { return {}; } }),
+    initSelectionService: Object.freeze({ async resolve() { return {}; } }),
+    start: codeRoot,
+    storeProjectService: Object.freeze({
+      async load() { throw new Error("load не ожидается"); },
+      async resolve(start) {
+        assert.equal(start, codeRoot);
+        return Object.freeze({ root: storeRoot, project: Object.freeze({ strict: true }) });
+      },
+    }),
+  });
+
+  assert.equal((await service.connect({ requireStrict: true })).status, "ready");
+  assert.deepEqual(starts, [storeRoot]);
 });
