@@ -126,8 +126,8 @@ artifacts:
       invoke **superpowers:systematic-debugging**, return to Apply and preserve evidence.
 
       Then invoke **openspec-verify-change** and fill the shared Feature Acceptance
-      evidence table. Present it to the named responsible participant. The Agent must
-      keep the Human gate `PENDING` until that participant explicitly selects `PASS`
+      evidence table. Present it for an explicit human decision. The Agent must keep
+      the Human gate `PENDING` until a person explicitly selects `PASS`
       or `FAIL`; Agent evidence cannot make this decision. This is the same universal
       acceptance contract used by Base.
 

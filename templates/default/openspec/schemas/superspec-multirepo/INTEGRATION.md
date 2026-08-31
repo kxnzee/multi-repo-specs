@@ -40,8 +40,8 @@ plan's dependency order.
 4. Artifact drift returns to the owning artifact, then Apply.
 5. Implementation changes require current evidence and a new human decision.
 
-Feature Acceptance remains `PENDING` until the named responsible participant selects
-`PASS` or `FAIL` from the collected evidence. It is exactly the same universal contract
+Feature Acceptance remains `PENDING` until a person explicitly selects `PASS` or
+`FAIL` from the collected evidence. It is exactly the same universal contract
 used by `spec-driven-extended`. Agent reasoning and technical checks prepare evidence
 but cannot make the human decision. Superspec Process Compliance is evaluated
 separately and cannot weaken Feature Acceptance.

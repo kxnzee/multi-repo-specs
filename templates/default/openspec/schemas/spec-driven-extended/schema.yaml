@@ -299,8 +299,8 @@ artifacts:
       Invoke **openspec-verify-change**, then fill the shared Feature Acceptance
       evidence table with applicable OpenSpec, repository and Scenario results. Use
       `N/A` only with a reason and `PENDING` for an applicable check that was not run.
-      Present that evidence to the named responsible participant. The Agent must keep
-      the Human gate `PENDING` until that participant explicitly selects `PASS` or
+      Present that evidence for an explicit human decision. The Agent must keep the
+      Human gate `PENDING` until a person explicitly selects `PASS` or
       `FAIL`; Agent evidence cannot make this decision. After implementation changes,
       collect current evidence and obtain a new decision. Verify does not authorize
       Release or Archive. Base Process Compliance is NOT_APPLICABLE.

@@ -14,7 +14,6 @@ check that was not run is `PENDING`.
 
 ## Human gate
 
-- **Responsible participant:** `<name>`
 - **Decision:** `PENDING` / `PASS` / `FAIL`
 - **Comment:** `<reason or evidence reference>`
 

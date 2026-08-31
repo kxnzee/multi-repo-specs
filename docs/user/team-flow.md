@@ -62,7 +62,7 @@ Plugin передаёт evidence, но не назначает работу и �
 
 - PR и обязательные repository checks прошли;
 - Verify содержит актуальное evidence;
-- ответственный участник установил Feature Acceptance `PASS`;
+- человек явно установил Feature Acceptance `PASS`;
 - технические отклонения согласованы или возвращены в Planning.
 
 ## Gate 3: release ready

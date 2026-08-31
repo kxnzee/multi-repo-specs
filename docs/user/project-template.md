@@ -33,7 +33,7 @@ openspec new change redesign-checkout --schema superspec-multirepo
 несовместим, создайте новый Change и перенесите только принятый смысл.
 
 Обе schemas используют одну Feature Acceptance: Agent собирает evidence, а решение
-`PENDING`, `PASS` или `FAIL` принимает ответственный участник. Change Tracking, если
+`PENDING`, `PASS` или `FAIL` явно принимает человек. Change Tracking, если
 подключён, отдельно привязывает это решение к revisions и определяет устаревание.
 Verify не выполняет Release или Archive.
 

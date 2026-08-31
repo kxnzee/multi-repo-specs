@@ -194,6 +194,7 @@ test("Base and Superspec use one universal human Feature Acceptance", async () =
   assert.equal(contract, featureAcceptanceContract(superspec));
   assert.match(contract, /\*\*Decision:\*\* `PENDING` \/ `PASS` \/ `FAIL`/u);
   assert.match(contract, /Agent prepares evidence but does not choose the gate decision/u);
+  assert.doesNotMatch(contract, /Responsible participant/u);
   assert.doesNotMatch(contract, /commit|artifact|deployment|timestamp|Verified at/iu);
   assert.doesNotMatch(contract, /PASS_WITH_WARNINGS/u);
 });
