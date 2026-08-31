@@ -245,7 +245,8 @@ test("superspec-multirepo preserves the complete skill-driven lifecycle", async 
     /\bgit\s+(?:add|commit|checkout|pull|merge|push|branch)\b|\bgh\s+pr\b/iu,
   );
 
-  await fs.access(path.join(schemaRoot, "templates/verify.md"));
+  const verify = await fs.readFile(path.join(schemaRoot, "templates/verify.md"), "utf8");
+  assert.doesNotMatch(verify, /Next step/u);
   await assert.rejects(
     fs.access(path.join(schemaRoot, "templates/apply.md")),
     { code: "ENOENT" },

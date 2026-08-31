@@ -41,4 +41,3 @@ Feature Acceptance does not authorize Release or Archive.
 - [ ] `FAIL`
 
 **Warnings / failures:** `<details>`
-**Next step:** `<owning artifact, implementation correction, or team closeout>`
