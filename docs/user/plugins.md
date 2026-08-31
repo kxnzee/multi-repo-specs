@@ -26,10 +26,12 @@ openspec-orch plugin remove <plugin-id>
 `sync` и `exec` не универсальны: используйте их только для Plugins, в разделе
 которых эти операции явно указаны.
 
-Для нескольких repositories повторите `--repo` или используйте `--all`. Без
-selector TTY показывает выбор, а non-TTY требует явный selector. `disconnect`
-удаляет binding и отключает Plugin-owned Extension, но не удаляет данные Plugin из
-Repository. `remove` разрешён только без bindings.
+Для `connect`, `sync`, `exec` и `disconnect` при работе с несколькими repositories
+повторите `--repo` или используйте `--all`. Без selector эти команды показывают
+выбор в TTY, а в non-TTY требуют явный selector. `status` не поддерживает `--all`:
+без `--repo` он показывает все bindings, а `--repo` ограничивает результат.
+`disconnect` удаляет binding и отключает Plugin-owned Extension, но не удаляет
+данные Plugin из Repository. `remove` разрешён только без bindings.
 
 ## OpenSpec Graph
 
