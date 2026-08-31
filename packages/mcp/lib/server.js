@@ -9,17 +9,23 @@ import {
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
+const IDENTIFIER_PATTERN = "^[a-z0-9]+(?:-[a-z0-9]+)*$";
+const NON_EMPTY_STRING_SCHEMA = Object.freeze({ type: "string", minLength: 1 });
+const IDENTIFIER_SCHEMA = Object.freeze({
+  ...NON_EMPTY_STRING_SCHEMA,
+  pattern: IDENTIFIER_PATTERN,
+});
 const EMPTY_SCHEMA = Object.freeze({ type: "object", additionalProperties: false });
 const CHANGE_SCHEMA = Object.freeze({
   type: "object",
-  properties: Object.freeze({ change_id: Object.freeze({ type: "string" }) }),
+  properties: Object.freeze({ change_id: IDENTIFIER_SCHEMA }),
   additionalProperties: false,
 });
 const ATTEMPT_SCHEMA = Object.freeze({
   type: "object",
   properties: Object.freeze({
-    change_id: Object.freeze({ type: "string" }),
-    task_id: Object.freeze({ type: "string" }),
+    change_id: IDENTIFIER_SCHEMA,
+    task_id: NON_EMPTY_STRING_SCHEMA,
   }),
   required: ["change_id", "task_id"],
   additionalProperties: false,
@@ -56,8 +62,8 @@ export const ORCHESTRATOR_MCP_TOOLS = Object.freeze([
     inputSchema: Object.freeze({
       type: "object",
       properties: Object.freeze({
-        change_id: Object.freeze({ type: "string" }),
-        artifact: Object.freeze({ type: "string" }),
+        change_id: IDENTIFIER_SCHEMA,
+        artifact: IDENTIFIER_SCHEMA,
       }),
       required: ["change_id"],
       additionalProperties: false,
@@ -89,10 +95,19 @@ export const ORCHESTRATOR_MCP_TOOLS = Object.freeze([
       type: "object",
       properties: Object.freeze({
         query: Object.freeze({ type: "string", enum: ["report", "node", "change_impact"] }),
-        id: Object.freeze({ type: "string" }),
+        id: NON_EMPTY_STRING_SCHEMA,
       }),
       required: ["query"],
       additionalProperties: false,
+      oneOf: Object.freeze([
+        Object.freeze({ properties: Object.freeze({ query: Object.freeze({ const: "report" }) }) }),
+        Object.freeze({
+          properties: Object.freeze({
+            query: Object.freeze({ enum: ["node", "change_impact"] }),
+          }),
+          required: ["id"],
+        }),
+      ]),
     }),
     annotations: READ_ONLY_ANNOTATIONS,
   }),
@@ -102,17 +117,17 @@ export const ORCHESTRATOR_MCP_TOOLS = Object.freeze([
     inputSchema: Object.freeze({
       type: "object",
       properties: Object.freeze({
-        store_id: Object.freeze({ type: "string" }),
-        agent_id: Object.freeze({ type: "string" }),
-        template_id: Object.freeze({ type: "string" }),
+        store_id: IDENTIFIER_SCHEMA,
+        agent_id: IDENTIFIER_SCHEMA,
+        template_id: IDENTIFIER_SCHEMA,
         repositories: Object.freeze({
           type: "array",
           items: Object.freeze({
             type: "object",
             properties: Object.freeze({
-              repository_id: Object.freeze({ type: "string" }),
-              remote: Object.freeze({ type: "string" }),
-              default_branch: Object.freeze({ type: "string" }),
+              repository_id: IDENTIFIER_SCHEMA,
+              remote: NON_EMPTY_STRING_SCHEMA,
+              default_branch: NON_EMPTY_STRING_SCHEMA,
             }),
             required: ["repository_id", "remote", "default_branch"],
             additionalProperties: false,

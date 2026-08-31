@@ -98,6 +98,39 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     true,
   );
 
+  const schemas = Object.fromEntries(listed.tools.map(({ name, inputSchema }) => (
+    [name, inputSchema]
+  )));
+  const identifierSchema = {
+    type: "string",
+    minLength: 1,
+    pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+  };
+  const nonEmptyStringSchema = { type: "string", minLength: 1 };
+  assert.deepEqual(schemas.get_status.properties.change_id, identifierSchema);
+  assert.deepEqual(schemas.get_change_context.properties.artifact, identifierSchema);
+  assert.deepEqual(schemas.start_attempt.properties, {
+    change_id: identifierSchema,
+    task_id: nonEmptyStringSchema,
+  });
+  assert.deepEqual(schemas.initialize_project.properties.store_id, identifierSchema);
+  assert.deepEqual(
+    schemas.initialize_project.properties.repositories.items.properties,
+    {
+      repository_id: identifierSchema,
+      remote: nonEmptyStringSchema,
+      default_branch: nonEmptyStringSchema,
+    },
+  );
+  assert.deepEqual(schemas.query_graph.oneOf, [
+    { properties: { query: { const: "report" } } },
+    {
+      properties: { query: { enum: ["node", "change_impact"] } },
+      required: ["id"],
+    },
+  ]);
+  assert.deepEqual(schemas.query_graph.properties.id, nonEmptyStringSchema);
+
   const status = await client.callTool({ name: "get_status", arguments: { change_id: "pay" } });
   assert.deepEqual(JSON.parse(status.content[0].text), { state: "ready" });
   assert.deepEqual(calls, [["get_status", { change_id: "pay" }]]);
