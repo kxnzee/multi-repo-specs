@@ -42,6 +42,14 @@ function runCli(machine, cwd, ...args) {
   });
 }
 
+/** Explicitly updates one participant's local Store before read-only commands. */
+function updateStore(machine) {
+  return execa("git", ["pull", "--ff-only", "origin", "main"], {
+    cwd: machine.store,
+    env: machine.env,
+  });
+}
+
 /** Creates one independent Store/code workspace and OpenSpec registry. */
 async function cloneMachine(root, name, storeRemote, codeRemotes) {
   const workspace = path.join(root, name);
@@ -159,6 +167,7 @@ test("track publishes one Git-native Cycle that another machine can read", async
   const { alice, bob } = await collaborationFixture(t);
 
   await runCli(alice, alice.store, "track", "checkout-flow");
+  await updateStore(bob);
   const remoteStatus = await runCli(bob, bob.store, "status", "--json");
   const summary = JSON.parse(remoteStatus.stdout);
   const [status, untracked] = summary.changes;
@@ -216,6 +225,7 @@ test("done publishes one append-only repository receipt visible on another machi
   await runCli(alice, alice.store, "track", "checkout-flow");
 
   await runCli(alice, alice.repositories.frontend, "done");
+  await updateStore(bob);
   const remoteStatus = JSON.parse((await runCli(
     bob,
     bob.store,
@@ -250,6 +260,7 @@ test("Snapshot is deterministic and a new receipt makes shared verification stal
   await runCli(alice, alice.repositories.frontend, "done");
   await runCli(bob, bob.repositories.backend, "done");
 
+  await updateStore(alice);
   const beforeVerification = JSON.parse((await runCli(
     alice,
     alice.store,
@@ -260,6 +271,7 @@ test("Snapshot is deterministic and a new receipt makes shared verification stal
   assert.equal(beforeVerification.release_ready, false);
 
   await runCli(bob, bob.store, "verify", "pass");
+  await updateStore(alice);
   const verified = JSON.parse((await runCli(
     alice,
     alice.store,
@@ -275,6 +287,7 @@ test("Snapshot is deterministic and a new receipt makes shared verification stal
   );
 
   await runCli(alice, alice.repositories.frontend, "done");
+  await updateStore(bob);
   const changed = JSON.parse((await runCli(
     bob,
     bob.store,

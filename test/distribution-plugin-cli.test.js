@@ -14,6 +14,7 @@ import { configuration, createProject } from "@openspec-orch/core";
 
 import {
   commitFiles,
+  configureGit,
   createCheckoutWithRemote,
   runCommand,
   temporaryDirectory,
@@ -584,11 +585,28 @@ test("candidate distribution completes Change Tracking through the public CLI", 
   const backendDone = await runCli(backend.checkout, "done");
   assert.match(backendDone.stdout, /backend @ [0-9a-f]{40}/u);
   assert.match(backendDone.stdout, /Версия собрана: snap-v1-/u);
-  const awaitingVerification = (await runCli(
-    store.checkout,
-    "status", "checkout-flow",
-  )).stdout;
+  const localHeadBeforeStatus = await runCommand("git", ["-C", store.checkout, "rev-parse", "HEAD"]);
+  const collaboratorStore = path.join(root, "collaborator-store");
+  await runCommand("git", ["clone", path.join(root, "specs.git"), collaboratorStore]);
+  await configureGit(collaboratorStore);
+  await commitFiles(
+    collaboratorStore,
+    { "remote-only.txt": "remote update\n" },
+    { message: "remote-only Store update" },
+  );
+  await runCommand("git", ["-C", collaboratorStore, "push", "origin", "main"]);
+  const [firstLocalStatus, secondLocalStatus] = await Promise.all([
+    runCli(store.checkout, "status", "checkout-flow"),
+    runCli(store.checkout, "status", "checkout-flow"),
+  ]);
+  const awaitingVerification = firstLocalStatus.stdout;
+  assert.equal(
+    await runCommand("git", ["-C", store.checkout, "rev-parse", "HEAD"]),
+    localHeadBeforeStatus,
+  );
+  await assert.rejects(fs.access(path.join(store.checkout, "remote-only.txt")), { code: "ENOENT" });
   assert.match(awaitingVerification, /Проверка: не выполнена/u);
+  assert.match(secondLocalStatus.stdout, /Проверка: не выполнена/u);
   assert.doesNotMatch(awaitingVerification, /→ Далее:/u);
   assert.doesNotMatch(awaitingVerification, /\b(?:Cycle|Snapshot|Receipt|Planning revision)\b/u);
   const verification = await runCli(store.checkout, "verify", "pass");

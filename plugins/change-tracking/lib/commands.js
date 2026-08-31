@@ -224,10 +224,9 @@ export function registerChangeTrackingCommands(
     }, { scope: COMMAND_SCOPE.store });
 
   commands.command("status [change-id]")
-    .description("показать активные Changes или подробный implementation evidence")
+    .description("показать локальные active Changes или implementation evidence")
     .option("--json", "вывести машиночитаемый status")
     .actionWithContext(async (context, changeId, options) => {
-      await synchronize(context);
       const service = new ChangeTrackingService(context);
       const result = await progress.run(
         changeId

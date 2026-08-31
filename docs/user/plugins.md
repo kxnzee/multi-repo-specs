@@ -66,6 +66,9 @@ implementation commit, а `verify pass|fail` только записывает �
 публикуют его. `--no-push` оставляет commit локально. Новый `done` меняет
 candidate и делает прежнюю verification неактуальной.
 
+`status` читает только текущую локальную копию Store и не выполняет `git pull`.
+Обновляйте Store обычным командным Git-процессом перед чтением удалённых изменений.
+
 ## CodeGraph
 
 ```bash
