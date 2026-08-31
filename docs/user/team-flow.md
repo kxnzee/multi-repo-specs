@@ -49,11 +49,17 @@ Intent и Intake
 Если во время Apply найден новый Repository или capability, работа останавливается:
 Planning, Graph и Gate 1 обновляются до продолжения.
 
-При подключённом Change Tracking разработчик из Code Repository выполняет
-`attempt start` перед пунктом Apply, а после commit и стандартной галочки OpenSpec —
-`attempt complete`. Незавершённая попытка локальна; завершённая запись попадает в
-Change и публикуется вместе с обычным Change PR. Plugin не меняет task status,
+При подключённом Change Tracking разработчик запускает штатный OpenSpec Apply из Code
+Repository. Agent Extension вызывает `start_attempt` перед выбранным task и
+`complete_attempt` после commit и стандартной галочки OpenSpec; одноимённые CLI-команды
+остаются ручным fallback. Незавершённая попытка локальна; завершённая запись попадает
+в Change и публикуется вместе с обычным Change PR. Plugin не меняет task status,
 branch, PR, Verify или Jira-процесс команды.
+
+Если review или тестирование возвращает task в доработку, команда снимает его
+стандартную галочку и снова запускает Apply. Новая attempt связывает повторную работу
+с новой implementation revision, а прежняя запись остаётся в истории. По этой истории
+можно перейти от возвращённого пункта плана к соответствующим изменениям в коде.
 
 ## Gate 2: candidate принят
 

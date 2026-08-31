@@ -51,24 +51,51 @@ Repositories и не доказывает ownership, реализацию или
 ## Change Tracking
 
 ```bash
+openspec-orch agent setup --agent <claude|qwen|gigacode>
 openspec-orch plugin init --plugin change-tracking
 openspec-orch plugin connect change-tracking \
-  --repo specs --repo frontend --repo backend
+  --repo frontend --repo backend
 
-# из чистого Code Repository перед работой над task:
+# ручной fallback из чистого Code Repository перед работой над task:
 openspec-orch attempt start <change-id> <task-id>
 # после commit и стандартной галочки Apply:
 openspec-orch attempt complete <change-id> <task-id>
 ```
+
+Plugin подключается к тем Code Repositories, где будет выполняться Apply. Его Agent
+Extension устанавливается только туда; отдельный путь к Store в Agent-сессию передавать
+не нужно. После установки или подключения перезапустите Agent.
+
+Обычный Agent-flow:
+
+1. Разработчик из Code Repository просит реализовать Change штатным OpenSpec Apply.
+2. Extension получает Apply-контекст активной schema и определяет текущий Repository.
+3. Перед выбранным каноническим task она вызывает `start_attempt`.
+4. После implementation commit, repository checks и стандартной галочки task вызывает
+   `complete_attempt`.
+5. В Change появляется связь task с planning, base и implementation revisions.
+
+Для Superspec Apply-контекст ведёт к repository section в `plan.md`; другая schema
+может вернуть другой artifact. Tracker не разбирает имена файлов и Markdown-заголовки,
+поэтому кастомная schema работает через тот же OpenSpec Apply API. Отдельных
+`implement-design` и `implement-plan` workflows нет. CLI-команды выше нужны только как
+ручной fallback.
+
+В первой Claude-сессии подтвердите доступ только к запрошенным
+`openspec-orchestrator` MCP tools. Дополнительный `--add-dir` для Store не требуется.
 
 `attempt start` сохраняет base revision только в локальном Plugin storage. Команда
 `attempt complete` повторно читает task через `openspec instructions apply --json`
 и, если стандартная галочка уже установлена, добавляет итоговую revision в
 `openspec/changes/<change-id>/implementation-map.yaml`. Она не создаёт commit и не
 выполняет `pull` или `push`; файл публикуется обычным Git-процессом Change.
+Если task возвращён в работу, его галочка снимается и обычный Apply запускается снова.
+Tracker создаёт новую attempt от текущей base revision и добавляет её в историю, не
+перезаписывая предыдущую implementation revision.
 
 Plugin не назначает Tasks, не меняет их галочки, не выполняет тесты и не участвует
-в Verify, Release или Git-публикации.
+в Verify, Release или Git-публикации. Сохранённая revision помогает найти реализацию
+возвращённого task, но сама по себе не доказывает корректность или приёмку фичи.
 
 ## CodeGraph
 

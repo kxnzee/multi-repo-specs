@@ -45,11 +45,6 @@ function validateAttempt(candidate, path) {
   });
 }
 
-/** Selects one durable entry per Repository and task in the narrow first version. */
-function key(attempt) {
-  return `${attempt.repository_id}\0${attempt.task.id}`;
-}
-
 /** Treats a repeated completion after local cleanup failure as the same durable attempt. */
 function sameAttempt(left, right) {
   const withoutCompletionTime = (value) => {
@@ -96,9 +91,6 @@ export class ImplementationMapRepository {
       corrupted(relativePath, "ожидается implementation map v1 текущего Change");
     }
     const attempts = document.attempts.map((attempt) => validateAttempt(attempt, relativePath));
-    if (new Set(attempts.map(key)).size !== attempts.length) {
-      corrupted(relativePath, "повторяется task для одного Repository");
-    }
     return Object.freeze(attempts);
   }
 
@@ -106,13 +98,8 @@ export class ImplementationMapRepository {
     const relativePath = this.pathFor(changeId);
     const checked = validateAttempt(attempt, relativePath);
     const attempts = await this.read(changeId);
-    const existing = attempts.find((candidate) => key(candidate) === key(checked));
+    const existing = attempts.find((candidate) => sameAttempt(candidate, checked));
     if (existing) {
-      if (!sameAttempt(existing, checked)) {
-        throw new Error(
-          "ATTEMPT_ALREADY_COMPLETED: повторная попытка для этого task пока не поддерживается",
-        );
-      }
       return Object.freeze({ changed: false, path: relativePath, attempt: existing });
     }
     await this.#files.write(relativePath, stringify({

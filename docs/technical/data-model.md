@@ -25,12 +25,19 @@ Extensions и Plugin declarations/bindings. Schema Change хранится са�
 
 `attempt start` хранит незавершённую попытку в локальном Plugin storage: Change,
 Repository, OpenSpec task, schema, planning revision и base revision. В Git эта
-запись не попадает.
+запись не попадает. Для одного Change, Repository и task одновременно существует не
+более одной активной attempt.
 
 После стандартной отметки task как выполненного `attempt complete` добавляет в
 Change-local `implementation-map.yaml` base и implementation revisions. Task ID и
 description берутся из канонического OpenSpec Apply JSON, поэтому Plugin не зависит
-от имени planning artifact, заголовков Markdown или конкретной schema.
+от имени planning artifact, заголовков Markdown или конкретной schema. Если task
+возвращён в работу, следующая попытка добавляется в файл и не перезаписывает предыдущую.
+
+Каждая завершённая запись содержит `repository_id`, канонические `task.id` и
+`task.description`, `schema_name`, `planning_revision`, `base_revision`,
+`implementation_revision`, `started_at` и `completed_at`. Повтор идентичного completion
+не создаёт дубль; новая base или implementation revision считается новой попыткой.
 
 ## Plugin storage
 

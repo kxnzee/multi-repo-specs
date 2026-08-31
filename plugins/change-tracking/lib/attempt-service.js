@@ -55,7 +55,7 @@ function findTask(instructions, taskId) {
   return task;
 }
 
-/** Coordinates local active state and one durable Change-local manifest entry. */
+/** Coordinates local active state and durable Change-local attempt history. */
 export class AttemptTrackingService {
   #context;
   #maps;
@@ -148,6 +148,9 @@ export class AttemptTrackingService {
     const implementationRevision = await repositoryGit.revision();
     if (!isGitRevision(implementationRevision)) {
       throw new Error("COMMIT_NOT_FOUND: Git вернул некорректную implementation revision");
+    }
+    if (implementationRevision === active.base_revision) {
+      throw new Error("ATTEMPT_IMPLEMENTATION_MISSING: после начала attempt нет нового commit");
     }
     const result = await this.#maps.append(changeId, {
       repository_id: active.repository_id,

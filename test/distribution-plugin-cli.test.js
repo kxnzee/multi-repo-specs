@@ -261,6 +261,10 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   await assert.rejects(fs.access(graphSeed), { code: "ENOENT" });
   await runCli(
     storeRoot,
+    "plugin", "connect", "change-tracking", "--repo", "specs", "--repo", "frontend",
+  );
+  await runCli(
+    storeRoot,
     "plugin", "connect", "codegraph", "--repo", "specs", "--repo", "frontend",
   );
   const connectedExtensions = (await fs.readFile(nativeLog, "utf8"))
@@ -270,11 +274,19 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     .filter(({ args }) => args[1] === "install");
   assert.deepEqual(connectedExtensions.map(({ cwd, args }) => ({
     cwd,
+    nativeId: args[2].slice(args[2].lastIndexOf(":") + 1),
     operation: args.slice(0, 2),
     scope: args.slice(-3),
   })), [
     {
+      cwd: await fs.realpath(codeRoot),
+      nativeId: "change-tracking-agent",
+      operation: ["extensions", "install"],
+      scope: ["--scope", "project", "--consent"],
+    },
+    {
       cwd: await fs.realpath(storeRoot),
+      nativeId: "codegraph-agent",
       operation: ["extensions", "install"],
       scope: ["--scope", "project", "--consent"],
     },
@@ -285,6 +297,7 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     .map((line) => JSON.parse(line))
     .filter(({ args }) => args[1] === "enable");
   assert.deepEqual(enabledExtensions.map(({ cwd }) => cwd), [
+    await fs.realpath(codeRoot),
     await fs.realpath(storeRoot),
     await fs.realpath(codeRoot),
   ]);

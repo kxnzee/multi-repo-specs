@@ -69,7 +69,9 @@ binding.
 OpenSpec Graph каждый раз компилирует Store files в детерминированный report.
 CodeGraph обслуживает один локальный index на binding и не передаёт свою модель в
 Store. Change Tracking хранит активную attempt локально, а завершённую связь
-OpenSpec task с revisions — внутри Change.
+OpenSpec task с revisions — внутри Change. Его Plugin-owned Extension устанавливается
+только в подключённые Code Repositories и ведёт Agent через общий MCP к Store без
+добавления Store path в Agent-сессию.
 
 Эти Plugins независимы и не меняют OpenSpec Apply.
 

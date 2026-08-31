@@ -1,0 +1,8 @@
+{
+  "name": "change-tracking-agent",
+  "version": "1.0.0",
+  "description": "OpenSpec task-to-revision tracking during implementation",
+  "author": {
+    "name": "OpenSpec Orchestrator"
+  }
+}

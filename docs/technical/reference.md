@@ -104,7 +104,7 @@ Executable `openspec-orch-mcp` обслуживает только stdio.
 
 Read tools:
 
-- `get_status`;
+- `get_status` — при переданном `change_id` включает активные и завершённые attempts;
 - `get_setup_context`;
 - `get_change_context`;
 - `get_next_action`;
@@ -121,7 +121,8 @@ Task evidence tools:
 
 - `start_attempt` — локально фиксирует task и base revision текущего Code Repository;
 - `complete_attempt` — требует выполненный task из OpenSpec Apply и записывает
-  итоговую revision в Change-local implementation map.
+  итоговую revision в Change-local implementation map; повторная реализация того же
+  task добавляется как новая attempt.
 
 Resources ограничены Project config, OpenSpec config, Markdown/YAML context, Master
 Specs и schema-declared Change artifacts. `.openspec.yaml` и произвольные Store

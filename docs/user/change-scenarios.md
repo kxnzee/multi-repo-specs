@@ -10,6 +10,7 @@
 | Поведение не меняется | Принятый `skip_specs` и прямая сверка scope |
 | Найден новый Repository/capability | Стоп Apply → обновить Planning → новый Gate 1 |
 | Нужна связь task с revision | Использовать Change Tracking во время Apply |
+| Task возвращён в доработку | Снять галочку → повторить Apply → сохранить новую attempt |
 | Новый commit после проверки | Обновить evidence и повторить человеческую проверку |
 | Change B зависит от активного A | Принять Planning A, отдельный Sync PR, затем Planning B |
 | CodeGraph недоступен | Адресный read/search в уже выбранном Repository |

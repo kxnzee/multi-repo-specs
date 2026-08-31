@@ -65,6 +65,46 @@ test("attempt starts locally and completes once into the owning Change manifest"
   });
 });
 
+test("a reopened OpenSpec task keeps each implementation attempt", async () => {
+  const tasks = [{ id: "1", description: "1.1 Implement checkout", done: false }];
+  const heads = { frontend: BASE };
+  const timestamps = [
+    "2026-08-31T10:00:00.000Z",
+    "2026-08-31T10:01:00.000Z",
+    "2026-08-31T11:00:00.000Z",
+    "2026-08-31T11:01:00.000Z",
+  ];
+  const context = assignmentContext({
+    invocation: Object.freeze({ id: "frontend", role: "code", path: "/workspace/frontend" }),
+    implementationHeads: heads,
+    tasks,
+  });
+  const service = new AttemptTrackingService(context, { now: () => timestamps.shift() });
+
+  await service.start({ changeId: "checkout-flow", taskId: "1" });
+  tasks[0].done = true;
+  heads.frontend = IMPLEMENTATION;
+  await service.complete({ changeId: "checkout-flow", taskId: "1" });
+
+  tasks[0].done = false;
+  await service.start({ changeId: "checkout-flow", taskId: "1" });
+  tasks[0].done = true;
+  heads.frontend = "c".repeat(40);
+  await service.complete({ changeId: "checkout-flow", taskId: "1" });
+
+  const status = await service.status("checkout-flow");
+  assert.deepEqual(
+    status.completed.map(({ base_revision, implementation_revision }) => ({
+      base_revision,
+      implementation_revision,
+    })),
+    [
+      { base_revision: BASE, implementation_revision: IMPLEMENTATION },
+      { base_revision: IMPLEMENTATION, implementation_revision: "c".repeat(40) },
+    ],
+  );
+});
+
 test("complete requires the standard OpenSpec Apply checkbox and a clean Code Repository", async () => {
   const tasks = [{ id: "1", description: "1.1 Implement checkout", done: false }];
   const context = assignmentContext({
@@ -77,6 +117,23 @@ test("complete requires the standard OpenSpec Apply checkbox and a clean Code Re
   await assert.rejects(
     service.complete({ changeId: "checkout-flow", taskId: "1" }),
     /ATTEMPT_TASK_INCOMPLETE/u,
+  );
+});
+
+test("complete requires an implementation commit after attempt start", async () => {
+  const tasks = [{ id: "1", description: "1.1 Implement checkout", done: false }];
+  const context = assignmentContext({
+    invocation: Object.freeze({ id: "frontend", role: "code", path: "/workspace/frontend" }),
+    implementationHeads: { frontend: BASE },
+    tasks,
+  });
+  const service = new AttemptTrackingService(context);
+  await service.start({ changeId: "checkout-flow", taskId: "1" });
+
+  tasks[0].done = true;
+  await assert.rejects(
+    service.complete({ changeId: "checkout-flow", taskId: "1" }),
+    /ATTEMPT_IMPLEMENTATION_MISSING/u,
   );
 });
 

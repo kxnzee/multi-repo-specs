@@ -37,9 +37,11 @@ openspec-orch graph inspect --json
 ## 3. Реализуйте Change
 
 Используйте штатный OpenSpec Apply, выполните repository checks и создайте
-implementation commits. CodeGraph и Change Tracking опциональны.
+implementation commits. CodeGraph и Change Tracking опциональны. Если Change Tracking
+подключён к текущему Code Repository, его Agent Extension автоматически начинает и
+завершает attempt для выбранного канонического task.
 
-Если нужна связь отдельного task с implementation revision:
+При работе без Agent Extension используйте ручной fallback:
 
 ```bash
 openspec-orch attempt start <change-id> <task-id>
@@ -48,6 +50,8 @@ openspec-orch attempt complete <change-id> <task-id>
 ```
 
 Plugin не меняет task status и не означает, что тесты прошли.
+Возвращённый task выполняется тем же Apply повторно; новая attempt дописывается в
+историю и сохраняет предыдущую implementation revision.
 
 ## 4. Проведите Feature Acceptance
 

@@ -49,7 +49,8 @@ Template `default` предоставляет короткую schema `spec-driv
 
 - OpenSpec Graph проверяет структуру и связи Store.
 - CodeGraph ускоряет навигацию по выбранному checkout.
-- Change Tracking связывает выполненные OpenSpec tasks с implementation revisions.
+- Change Tracking сохраняет историю попыток и связывает OpenSpec tasks с конкретными
+  implementation revisions Code Repositories.
 - Agent gateway предоставляет governed MCP, но не заменяет CLI и человеческие gates.
 
 Начните с [установки](installation-and-updates.md) и
