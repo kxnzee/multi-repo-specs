@@ -8,7 +8,3 @@ The system SHALL <!-- observable behavior -->.
 
 - **WHEN** <!-- condition -->
 - **THEN** <!-- result -->
-
-## MODIFIED Requirements
-
-<!-- Include only complete resulting Requirements whose existing behavior changes. -->

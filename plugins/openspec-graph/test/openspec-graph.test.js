@@ -13,6 +13,7 @@ import { assertPluginContract } from "@openspec-orch/plugin-sdk/testing";
 import plugin from "../index.js";
 import { compileOpenSpecGraph } from "../lib/builder.js";
 import { runGraphView } from "../lib/commands.js";
+import { parseDeltaOperations } from "../lib/operation-headings.js";
 import { inspectChangeImpact, inspectGraphNode } from "../lib/query.js";
 import { startGraphViewer } from "../lib/viewer.js";
 
@@ -189,11 +190,23 @@ test("Plugin config maps localized Delta headings to canonical operations", asyn
     [
       "### Добавленные требования",
       "",
+      "### Requirement: Added visitor rule",
+      "The system SHALL add it.",
+      "",
       "## требования   ИЗМЕНЕНЫ",
+      "",
+      "### Requirement: Modified visitor rule",
+      "The system SHALL modify it.",
       "",
       "#### Удалённые требования",
       "",
+      "### Requirement: Removed visitor rule",
+      "The system SHALL remove it.",
+      "",
       "## Переименованные требования",
+      "",
+      "FROM: Old visitor rule",
+      "TO: New visitor rule",
       "",
     ].join("\n"),
   );
@@ -226,6 +239,41 @@ test("Plugin config maps localized Delta headings to canonical operations", asyn
     archivedReport.nodes.find(({ id }) => id === "change:jit-100-promote").state,
     "archived",
   );
+});
+
+test("Empty Delta operation sections do not create Graph edges", async (t) => {
+  const root = await storeFixture(t);
+  await write(
+    root,
+    "openspec/changes/jit-100-promote/specs/conference/visitors/spec.md",
+    [
+      "## ADDED Requirements",
+      "",
+      "### Requirement: Visitor badge",
+      "The system SHALL add it.",
+      "",
+      "## MODIFIED Requirements",
+      "",
+      "None.",
+      "",
+    ].join("\n"),
+  );
+
+  const report = await compileOpenSpecGraph(root, { repositories, storeId });
+  assert.deepEqual(
+    report.edges.filter(({ relation }) => relation === "changes")
+      .map(({ operation }) => operation),
+    ["ADDED"],
+  );
+});
+
+test("Empty section filtering does not assume operation names or payload syntax", () => {
+  const parsed = parseDeltaOperations(
+    "## CUSTOM Operation\n\nschema-defined payload\n",
+    new Map([["## custom operation", "CUSTOM"]]),
+  );
+
+  assert.deepEqual(parsed.operations, [{ operation: "CUSTOM", line: 1 }]);
 });
 
 test("Invalid operation heading config falls back atomically to built-ins", async (t) => {

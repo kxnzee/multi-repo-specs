@@ -28,6 +28,12 @@ function mapping(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/** Ignores only an explicitly empty operation section, independent of its schema. */
+function hasOperationPayload(lines) {
+  const content = lines.join("\n").replace(/<!--[\s\S]*?-->/gu, "").trim();
+  return content.length > 0 && !/^none\.?$/iu.test(content);
+}
+
 /** Loads optional aliases without replacing the canonical OpenSpec operation headings. */
 export async function operationHeadingConfig(root) {
   const headings = defaultOperationHeadings();
@@ -100,15 +106,25 @@ export function parseDeltaOperations(source, headings = defaultOperationHeadings
   const operations = [];
   const duplicates = [];
   const firstLines = new Map();
-  for (const [index, line] of source.split(/\r?\n/u).entries()) {
+  const lines = source.split(/\r?\n/u);
+  const sections = [];
+  for (const [index, line] of lines.entries()) {
     const operation = headings.get(normalizeOperationHeading(line));
     if (!operation) continue;
-    if (firstLines.has(operation)) {
-      duplicates.push({ operation, line: index + 1, firstLine: firstLines.get(operation) });
+    sections.push({ operation, index, line: index + 1 });
+  }
+  for (const [sectionIndex, section] of sections.entries()) {
+    const nextIndex = sections[sectionIndex + 1]?.index ?? lines.length;
+    if (!hasOperationPayload(lines.slice(section.index + 1, nextIndex))) {
       continue;
     }
-    firstLines.set(operation, index + 1);
-    operations.push({ operation, line: index + 1 });
+    const { operation, line } = section;
+    if (firstLines.has(operation)) {
+      duplicates.push({ operation, line, firstLine: firstLines.get(operation) });
+      continue;
+    }
+    firstLines.set(operation, line);
+    operations.push({ operation, line });
   }
   return { operations, duplicates };
 }

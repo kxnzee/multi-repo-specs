@@ -82,6 +82,8 @@ Warnings сохраняют `state: ready`; errors дают `state: invalid`. Re
 ## Delta headings
 
 Встроенно поддерживаются `ADDED`, `MODIFIED`, `REMOVED` и `RENAMED`.
+Пустой operation-раздел (без содержимого, только с комментарием или `None.`)
+сам по себе не создаёт ребро. Формат непустого содержимого Graph не ограничивает.
 Aliases полных Markdown headings задаются в optional config:
 
 ```yaml
