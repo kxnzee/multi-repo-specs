@@ -21,6 +21,10 @@
 - [ ] Every accepted Scenario ID has a recorded result in the target environment.
 - [ ] Candidate evidence refers to the exact commits, artifact and deployment above.
 
+If an affected repository defines no applicable required test, lint or build check,
+record `N/A` with a reason; that absence satisfies this criterion. A defined check
+that was not run is not `N/A`.
+
 | Repository / Scenario | Fresh check or target result | Evidence | Result |
 | --- | --- | --- | --- |
 | `<repository-id or scenario-id>` | `<command or observed result>` | `<reference without secrets>` | `PASS` / `FAIL` |
