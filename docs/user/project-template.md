@@ -27,7 +27,7 @@ openspec new change redesign-checkout --schema superspec-multirepo
 | Schema | Artifact path |
 |---|---|
 | `spec-driven-extended` | Intake → Proposal/Specs/Design → Tasks → Verify |
-| `superspec-multirepo` | Brainstorm → Proposal/Specs/Design → Tasks → Plan → Apply → Verify → Finalize |
+| `superspec-multirepo` | Brainstorm → Proposal/Specs/Design → Tasks → Plan → Verify → Finalize |
 
 Не меняйте schema уже созданного Change для переключения процесса. Если DAG
 несовместим, создайте новый Change и перенесите только принятый смысл.
@@ -42,8 +42,9 @@ Archive.
 их и не перезаписывает отличающийся target. Изменения Template переносятся отдельным
 проверяемым PR Store по [процедуре миграции](installation-and-updates.md).
 
-Для несовместимого schema DAG используется новый schema ID, чтобы активные Changes
-могли завершить старый процесс.
+Не заменяйте несовместимый schema DAG, пока его используют активные Changes. Сначала
+завершите и архивируйте их либо сохраните прежнюю schema под отдельным локальным ID.
+После этого новые Changes можно создавать на обновлённой schema.
 
 ## Custom Template
 

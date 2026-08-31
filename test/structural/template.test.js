@@ -214,7 +214,6 @@ test("superspec-multirepo preserves the complete skill-driven lifecycle", async 
     "specs",
     "tasks",
     "plan",
-    "apply",
     "verify",
     "finalize",
   ]);
@@ -222,8 +221,9 @@ test("superspec-multirepo preserves the complete skill-driven lifecycle", async 
   assert.match(schema.artifacts.find(({ id }) => id === "plan").instruction, /superpowers:writing-plans/u);
   assert.match(schema.artifacts[0].instruction, /brainstorm\.md/u);
   assert.match(schema.artifacts.find(({ id }) => id === "plan").instruction, /plan\.md/u);
-  assert.deepEqual(schema.artifacts.find(({ id }) => id === "apply").requires, ["plan"]);
-  assert.deepEqual(schema.artifacts.find(({ id }) => id === "verify").requires, ["apply"]);
+  assert.equal(schema.artifacts.some(({ id }) => id === "apply"), false);
+  assert.equal(schema.artifacts.some(({ generates }) => generates === "apply.md"), false);
+  assert.deepEqual(schema.artifacts.find(({ id }) => id === "verify").requires, ["plan"]);
   assert.deepEqual(schema.artifacts.find(({ id }) => id === "finalize").requires, ["verify"]);
   assert.deepEqual(schema.apply.requires, ["plan"]);
   assert.equal(schema.apply.tracks, "tasks.md");
@@ -250,9 +250,13 @@ test("superspec-multirepo preserves the complete skill-driven lifecycle", async 
     /\bgit\s+(?:add|commit|checkout|pull|merge|push|branch)\b|\bgh\s+pr\b/iu,
   );
 
-  for (const artifact of ["apply", "verify", "finalize"]) {
+  for (const artifact of ["verify", "finalize"]) {
     await fs.access(path.join(schemaRoot, `templates/${artifact}.md`));
   }
+  await assert.rejects(
+    fs.access(path.join(schemaRoot, "templates/apply.md")),
+    { code: "ENOENT" },
+  );
 
   const tasks = await fs.readFile(path.join(schemaRoot, "templates/tasks.md"), "utf8");
   assert.equal(

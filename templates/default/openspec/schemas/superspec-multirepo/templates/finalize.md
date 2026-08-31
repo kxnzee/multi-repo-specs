@@ -7,7 +7,6 @@
 
 **Finalized at:** `YYYY-MM-DD HH:mm`
 
-**Apply iteration:** `<verified iteration>`
 **Candidate identity:** `<verified commits and artifact or N/A>`
 
 ## Repository outcomes

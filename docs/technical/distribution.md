@@ -28,7 +28,7 @@ npm registry. Store хранит exact root dependency и lockfile; пользо
 | CLI/Core API | release notes; breaking change требует новой major policy |
 | `openspec-orch.yaml` | отдельный Store PR |
 | Template assets | content-aware Store PR, не повторный `init` |
-| Project schemas | validation; новый ID для несовместимого DAG |
+| Project schemas | validation; завершение активных Changes или временный legacy ID |
 | Bundled Plugins | обновляются вместе с distribution |
 | External Plugin | отдельное exact source update |
 | Agent payload | machine-local remove/setup/status |
@@ -49,8 +49,9 @@ Portable migration выполняется в ветке Store и проходи�
 migration выполняется после merge на каждой машине. Code Repositories меняются только
 по отдельному принятому Change.
 
-Несовместимый schema DAG получает новый schema ID, чтобы существующие Changes
-завершили старый процесс.
+Несовместимый schema DAG нельзя заменять поверх активных Changes. Их сначала завершают
+на старой schema либо сохраняют старую schema под временным локальным ID; после этого
+новые Changes используют обновлённый DAG.
 
 ## Release gate
 

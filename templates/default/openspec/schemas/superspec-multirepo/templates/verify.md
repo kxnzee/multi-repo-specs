@@ -2,7 +2,6 @@
 
 **Change:** `<change-name>`
 **Verified at:** `YYYY-MM-DD HH:mm`
-**Apply iteration:** `<copy from apply.md>`
 **Verifier:** `<agent and responsible participant where applicable>`
 
 <!-- CANDIDATE_VERIFICATION_CONTRACT_V1_START -->
@@ -65,4 +64,4 @@ authorize Release or Archive.
 - [ ] `FAIL`
 
 **Warnings / failures:** `<details>`
-**Next step:** `<owning artifact, Apply iteration, or Finalize>`
+**Next step:** `<owning artifact, implementation correction, or Finalize>`

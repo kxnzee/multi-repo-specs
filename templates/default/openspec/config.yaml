@@ -38,5 +38,5 @@ operations:
       - "Определи schema Change по .openspec.yaml и не смешивай process-specific gates разных schemas."
       - "Требуй Candidate Verification Contract v1 PASS для точных текущих commits, deliverable и target deployment; любой новый candidate делает Verify устаревшим."
       - "Требуй завершённый ответственным участником финальный внешний checkpoint в tasks.md для той же версии."
-      - "Для superspec-multirepo дополнительно требуй актуальный finalize.md и Process Compliance PASS или PASS_WITH_WARNINGS для текущей Apply iteration."
+      - "Для superspec-multirepo дополнительно требуй актуальный finalize.md и Process Compliance PASS или PASS_WITH_WARNINGS для текущего candidate."
       - "Требуй фактический Release команды; Planning, локальные тесты, Verify или Finalize сами по себе не разрешают Archive."

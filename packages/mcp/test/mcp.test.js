@@ -156,8 +156,6 @@ test("Store resources follow each Change schema without mixing workflow artifact
     generates: specs/**/*.md
   - id: plan
     generates: plan.md
-  - id: apply
-    generates: apply.md
   - id: verify
     generates: verify.md
   - id: finalize
@@ -169,14 +167,13 @@ test("Store resources follow each Change schema without mixing workflow artifact
     ["openspec/changes/base-pay/intake.md", "# Intake\n"],
     ["openspec/changes/base-pay/proposal.md", "# Proposal\n"],
     ["openspec/changes/base-pay/verify.md", "# Verify\n"],
-    ["openspec/changes/base-pay/apply.md", "# Wrong workflow\n"],
+    ["openspec/changes/base-pay/plan.md", "# Wrong workflow\n"],
     ["openspec/changes/base-pay/notes.txt", "private notes\n"],
     ["openspec/changes/super-pay/.openspec.yaml", "schema: superspec-multirepo\n"],
     ["openspec/changes/super-pay/brainstorm.md", "# Brainstorm\n"],
     ["openspec/changes/super-pay/proposal.md", "# Proposal\n"],
     ["openspec/changes/super-pay/specs/api/spec.md", "# API delta\n"],
     ["openspec/changes/super-pay/plan.md", "# Plan\n"],
-    ["openspec/changes/super-pay/apply.md", "# Apply\n"],
     ["openspec/changes/super-pay/verify.md", "# Verify\n"],
     ["openspec/changes/super-pay/finalize.md", "# Finalize\n"],
     ["openspec/changes/super-pay/intake.md", "# Wrong workflow\n"],
@@ -217,7 +214,6 @@ test("Store resources follow each Change schema without mixing workflow artifact
     "openspec/changes/base-pay/intake.md",
     "openspec/changes/base-pay/proposal.md",
     "openspec/changes/base-pay/verify.md",
-    "openspec/changes/super-pay/apply.md",
     "openspec/changes/super-pay/brainstorm.md",
     "openspec/changes/super-pay/finalize.md",
     "openspec/changes/super-pay/plan.md",
@@ -236,7 +232,7 @@ test("Store resources follow each Change schema without mixing workflow artifact
     /MCP_RESOURCE_NOT_FOUND/u,
   );
   assert.equal(listed.some(({ name }) => name.endsWith("/.openspec.yaml")), false);
-  assert.equal(listed.some(({ name }) => name === "openspec/changes/base-pay/apply.md"), false);
+  assert.equal(listed.some(({ name }) => name === "openspec/changes/base-pay/plan.md"), false);
   assert.equal(listed.some(({ name }) => name === "openspec/changes/super-pay/intake.md"), false);
   await assert.rejects(
     resourcesService.read("openspec-orch://store/specs/..%2Fsecrets.txt"),

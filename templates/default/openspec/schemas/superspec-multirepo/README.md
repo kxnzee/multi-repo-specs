@@ -18,25 +18,25 @@ brainstorm
 → specs
 → tasks
 → plan
-→ apply
+→ /opsx:apply (implementation action, no artifact)
 → verify
 → finalize
 → Release gate
 → archive
 ```
 
-Apply and Verify form a convergence loop. Every Apply iteration overwrites `apply.md`
-with a higher iteration number; Verify checks that exact iteration and current
-candidate. A failure returns to the owning artifact or Apply. Finalize becomes
-reachable only when Candidate Acceptance is `PASS` and Superspec Process Compliance
-is `PASS` or `PASS_WITH_WARNINGS`.
+Apply and Verify form a convergence loop without a separate Apply receipt. Apply
+updates implementation and completed Tasks; Verify independently checks the current
+candidate with fresh evidence. A failure returns to the owning artifact or Apply.
+Finalize becomes reachable only when Candidate Acceptance is `PASS` and Superspec
+Process Compliance is `PASS` or `PASS_WITH_WARNINGS`.
 
 ## No parallel documents
 
 Superpowers' brainstorming and writing-plans outputs are redirected to the active
 OpenSpec Change. Do not create a second design or plan under `docs/superpowers/`.
-`apply.md`, `verify.md` and `finalize.md` are OpenSpec receipts for the skill-driven
-workflow, not additional task lists.
+`verify.md` and `finalize.md` are OpenSpec receipts for the skill-driven workflow, not
+additional task lists. Apply produces no separate receipt artifact.
 
 ## Multi-repository adaptation
 

@@ -63,8 +63,16 @@ CLI можно запускать через `node /absolute/path/to/repo/bin/op
 5. Проведите review и merge обычным процессом Store.
 6. После merge обновите локальную копию Store и повторите `connect` и `doctor`.
 
-Custom Store проверяет собственные schema IDs. Несовместимый artifact DAG получает
-новый schema ID: активные Changes завершают старую schema, новые используют новую.
+Custom Store проверяет собственные schema IDs. Не заменяйте несовместимый artifact
+DAG, пока его используют активные Changes: сначала завершите и архивируйте их либо
+сохраните прежнюю schema под отдельным локальным ID. Затем установите новую schema и
+создавайте на ней новые Changes.
+
+При переходе на актуальный `superspec-multirepo` удалите из копии schema artifact
+`apply` и файл `templates/apply.md`; `verify` должен зависеть от `plan`. Выполняйте
+эту замену только после завершения активных Changes со старым DAG. Команда
+`/opsx:apply` остаётся действием реализации: она обновляет код и `tasks.md`, но не
+создаёт отдельный artifact.
 
 Code Repositories не меняются только из-за обновления Orchestrator. Для этого нужен
 отдельный принятый Change с явным Repository Impact.

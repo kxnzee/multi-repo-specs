@@ -33,13 +33,13 @@ plan's dependency order.
 
 ## Apply and Verify convergence
 
-1. `/opsx:apply` performs repository work and writes `apply.md` iteration N.
+1. `/opsx:apply` performs repository work, updates only completed Tasks and returns a
+   concise execution summary without creating a separate receipt artifact.
 2. The next schema artifact invokes `openspec-verify-change`, runs fresh technical
-   checks and writes `verify.md` for iteration N.
-3. Code failure invokes systematic debugging and returns to Apply iteration N+1.
-4. Artifact drift returns to the owning artifact, then Apply iteration N+1.
+   checks and writes `verify.md` for the current candidate.
+3. Code failure invokes systematic debugging and returns to Apply.
+4. Artifact drift returns to the owning artifact, then Apply.
 5. A replaced repository result creates a new candidate identity.
-6. More than five failed iterations stop for user direction.
 
 Candidate Acceptance PASS requires every technical repository result and the final
 external verification checkbox completed by its named responsible participant for the
@@ -50,7 +50,7 @@ Candidate Acceptance.
 
 The standalone `/opsx:verify` surface returns the upstream verification report but
 does not persist a schema artifact. Use the schema artifact flow when the governed
-`verify.md` gate must be recorded.
+`verify.md` gate must be recorded after implementation.
 
 ## Finalize and Archive
 

@@ -304,9 +304,9 @@ artifacts:
     description: Candidate Acceptance for the exact implemented version
     template: verify.md
     instruction: |
-      Base does not create an apply.md receipt. Treat this artifact as a separate
-      post-implementation gate: its availability in the artifact graph is not proof
-      that an Apply candidate exists and can never justify PASS by itself.
+      Treat this artifact as a separate post-implementation gate: its availability in
+      the artifact graph is not proof that an Apply candidate exists and can never
+      justify PASS by itself.
 
       Invoke **openspec-verify-change**, then complete Candidate Verification Contract
       v1 from the template without weakening or extending its acceptance criteria.
@@ -328,7 +328,7 @@ apply:
   tracks: tasks.md
   instruction: |
     Invoke openspec-base-apply-context, then read context files, work through pending
-    tasks and mark complete as you go. Apply does not create an apply.md artifact.
+    tasks and mark complete as you go. Apply does not create a separate receipt artifact.
     Pause if you hit blockers or need clarification. Never perform or complete
     the final external verification checkpoint on behalf of its responsible
     participant; leave it pending until explicit confirmation is supplied.
