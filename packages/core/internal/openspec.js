@@ -17,8 +17,34 @@ function assertOpenSpecIdentifier(value, label) {
   }
 }
 
-/** Interprets only the stable OpenSpec artifact status vocabulary. */
-function nextArtifactAction(status, changeId) {
+/** Checks only schema-declared prerequisites for the built-in Apply action. */
+function applyPrerequisitesComplete(status, artifacts) {
+  const applyRequires = Array.isArray(status.applyRequires) ? new Set(status.applyRequires) : null;
+  return status.isPlanningComplete === true || (
+    applyRequires && [...applyRequires].every((id) => artifacts.some((artifact) => (
+      artifact.id === id && ["done", "skipped"].includes(artifact.status)
+    )))
+  );
+}
+
+/** Interprets schema-aware Apply progress without reading task files in Core. */
+function applyProgressState(instructions) {
+  const progress = instructions?.progress;
+  if (
+    !progress || typeof progress !== "object" || Array.isArray(progress) ||
+    ![progress.total, progress.complete, progress.remaining].every(Number.isInteger) ||
+    progress.total <= 0 || progress.complete < 0 || progress.remaining < 0 ||
+    progress.complete + progress.remaining !== progress.total
+  ) {
+    return "unknown";
+  }
+  if (instructions.state === "ready" && progress.remaining > 0) return "pending";
+  if (instructions.state === "all_done" && progress.remaining === 0) return "complete";
+  return "unknown";
+}
+
+/** Interprets only stable OpenSpec artifact and Apply status vocabularies. */
+function nextArtifactAction(status, changeId, applyInstructions) {
   if (!Array.isArray(status.artifacts)) {
     return Object.freeze({
       action: "consult_change_context",
@@ -40,6 +66,26 @@ function nextArtifactAction(status, changeId) {
     });
   }
   const ready = artifacts.filter(({ status: value }) => value === "ready");
+  const planningComplete = applyPrerequisitesComplete(status, artifacts);
+  if (ready.length > 0 && planningComplete && applyInstructions !== undefined) {
+    const progressState = applyProgressState(applyInstructions);
+    if (progressState === "pending") {
+      return Object.freeze({
+        action: "apply_change",
+        actor: "agent",
+        reason: "OpenSpec сообщил о незавершённых Apply tasks",
+        change_id: changeId,
+      });
+    }
+    if (progressState === "unknown") {
+      return Object.freeze({
+        action: "consult_change_context",
+        actor: "agent",
+        reason: "OpenSpec не сообщил однозначный прогресс Apply",
+        change_id: changeId,
+      });
+    }
+  }
   if (ready.length === 1) {
     return Object.freeze({
       action: "prepare_artifact",
@@ -68,12 +114,6 @@ function nextArtifactAction(status, changeId) {
       artifacts: Object.freeze(blocked.map(({ id }) => id)),
     });
   }
-  const applyRequires = Array.isArray(status.applyRequires) ? new Set(status.applyRequires) : null;
-  const planningComplete = status.isPlanningComplete === true || (
-    applyRequires && [...applyRequires].every((id) => artifacts.some((artifact) => (
-      artifact.id === id && ["done", "skipped"].includes(artifact.status)
-    )))
-  );
   return Object.freeze({
     action: planningComplete ? "apply_change" : "consult_change_context",
     actor: "agent",
@@ -276,7 +316,17 @@ export class RepositoryOpenSpec {
   /** Derives a conservative read-only recommendation from canonical OpenSpec status. */
   async nextAction(changeId) {
     assertOpenSpecIdentifier(changeId, "change-id");
-    return nextArtifactAction(await this.changeStatus(changeId), changeId);
+    const status = await this.changeStatus(changeId);
+    const candidate = nextArtifactAction(status, changeId);
+    if (
+      !["prepare_artifact", "choose_ready_artifact"].includes(candidate.action) ||
+      !Array.isArray(status.artifacts) ||
+      !applyPrerequisitesComplete(status, status.artifacts)
+    ) {
+      return candidate;
+    }
+    const applyInstructions = await this.artifactInstructions(changeId, "apply");
+    return nextArtifactAction(status, changeId, applyInstructions);
   }
 
   async assertContext({ storeId, storeRoot, source, storeOption = false }) {
