@@ -11,6 +11,5 @@
 - [командный процесс и роли](team-flow.md);
 - [нестандартные сценарии Change](change-scenarios.md).
 
-Команды `openspec-orch` выполняются из корня Store, кроме `done`, которую Change
-Tracking запускает из Code Repository. Команды Agent выполняются в Agent, а не в
-shell.
+Команды `openspec-orch` выполняются из корня Store, кроме `attempt`, которую Change
+Tracking запускает из Code Repository. Команды Agent выполняются в Agent, а не в shell.

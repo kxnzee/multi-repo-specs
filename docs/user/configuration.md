@@ -67,7 +67,7 @@ default уже равен `false`.
 | `openspec-orch.yaml` | Project configuration | да |
 | `.openspec-store/store.yaml` | Identity Store | да |
 | `openspec/` | Specs, Changes, schemas и Template assets | да |
-| `tracking/cycles/` | Change Tracking evidence | да |
+| `openspec/changes/*/implementation-map.yaml` | Завершённые task attempts | да |
 | `.openspec-orch/state.json` | Выбранный workspace | нет |
 | `.openspec-orch/plugins/` | Local Plugin state | нет |
 | `.openspec-orch/cache/` | External Plugin runtimes | нет |

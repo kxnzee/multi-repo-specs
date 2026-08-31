@@ -6,7 +6,6 @@ const ROOT_FILES = Object.freeze(["openspec-orch.yaml", "openspec/config.yaml"])
 const STATIC_TREES = Object.freeze([
   Object.freeze({ root: "openspec/context", suffixes: new Set([".md", ".yaml", ".yml"]) }),
   Object.freeze({ root: "openspec/specs", names: new Set(["spec.md"]) }),
-  Object.freeze({ root: "tracking/cycles", suffixes: new Set([".yaml", ".yml"]) }),
 ]);
 const SCHEMA_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const BUILTIN_OUTPUTS = Object.freeze({

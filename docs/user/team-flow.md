@@ -49,14 +49,11 @@ Intent и Intake
 Если во время Apply найден новый Repository или capability, работа останавливается:
 Planning, Graph и Gate 1 обновляются до продолжения.
 
-При подключённом Change Tracking:
-
-1. ответственный выполняет `openspec-orch track <change-id>`;
-2. разработчик в каждом Code Repository выполняет `openspec-orch done`;
-3. тестировщик разворачивает показанный candidate и запускает проверки;
-4. результат фиксируется через `openspec-orch verify pass|fail`.
-
-Plugin передаёт evidence, но не назначает работу и не принимает Release-решение.
+При подключённом Change Tracking разработчик из Code Repository выполняет
+`attempt start` перед пунктом Apply, а после commit и стандартной галочки OpenSpec —
+`attempt complete`. Незавершённая попытка локальна; завершённая запись попадает в
+Change и публикуется вместе с обычным Change PR. Plugin не меняет task status,
+branch, PR, Verify или Jira-процесс команды.
 
 ## Gate 2: candidate принят
 

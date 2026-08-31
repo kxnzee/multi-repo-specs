@@ -9,8 +9,8 @@
 | Изменение поведения | Полный `MODIFIED` Requirement с сохранёнными Scenario IDs |
 | Поведение не меняется | Принятый `skip_specs` и прямая сверка scope |
 | Найден новый Repository/capability | Стоп Apply → обновить Planning → новый Gate 1 |
-| Нужны точные revisions | Подключить Change Tracking после Planning |
-| Новый commit после проверки | Новый `done`, deployment и повторная проверка |
+| Нужна связь task с revision | Использовать Change Tracking во время Apply |
+| Новый commit после проверки | Обновить evidence и повторить человеческую проверку |
 | Change B зависит от активного A | Принять Planning A, отдельный Sync PR, затем Planning B |
 | CodeGraph недоступен | Адресный read/search в уже выбранном Repository |
 | Реализация и проверка завершены | Release-решение → Archive → post-Archive Graph check |
@@ -20,7 +20,7 @@
 - Requirements и Scenarios принадлежат центральному Store.
 - Explore подтверждает факты, но не принимает продуктовые решения.
 - Repository Impact включает только repositories с реальными изменениями.
-- Change Tracking не заменяет OpenSpec Apply и не хранит task statuses.
-- Verify является человеческой Feature Acceptance по собранному evidence; Change
-  Tracking при подключении связывает решение с точными revisions.
+- Change Tracking читает task status из OpenSpec Apply, но не изменяет его.
+- Verify является человеческой Feature Acceptance по собранному evidence и не
+  зависит от Change Tracking.
 - Archive не выполняется автоматически Orchestrator или Plugin.

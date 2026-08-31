@@ -39,30 +39,22 @@ openspec-orch graph inspect --json
 Используйте штатный OpenSpec Apply, выполните repository checks и создайте
 implementation commits. CodeGraph и Change Tracking опциональны.
 
-Если нужен общий журнал revisions:
+Если нужна связь отдельного task с implementation revision:
 
 ```bash
-openspec-orch track <change-id>
-# из каждого затронутого Code Repository
-openspec-orch done
+openspec-orch attempt start <change-id> <task-id>
+# после commit и стандартной галочки OpenSpec
+openspec-orch attempt complete <change-id> <task-id>
 ```
 
-`track` не назначает Tasks, а `done` не означает, что тесты прошли.
+Plugin не меняет task status и не означает, что тесты прошли.
 
 ## 4. Проведите Feature Acceptance
 
 Agent заполняет Verify evidence фактическими результатами проверок и Scenarios.
 Ответственный участник принимает `PASS` или `FAIL`; без его решения gate остаётся
-`PENDING`. При Change Tracking после человеческого решения:
-
-```bash
-openspec-orch verify pass
-# либо
-openspec-orch verify fail --note "регрессия"
-```
-
-После изменения реализации соберите актуальное evidence и повторите человеческий
-gate. Agent не принимает Feature Acceptance самостоятельно.
+`PENDING`. После изменения реализации соберите актуальное evidence и повторите
+человеческий gate. Agent и Change Tracking не принимают Feature Acceptance.
 
 ## 5. Release и Archive
 

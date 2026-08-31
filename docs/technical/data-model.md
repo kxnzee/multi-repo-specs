@@ -7,7 +7,7 @@
 | Project config | `openspec-orch.yaml` | да | Core |
 | Store identity | `.openspec-store/store.yaml` | да | OpenSpec |
 | Specs и Changes | `openspec/` | да | OpenSpec/Project |
-| Tracking evidence | `tracking/cycles/<change-id>/` | да | Change Tracking |
+| Task implementation map | `openspec/changes/<change-id>/implementation-map.yaml` | да | Change Tracking |
 | Workspace pointer | `.openspec-orch/state.json` | нет | Core |
 | Plugin state | `.openspec-orch/plugins/<id>/state.json` | нет | Plugin |
 | External runtime cache | `.openspec-orch/cache/plugin-runtimes/<id>/` | нет | Plugin manager |
@@ -21,39 +21,16 @@ Extensions и Plugin declarations/bindings. Schema Change хранится са�
 
 ## Change Tracking
 
-### Cycle
+### Implementation attempt
 
-`track` создаёт `tracking/cycles/<change-id>/cycle.yaml`:
+`attempt start` хранит незавершённую попытку в локальном Plugin storage: Change,
+Repository, OpenSpec task, schema, planning revision и base revision. В Git эта
+запись не попадает.
 
-```yaml
-contract_version: 1
-cycle_id: cycle-<uuid>
-change_id: checkout-flow
-planning_revision: <store-sha>
-repositories: [frontend, backend]
-created_at: <iso-date-time>
-```
-
-`planning_revision` — последний commit, изменявший Planning artifacts. Новый
-Planning scope создаёт новую evidence boundary. Незакоммиченный Cycle виден в status,
-но блокирует receipts и verification.
-
-### Result Receipt
-
-Каждый Repository имеет append-only YAML journal. Текущая запись содержит Cycle ID,
-Repository ID, полный implementation SHA, source и ссылку `supersedes` на прежнюю
-запись. Task status в Receipt не хранится.
-
-### Snapshot
-
-Когда есть текущий Receipt каждого Repository, Plugin вычисляет
-`snap-v1-<sha256>` из Cycle ID и отсортированных Repository/SHA/Receipt ID. Snapshot
-не хранится отдельным файлом. Новый Receipt меняет Snapshot даже при том же SHA.
-
-### Verification
-
-Verification journal связывает `pass|fail`, source и note с текущими Cycle и
-Snapshot. Это запись результата внешней проверки, а не запуск проверки.
+После стандартной отметки task как выполненного `attempt complete` добавляет в
+Change-local `implementation-map.yaml` base и implementation revisions. Task ID и
+description берутся из канонического OpenSpec Apply JSON, поэтому Plugin не зависит
+от имени planning artifact, заголовков Markdown или конкретной schema.
 
 ## Plugin storage
 

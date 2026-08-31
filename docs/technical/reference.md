@@ -65,12 +65,8 @@ openspec-orch graph view [--port <port>]
 Change Tracking:
 
 ```text
-openspec-orch track <change-id> [--no-push]
-openspec-orch done [--change <change-id>] [--sha <sha1>]
-  [--source <human|agent|ci>] [--no-push]
-openspec-orch status [change-id] [--json]
-openspec-orch verify <pass|fail> [--change <change-id>]
-  [--source <human|ci>] [--note <text>] [--no-push]
+openspec-orch attempt start <change-id> <task-id>
+openspec-orch attempt complete <change-id> <task-id>
 ```
 
 CodeGraph использует общий `plugin connect/status/sync/exec/disconnect`.
@@ -121,11 +117,17 @@ Controlled setup tools:
 - `initialize_project` — только cwd MCP и strict mode;
 - `connect_project` — без workspace и relaxed overrides.
 
-Resources ограничены Project config, OpenSpec config, Markdown/YAML context, Master
-Specs, schema-declared Change artifacts и YAML tracking journals. `.openspec.yaml`
-и произвольные Store files не публикуются.
+Task evidence tools:
 
-MCP не предоставляет receipt/verification, Release, Archive, arbitrary Git writes,
+- `start_attempt` — локально фиксирует task и base revision текущего Code Repository;
+- `complete_attempt` — требует выполненный task из OpenSpec Apply и записывает
+  итоговую revision в Change-local implementation map.
+
+Resources ограничены Project config, OpenSpec config, Markdown/YAML context, Master
+Specs и schema-declared Change artifacts. `.openspec.yaml` и произвольные Store
+files не публикуются.
+
+MCP не предоставляет verification, Release, Archive, произвольные Git writes,
 Plugin lifecycle, Agent management или network transport.
 
 ## Exit behavior

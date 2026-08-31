@@ -76,7 +76,7 @@ Plugins не устанавливаются Template и подключаются
 |---|---|
 | `openspec-graph` | Проверка связей Store, Changes, Specs и Repositories |
 | `codegraph` | Локальная навигация по коду выбранного Repository |
-| `change-tracking` | Git-native журнал implementation revisions и проверок |
+| `change-tracking` | Связь OpenSpec tasks с revisions Code Repositories |
 
 Пример:
 

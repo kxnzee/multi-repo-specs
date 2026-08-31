@@ -37,12 +37,14 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     getStatus(args) { calls.push(["get_status", args]); return { state: "ready" }; },
     getSetupContext() { return { strict_only: true }; },
     getChangeContext() { return { change_id: "pay" }; },
-    getNextAction() { return { action: "record_result_receipt", actor: "agent" }; },
+    getNextAction() { return { action: "apply_change", actor: "agent" }; },
     getAssignmentScope() { return { assigned: true }; },
     getDoctorReport() { return { status: "ready" }; },
     queryGraph() { return { nodes: 1 }; },
     initializeProject(args) { calls.push(["initialize_project", args]); return { created: [] }; },
     connectProject() { calls.push(["connect_project"]); return { status: "ready" }; },
+    startAttempt(args) { calls.push(["start_attempt", args]); return { stored: "local" }; },
+    completeAttempt(args) { calls.push(["complete_attempt", args]); return { stored: "change" }; },
     listResources() { return resources; },
     readResource(uri) { return { ...resources[0], uri, text: "# Payments" }; },
   });
@@ -71,6 +73,8 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     "query_graph",
     "initialize_project",
     "connect_project",
+    "start_attempt",
+    "complete_attempt",
   ]);
   assert.equal(
     listed.tools.some(({ name }) => /done|receipt|verify|release|archive|git|plugin/u.test(name)),
@@ -99,9 +103,8 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   assert.deepEqual(calls, [["get_status", { change_id: "pay" }]]);
   const next = await client.callTool({ name: "get_next_action", arguments: { change_id: "pay" } });
   assert.deepEqual(JSON.parse(next.content[0].text), {
-    action: "record_result_receipt_via_cli",
-    actor: "human",
-    reason: "MCP не публикует Result Receipt; это человеческое действие остаётся в CLI",
+    action: "apply_change",
+    actor: "agent",
   });
   const initialized = await client.callTool({
     name: "initialize_project",
@@ -117,6 +120,16 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   });
   assert.deepEqual(JSON.parse(initialized.content[0].text), { created: [] });
   assert.equal((await client.callTool({ name: "connect_project", arguments: {} })).isError, undefined);
+  const started = await client.callTool({
+    name: "start_attempt",
+    arguments: { change_id: "pay", task_id: "1" },
+  });
+  assert.deepEqual(JSON.parse(started.content[0].text), { stored: "local" });
+  const completed = await client.callTool({
+    name: "complete_attempt",
+    arguments: { change_id: "pay", task_id: "1" },
+  });
+  assert.deepEqual(JSON.parse(completed.content[0].text), { stored: "change" });
   const invalid = await client.callTool({
     name: "get_change_context",
     arguments: { change_id: "pay", source: "human" },
@@ -177,7 +190,6 @@ test("Store resources follow each Change schema without mixing workflow artifact
     ["openspec/changes/super-pay/verify.md", "# Verify\n"],
     ["openspec/changes/super-pay/finalize.md", "# Finalize\n"],
     ["openspec/changes/super-pay/intake.md", "# Wrong workflow\n"],
-    ["tracking/cycles/pay/cycle.yaml", "contract_version: 1\n"],
   ]);
   const directories = new Set([
     "openspec/context",
@@ -191,8 +203,6 @@ test("Store resources follow each Change schema without mixing workflow artifact
     "openspec/changes/super-pay",
     "openspec/changes/super-pay/specs",
     "openspec/changes/super-pay/specs/api",
-    "tracking/cycles",
-    "tracking/cycles/pay",
   ]);
   const files = Object.freeze({
     read: async (relativePath, { optional = false } = {}) => {
@@ -223,7 +233,6 @@ test("Store resources follow each Change schema without mixing workflow artifact
     "openspec/config.yaml",
     "openspec/context/03-architecture.md",
     "openspec/specs/payments/spec.md",
-    "tracking/cycles/pay/cycle.yaml",
   ]);
   const masterSpec = listed.find(({ name }) => name === "openspec/specs/payments/spec.md");
   assert.equal((await resourcesService.read(masterSpec.uri)).text, "# Payments\n");

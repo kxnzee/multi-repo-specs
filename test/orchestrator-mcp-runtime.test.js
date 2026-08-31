@@ -27,6 +27,8 @@ test("public MCP executable completes stdio handshake and calls Core Doctor", as
   const tools = await client.listTools();
   assert.equal(tools.tools.some(({ name }) => name === "get_doctor_report"), true);
   assert.equal(tools.tools.some(({ name }) => name === "record_result_receipt"), false);
+  assert.equal(tools.tools.some(({ name }) => name === "start_attempt"), true);
+  assert.equal(tools.tools.some(({ name }) => name === "complete_attempt"), true);
   const response = await client.callTool({ name: "get_doctor_report", arguments: {} });
   const report = JSON.parse(response.content[0].text);
   assert.equal(report.version, 1);

@@ -68,8 +68,8 @@ binding.
 
 OpenSpec Graph каждый раз компилирует Store files в детерминированный report.
 CodeGraph обслуживает один локальный index на binding и не передаёт свою модель в
-Store. Change Tracking хранит Cycle и receipt journals в Store и вычисляет Snapshot
-из текущих repository receipts.
+Store. Change Tracking хранит активную attempt локально, а завершённую связь
+OpenSpec task с revisions — внутри Change.
 
 Эти Plugins независимы и не меняют OpenSpec Apply.
 
@@ -79,7 +79,7 @@ Store. Change Tracking хранит Cycle и receipt journals в Store и выч
 public Plugin application services. Read resources ограничены Store allowlist; setup
 tools используют тот же `ProjectSetupService`, что CLI.
 
-MCP не предоставляет arbitrary Git writes, receipt/verification, Release, Archive,
+MCP не предоставляет arbitrary Git writes, verification, Release, Archive,
 Plugin lifecycle, Agent management или network transport.
 
 ## Safe facades

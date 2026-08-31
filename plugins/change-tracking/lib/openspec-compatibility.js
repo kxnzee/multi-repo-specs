@@ -1,9 +1,8 @@
-/** @fileoverview Plugin-owned OpenSpec 1.11 status integration. */
+/** @fileoverview Canonical OpenSpec Apply task integration. */
 
 const VERSION = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/u;
-const ARTIFACT_STATUSES = Object.freeze(["done", "skipped", "ready", "blocked"]);
 
-/** Parses one OpenSpec JSON response without leaking CLI details into callers. */
+/** Parses one OpenSpec JSON response. */
 function parseJson(source, command) {
   let value;
   try {
@@ -17,7 +16,7 @@ function parseJson(source, command) {
   return value;
 }
 
-/** Requires the exact scoped process capability used by this integration. */
+/** Requires the scoped process capability used by the integration. */
 function requireProcess(process) {
   if (!process || typeof process.run !== "function") {
     throw new Error("OPENSPEC_11_REQUIRED: отсутствует scoped Process facade");
@@ -25,7 +24,7 @@ function requireProcess(process) {
   return process;
 }
 
-/** Requires OpenSpec 1.11 without accepting an unknown major version. */
+/** Requires the verified OpenSpec API range. */
 export async function requireOpenSpec11(process) {
   const version = (await requireProcess(process).run("openspec", ["--version"])).trim();
   const match = VERSION.exec(version);
@@ -39,66 +38,34 @@ export async function requireOpenSpec11(process) {
   return version;
 }
 
-/** Reads and interprets the Plugin-owned Apply gate for one Change. */
-export async function isChangeApplyReady(process, changeId) {
-  const args = ["status", "--change", changeId, "--json"];
+/** Reads schema-independent task progress from the canonical OpenSpec Apply API. */
+export async function applyInstructions(process, changeId) {
+  const args = ["instructions", "apply", "--change", changeId, "--json"];
   const command = `openspec ${args.join(" ")}`;
   const value = parseJson(await requireProcess(process).run("openspec", args), command);
   if (
     value.changeName !== changeId ||
-    !Array.isArray(value.artifacts) ||
-    !Array.isArray(value.applyRequires)
+    typeof value.schemaName !== "string" || value.schemaName.length === 0 ||
+    !Array.isArray(value.tasks)
   ) {
-    throw new Error(`OPENSPEC_STATUS_INVALID: ${command} не содержит artifact graph Change`);
+    throw new Error(`OPENSPEC_STATUS_INVALID: ${command} не содержит Apply task progress`);
   }
-  const artifacts = new Map();
-  for (const artifact of value.artifacts) {
+  const ids = new Set();
+  const tasks = value.tasks.map((task) => {
     if (
-      !artifact || typeof artifact !== "object" || Array.isArray(artifact) ||
-      typeof artifact.id !== "string" || artifacts.has(artifact.id) ||
-      !ARTIFACT_STATUSES.includes(artifact.status) ||
-      !Array.isArray(artifact.requires) ||
-      artifact.requires.some((dependency) => typeof dependency !== "string")
+      !task || typeof task !== "object" || Array.isArray(task) ||
+      typeof task.id !== "string" || task.id.length === 0 || ids.has(task.id) ||
+      typeof task.description !== "string" || task.description.length === 0 ||
+      typeof task.done !== "boolean"
     ) {
-      throw new Error(`OPENSPEC_STATUS_INVALID: ${command} содержит некорректный artifact graph`);
+      throw new Error(`OPENSPEC_STATUS_INVALID: ${command} содержит некорректный task`);
     }
-    artifacts.set(artifact.id, artifact);
-  }
-  const required = [...value.applyRequires];
-  const visited = new Set();
-  let ready = true;
-  while (required.length > 0) {
-    const artifactId = required.pop();
-    if (typeof artifactId !== "string") {
-      throw new Error(`OPENSPEC_STATUS_INVALID: ${command} содержит некорректный applyRequires`);
-    }
-    if (visited.has(artifactId)) continue;
-    visited.add(artifactId);
-    const artifact = artifacts.get(artifactId);
-    if (!artifact) {
-      throw new Error(`OPENSPEC_STATUS_INVALID: неизвестный artifact '${artifactId}'`);
-    }
-    if (!["done", "skipped"].includes(artifact.status)) ready = false;
-    required.push(...artifact.requires);
-  }
-  return ready;
-}
-
-/** Lists active Change identities through the OpenSpec 1.11 batch contract. */
-export async function activeChangeIds(process) {
-  const args = ["status", "--all", "--json"];
-  const command = `openspec ${args.join(" ")}`;
-  const value = parseJson(await requireProcess(process).run("openspec", args, {
-    acceptedExitCodes: [0, 1],
-  }), command);
-  if (
-    !Array.isArray(value.changes) ||
-    value.changes.some((change) => (
-      !change || typeof change !== "object" || Array.isArray(change) ||
-      typeof change.changeName !== "string" || change.changeName.length === 0
-    ))
-  ) {
-    throw new Error(`OPENSPEC_STATUS_INVALID: ${command} не содержит changes[]`);
-  }
-  return Object.freeze(value.changes.map(({ changeName }) => changeName));
+    ids.add(task.id);
+    return Object.freeze({ id: task.id, description: task.description, done: task.done });
+  });
+  return Object.freeze({
+    changeName: value.changeName,
+    schemaName: value.schemaName,
+    tasks: Object.freeze(tasks),
+  });
 }

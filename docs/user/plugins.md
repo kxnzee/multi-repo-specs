@@ -8,7 +8,7 @@ Agent Extension. Template не устанавливает Plugins автомат
 | Plugin | Scope | Назначение |
 |---|---|---|
 | `openspec-graph` | Store | Проверяет граф Store, Changes, Specs и Repository Impact |
-| `change-tracking` | Store и Code Repository | Фиксирует revisions и внешнюю проверку точного candidate |
+| `change-tracking` | Store и Code Repository | Связывает OpenSpec tasks с revisions Code Repositories |
 | `codegraph` | Store или Code Repository | Управляет локальным CodeGraph index и Agent Extension |
 
 ## Общий lifecycle
@@ -55,24 +55,20 @@ openspec-orch plugin init --plugin change-tracking
 openspec-orch plugin connect change-tracking \
   --repo specs --repo frontend --repo backend
 
-openspec-orch track <change-id>
-# из каждого затронутого чистого Code Repository:
-openspec-orch done
-# после внешней проверки собранной версии:
-openspec-orch verify pass
-openspec-orch status [change-id]
+# из чистого Code Repository перед работой над task:
+openspec-orch attempt start <change-id> <task-id>
+# после commit и стандартной галочки Apply:
+openspec-orch attempt complete <change-id> <task-id>
 ```
 
-`track` берёт scope из принятого Repository Impact. `done` передаёт текущий
-implementation commit, а `verify pass|fail` только записывает результат уже
-выполненной проверки. Plugin не выполняет Tasks, тесты, deployment или Release.
+`attempt start` сохраняет base revision только в локальном Plugin storage. Команда
+`attempt complete` повторно читает task через `openspec instructions apply --json`
+и, если стандартная галочка уже установлена, добавляет итоговую revision в
+`openspec/changes/<change-id>/implementation-map.yaml`. Она не создаёт commit и не
+выполняет `pull` или `push`; файл публикуется обычным Git-процессом Change.
 
-Изменяющие команды синхронизируют Git Store, создают tracking commit и по умолчанию
-публикуют его. `--no-push` оставляет commit локально. Новый `done` меняет
-candidate и делает прежнюю verification неактуальной.
-
-`status` читает только текущую локальную копию Store и не выполняет `git pull`.
-Обновляйте Store обычным командным Git-процессом перед чтением удалённых изменений.
+Plugin не назначает Tasks, не меняет их галочки, не выполняет тесты и не участвует
+в Verify, Release или Git-публикации.
 
 ## CodeGraph
 
@@ -98,10 +94,10 @@ openspec-orch agent status --agent qwen
 ```
 
 MCP предоставляет read tools для status, setup context, Change context, next action,
-assignment scope, doctor и Graph, а также controlled setup tools
-`initialize_project` и `connect_project`. Намеренно отсутствуют receipt,
-verification, Release, Archive, arbitrary Git writes, Plugin lifecycle, Agent
-management и network transport.
+assignment scope, doctor и Graph, controlled setup tools `initialize_project` и
+`connect_project`, а также `start_attempt` и `complete_attempt` для task evidence.
+Намеренно отсутствуют verification, Release, Archive, arbitrary Git writes, Plugin
+lifecycle, Agent management и network transport.
 
 ## Внешний Plugin
 

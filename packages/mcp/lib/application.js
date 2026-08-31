@@ -5,6 +5,8 @@ const RUNTIME_METHODS = Object.freeze([
   "getSetupContext",
   "initializeProject",
   "connectProject",
+  "startAttempt",
+  "completeAttempt",
   "getChangeContext",
   "getNextAction",
   "getAssignmentScope",
@@ -13,17 +15,6 @@ const RUNTIME_METHODS = Object.freeze([
   "listResources",
   "readResource",
 ]);
-
-/** Maps a domain recommendation to capabilities actually present in this MCP version. */
-function availableAction(value) {
-  if (value?.action !== "record_result_receipt") return value;
-  return Object.freeze({
-    ...value,
-    action: "record_result_receipt_via_cli",
-    actor: "human",
-    reason: "MCP не публикует Result Receipt; это человеческое действие остаётся в CLI",
-  });
-}
 
 /** Thin adapter: policy and workflow remain in Core and Plugin application services. */
 export class OrchestratorMcpApplication {
@@ -41,10 +32,10 @@ export class OrchestratorMcpApplication {
   getSetupContext() { return this.#runtime.getSetupContext(); }
   initializeProject(input = {}) { return this.#runtime.initializeProject(input); }
   connectProject() { return this.#runtime.connectProject(); }
+  startAttempt(input = {}) { return this.#runtime.startAttempt(input); }
+  completeAttempt(input = {}) { return this.#runtime.completeAttempt(input); }
   getChangeContext(input = {}) { return this.#runtime.getChangeContext(input); }
-  async getNextAction(input = {}) {
-    return availableAction(await this.#runtime.getNextAction(input));
-  }
+  getNextAction(input = {}) { return this.#runtime.getNextAction(input); }
   getAssignmentScope(input = {}) { return this.#runtime.getAssignmentScope(input); }
   getDoctorReport(input = {}) { return this.#runtime.getDoctorReport(input); }
   queryGraph(input = {}) { return this.#runtime.queryGraph(input); }

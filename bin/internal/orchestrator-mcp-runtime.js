@@ -138,7 +138,7 @@ export class OrchestratorMcpRuntime {
         ),
       }),
       openspec: await openSpec.listChanges(),
-      tracking: tracking ? await tracking.getStatus(changeId) : null,
+      tracking: tracking && changeId ? await tracking.getStatus(changeId) : null,
     });
   }
 
@@ -177,6 +177,16 @@ export class OrchestratorMcpRuntime {
 
   connectProject() {
     return this.#setup.connect();
+  }
+
+  async startAttempt({ change_id: changeId, task_id: taskId } = {}) {
+    const tracking = await this.#trackingApplication(await this.#state());
+    return tracking.startAttempt({ changeId, taskId });
+  }
+
+  async completeAttempt({ change_id: changeId, task_id: taskId } = {}) {
+    const tracking = await this.#trackingApplication(await this.#state());
+    return tracking.completeAttempt({ changeId, taskId });
   }
 
   async getChangeContext({ change_id: changeId, artifact } = {}) {
@@ -223,44 +233,22 @@ export class OrchestratorMcpRuntime {
         openspec: await repositoryOpenSpec.listChanges(),
       });
     }
-    const openSpecAction = await repositoryOpenSpec.nextAction(changeId);
-    if (openSpecAction.action !== "apply_change") return openSpecAction;
-    const tracking = await this.#optionalApplication(
-      state,
-      "change-tracking",
-      false,
-      (context) => new ChangeTrackingApplication(context),
-    );
-    if (!tracking) return openSpecAction;
-    const trackingStatus = await tracking.getStatus(changeId);
-    return trackingStatus.tracked ? tracking.getNextAction(changeId) : openSpecAction;
+    return repositoryOpenSpec.nextAction(changeId);
   }
 
   async getAssignmentScope({ change_id: changeId } = {}) {
     const state = await this.#state();
-    const [tracking, graph] = await Promise.all([
-      this.#optionalApplication(
-        state,
-        "change-tracking",
-        false,
-        (context) => new ChangeTrackingApplication(context),
-      ),
-      this.#optionalApplication(
-        state,
-        "openspec-graph",
-        true,
-        (context) => new OpenSpecGraphApplication(context),
-      ),
-    ]);
-    const trackingScope = tracking ? await tracking.getAssignmentScope(changeId) : null;
+    const graph = await this.#optionalApplication(
+      state,
+      "openspec-graph",
+      true,
+      (context) => new OpenSpecGraphApplication(context),
+    );
     const graphImpact = graph && changeId ? await graph.query("change_impact", changeId) : null;
     const graphRepositoryIds = graphImpact?.repositories.map(({ id }) => (
       id.replace(/^repository:/u, "")
     ));
-    const trackedRepositoryIds = Array.isArray(trackingScope?.change?.repositories)
-      ? trackingScope.change.repositories
-      : null;
-    const assignedRepositoryIds = new Set(trackedRepositoryIds ?? graphRepositoryIds ?? []);
+    const assignedRepositoryIds = new Set(graphRepositoryIds ?? []);
     const assignments = await this.#assignmentScopes(state, assignedRepositoryIds);
     const currentCheckout = state.invocation?.role === "store"
       ? state.storeProject.checkout
@@ -275,10 +263,9 @@ export class OrchestratorMcpRuntime {
       : null;
     return Object.freeze({
       ...projectJson(state.storeProject, state.invocation),
-      assigned: trackingScope?.assigned ?? (
+      assigned: (
         state.invocation?.role === "code" && graphRepositoryIds?.includes(state.invocation.id)
       ) ?? false,
-      tracking_scope: trackingScope,
       graph_impact: graphImpact,
       assignments,
       current_assignment: state.invocation ? Object.freeze({
@@ -375,6 +362,21 @@ export class OrchestratorMcpRuntime {
     } catch {
       return null;
     }
+  }
+
+  async #trackingApplication(state) {
+    const tracking = await this.#optionalApplication(
+      state,
+      "change-tracking",
+      false,
+      (context) => new ChangeTrackingApplication(context),
+    );
+    if (!tracking) {
+      throw new Error(
+        "CAPABILITY_UNAVAILABLE: change-tracking is not initialized; inspect Doctor",
+      );
+    }
+    return tracking;
   }
 
   async #state() {

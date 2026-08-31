@@ -15,6 +15,15 @@ const CHANGE_SCHEMA = Object.freeze({
   properties: Object.freeze({ change_id: Object.freeze({ type: "string" }) }),
   additionalProperties: false,
 });
+const ATTEMPT_SCHEMA = Object.freeze({
+  type: "object",
+  properties: Object.freeze({
+    change_id: Object.freeze({ type: "string" }),
+    task_id: Object.freeze({ type: "string" }),
+  }),
+  required: ["change_id", "task_id"],
+  additionalProperties: false,
+});
 const READ_ONLY_ANNOTATIONS = Object.freeze({
   readOnlyHint: true,
   destructiveHint: false,
@@ -121,6 +130,18 @@ export const ORCHESTRATOR_MCP_TOOLS = Object.freeze([
     inputSchema: EMPTY_SCHEMA,
     annotations: Object.freeze({ ...WRITE_ANNOTATIONS, openWorldHint: true }),
   }),
+  Object.freeze({
+    name: "start_attempt",
+    description: "Start local evidence for one canonical OpenSpec Apply task in the current Code Repository.",
+    inputSchema: ATTEMPT_SCHEMA,
+    annotations: WRITE_ANNOTATIONS,
+  }),
+  Object.freeze({
+    name: "complete_attempt",
+    description: "Map one completed OpenSpec Apply task to the current clean Code Repository revision.",
+    inputSchema: ATTEMPT_SCHEMA,
+    annotations: WRITE_ANNOTATIONS,
+  }),
 ]);
 
 /** Encodes a domain value as one MCP text result. */
@@ -192,14 +213,21 @@ function assertArguments(name, args) {
   }
   const allowed = name === "query_graph" ? new Set(["query", "id"])
     : name === "get_change_context" ? new Set(["change_id", "artifact"])
+      : ["start_attempt", "complete_attempt"].includes(name)
+        ? new Set(["change_id", "task_id"])
       : name === "initialize_project"
         ? new Set(["store_id", "agent_id", "template_id", "repositories"])
         : ["get_doctor_report", "get_setup_context", "connect_project"].includes(name)
           ? new Set() : new Set(["change_id"]);
   const unknown = Object.keys(args).find((key) => !allowed.has(key));
   if (unknown) throw new Error(`MCP_TOOL_INPUT_INVALID: ${name} не принимает ${unknown}`);
-  assertString(args, "change_id", { required: name === "get_change_context" });
+  assertString(args, "change_id", {
+    required: ["get_change_context", "start_attempt", "complete_attempt"].includes(name),
+  });
   assertString(args, "artifact");
+  assertString(args, "task_id", {
+    required: ["start_attempt", "complete_attempt"].includes(name),
+  });
   if (name === "initialize_project") assertInitialization(args);
   if (name === "query_graph") {
     if (!["report", "node", "change_impact"].includes(args.query)) {
@@ -221,6 +249,8 @@ export function createOrchestratorMcpServer(application) {
     "queryGraph",
     "initializeProject",
     "connectProject",
+    "startAttempt",
+    "completeAttempt",
     "listResources",
     "readResource",
   ];
@@ -244,6 +274,8 @@ export function createOrchestratorMcpServer(application) {
       query_graph: () => application.queryGraph(args),
       initialize_project: () => application.initializeProject(args),
       connect_project: () => application.connectProject(args),
+      start_attempt: () => application.startAttempt(args),
+      complete_attempt: () => application.completeAttempt(args),
     };
     const handler = handlers[request.params.name];
     if (!handler) return errorContent(new Error(`MCP_TOOL_NOT_FOUND: ${request.params.name}`));

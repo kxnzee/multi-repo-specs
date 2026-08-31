@@ -1,7 +1,7 @@
 {
   "name": "@openspec-orch/plugin-change-tracking",
   "version": "1.0.0",
-  "description": "Cycle, Receipt and Snapshot domain for OpenSpec Orchestrator",
+  "description": "OpenSpec task to Code Repository revision tracking",
   "type": "module",
   "exports": {
     ".": "./index.js",
@@ -20,8 +20,7 @@
     "@openspec-orch/plugin-sdk": "0.1.0"
   },
   "dependencies": {
-    "yaml": "2.9.0",
-    "zod": "4.4.3"
+    "yaml": "2.9.0"
   },
   "scripts": {
     "test": "node --test --test-concurrency=1"
