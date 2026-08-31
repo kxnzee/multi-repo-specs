@@ -1,267 +1,105 @@
 # Plugins
 
-Plugin — самостоятельный ESM npm package, который расширяет Orchestrator через
-публичный `@openspec-orch/plugin-sdk`. Plugin может добавить repository lifecycle,
-CLI grammar и Agent Extension, не изменяя Core.
+Plugin расширяет Orchestrator собственными командами, repository lifecycle или
+Agent Extension. Template не устанавливает Plugins автоматически.
 
-## Plugins стандартной поставки
+## Стандартная поставка
 
-| Plugin ID | Scope | Обязательность | Назначение |
-|---|---|---|---|
-| `openspec-graph` | Store | Опциональный | Компилирует и проверяет текущий граф Store/Repositories/Master Specs/Changes/Delta Specs |
-| `change-tracking` | Store и Code Repository | Опциональный | Фиксирует implementation revisions, собирает точную multi-repository версию и связывает с ней проверку |
-| `codegraph` | Store и Code Repository | Опциональный | Управляет repository-local CodeGraph index, native CLI passthrough и Repository-scoped Agent Extension для навигации по выбранному checkout |
+| Plugin | Scope | Назначение |
+|---|---|---|
+| `openspec-graph` | Store | Проверяет граф Store, Changes, Specs и Repository Impact |
+| `change-tracking` | Store и Code Repository | Фиксирует revisions и внешнюю проверку точного candidate |
+| `codegraph` | Store или Code Repository | Управляет локальным CodeGraph index и Agent Extension |
 
-Все три package поставляются как dependencies дистрибутива. Template не
-выбирает, не устанавливает и не удаляет Plugins.
+## Общий lifecycle
 
-Ошибка автоматической загрузки одного установленного Plugin не блокирует Core CLI.
-Core и `doctor` продолжают запускаться, а команды неисправного Plugin не монтируются;
-его bindings отображаются диагностикой как `unavailable`. Восстановление выполняется
-через `plugin init --plugin <id> [--from <source>]`, без удаления Store-конфигурации.
+```bash
+openspec-orch plugin init --plugin <plugin-id>
+openspec-orch plugin connect <plugin-id> --repo <repository-id>
+openspec-orch plugin status --plugin <plugin-id>
+openspec-orch plugin sync <plugin-id> --repo <repository-id>
+openspec-orch plugin exec <plugin-id> --repo <repository-id> -- <command>
+openspec-orch plugin disconnect <plugin-id> --repo <repository-id>
+openspec-orch plugin remove <plugin-id>
+```
+
+Для нескольких repositories повторите `--repo` или используйте `--all`. Без
+selector TTY показывает выбор, а non-TTY требует явный selector. `disconnect`
+удаляет binding и отключает Plugin-owned Extension, но не удаляет данные Plugin из
+Repository. `remove` разрешён только без bindings.
 
 ## OpenSpec Graph
 
-Основные команды:
-
 ```bash
 openspec-orch plugin init --plugin openspec-graph
-openspec-orch plugin connect openspec-graph --repo <store-id>
-openspec-orch graph inspect
+openspec-orch plugin connect openspec-graph --repo specs
 openspec-orch graph inspect --json
-openspec-orch graph view
 openspec-orch graph view --port 0
 ```
 
-`inspect` и `view` каждый раз компилируют текущий Store непосредственно из файлов.
-Команда `graph` появляется только после `plugin init`, а её Store-контекст становится
-доступен только после `plugin connect openspec-graph --repo <store-id>`.
-Прямые Repository–Master Spec связи выводятся из строгой таблицы
-`Repository | Capabilities` в Proposal и Delta Specs того же активного или архивного
-Change. Связь нейтральна и не утверждает владение или dependency.
+Каждый вызов компилирует текущие файлы Store. Graph использует Master/Delta Specs и
+строгую таблицу `Repository | Capabilities` из Proposal. Он не читает Code
+Repositories и не доказывает ownership, реализацию или runtime dependency.
 
-После успешного `graph inspect --json` Agent может использовать Graph Report как
-навигационную карту Store: переходить от Change к затронутым Master Specs и явно
-указанным Repositories, находить активные и архивные подтверждения связи, видеть
-`current`/`planned`/`missing` элементы и возвращаться к исходному полю через
-provenance. Карта помогает сузить чтение Store и сформулировать точечные вопросы к
-Code Repository, но не создаёт новый scope и не доказывает ownership, runtime call
-или техническую dependency.
-
-Graph не читает файлы Code Repositories, не вызывает CodeGraph, не редактирует Change
-и не запускается фоном.
-
-Стандартные Delta headings `ADDED`, `MODIFIED`, `REMOVED` и `RENAMED` работают без
-настройки. Если профиль OpenSpec использует другой язык или форму Markdown heading,
-добавьте необязательный `openspec-graph.yaml` в корень Store:
-
-```yaml
-version: 1
-operation_headings:
-  ADDED:
-    - "### Добавленные требования"
-  MODIFIED:
-    - "## Требования изменены"
-```
-
-Указывайте полный heading вместе с `#`. Aliases дополняют встроенный набор и одинаково
-применяются к активным и архивным Changes. Некорректный конфиг помечает report как
-`invalid`; все пользовательские aliases отбрасываются атомарно, а компилятор использует
-только встроенные headings. Plugin не создаёт и не изменяет этот файл автоматически.
+Полный contract: [OpenSpec Graph Plugin](../../plugins/openspec-graph/README.md).
 
 ## Change Tracking
-
-Сначала свяжите Plugin со Store и всеми Code Repositories, чьи implementation
-revisions могут войти в evidence:
 
 ```bash
 openspec-orch plugin init --plugin change-tracking
 openspec-orch plugin connect change-tracking \
   --repo specs --repo frontend --repo backend
-```
 
-Change Tracking не читает метаданные Project Template, не выбирает внешний Apply
-workflow и не устанавливает Agent Extension. Его CLI и Store-файлы образуют
-самостоятельный evidence-контракт после явного подключения Plugin. Требуется OpenSpec
-`>=1.11.0 <2`.
-
-Основные команды:
-
-```bash
 openspec-orch track <change-id>
+# из каждого затронутого чистого Code Repository:
 openspec-orch done
+# после внешней проверки собранной версии:
 openspec-orch verify pass
 openspec-orch status [change-id]
 ```
 
-`track` сначала читает artifact graph через `openspec status --change <id> --json` и
-начинает сбор implementation evidence только когда готовы `apply.requires` и все их
-транзитивные зависимости. Затем команда читает строгую таблицу `Repository Impact`
-из Proposal и фиксирует scope указанных там Code Repositories. Команда не
-назначает Tasks, не означает «взять задачу в работу» и не меняет OpenSpec Apply. Она
-сама создаёт tracking-коммит и публикует его в Store. `done` вызывается из каталога
-Code Repository, требует чистое рабочее дерево и в счастливом пути сам выбирает
-единственный активный Change и текущий `HEAD`. При нескольких активных Changes укажите
-`--change`; список активных Changes берётся одним batch-вызовом OpenSpec 1.11
-`status --all --json`. `--sha` оставлен как аварийный override. Если commit не входит ни в одну
-локально известную remote-tracking ветку, команда предупреждает, что команда
-разработки может не видеть этот SHA.
+`track` берёт scope из принятого Repository Impact. `done` передаёт текущий
+implementation commit, а `verify pass|fail` только записывает результат уже
+выполненной проверки. Plugin не выполняет Tasks, тесты, deployment или Release.
 
-`done` передаёт только implementation revision. Выполнение Tasks, блокировки и
-неуспешная реализация остаются в нативных артефактах и workflow OpenSpec; Plugin не
-создаёт для них параллельные статусы.
-
-`status` без аргумента одним batch-вызовом показывает все активные OpenSpec Changes.
-Change без Cycle остаётся видимым как «отслеживание ещё не начато»; для Change с Cycle
-накладываются текущие repository receipts, Snapshot и Verification. Подробный экран
-открывается через `status <change-id>`. Готовность к человеческому решению о выпуске
-вычисляется только для актуального Snapshot с актуальной проверкой `pass`; выпуск
-автоматически не выполняется.
-
-Последний `done` автоматически собирает точную версию. После её реальной проверки
-человек или CI вызывает `verify pass` либо `verify fail`. Новый `done` меняет версию,
-и прежняя проверка становится устаревшей. Plugin не запускает тесты, deployment или
-checkout самостоятельно.
-
-Всё командное состояние хранится в Store: `tracking/cycles/<change-id>/cycle.yaml`,
-`receipts/<repository-id>.yaml` и `verification/<snapshot-id>.yaml`. Receipt-файл —
-append-only журнал; исправление добавляет запись `supersedes`, а не переписывает
-evidence. Snapshot не хранится отдельно: он детерминированно вычисляется из текущих
-receipts, поэтому любая новая текущая receipt — в том числе исправление через
-`supersedes` при том же SHA — создаёт новый хэш и делает прежнюю verification
-устаревшей.
-
-Все четыре команды сначала выполняют `git pull --ff-only` Store. `track`, `done` и
-`verify pass|fail` затем создают говорящие tracking-коммиты и по умолчанию пушат их;
-`status` только обновляет и читает состояние. `--no-push` оставляет tracking-коммит
-изменяющей команды локально. При одновременной записи разных repository-файлов Plugin
-один раз повторяет push после rebase; конфликт одного файла возвращает
-`TRACKING_CONFLICT` для решения человеком. Видимость обновляется по pull, права
-совпадают с правами на Store. Сервер понадобится только при требованиях к частым
-конкурентным записям, real-time или тонкому access control.
-
-Та же файловая раскладка доступна CLI, Agent/MCP и CI. Публичный контракт Plugin
-ограничен командами `track`, `done`, `status` и `verify pass|fail`; CI передаёт SHA
-через `done --sha <hash> --source ci`, а результат проверки — через
-`verify pass|fail --source ci`.
-
-Change Tracking не компилирует и не проверяет OpenSpec Graph и не заменяет OpenSpec
-Apply, PR, CI, deployment, QA, Release или Archive.
+Изменяющие команды синхронизируют Git Store, создают tracking commit и по умолчанию
+публикуют его. `--no-push` оставляет commit локально. Новый `done` меняет
+candidate и делает прежнюю verification неактуальной.
 
 ## CodeGraph
 
 ```bash
 openspec-orch plugin init --plugin codegraph
-openspec-orch plugin connect codegraph --repo frontend --repo backend
-openspec-orch plugin status --plugin codegraph
-openspec-orch plugin sync codegraph --all
-openspec-orch plugin exec codegraph --repo frontend -- status --json
+openspec-orch plugin connect codegraph --repo frontend
+openspec-orch plugin status --plugin codegraph --repo frontend
+openspec-orch plugin sync codegraph --repo frontend
+openspec-orch plugin exec codegraph --repo frontend -- explore "authentication flow"
 ```
 
-`connect` вызывает `codegraph init .`, `sync` — `codegraph sync .`, а `exec` передает
-argv native runtime через package-owned launcher в cwd выбранного Repository.
-`.codegraph/` добавляется в локальный `.git/info/exclude`; tracked `.gitignore` не
-изменяется.
-
-CodeGraph можно связать со Store либо Code Repository: каждый binding обслуживает
-ровно свой Git checkout и получает собственные index, Extension и MCP scope. Для
-поиска implementation evidence обычно выбирают конкретный Code Repository; Store
-binding не даёт доступа к файлам соседних Code Repositories.
-
-При `plugin connect` Agent-часть активируется как Repository-scoped Extension:
-Claude использует local marketplace. Qwen и GigaCode сначала включают уже установленный
-Extension в текущем workspace, а при его отсутствии один раз устанавливают project
-Extension; GigaCode использует Qwen CLI с отдельным `gigacode-extension.json`.
-Extension содержит общие инструкции и подключает MCP через executable
-`openspec-orch-codegraph`; Plugin не дописывает корневые Agent instructions и MCP
-settings вручную. `plugin disconnect` сначала отключает Extension в текущем workspace
-штатной командой Agent и только затем удаляет binding; установленный Qwen package
-остаётся доступным другим Repository.
-
-## MCP в Agent Extensions
-
-Статический MCP входит в Agent Extension: Claude, Qwen и GigaCode получают его через
-собственный native manifest вместе с инструкциями использования. Один Extension может
-объявить несколько MCP. Если MCP требует repository lifecycle, состояния или своих
-команд, владельцем остаётся Plugin, который поставляет target-scoped Agent Extension.
-Orchestrator MCP не требует такого lifecycle: он является встроенным Agent API.
+Каждый binding обслуживает только свой checkout и локальный `.codegraph/`. Индекс
+не коммитится. CodeGraph помогает исследовать текущий код, но не создаёт Requirements
+и не расширяет scope Change. Подробности: [CodeGraph Plugin](../../plugins/codegraph/README.md).
 
 ## Orchestrator MCP
 
-`openspec-orch-mcp` — встроенная локальная stdio-обёртка над текущими сервисами Core и
-публичными application API Plugins. Общая Extension `orchestrator-agent` устанавливается
-один раз в user scope явной командой `openspec-orch agent setup --agent <id>` и не
-входит в Project Template или Plugin lifecycle.
-
-После перезапуска Claude, Qwen или GigaCode должен видеть read tools `get_status`,
-`get_setup_context`, `get_change_context`, `get_next_action`, `get_assignment_scope`,
-`get_doctor_report`, `query_graph`, setup tools `initialize_project`, `connect_project`
-и read-only resources из фиксированного Store allowlist. В него входят Project
-registry, OpenSpec config, Markdown/YAML context, Master Specs, YAML-журналы Change
-Tracking и только artifacts, объявленные schema каждого Change. Поэтому Base и
-Superspec artifacts могут публиковаться одновременно, но `.openspec.yaml`, файлы
-чужого workflow и произвольные заметки resources не являются. Базовые Core/OpenSpec
-tools работают без Plugins. Tracking добавляет overlay после `plugin init`, даже до
-Store binding; Graph требует declaration и Store binding.
-
-`get_assignment_scope` возвращает `assignments[]` для всех Code Repositories Project:
-признак assignment, точный checkout, текущую revision, чистоту и состояние локального
-подключения. Поэтому основной Agent может подготовить проверяемый вход каждого
-repository-specific subagent даже при запуске MCP из Store.
-
-Setup tools вызываются только после явного запроса пользователя. `initialize_project`
-фиксирован на cwd MCP, использует bundled catalog и strict mode. `connect_project` не
-принимает workspace или relaxed overrides, но может клонировать remotes из Project
-registry и активировать Agent Extensions. Оба используют тот же application service,
-что CLI, и сохраняют его fail-closed/idempotent проверки.
-
-Намеренно отсутствуют tools для receipt, `verify pass|fail`, Release, Archive,
-произвольного Git write, lifecycle Plugins, planning artifacts, disconnect,
-произвольного процесса и управления Agent. Сервер не имеет сетевого transport и не
-может закрыть человеческий verification или Release gate.
-
-SDK `@modelcontextprotocol/sdk` зафиксирован exact-версией `1.30.0` в lock-файле.
-Обновление требует повторного handshake-smoke всех трёх Agent clients. Поставка для
-GigaCode добавлена на основании его native extension/MCP формата, но реальный
-GigaCode handshake остаётся отдельным rollout-gate.
-
-На новой машине человек выполняет ровно один явный bootstrap через CLI, после чего
-перезапускает Agent:
+Agent gateway устанавливается отдельно от Project и Plugins:
 
 ```bash
-openspec-orch agent setup --agent claude
-openspec-orch agent status --agent claude
+openspec-orch agent setup --agent qwen
+openspec-orch agent status --agent qwen
 ```
 
-Дальнейшие Projects можно инициализировать и подключать через MCP. Bootstrap обратим
-командой `openspec-orch agent remove --agent claude`; скрытого `postinstall` нет.
-
-## Общий lifecycle
-
-```bash
-openspec-orch plugin init
-openspec-orch plugin connect <plugin-id>
-openspec-orch plugin status --plugin <plugin-id>
-openspec-orch plugin sync <plugin-id> --repo <repository-id>
-openspec-orch plugin exec <plugin-id> --repo <repository-id> -- <command> [args...]
-openspec-orch plugin disconnect <plugin-id> --repo <repository-id>
-openspec-orch plugin remove <plugin-id>
-```
-
-Без явного selector интерактивный TTY показывает checkbox. В CI/non-TTY для
-`connect`, `sync`, `exec` и `disconnect` задайте повторяемый `--repo` либо `--all`.
-`--repo` и `--all` несовместимы. Для `connect` `--all` выбирает все подходящие
-Repositories; для остальных операций — все существующие bindings.
-
-Progress идет в `stderr`, поэтому JSON и raw stdout можно перенаправлять. После
-`connect` и `sync` Core повторно читает фактический Plugin status.
-
-`disconnect` штатно отключает Plugin-owned Extension и удаляет binding, но не данные
-внутри Repository. `remove` требует отсутствия bindings.
+MCP предоставляет read tools для status, setup context, Change context, next action,
+assignment scope, doctor и Graph, а также controlled setup tools
+`initialize_project` и `connect_project`. Намеренно отсутствуют receipt,
+verification, Release, Archive, arbitrary Git writes, Plugin lifecycle, Agent
+management и network transport.
 
 ## Внешний Plugin
 
-`--from` принимает один локальный каталог, `.tgz`, Git URL или npm install spec:
+`--from` принимает локальный package directory, tarball, Git URL или npm install
+spec. Production dependencies устанавливаются без lifecycle scripts, а exact package
+identity сохраняется в Store.
 
 ```bash
 openspec-orch plugin init \
@@ -269,27 +107,5 @@ openspec-orch plugin init \
   --from @company/openspec-plugin-dependency-audit@1.2.0
 ```
 
-Production dependencies materialize в локальный cache без lifecycle scripts. Точная
-package identity сохраняется в `openspec-orch.yaml`. Внешний Plugin использует только
-публичный SDK и не импортирует Core internals.
-
-Создание каркаса:
-
-```bash
-openspec-orch plugin register dependency-audit
-openspec-orch plugin register code-analyzer \
-  --profile native --support code --extension
-```
-
-Профили:
-
-- `commands` — только namespaced command contribution;
-- `repository` — guarded `connect/status` и command grammar;
-- `native` — repository lifecycle, native `exec` adapter и launcher.
-
-`--extension` добавляет в Repository/Native Plugin готовый Agent Extension для
-Claude, Qwen и GigaCode. Commands-only Plugin не имеет Repository target, поэтому
-этот флаг для него недоступен.
-
-Scaffold не возвращает фиктивный `ready`: автор обязан реализовать lifecycle и
-проверить package через SDK contract test kit.
+Каркас создаётся через `plugin register`. Авторский contract описан в
+[Plugin SDK](../../packages/plugin-sdk/README.md).
