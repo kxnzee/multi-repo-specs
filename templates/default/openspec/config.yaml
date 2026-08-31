@@ -29,12 +29,12 @@ rules:
   tasks:
     - "Группировать реализацию по точным Repository IDs, связывать задачи с принятыми Requirements или Scenarios и указывать наблюдаемый способ проверки."
   verify:
-    - "Verify является универсальной Feature Acceptance: Agent готовит evidence, но решение PENDING, PASS или FAIL принимает только ответственный участник."
+    - "Verify является универсальной Feature Acceptance: Agent готовит evidence, человек явно принимает решение PASS или FAIL, а до решения gate остаётся PENDING."
 
 operations:
   archive:
     guidance:
       - "Определи schema Change по .openspec.yaml и не смешивай process-specific gates разных schemas."
-      - "Требуй human Feature Acceptance PASS в verify.md; Agent evidence не заменяет решение ответственного участника."
+      - "Требуй human Feature Acceptance PASS в verify.md; Agent evidence не заменяет явное решение человека."
       - "Для superspec-multirepo дополнительно требуй Process Compliance PASS или PASS_WITH_WARNINGS."
       - "Требуй фактический Release команды; Planning, локальные тесты или Verify сами по себе не разрешают Archive."

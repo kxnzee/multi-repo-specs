@@ -26,7 +26,7 @@ brainstorm
 
 Apply and Verify form a convergence loop without a separate Apply receipt. Apply
 updates implementation and completed Tasks; Verify independently checks the current
-feature with current evidence and records the responsible participant's decision. A
+feature with current evidence and records an explicit human decision. A
 failure returns to the owning artifact or Apply. Verify completes when Feature
 Acceptance is `PASS` and Superspec Process Compliance is `PASS` or
 `PASS_WITH_WARNINGS`.
@@ -40,7 +40,7 @@ Apply produces no separate receipt artifact.
 
 ## Multi-repository adaptation
 
-- The Store owns Change artifacts and cross-repository workflow receipts.
+- The Store owns Change artifacts and the accepted cross-repository scope.
 - Proposal owns exact Repository Impact using IDs from `openspec-orch.yaml`.
 - Code changes, worktrees, TDD and repository verification remain in Code Repositories.
 - Technical evidence cannot complete the Human gate.

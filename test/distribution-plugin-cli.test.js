@@ -9,11 +9,15 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { execa } from "execa";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { parse } from "yaml";
 
 import { configuration, createProject } from "@openspec-orch/core";
 
 const CLI_PATH = process.env.OPENSPEC_ORCH_TEST_CLI_PATH ??
   fileURLToPath(new URL("../bin/openspec-orch.js", import.meta.url));
+const MCP_PATH = fileURLToPath(new URL("../bin/openspec-orch-mcp.js", import.meta.url));
 
 /** Запускает candidate CLI в изолированном Store. */
 function runCli(cwd, ...args) {
@@ -123,6 +127,20 @@ async function initializeGitRepository(root) {
       "-c", "user.name=OpenSpec Orchestrator Test",
       "-c", "user.email=orchestrator@example.test",
       "commit", "-m", "Initial fixture",
+    ],
+    { cwd: root },
+  );
+}
+
+/** Фиксирует текущее состояние изолированного fixture без зависимости от user config. */
+async function commitAll(root, message) {
+  await execa("git", ["add", "."], { cwd: root });
+  await execa(
+    "git",
+    [
+      "-c", "user.name=OpenSpec Orchestrator Test",
+      "-c", "user.email=orchestrator@example.test",
+      "commit", "-m", message,
     ],
     { cwd: root },
   );
@@ -407,4 +425,61 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
   );
   assert.deepEqual(withoutGraph.plugins, ["change-tracking"]);
+
+  await execa(
+    "openspec",
+    ["new", "change", "tracker-smoke", "--schema", "spec-driven"],
+    { cwd: storeRoot },
+  );
+  const tasksPath = path.join(storeRoot, "openspec/changes/tracker-smoke/tasks.md");
+  await fs.writeFile(tasksPath, "# Tasks\n\n- [ ] 1.1 Implement tracker smoke\n");
+  await commitAll(storeRoot, "Plan tracker smoke");
+  await fs.mkdir(path.join(codeRoot, "openspec"), { recursive: true });
+  await fs.writeFile(path.join(codeRoot, "openspec/config.yaml"), "store: specs\n");
+  await commitAll(codeRoot, "Connect OpenSpec Store");
+  const baseRevision = (await execa("git", ["rev-parse", "HEAD"], { cwd: codeRoot })).stdout;
+
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [MCP_PATH],
+    cwd: codeRoot,
+    env: { ...process.env },
+    stderr: "pipe",
+  });
+  const client = new Client({ name: "tracker-composition-smoke", version: "1.0.0" });
+  await client.connect(transport);
+  t.after(() => client.close());
+  const started = await client.callTool({
+    name: "start_attempt",
+    arguments: { change_id: "tracker-smoke", task_id: "1" },
+  });
+  assert.equal(JSON.parse(started.content[0].text).base_revision, baseRevision);
+
+  await fs.writeFile(path.join(codeRoot, "index.js"), "export const ready = 'tracked';\n");
+  await commitAll(codeRoot, "Implement tracker smoke");
+  const implementationRevision = (
+    await execa("git", ["rev-parse", "HEAD"], { cwd: codeRoot })
+  ).stdout;
+  await fs.writeFile(tasksPath, "# Tasks\n\n- [x] 1.1 Implement tracker smoke\n");
+  const completed = await client.callTool({
+    name: "complete_attempt",
+    arguments: { change_id: "tracker-smoke", task_id: "1" },
+  });
+  assert.equal(JSON.parse(completed.content[0].text).attempt.implementation_revision,
+    implementationRevision);
+  const implementationMap = parse(await fs.readFile(
+    path.join(storeRoot, "openspec/changes/tracker-smoke/implementation-map.yaml"),
+    "utf8",
+  ));
+  assert.deepEqual(implementationMap.attempts.map((attempt) => ({
+    repository: attempt.repository_id,
+    task: attempt.task.id,
+    base: attempt.base_revision,
+    implementation: attempt.implementation_revision,
+  })), [{
+    repository: "frontend",
+    task: "1",
+    base: baseRevision,
+    implementation: implementationRevision,
+  }]);
 });

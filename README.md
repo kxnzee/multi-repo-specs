@@ -48,7 +48,7 @@ Template `default` автоматически добавляет Extensions `spe
 `superpowers` и устанавливает две project-local schemas:
 
 - `spec-driven-extended` — короткий процесс с Intake и Verify;
-- `superspec-multirepo` — полный процесс Brainstorm → Finalize.
+- `superspec-multirepo` — полный процесс Brainstorm → Verify.
 
 Schema выбирается для каждого Change отдельно:
 

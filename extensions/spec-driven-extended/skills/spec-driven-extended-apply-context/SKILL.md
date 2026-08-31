@@ -28,7 +28,9 @@ Repository; Plugin-specific поведение остаётся вне этог�
    напрямую; не создавать фиктивную Delta Spec.
 5. Неизвестный Repository/capability или расхождение принятого implementation scope
    блокирует Apply и не создаёт Repository автоматически.
-6. Сверить полученный assignment с принятым Repository Impact. Не продолжать при
+6. Сверить полученный assignment с принятым Repository Impact. Если Graph недоступен
+   и `assigned` равен `null`, прочитать Proposal через MCP resource и подтвердить
+   текущий repository-id по строгой таблице Repository Impact. Не продолжать при
    расхождении или отсутствии подтверждённого scope.
 
 Для Code Repository передать встроенному Apply только Tasks его принятой repository

@@ -248,7 +248,9 @@ export class OrchestratorMcpRuntime {
     const graphRepositoryIds = graphImpact?.repositories.map(({ id }) => (
       id.replace(/^repository:/u, "")
     ));
-    const assignedRepositoryIds = new Set(graphRepositoryIds ?? []);
+    const assignedRepositoryIds = graphRepositoryIds === undefined
+      ? null
+      : new Set(graphRepositoryIds);
     const assignments = await this.#assignmentScopes(state, assignedRepositoryIds);
     const currentCheckout = state.invocation?.role === "store"
       ? state.storeProject.checkout
@@ -263,9 +265,9 @@ export class OrchestratorMcpRuntime {
       : null;
     return Object.freeze({
       ...projectJson(state.storeProject, state.invocation),
-      assigned: (
-        state.invocation?.role === "code" && graphRepositoryIds?.includes(state.invocation.id)
-      ) ?? false,
+      assigned: graphRepositoryIds === undefined
+        ? null
+        : state.invocation?.role === "code" && graphRepositoryIds.includes(state.invocation.id),
       graph_impact: graphImpact,
       assignments,
       current_assignment: state.invocation ? Object.freeze({
@@ -323,7 +325,7 @@ export class OrchestratorMcpRuntime {
         : null;
       return Object.freeze({
         repository_id: status.id,
-        assigned: assignedRepositoryIds.has(status.id),
+        assigned: assignedRepositoryIds?.has(status.id) ?? null,
         checkout: status.path,
         revision,
         connected: status.connected,

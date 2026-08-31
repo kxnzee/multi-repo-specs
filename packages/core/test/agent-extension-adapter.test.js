@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import process from "node:process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -41,13 +42,14 @@ async function extensionFixture(
 }
 
 /** Собирает минимальный scoped Agent context и журнал native calls. */
-function invocationContext(agentId, result = "done") {
+function invocationContext(agentId, result = "done", cwd = process.cwd()) {
   const calls = [];
   return {
     calls,
     context: Object.freeze({
       agent: Object.freeze({ id: agentId }),
       process: Object.freeze({
+        cwd,
         async run(executable, args) {
           calls.push([executable, args]);
           return typeof result === "function" ? result(calls) : result;
@@ -222,7 +224,7 @@ test("Claude adapter proxies local marketplace lifecycle", async (t) => {
   const qualified = "codegraph-agent@openspec-orch-codegraph-agent";
   const fixture = invocationContext("claude", (calls) => (
     calls.at(-1)[1].includes("list")
-      ? JSON.stringify([{ id: qualified, enabled: true }])
+      ? JSON.stringify([{ id: qualified, enabled: true, projectPath: process.cwd() }])
       : `result-${calls.length}`
   ));
   const payload = extension(root);
@@ -250,6 +252,26 @@ test("Claude adapter proxies local marketplace lifecycle", async (t) => {
     ["claude", ["plugin", "uninstall", qualified, "--scope", "local"]],
     ["claude", ["plugin", "marketplace", "remove", "openspec-orch-codegraph-agent", "--scope", "local"]],
   ]);
+});
+
+test("Claude status ignores a local Extension enabled for another project", async (t) => {
+  const root = await extensionFixture(t, "openspec-claude-other-project-");
+  const qualified = "codegraph-agent@openspec-orch-codegraph-agent";
+  const fixture = invocationContext("claude", JSON.stringify([{
+    id: qualified,
+    enabled: true,
+    scope: "local",
+    projectPath: path.join(root, "other-project"),
+  }]), path.join(root, "current-project"));
+
+  await assert.rejects(
+    agentAdapter.invokeExtension(
+      fixture.context,
+      extension(root),
+      { operation: "status", ownerId: "codegraph" },
+    ),
+    /AGENT_EXTENSION_STATUS_MISSING.*codegraph-agent@openspec-orch-codegraph-agent/u,
+  );
 });
 
 test("Claude adapter honors explicit user scope for the gateway", async (t) => {
@@ -304,6 +326,7 @@ test("Agent status requires the exact Extension to be present and enabled", asyn
       JSON.stringify([{
         id: "codegraph-agent@openspec-orch-codegraph-agent",
         enabled: false,
+        projectPath: process.cwd(),
       }]),
       /AGENT_EXTENSION_STATUS_DISABLED.*codegraph-agent@openspec-orch-codegraph-agent/u,
     ],

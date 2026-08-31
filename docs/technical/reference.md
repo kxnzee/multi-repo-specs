@@ -128,6 +128,11 @@ Resources ограничены Project config, OpenSpec config, Markdown/YAML co
 Specs и schema-declared Change artifacts. `.openspec.yaml` и произвольные Store
 files не публикуются.
 
+В `get_assignment_scope` поле `assigned` равно `true` или `false`, когда scope
+подтверждён подключённым OpenSpec Graph, и `null`, когда Graph недоступен. В последнем
+случае Agent подтверждает repository-id по строгой таблице Repository Impact из
+Proposal, доступного как MCP resource; `null` не означает отсутствие назначения.
+
 MCP не предоставляет verification, Release, Archive, произвольные Git writes,
 Plugin lifecycle, Agent management или network transport.
 

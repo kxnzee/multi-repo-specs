@@ -11,7 +11,7 @@ import {
 } from "../native-extension.js";
 
 /** Requires the requested Claude Plugin to be installed and enabled. */
-function assertPluginEnabled(output, qualifiedId, scope) {
+function assertPluginEnabled(output, qualifiedId, scope, projectPath) {
   let plugins;
   try {
     plugins = JSON.parse(output);
@@ -23,8 +23,17 @@ function assertPluginEnabled(output, qualifiedId, scope) {
   if (!Array.isArray(plugins)) {
     throw new Error("AGENT_EXTENSION_STATUS_INVALID: Claude plugin list должен вернуть массив");
   }
-  const plugin = plugins.find(({ id, scope: candidateScope }) => (
-    id === qualifiedId && (scope === undefined || candidateScope === scope)
+  const plugin = plugins.find(({
+    id,
+    scope: candidateScope,
+    projectPath: candidateProjectPath,
+  }) => (
+    id === qualifiedId &&
+    (scope === undefined || candidateScope === scope) &&
+    (projectPath === undefined || (
+      typeof candidateProjectPath === "string" &&
+      path.resolve(candidateProjectPath) === path.resolve(projectPath)
+    ))
   ));
   if (!plugin && scope !== undefined && plugins.some(({ id }) => id === qualifiedId)) {
     throw new Error(`AGENT_EXTENSION_STATUS_SCOPE_MISSING: ${qualifiedId} (${scope})`);
@@ -86,7 +95,12 @@ const claudeAdapter = Object.freeze({
     }
     if (request.operation === "status") {
       const output = await runNative(context, extension, ["plugin", "list", "--json"]);
-      assertPluginEnabled(output, qualifiedId, request.scope);
+      assertPluginEnabled(
+        output,
+        qualifiedId,
+        request.scope,
+        request.scope === "user" ? undefined : context.process.cwd,
+      );
       return output;
     }
     await runNative(context, extension, [

@@ -43,21 +43,24 @@ const WRITE_ANNOTATIONS = Object.freeze({
   openWorldHint: false,
 });
 
-export const ORCHESTRATOR_MCP_TOOLS = Object.freeze([
-  Object.freeze({
+const TOOL_DEFINITIONS = Object.freeze([
+  defineTool({
     name: "get_status",
+    applicationMethod: "getStatus",
     description: "Read current Project, Repository, Plugin and Change status.",
     inputSchema: CHANGE_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
-  Object.freeze({
+  defineTool({
     name: "get_setup_context",
+    applicationMethod: "getSetupContext",
     description: "Read exact Agent and Template choices, required Extensions and setup constraints.",
     inputSchema: EMPTY_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
-  Object.freeze({
+  defineTool({
     name: "get_change_context",
+    applicationMethod: "getChangeContext",
     description: "Read exact OpenSpec status, artifact instructions and optional Plugin overlays.",
     inputSchema: Object.freeze({
       type: "object",
@@ -70,26 +73,30 @@ export const ORCHESTRATOR_MCP_TOOLS = Object.freeze([
     }),
     annotations: READ_ONLY_ANNOTATIONS,
   }),
-  Object.freeze({
+  defineTool({
     name: "get_next_action",
+    applicationMethod: "getNextAction",
     description: "Derive the next governed action and the actor allowed to perform it.",
     inputSchema: CHANGE_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
-  Object.freeze({
+  defineTool({
     name: "get_assignment_scope",
+    applicationMethod: "getAssignmentScope",
     description: "Read all Code Repository assignments, checkouts, revisions and Graph impact.",
     inputSchema: CHANGE_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
-  Object.freeze({
+  defineTool({
     name: "get_doctor_report",
+    applicationMethod: "getDoctorReport",
     description: "Run the same read-only Orchestrator Doctor used by CLI.",
     inputSchema: EMPTY_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
-  Object.freeze({
+  defineTool({
     name: "query_graph",
+    applicationMethod: "queryGraph",
     description: "Compile the Store graph and run a report, node or Change-impact query.",
     inputSchema: Object.freeze({
       type: "object",
@@ -110,9 +117,11 @@ export const ORCHESTRATOR_MCP_TOOLS = Object.freeze([
       ]),
     }),
     annotations: READ_ONLY_ANNOTATIONS,
+    validate: assertGraphQuery,
   }),
-  Object.freeze({
+  defineTool({
     name: "initialize_project",
+    applicationMethod: "initializeProject",
     description: "Idempotently initialize only the MCP cwd in strict mode through Core.",
     inputSchema: Object.freeze({
       type: "object",
@@ -138,26 +147,51 @@ export const ORCHESTRATOR_MCP_TOOLS = Object.freeze([
       additionalProperties: false,
     }),
     annotations: WRITE_ANNOTATIONS,
+    validate: assertInitialization,
   }),
-  Object.freeze({
+  defineTool({
     name: "connect_project",
+    applicationMethod: "connectProject",
     description: "Idempotently connect the current strict Project; may clone registered repositories.",
     inputSchema: EMPTY_SCHEMA,
     annotations: Object.freeze({ ...WRITE_ANNOTATIONS, openWorldHint: true }),
   }),
-  Object.freeze({
+  defineTool({
     name: "start_attempt",
+    applicationMethod: "startAttempt",
     description: "Start local evidence for one canonical OpenSpec Apply task in the current Code Repository.",
     inputSchema: ATTEMPT_SCHEMA,
     annotations: WRITE_ANNOTATIONS,
   }),
-  Object.freeze({
+  defineTool({
     name: "complete_attempt",
+    applicationMethod: "completeAttempt",
     description: "Map one completed OpenSpec Apply task to the current clean Code Repository revision.",
     inputSchema: ATTEMPT_SCHEMA,
     annotations: WRITE_ANNOTATIONS,
   }),
 ]);
+
+export const ORCHESTRATOR_MCP_TOOLS = Object.freeze(
+  TOOL_DEFINITIONS.map(({ tool }) => tool),
+);
+const TOOL_DEFINITION_BY_NAME = new Map(
+  TOOL_DEFINITIONS.map((definition) => [definition.tool.name, definition]),
+);
+const APPLICATION_METHODS = Object.freeze([
+  ...TOOL_DEFINITIONS.map(({ applicationMethod }) => applicationMethod),
+  "listResources",
+  "readResource",
+]);
+
+/** Separates public MCP metadata from its private application dispatch. */
+function defineTool({ applicationMethod, validate = null, ...tool }) {
+  return Object.freeze({
+    applicationMethod,
+    validate,
+    tool: Object.freeze(tool),
+  });
+}
 
 /** Encodes a domain value as one MCP text result. */
 function resultContent(value) {
@@ -193,27 +227,54 @@ function assertIdentifier(args, field, { required = false } = {}) {
   }
 }
 
+/** Validates the string fields declared by one advertised object schema. */
+function assertDeclaredStrings(name, args, inputSchema) {
+  const required = new Set(inputSchema.required ?? []);
+  for (const [field, fieldSchema] of Object.entries(inputSchema.properties ?? {})) {
+    if (fieldSchema.type !== "string") continue;
+    assertString(args, field, { required: required.has(field) });
+    if (args[field] === undefined) continue;
+    if (fieldSchema.pattern === IDENTIFIER_PATTERN) {
+      assertIdentifier(args, field, { required: required.has(field) });
+    }
+    if (fieldSchema.enum && !fieldSchema.enum.includes(args[field])) {
+      throw new Error(`MCP_TOOL_INPUT_INVALID: ${name}.${field} неизвестен`);
+    }
+  }
+}
+
+/** Validates one object against the fields advertised by its MCP schema. */
+function assertObjectShape(name, args, inputSchema) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    throw new Error(`MCP_TOOL_INPUT_INVALID: ${name} arguments должны быть object`);
+  }
+  const allowed = new Set(Object.keys(inputSchema.properties ?? {}));
+  const unknown = Object.keys(args).find((key) => !allowed.has(key));
+  if (unknown) throw new Error(`MCP_TOOL_INPUT_INVALID: ${name} не принимает ${unknown}`);
+  assertDeclaredStrings(name, args, inputSchema);
+}
+
 /** Validates the structured strict-init surface. */
-function assertInitialization(args) {
-  assertIdentifier(args, "store_id", { required: true });
-  assertIdentifier(args, "agent_id", { required: true });
-  assertIdentifier(args, "template_id");
+function assertInitialization(args, inputSchema) {
   if (args.repositories === undefined) return;
   if (!Array.isArray(args.repositories)) {
     throw new Error("MCP_TOOL_INPUT_INVALID: repositories должен быть array");
   }
+  const repositorySchema = inputSchema.properties.repositories.items;
+  const repositoryFields = Object.keys(repositorySchema.properties);
   const ids = new Set();
   for (const repository of args.repositories) {
     if (!repository || typeof repository !== "object" || Array.isArray(repository)) {
       throw new Error("MCP_TOOL_INPUT_INVALID: repository должен быть object");
     }
     const keys = Object.keys(repository);
-    if (keys.length !== 3 || keys.some((key) => !["repository_id", "remote", "default_branch"].includes(key))) {
+    if (
+      keys.length !== repositoryFields.length ||
+      keys.some((key) => !repositoryFields.includes(key))
+    ) {
       throw new Error("MCP_TOOL_INPUT_INVALID: repository contract несовместим");
     }
-    assertIdentifier(repository, "repository_id", { required: true });
-    assertString(repository, "remote", { required: true });
-    assertString(repository, "default_branch", { required: true });
+    assertObjectShape("repository", repository, repositorySchema);
     if (ids.has(repository.repository_id)) {
       throw new Error(`MCP_TOOL_INPUT_INVALID: повторяющийся repository_id ${repository.repository_id}`);
     }
@@ -221,55 +282,24 @@ function assertInitialization(args) {
   }
 }
 
+/** Validates the conditional Graph query contract. */
+function assertGraphQuery(args) {
+  assertString(args, "id", { required: args.query !== "report" });
+}
+
 /** Validates inputs even when a client ignores the advertised JSON Schema. */
-function assertArguments(name, args) {
-  if (!args || typeof args !== "object" || Array.isArray(args)) {
-    throw new Error(`MCP_TOOL_INPUT_INVALID: ${name} arguments должны быть object`);
-  }
-  const allowed = name === "query_graph" ? new Set(["query", "id"])
-    : name === "get_change_context" ? new Set(["change_id", "artifact"])
-      : ["start_attempt", "complete_attempt"].includes(name)
-        ? new Set(["change_id", "task_id"])
-      : name === "initialize_project"
-        ? new Set(["store_id", "agent_id", "template_id", "repositories"])
-        : ["get_doctor_report", "get_setup_context", "connect_project"].includes(name)
-          ? new Set() : new Set(["change_id"]);
-  const unknown = Object.keys(args).find((key) => !allowed.has(key));
-  if (unknown) throw new Error(`MCP_TOOL_INPUT_INVALID: ${name} не принимает ${unknown}`);
-  assertString(args, "change_id", {
-    required: ["get_change_context", "start_attempt", "complete_attempt"].includes(name),
-  });
-  assertString(args, "artifact");
-  assertString(args, "task_id", {
-    required: ["start_attempt", "complete_attempt"].includes(name),
-  });
-  if (name === "initialize_project") assertInitialization(args);
-  if (name === "query_graph") {
-    if (!["report", "node", "change_impact"].includes(args.query)) {
-      throw new Error("MCP_TOOL_INPUT_INVALID: query_graph.query неизвестен");
-    }
-    assertString(args, "id", { required: args.query !== "report" });
-  }
+function assertArguments(definition, args) {
+  const { tool, validate } = definition;
+  assertObjectShape(tool.name, args, tool.inputSchema);
+  if (validate) validate(args, tool.inputSchema);
 }
 
 /** Creates a transport-independent server for tests and stdio delivery. */
 export function createOrchestratorMcpServer(application) {
-  const required = [
-    "getStatus",
-    "getSetupContext",
-    "getChangeContext",
-    "getNextAction",
-    "getAssignmentScope",
-    "getDoctorReport",
-    "queryGraph",
-    "initializeProject",
-    "connectProject",
-    "startAttempt",
-    "completeAttempt",
-    "listResources",
-    "readResource",
-  ];
-  if (!application || required.some((method) => typeof application[method] !== "function")) {
+  if (
+    !application ||
+    APPLICATION_METHODS.some((method) => typeof application[method] !== "function")
+  ) {
     throw new Error("MCP_SERVER_INVALID: application contract incomplete");
   }
   const server = new Server(
@@ -279,24 +309,13 @@ export function createOrchestratorMcpServer(application) {
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: ORCHESTRATOR_MCP_TOOLS }));
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const args = request.params.arguments ?? {};
-    const handlers = {
-      get_status: () => application.getStatus(args),
-      get_setup_context: () => application.getSetupContext(args),
-      get_change_context: () => application.getChangeContext(args),
-      get_next_action: () => application.getNextAction(args),
-      get_assignment_scope: () => application.getAssignmentScope(args),
-      get_doctor_report: () => application.getDoctorReport(args),
-      query_graph: () => application.queryGraph(args),
-      initialize_project: () => application.initializeProject(args),
-      connect_project: () => application.connectProject(args),
-      start_attempt: () => application.startAttempt(args),
-      complete_attempt: () => application.completeAttempt(args),
-    };
-    const handler = handlers[request.params.name];
-    if (!handler) return errorContent(new Error(`MCP_TOOL_NOT_FOUND: ${request.params.name}`));
+    const definition = TOOL_DEFINITION_BY_NAME.get(request.params.name);
+    if (!definition) {
+      return errorContent(new Error(`MCP_TOOL_NOT_FOUND: ${request.params.name}`));
+    }
     try {
-      assertArguments(request.params.name, args);
-      return resultContent(await handler());
+      assertArguments(definition, args);
+      return resultContent(await application[definition.applicationMethod](args));
     } catch (error) {
       return errorContent(error);
     }

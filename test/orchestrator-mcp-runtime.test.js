@@ -151,9 +151,10 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
   assert.deepEqual(context.artifact_instructions, { instruction: "Use exact schema" });
   assert.deepEqual(next, { action: "prepare_artifact", actor: "agent", artifact: "design" });
   assert.equal(assignment.current_assignment.revision, "a".repeat(40));
+  assert.equal(assignment.assigned, null);
   assert.deepEqual(assignment.assignments, [{
     repository_id: "frontend",
-    assigned: false,
+    assigned: null,
     checkout: "/workspace/src/frontend",
     revision: "a".repeat(40),
     connected: true,

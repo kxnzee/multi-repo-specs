@@ -56,7 +56,7 @@ Plugin не меняет task status и не означает, что тесты
 ## 4. Проведите Feature Acceptance
 
 Agent заполняет Verify evidence фактическими результатами проверок и Scenarios.
-Ответственный участник принимает `PASS` или `FAIL`; без его решения gate остаётся
+Человек явно принимает `PASS` или `FAIL`; без этого решения gate остаётся
 `PENDING`. После изменения реализации соберите актуальное evidence и повторите
 человеческий gate. Agent и Change Tracking не принимают Feature Acceptance.
 

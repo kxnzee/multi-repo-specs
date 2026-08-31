@@ -32,10 +32,10 @@ openspec new change redesign-checkout --schema superspec-multirepo
 Не меняйте schema уже созданного Change для переключения процесса. Если DAG
 несовместим, создайте новый Change и перенесите только принятый смысл.
 
-Обе schemas используют одну Feature Acceptance: Agent собирает evidence, а решение
-`PENDING`, `PASS` или `FAIL` явно принимает человек. Change Tracking не участвует
-в этом решении: он связывает OpenSpec tasks с revisions Code Repositories. Verify
-не выполняет Release или Archive.
+Обе schemas используют одну Feature Acceptance: Agent собирает evidence, человек
+явно принимает решение `PASS` или `FAIL`, а до решения gate остаётся `PENDING`.
+Change Tracking не участвует в этом решении: он связывает OpenSpec tasks с revisions
+Code Repositories. Verify не выполняет Release или Archive.
 
 ## Владение и обновление
 

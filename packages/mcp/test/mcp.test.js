@@ -175,8 +175,68 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   });
   assert.equal(unsafe.isError, true);
   assert.match(unsafe.content[0].text, /lowercase kebab-case/u);
+  const invalidChangeId = await client.callTool({
+    name: "get_status",
+    arguments: { change_id: "PAY_1" },
+  });
+  assert.equal(invalidChangeId.isError, true);
+  assert.match(invalidChangeId.content[0].text, /change_id.*lowercase kebab-case/u);
+  const invalidArtifact = await client.callTool({
+    name: "get_change_context",
+    arguments: { change_id: "pay", artifact: "VERIFY_DOC" },
+  });
+  assert.equal(invalidArtifact.isError, true);
+  assert.match(invalidArtifact.content[0].text, /artifact.*lowercase kebab-case/u);
   assert.deepEqual((await client.listResources()).resources, resources);
   assert.equal((await client.readResource({ uri: resources[0].uri })).contents[0].text, "# Payments");
+});
+
+test("every advertised MCP tool dispatches to its matching application method", async (t) => {
+  const dispatch = [
+    ["get_status", "getStatus", {}],
+    ["get_setup_context", "getSetupContext", {}],
+    ["get_change_context", "getChangeContext", { change_id: "pay" }],
+    ["get_next_action", "getNextAction", {}],
+    ["get_assignment_scope", "getAssignmentScope", {}],
+    ["get_doctor_report", "getDoctorReport", {}],
+    ["query_graph", "queryGraph", { query: "report" }],
+    ["initialize_project", "initializeProject", { store_id: "specs", agent_id: "qwen" }],
+    ["connect_project", "connectProject", {}],
+    ["start_attempt", "startAttempt", { change_id: "pay", task_id: "1" }],
+    ["complete_attempt", "completeAttempt", { change_id: "pay", task_id: "1" }],
+  ];
+  const calls = [];
+  const application = {
+    listResources() { return []; },
+    readResource() { return null; },
+  };
+  for (const [, method] of dispatch) {
+    application[method] = (args) => {
+      calls.push([method, args]);
+      return { method };
+    };
+  }
+  const server = createOrchestratorMcpServer(Object.freeze(application));
+  const client = new Client({ name: "dispatch-test", version: "1.0.0" });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+
+  for (const [name, method, args] of dispatch) {
+    const result = await client.callTool({ name, arguments: args });
+    assert.deepEqual(JSON.parse(result.content[0].text), { method });
+  }
+  assert.deepEqual(
+    calls,
+    dispatch.map(([, method, args]) => [method, args]),
+  );
+  const unknown = await client.callTool({ name: "toString", arguments: {} });
+  assert.equal(unknown.isError, true);
+  assert.match(unknown.content[0].text, /MCP_TOOL_NOT_FOUND: toString/u);
 });
 
 test("Store resources follow each Change schema without mixing workflow artifacts", async () => {
