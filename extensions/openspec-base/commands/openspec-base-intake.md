@@ -46,10 +46,10 @@ Brief из `base-intent` либо явно принятая пользовате
 2. Вызови MCP `get_status` и сравни `change-id` только по точному совпадению. Не ищи
    Change через fuzzy name или обход файловой системы.
 3. Если Change существует, вызови `get_change_context` с `artifact: intake`. Если
-   `schemaName` не `spec-driven-extended`, остановись с `BLOCKER: SCHEMA_MISMATCH`. Используй
-   фактические `planningHome`, путь результата, template, instruction и rules из
-   ответа. Затем прочитай существующий содержательный `intake.md`, если он есть, не
-   затирая его template.
+   `schemaName` не `spec-driven-extended`, остановись с `BLOCKER: SCHEMA_MISMATCH`
+   без `intake_result` и `next_action`. Используй фактические `planningHome`, путь
+   результата, template, instruction и rules из ответа. Затем прочитай существующий
+   содержательный `intake.md`, если он есть, не затирая его template.
 4. Если Change не существует, проверь согласованный Intent в текущем диалоге или явно
    переданных материалах. Если его нет, остановись с `BLOCKER: INTENT_REQUIRED` и
    предложи сначала пройти `base-intent` либо передать принятый Daily Intent
