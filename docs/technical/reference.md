@@ -69,6 +69,10 @@ openspec-orch attempt start <change-id> <task-id>
 openspec-orch attempt complete <change-id> <task-id>
 ```
 
+CLI fallback запускается из Code Repository и требует binding `change-tracking` как к
+Store, так и к этому Code Repository. Governed MCP attempt tools используют Store
+setup-context и не требуют передавать Store path в Agent-сессию.
+
 CodeGraph использует общий `plugin connect/status/sync/exec/disconnect`.
 
 ## Project config

@@ -13,7 +13,7 @@ openspec-orch --help
 Нужен Node.js 20.19.0 или новее. Установка и обновление самого Orchestrator описаны
 [отдельно](installation-and-updates.md).
 
-## 2. Создайте Store
+## 2. Создайте или клонируйте Store
 
 Сначала проверьте локальные регистрации OpenSpec:
 
@@ -38,6 +38,25 @@ openspec-orch init /absolute/path/to/workspace/specs \
 Template `default` добавляет Extensions `spec-driven-extended` и `superpowers`. Plugins
 он не устанавливает.
 
+### Существующий Store
+
+Новый участник не запускает `init` поверх существующего Store. Клонируйте принятую
+ветку или revision и убедитесь, что локальный Store ID не занят другим checkout:
+
+```bash
+git clone <store-remote> /absolute/path/to/workspace/specs
+cd /absolute/path/to/workspace/specs
+git checkout <approved-branch-or-revision>
+openspec store list
+```
+
+Дальше выполняйте обычный `connect` из следующего раздела. Он регистрирует Store в
+OpenSpec, подключает Code Repositories, восстанавливает standalone Extensions и
+Plugin-owned Extensions из portable bindings. После `connect` обязательно проверьте
+`doctor`, `repository status`, Agent gateway и Plugin status. Если Store ID уже указывает
+на другой путь, сначала разрешите конфликт локальной регистрации; не изменяйте identity
+клонированного Store.
+
 ## 3. Подключите машину
 
 ```bash
@@ -51,14 +70,16 @@ openspec-orch repository status
 Существующие checkout не обновляются и должны соответствовать configured remote,
 branch и clean-state требованиям.
 
-Для другой раскладки один раз передайте workspace:
+В strict mode для другой раскладки один раз передайте workspace:
 
 ```bash
 openspec-orch connect --workspace /absolute/path/to/workspace
 ```
 
 Relaxed mode (`--no-strict`) не клонирует repositories и не проверяет Git pinning;
-нужные каталоги должны уже существовать.
+нужные каталоги должны уже существовать. Явный `--workspace` действует только на
+текущий relaxed-вызов и не сохраняется. Для последующего Plugin/Repository flow
+используйте стандартную раскладку либо strict project с сохранённым workspace.
 
 ## 4. При необходимости установите Agent gateway
 
@@ -91,3 +112,10 @@ openspec new change redesign-checkout --schema superspec-multirepo
 ```
 
 Дальше используйте [личный](solo-flow.md) или [командный](team-flow.md) процесс.
+
+Для нового участника итоговая последовательность выглядит так:
+
+```text
+clone Store → connect → doctor → repository status
+→ agent setup/status → plugin status → перезапуск Agent → работа с Change
+```

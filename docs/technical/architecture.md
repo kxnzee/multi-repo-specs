@@ -43,16 +43,17 @@ provider pack, безопасно применяет Template, разрешае�
 
 `connect`:
 
-1. читает strict project config;
+1. читает project config и определяет strict или relaxed mode;
 2. выполняет preflight Agent и OpenSpec;
 3. проверяет или клонирует Code Repositories;
-4. сохраняет выбранный workspace;
+4. в strict mode сохраняет явно выбранный workspace;
 5. активирует standalone Extensions;
 6. восстанавливает Plugin runtimes и Plugin-owned Extensions;
 7. проверяет итоговый status.
 
 Существующий checkout не получает `pull`, `checkout`, `reset` или merge.
-Relaxed mode не клонирует и не pin-ит Git state.
+Relaxed mode не клонирует и не pin-ит Git state; явно переданный workspace используется
+только текущим вызовом и не сохраняется.
 
 ## Plugin lifecycle
 

@@ -33,6 +33,43 @@ openspec-orch plugin remove <plugin-id>
 `disconnect` удаляет binding и отключает Plugin-owned Extension, но не удаляет
 данные Plugin из Repository. `remove` разрешён только без bindings.
 
+## Проверяемое отключение и удаление
+
+Сначала зафиксируйте текущее состояние, затем удалите все bindings и только после этого
+declaration Plugin:
+
+```bash
+openspec-orch plugin status --plugin <plugin-id> --json
+openspec-orch plugin disconnect <plugin-id> --all
+openspec-orch plugin status --plugin <plugin-id> --json
+git diff -- openspec-orch.yaml
+openspec-orch plugin remove <plugin-id>
+openspec-orch doctor
+git diff -- openspec-orch.yaml
+```
+
+Если Plugin поставляет Agent Extension, дополнительно проверьте native состояние:
+
+```bash
+# Qwen и GigaCode: Extension должна быть disabled или отсутствовать
+qwen extensions list
+
+# Claude: Plugin не должен оставаться активным в текущем project scope
+claude plugin list --json
+```
+
+`disconnect` сначала отключает Plugin-owned Extension и затем удаляет portable binding.
+Для Qwen/GigaCode payload может остаться установленным, но disabled; Claude adapter
+удаляет local Plugin и marketplace текущего scope. `remove` удаляет declaration и
+Store-local runtime внешнего Plugin. Ни одна из этих команд не удаляет tracked
+repository data или Plugin storage: их миграция и очистка относятся к контракту
+конкретного Plugin.
+
+Если отключение завершилось частично, не запускайте `remove`. Сохраните
+`doctor --json`, проверьте оставшиеся bindings через `plugin status`, повторите
+`disconnect` адресно с `--repo`, затем снова проверьте native состояние. Обычный
+`connect` восстанавливает Extensions только для bindings, которые остались в Store.
+
 ## OpenSpec Graph
 
 ```bash
@@ -54,7 +91,7 @@ Repositories и не доказывает ownership, реализацию или
 openspec-orch agent setup --agent <claude|qwen|gigacode>
 openspec-orch plugin init --plugin change-tracking
 openspec-orch plugin connect change-tracking \
-  --repo frontend --repo backend
+  --repo specs --repo frontend --repo backend
 
 # ручной fallback из чистого Code Repository перед работой над task:
 openspec-orch attempt start <change-id> <task-id>
@@ -62,9 +99,10 @@ openspec-orch attempt start <change-id> <task-id>
 openspec-orch attempt complete <change-id> <task-id>
 ```
 
-Plugin подключается к тем Code Repositories, где будет выполняться Apply. Его Agent
-Extension устанавливается только туда; отдельный путь к Store в Agent-сессию передавать
-не нужно. После установки или подключения перезапустите Agent.
+Binding к Store нужен Store-scoped CLI-командам `attempt`. Bindings к Code Repositories
+нужны там, где будет выполняться Apply; Agent Extension устанавливается только в них.
+Governed MCP сам получает Store context, поэтому отдельный путь к Store в Agent-сессию
+передавать не нужно. После установки или подключения перезапустите Agent.
 
 Обычный Agent-flow:
 

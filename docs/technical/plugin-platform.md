@@ -100,3 +100,66 @@ testPluginContract({ plugin, packageManifest: manifest });
 ```
 
 Contract test проверяет manifest, public export и contribution shape без импорта Core.
+
+## Полный developer flow
+
+### 1. Создайте package
+
+```bash
+# commands-only Plugin без Repository binding
+openspec-orch plugin register dependency-audit /absolute/path/to/dependency-audit
+
+# repository lifecycle для Store и Code Repositories
+openspec-orch plugin register dependency-audit /absolute/path/to/dependency-audit \
+  --profile repository --support store --support code
+
+# native argv runtime и Plugin-owned Agent Extension
+openspec-orch plugin register dependency-audit /absolute/path/to/dependency-audit \
+  --profile native --support code --extension
+```
+
+`commands` создаёт декларативную команду и не требует binding. `repository` создаёт
+`connect/status` и зарегистрированную command grammar. `native` добавляет `bin/` для
+непрозрачного argv runtime. Для `repository` и `native` scaffold намеренно оставляет
+`connect/status` незавершёнными: реализуйте их до установки.
+
+### 2. Реализуйте и проверьте контракт
+
+```bash
+cd /absolute/path/to/dependency-audit
+npm install
+npm test
+npm pack --dry-run
+```
+
+Сохраните `testPluginContract`, добавьте regression tests для наблюдаемого поведения и
+не импортируйте Core. Extension должна содержать валидные manifests всех заявленных
+Agent providers.
+
+### 3. Установите в тестовый Store
+
+```bash
+cd /absolute/path/to/workspace/specs
+openspec-orch plugin init \
+  --plugin dependency-audit \
+  --from /absolute/path/to/dependency-audit
+
+# только для repository/native profile
+openspec-orch plugin connect dependency-audit --repo frontend
+openspec-orch plugin status --plugin dependency-audit --json
+openspec-orch doctor
+```
+
+Проверьте root command для commands/repository profile либо `plugin exec` для
+repository/native profile. Если есть Agent Extension, перезапустите Agent и проверьте
+его native status. Тестируйте disconnect/remove по пользовательскому
+[операционному flow](../user/plugins.md#проверяемое-отключение-и-удаление).
+
+### 4. Зафиксируйте поставку
+
+После локальной проверки опубликуйте package принятым командой способом: immutable npm
+version, tarball или Git revision. В Store замените локальный `--from` на exact source,
+просмотрите изменение `openspec-orch.yaml`, затем выполните `plugin status` и `doctor`.
+Повторный `plugin connect` восстанавливает Agent Extension существующего binding, но не
+заменяет Plugin-specific `sync` или migration. Обновление Plugin проходит тем же
+reviewable Store flow; Template не должен устанавливать или обновлять Plugins.

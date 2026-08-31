@@ -90,10 +90,16 @@ openspec-orch graph inspect --json
 
 ## Документация
 
-- [пользовательская документация](docs/user/README.md);
-- [техническая документация](docs/technical/README.md);
-- [CLI и конфигурация](docs/technical/reference.md);
-- [разработка](docs/technical/development.md).
+- [полная карта документации](docs/README.md);
+- [установка, обновление и rollback](docs/user/installation-and-updates.md);
+- [создание проекта и onboarding существующего Store](docs/user/getting-started.md);
+- [конфигурация](docs/user/configuration.md) и [Project Template](docs/user/project-template.md);
+- [Plugins: эксплуатация, отключение и удаление](docs/user/plugins.md);
+- [личный](docs/user/solo-flow.md) и [командный](docs/user/team-flow.md) Change flow;
+- [архитектура](docs/technical/architecture.md), [CLI/MCP reference](docs/technical/reference.md)
+  и [модель данных](docs/technical/data-model.md);
+- [разработка Plugin](docs/technical/plugin-platform.md) и
+  [разработка Orchestrator](docs/technical/development.md).
 
 Полная проверка репозитория:
 

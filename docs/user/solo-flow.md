@@ -41,7 +41,8 @@ implementation commits. CodeGraph и Change Tracking опциональны. Е�
 подключён к текущему Code Repository, его Agent Extension автоматически начинает и
 завершает attempt для выбранного канонического task.
 
-При работе без Agent Extension используйте ручной fallback:
+При работе без Agent Extension используйте ручной fallback. Для него Change Tracking
+должен быть подключён и к Store, и к текущему Code Repository:
 
 ```bash
 openspec-orch attempt start <change-id> <task-id>
@@ -64,4 +65,4 @@ Agent заполняет Verify evidence фактическими результ
 
 После review, проверок и явного Release-решения выполните штатный
 `/opsx-archive <change-id>`. Если используется Graph, запустите
-`graph inspect --json` до и после Archive.
+`openspec-orch graph inspect --json` до и после Archive.

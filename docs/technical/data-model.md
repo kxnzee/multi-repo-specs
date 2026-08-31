@@ -36,8 +36,10 @@ description берутся из канонического OpenSpec Apply JSON, 
 
 Каждая завершённая запись содержит `repository_id`, канонические `task.id` и
 `task.description`, `schema_name`, `planning_revision`, `base_revision`,
-`implementation_revision`, `started_at` и `completed_at`. Повтор идентичного completion
-не создаёт дубль; новая base или implementation revision считается новой попыткой.
+`implementation_revision`, `started_at` и `completed_at`. Повторная запись того же
+completion после сбоя локальной очистки не создаёт дубль. После успешной очистки
+повторный CLI-вызов без новой активной attempt возвращает `ATTEMPT_NOT_FOUND`; новая
+base или implementation revision считается новой попыткой.
 
 ## Plugin storage
 

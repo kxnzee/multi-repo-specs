@@ -1,5 +1,10 @@
 # Документация
 
+Project-команды `openspec-orch` выполняются из корня Store, а `attempt` — из Code
+Repository. `init [path]`, `plugin register <id> [path]` и пользовательские команды
+`agent setup|status|remove` принимают явный target или не требуют Project. Команды и
+skills Agent выполняются внутри выбранного Agent, а не в shell.
+
 ## Пользователям
 
 - [Обзор](user/overview.md) — назначение и границы Orchestrator.
@@ -10,6 +15,7 @@
 - [Project Template](user/project-template.md) — schemas и custom Template.
 - [Plugins](user/plugins.md) — подключение и эксплуатация расширений.
 - [Командный процесс](user/team-flow.md) и [личный процесс](user/solo-flow.md).
+- [Сценарии работы с Change](user/change-scenarios.md) — краткая матрица решений.
 
 ## Разработчикам
 
@@ -20,5 +26,6 @@
 - [CLI reference](technical/reference.md)
 - [Разработка](technical/development.md)
 
-Документация описывает текущий код. Проектные workflow-артефакты находятся в
-`templates/` и `extensions/` и поставляются как часть продукта.
+Код, тесты и package manifests имеют приоритет над документацией. Проектные
+workflow-артефакты находятся в `templates/` и `extensions/` и поставляются как часть
+продукта.
