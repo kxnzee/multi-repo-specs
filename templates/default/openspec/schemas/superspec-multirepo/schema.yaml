@@ -131,7 +131,7 @@ artifacts:
 
   - id: verify
     generates: verify.md
-    description: Technical and candidate verification after each Apply iteration
+    description: Shared Candidate Acceptance plus Superspec Process Compliance
     template: verify.md
     instruction: |
       apply.md MUST exist. Copy its Iteration value so both receipts stay in lockstep.
@@ -141,23 +141,18 @@ artifacts:
       infer success from an earlier run or an agent claim. If a failure is unexpected,
       invoke **superpowers:systematic-debugging**, return to Apply and preserve evidence.
 
-      Then invoke **openspec-verify-change** (the /opsx:verify workflow) and record:
-      1. `openspec validate --all --json` structural results.
-      2. Completion of every tasks.md checkbox. The final external verification
-         checkbox is completed only from the named responsible participant's current-
-         version confirmation; agent evidence cannot substitute for it.
-      3. Delta Spec sync state and Design/Specs coherence.
-      4. For each exact Repository ID: exact commit, clean implementation state, fresh
-         test/lint/build evidence, TDD evidence, task review and final code-review
-         outcome.
-      5. The candidate identity composed from repository commits and the deliverable
-         artifact. A changed commit or artifact makes earlier verification stale.
+      Then invoke **openspec-verify-change** and complete Candidate Verification
+      Contract v1 from the template without weakening or extending its criteria.
+      Candidate Acceptance has only PASS or FAIL and uses exactly the same mandatory
+      evidence, target-environment confirmation and freshness rules as Base.
 
-      Overall Decision is PASS, PASS_WITH_WARNINGS or FAIL. PASS and
-      PASS_WITH_WARNINGS make Finalize reachable. Code-fixable FAIL returns to Apply;
-      artifact drift returns to the owning artifact and then Apply. Increment the Apply
-      iteration and re-run Verify. After five failed iterations, stop and report rather
-      than looping automatically.
+      Separately record Superspec Process Compliance: Delta Spec sync and
+      Design/Specs coherence, clean implementation state, TDD evidence, task reviews,
+      final review and required Superpowers workflow evidence. Process Compliance is
+      PASS, PASS_WITH_WARNINGS or FAIL. Candidate Acceptance PASS plus Process
+      Compliance PASS or PASS_WITH_WARNINGS makes Finalize reachable. Any failure
+      returns to the owning artifact or Apply; increment the Apply iteration and run
+      Verify again. After five failed iterations, stop and report.
     requires:
       - apply
 
@@ -166,9 +161,9 @@ artifacts:
     description: Authorized multi-repository branch and review closeout receipt
     template: finalize.md
     instruction: |
-      Verify must report PASS or PASS_WITH_WARNINGS for the current Apply iteration and
-      candidate identity. Do not finalize a stale candidate or bypass the external
-      verification checkbox.
+      Verify must report Candidate Acceptance PASS and Process Compliance PASS or
+      PASS_WITH_WARNINGS for the current Apply iteration and candidate identity. Do
+      not finalize a stale candidate or bypass the external verification checkbox.
 
       For each affected Code Repository, obtain explicit user or accepted team-process
       authorization for the intended closeout. Then invoke
@@ -251,10 +246,3 @@ apply:
     Apply never grants implicit authority to publish branches, merge, deploy, release,
     archive or mutate Store Git. Those operations occur only through authorized
     Finalize and the accepted team process.
-
-operations:
-  archive:
-    guidance:
-      - "Require finalize.md for the current verified Apply iteration and a resolved outcome for every affected Repository ID."
-      - "Require the single final external verification checkbox in tasks.md to be completed by the named responsible participant for the current version."
-      - "Require the team's actual Release gate; planning completion, local tests, Agent review, Verify or Finalize alone do not authorize Archive."

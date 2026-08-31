@@ -8,7 +8,7 @@ description: Провести адаптивный опрос по Change и с�
 `intake.md`. Пользователь отвечает на вопросы, но не обязан вручную переносить,
 переформатировать или повторно собирать ответы.
 
-Команда работает только с Change по schema `base-v1`. Она не заменяет Proposal,
+Команда работает только с Change по schema `spec-driven-extended`. Она не заменяет Proposal,
 Delta Specs, Design, Tasks или `/opsx-explore` и не запускает следующий этап
 автоматически.
 
@@ -46,7 +46,7 @@ Brief из `base-intent` либо явно принятая пользовате
 2. Вызови MCP `get_status` и сравни `change-id` только по точному совпадению. Не ищи
    Change через fuzzy name или обход файловой системы.
 3. Если Change существует, вызови `get_change_context` с `artifact: intake`. Если
-   `schemaName` не `base-v1`, остановись с `BLOCKER: SCHEMA_MISMATCH`. Используй
+   `schemaName` не `spec-driven-extended`, остановись с `BLOCKER: SCHEMA_MISMATCH`. Используй
    фактические `planningHome`, путь результата, template, instruction и rules из
    ответа. Затем прочитай существующий содержательный `intake.md`, если он есть, не
    затирая его template.
@@ -58,11 +58,11 @@ Brief из `base-intent` либо явно принятая пользовате
    kebab-case `change-id` и создай Change штатной командой:
 
    ```bash
-   openspec new change <change-id> --schema base-v1
+   openspec new change <change-id> --schema spec-driven-extended
    ```
 
    Не создавай Change до явного выбора идентификатора пользователем. После создания
-   вызови `get_change_context` с `artifact: intake` и проверь `schemaName: base-v1`.
+   вызови `get_change_context` с `artifact: intake` и проверь `schemaName: spec-driven-extended`.
 
 5. Для нового или существующего Change проверь согласованный Intent в диалоге,
    явно переданных материалах или разделе Intent source существующего Intake. Само

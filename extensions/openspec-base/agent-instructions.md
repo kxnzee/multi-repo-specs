@@ -27,9 +27,14 @@
 
 ## Маршрутизация
 
-- Если нет принятого Intent, начни с `base-intent`; готовый полный Intent повторно не
-  собирай. Первый artifact создаёт `/openspec-base-intake <change-id>`. После Intake
-  следующий маршрут выбирает пользователь.
+- Для любого действия над существующим Change сначала получи его `schemaName` через
+  `get_change_context`. Применяй маршруты, skills и команды `openspec-base-*` только
+  к `spec-driven-extended`. Для `superspec-multirepo` следуй artifact DAG и instructions этой
+  schema; не добавляй в него Base Intake, meta-planning или Apply preflight.
+- Для нового Base Change без принятого Intent начни с `base-intent`; готовый полный
+  Intent повторно не собирай. Первый artifact создаёт
+  `/openspec-base-intake <change-id>`. После Intake следующий маршрут выбирает
+  пользователь. Это правило не изменяет Superspec Brainstorm.
 - Для проверки Planning используй `openspec-base-meta-planning`, для Apply preflight —
   `openspec-base-apply-context`, для test cases — `openspec-base-test-cases`, для
   долговечного context и ADR — `/openspec-base-context`.

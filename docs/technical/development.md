@@ -13,7 +13,7 @@
 | `packages/mcp/` | Встроенный governed MCP adapter с read tools и ограниченным setup surface |
 | `agents/` | Distribution-owned Agent definitions и provider-specific native adapters |
 | `extensions/` | Bundled standalone Agent Extensions, включая общий `orchestrator-agent` gateway |
-| `templates/` | Bundled Project Template catalog; `base` является default |
+| `templates/` | Bundled Project Template catalog; `default` содержит обе workflow schemas |
 | `packages/core/templates/plugin-extension/` | Agent artifacts scaffold создаваемого Plugin |
 | `test/` | Distribution integration tests |
 | `test/structural/` | Template и Agent artifact structural contract tests |

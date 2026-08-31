@@ -24,7 +24,9 @@ Project содержит ровно один Store Repository и Code Repositori
 устойчивый `id`, singleton role, remote и default branch. Plugin declaration хранит
 `id` и exact source; binding — ссылка на declaration внутри конкретного Repository.
 Project также хранит один Template, один Agent и упорядоченные standalone Extensions
-с source `bundled:<id>`.
+с source `bundled:<id>`. Выбор workflow не является полем Project: OpenSpec хранит
+schema каждого Change в `openspec/changes/<change-id>/.openspec.yaml`. Поэтому Change
+одного Store могут независимо использовать `spec-driven-extended` и `superspec-multirepo`.
 
 Configuration поддерживает только `version: 2`. Неизвестный format/version — ошибка,
 а не best-effort migration.

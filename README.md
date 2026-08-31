@@ -21,35 +21,28 @@ CI, deployment или ручное тестирование. Он также н�
 таким lifecycle через ограниченные публичные facades; Change Tracking использует их
 только для файлов `tracking/cycles/` в Store.
 
-## Project Templates и Extensions
+## Project Template и Extensions
 
-Без `--template` команда `openspec-orch init` использует
-[`templates/base/`](templates/base/). Он требует Extension `openspec-base` и
-устанавливает:
+Без `--template` команда `openspec-orch init` использует единственный bundled
+[`templates/default/`](templates/default/). Он устанавливает общий project context,
+`openspec/config.yaml`, assets и две независимые project-local schemas:
 
-- project-local schema `base-v1`: после `intake → proposal` независимо становятся
-  доступны `specs` и `design`, а `tasks` требует завершения обоих artifacts;
-- `openspec/config.yaml` и project context в `openspec/context/`;
-- дополнительные assets, включая `.gitignore`.
+- `spec-driven-extended`: `intake → proposal → specs + design → tasks → verify`; Apply не создаёт
+  отдельный `apply.md`;
+- `superspec-multirepo`: `brainstorm → proposal + optional design → specs → tasks →
+  plan → apply → verify → finalize`.
 
-Bundled [`templates/superspec/`](templates/superspec/) — альтернативный, а не
-дополнительный Template. Он устанавливает schema `superspec-multirepo`: после
-`brainstorm` доступны `proposal` и optional `design`, затем цепочка продолжается как
-`proposal → specs → tasks → plan → apply → verify → finalize`. Template добавляет
-Apply/Verify convergence и multi-repository gates, декларативно требует Extension
-`superpowers`, поэтому init добавляет его автоматически:
+Schema выбирается штатным OpenSpec отдельно для каждого Change и сохраняется в его
+`.openspec.yaml`. Поэтому в одном Store можно одновременно вести изменения разного
+типа без merge Templates или дополнительного workflow-слоя:
 
 ```bash
-openspec-orch init /absolute/path/to/store \
-  --store specs \
-  --agent qwen \
-  --template superspec
+openspec new change update-copy --schema spec-driven-extended
+openspec new change redesign-checkout --schema superspec-multirepo
 ```
 
-В интерактивном init Project Template выбирается перед Agent и Extensions. CLI
-показывает обязательный Extension-профиль: `base → openspec-base`,
-`superspec → superpowers`. Required Extensions уже выбраны и недоступны для снятия;
-`--no-extensions` для обеих bundled-композиций отклоняется.
+Template `default` требует `openspec-base` и `superpowers`. В интерактивном init они
+уже выбраны и недоступны для снятия; `--no-extensions` отклоняется.
 
 Agent, дополнительные Extensions и Plugins выбираются отдельно. Bundled Extension `openspec-base`
 поставляет workflow-инструкции, `/openspec-base-*`, project skills и repository
@@ -84,15 +77,15 @@ Scenarios, в том числе нейтральную структуру для
 - [ ] N.1 Получить подтверждение, что текущая версия изменения успешно проверена в целевом окружении по принятым сценариям, а все блокирующие дефекты устранены и повторно проверены.
 ```
 
-Агент не закрывает этот пункт самостоятельно. Новая версия или deployment после
-подтверждения снова делают его незавершённым. Archive дополнительно требует
-фактический Release. Base schema хранит checkpoint только в Tasks; Superspec также
-создаёт технический `verify.md`, который не заменяет внешнее подтверждение.
+Агент не закрывает этот пункт самостоятельно. Обе schemas создают `verify.md` с
+дословно одинаковым `Candidate Verification Contract v1`; новая версия или deployment
+делает результат устаревшим. В Superspec дополнительно и отдельно оценивается Process
+Compliance. Verify не заменяет внешнее подтверждение и не разрешает Release/Archive.
 
-Template применяется только во время `init`. Bundled IDs `base` и `superspec`
-разрешаются из каталога поставки; локальный путь указывают явно, например
+Template применяется только во время `init`. Bundled ID — `default`; прежние `base`
+и `superspec` не являются aliases. Локальный путь указывают явно, например
 `--template ./team-template`. Скопированные файлы принадлежат Store и не обновляются
-автоматически. Custom Project Template полностью заменяет Base Template, но не меняет
+автоматически. Custom Project Template полностью заменяет `default`, но не меняет
 отдельно выбранные Agent, Extensions или Plugins.
 
 ## Требования и локальная установка
@@ -175,6 +168,17 @@ OpenSpec, repositories, standalone Extensions и Plugin bindings. Для CI до
 
 ## Пользовательский путь Change
 
+При создании Change сначала выберите его процесс:
+
+```bash
+openspec new change <change-id> --schema spec-driven-extended
+# или
+openspec new change <change-id> --schema superspec-multirepo
+```
+
+Ниже описан короткий Base-путь. Полный Superspec-путь добавляет Brainstorm, Plan,
+Apply receipt и Finalize, но использует тот же Candidate Acceptance в Verify.
+
 ```text
 согласованный Intent
 → Intake
@@ -223,9 +227,12 @@ Impact. Отсутствие Plugin не является ошибкой и не
 ### 3. Проверка, Release и Archive
 
 PR, deployment, Jira/Zephyr, QA и работа с дефектами выполняются внешним процессом
-команды. После проверки текущей версии ответственный участник явно подтверждает
-финальный checkpoint в `tasks.md`. Пока он открыт, блокирующие дефекты не устранены
-или была развёрнута новая непроверенная версия, Archive запрещён.
+команды. После появления кандидата перейдите к отдельному artifact `verify`: его
+инструкция вызывает штатный `openspec-verify-change` и сохраняет результат в
+`verify.md`; Base не создаёт `apply.md`. После проверки текущей версии ответственный
+участник явно подтверждает финальный checkpoint в `tasks.md`. Пока Candidate
+Acceptance не имеет `PASS`, checkpoint открыт, есть блокирующие дефекты или развёрнута
+новая непроверенная версия, Archive запрещён.
 
 После фактического Release выполняется штатный `/opsx-archive`. Затем можно запустить
 необязательный read-only audit долговечного контекста:
@@ -271,11 +278,10 @@ payload активируется нативным CLI во время `plugin co
 Встроенный `openspec-orch-mcp` выставляет workflow/Graph/Doctor tools, allowlist
 Store resources и два ограниченных setup tools. В resources входят
 `openspec-orch.yaml`, `openspec/config.yaml`, Markdown/YAML context, Master/Delta
-`spec.md`, Change artifacts с точными именами `intake.md`, `proposal.md`, `design.md`,
-`tasks.md` и YAML-журналы Change Tracking. Остальные файлы Store, включая Superspec
-artifacts
-`brainstorm.md`, `plan.md`, `apply.md`, `verify.md` и `finalize.md`, через MCP resources
-не публикуются. `initialize_project` работает только в cwd MCP и strict mode;
+`spec.md`, YAML-журналы Change Tracking и только те Change artifacts, которые
+объявлены schema конкретного Change. Поэтому Base и Superspec resources могут
+сосуществовать, но чужие workflow-файлы и `.openspec.yaml` не публикуются.
+`initialize_project` работает только в cwd MCP и strict mode;
 `connect_project` не принимает workspace/relaxed overrides. Оба вызывают тот же
 `ProjectSetupService`, что CLI. MCP не выставляет receipt, verification, Release,
 Archive, произвольный Git write или Plugin lifecycle. Tracking overlay доступен после
@@ -370,12 +376,14 @@ Progress пишется в `stderr`, поэтому не загрязняет JS
 version: 2
 strict: true
 template:
-  id: base
+  id: default
 agent:
   id: qwen
 extensions:
   - id: openspec-base
     source: bundled:openspec-base
+  - id: superpowers
+    source: bundled:superpowers
 plugins: []
 
 repositories:

@@ -1,7 +1,8 @@
-id: superspec
-name: Superspec Multi-Repository
+id: default
+name: Default Project Template
 requires:
   extensions:
+    - openspec-base
     - superpowers
 copy:
   - from: context

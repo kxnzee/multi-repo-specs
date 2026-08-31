@@ -87,7 +87,7 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
         },
         async changeStatus(changeId) {
           openSpecCalls.push(["status", changeId]);
-          return { changeName: changeId, schemaName: "base-v1" };
+          return { changeName: changeId, schemaName: "spec-driven-extended" };
         },
         async artifactInstructions(changeId, artifact) {
           openSpecCalls.push(["instructions", changeId, artifact]);
@@ -145,7 +145,7 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
   assert.equal(resolutions, 4);
   assert.equal(status.capabilities.tracking.available, false);
   assert.equal(status.capabilities.graph.available, false);
-  assert.deepEqual(context.openspec_status, { changeName: "pay", schemaName: "base-v1" });
+  assert.deepEqual(context.openspec_status, { changeName: "pay", schemaName: "spec-driven-extended" });
   assert.deepEqual(context.artifact_instructions, { instruction: "Use exact schema" });
   assert.deepEqual(next, { action: "prepare_artifact", actor: "agent", artifact: "design" });
   assert.equal(assignment.current_assignment.revision, "a".repeat(40));

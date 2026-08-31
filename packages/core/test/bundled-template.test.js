@@ -11,51 +11,32 @@ import {
   isBundledTemplateProvider,
 } from "@openspec-orch/core";
 
-const TEMPLATE_ROOT = fileURLToPath(new URL("../../../templates/base/", import.meta.url));
-const SUPERSPEC_TEMPLATE_ROOT = fileURLToPath(
-  new URL("../../../templates/superspec/", import.meta.url),
-);
+const TEMPLATE_ROOT = fileURLToPath(new URL("../../../templates/default/", import.meta.url));
 
 test("bundled Template provider discovers checked packages by stable ID", async () => {
   const templatePackage = await BundledTemplatePackage.load(TEMPLATE_ROOT, {
-    expectedId: "base",
+    expectedId: "default",
   });
-  const superspecPackage = await BundledTemplatePackage.load(SUPERSPEC_TEMPLATE_ROOT, {
-    expectedId: "superspec",
-  });
-  const provider = new BundledTemplateProvider([superspecPackage, templatePackage]);
+  const provider = new BundledTemplateProvider([templatePackage]);
 
   assert.equal(isBundledTemplateProvider(provider), true);
   assert.equal(isBundledTemplateProvider({ catalog: { entries: [] } }), false);
-  assert.equal(provider.defaultId, "base");
+  assert.equal(provider.defaultId, "default");
   assert.deepEqual(provider.catalog.entries.map(({ id, name, requiredExtensions }) => ({
     id,
     name,
     requiredExtensions,
   })), [
     {
-      id: "base",
-      name: "Base Store Template",
-      requiredExtensions: ["openspec-base"],
-    },
-    {
-      id: "superspec",
-      name: "Superspec Multi-Repository",
-      requiredExtensions: ["superpowers"],
+      id: "default",
+      name: "Default Project Template",
+      requiredExtensions: ["openspec-base", "superpowers"],
     },
   ]);
-  assert.equal(provider.resolve("base").root, await fs.realpath(TEMPLATE_ROOT));
+  assert.equal(provider.resolve("default").root, await fs.realpath(TEMPLATE_ROOT));
   assert.deepEqual(
-    provider.catalog.requiredExtensionsFor("base"),
-    ["openspec-base"],
-  );
-  assert.deepEqual(
-    provider.catalog.requiredExtensionsFor("superspec"),
-    ["superpowers"],
-  );
-  assert.deepEqual(
-    provider.resolve("superspec").requiredExtensions,
-    ["superpowers"],
+    provider.catalog.requiredExtensionsFor("default"),
+    ["openspec-base", "superpowers"],
   );
   assert.throws(
     () => provider.resolve("unknown"),

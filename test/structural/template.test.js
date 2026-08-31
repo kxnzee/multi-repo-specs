@@ -14,10 +14,7 @@ import {
 } from "@openspec-orch/core";
 import { parse } from "yaml";
 
-const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/base/", import.meta.url));
-const SUPERSPEC_TEMPLATE_ROOT = fileURLToPath(
-  new URL("../../templates/superspec/", import.meta.url),
-);
+const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/default/", import.meta.url));
 const AGENTS_ROOT = fileURLToPath(new URL("../../agents/", import.meta.url));
 
 /** Возвращает POSIX paths всех обычных файлов ниже directory. */
@@ -68,12 +65,21 @@ function assertAcyclic(artifacts) {
   for (const id of dependencies.keys()) visit(id);
 }
 
-test("Base Template is copy-only and applies identically for every independent Agent", async (t) => {
+/** Extracts the normative Candidate Acceptance block shared by both schemas. */
+function candidateVerificationContract(source) {
+  const match = source.match(
+    /<!-- CANDIDATE_VERIFICATION_CONTRACT_V1_START -->[\s\S]*?<!-- CANDIDATE_VERIFICATION_CONTRACT_V1_END -->/u,
+  );
+  assert.ok(match, "Candidate Verification Contract v1 markers are required");
+  return match[0];
+}
+
+test("Default Template is copy-only and applies identically for every independent Agent", async (t) => {
   const descriptor = parse(await fs.readFile(path.join(TEMPLATE_ROOT, "template.yaml"), "utf8"));
   assert.deepEqual(Object.keys(descriptor).sort(), ["copy", "id", "name", "requires"]);
-  assert.equal(descriptor.id, "base");
+  assert.equal(descriptor.id, "default");
   assert.deepEqual(descriptor.requires, {
-    extensions: ["openspec-base"],
+    extensions: ["openspec-base", "superpowers"],
   });
   assert.equal(Object.hasOwn(descriptor, "agents"), false);
   const agentDirectories = (await fs.readdir(AGENTS_ROOT, { withFileTypes: true }))
@@ -114,49 +120,63 @@ test("Base Template is copy-only and applies identically for every independent A
   }
 });
 
-test("configured OpenSpec schema has a closed acyclic artifact graph", async () => {
+test("both configured OpenSpec schemas have closed acyclic artifact graphs", async () => {
   const configuration = parse(
     await fs.readFile(path.join(TEMPLATE_ROOT, "openspec/config.yaml"), "utf8"),
   );
   assert.equal(typeof configuration.schema, "string");
 
-  const schemaRoot = path.join(TEMPLATE_ROOT, "openspec/schemas", configuration.schema);
-  const schema = parse(await fs.readFile(path.join(schemaRoot, "schema.yaml"), "utf8"));
-  assert.equal(Array.isArray(schema.artifacts), true);
-  assert.equal(schema.artifacts.length > 0, true);
-
-  const ids = schema.artifacts.map(({ id }) => id);
-  assert.equal(new Set(ids).size, ids.length, "artifact IDs must be unique");
-  const known = new Set(ids);
-  for (const artifact of schema.artifacts) {
-    assert.equal(typeof artifact.generates, "string", artifact.id);
-    assert.equal(typeof artifact.template, "string", artifact.id);
-    await fs.access(path.join(schemaRoot, "templates", artifact.template));
-    for (const dependency of artifact.requires ?? []) {
-      assert.equal(known.has(dependency), true, `${artifact.id} requires unknown '${dependency}'`);
-    }
-  }
-  for (const dependency of schema.apply?.requires ?? []) {
-    assert.equal(known.has(dependency), true, `apply requires unknown '${dependency}'`);
-  }
-  if (schema.apply?.tracks) {
-    assert.equal(
-      schema.artifacts.some(({ generates }) => generates === schema.apply.tracks),
-      true,
-      `apply tracks unknown output '${schema.apply.tracks}'`,
+  assert.equal(configuration.schema, "spec-driven-extended");
+  for (const schemaId of ["spec-driven-extended", "superspec-multirepo"]) {
+    const schemaRoot = path.join(TEMPLATE_ROOT, "openspec/schemas", schemaId);
+    const schema = parse(await fs.readFile(path.join(schemaRoot, "schema.yaml"), "utf8"));
+    assert.deepEqual(
+      Object.keys(schema).sort(),
+      ["apply", "artifacts", "description", "name", "version"],
+      `${schemaId}: unsupported top-level schema fields are ignored by OpenSpec`,
     );
+    assert.equal(Array.isArray(schema.artifacts), true);
+    assert.equal(schema.artifacts.length > 0, true);
+
+    const ids = schema.artifacts.map(({ id }) => id);
+    assert.equal(new Set(ids).size, ids.length, "artifact IDs must be unique");
+    const known = new Set(ids);
+    for (const artifact of schema.artifacts) {
+      assert.equal(typeof artifact.generates, "string", artifact.id);
+      assert.equal(typeof artifact.template, "string", artifact.id);
+      await fs.access(path.join(schemaRoot, "templates", artifact.template));
+      for (const dependency of artifact.requires ?? []) {
+        assert.equal(known.has(dependency), true, `${artifact.id} requires unknown '${dependency}'`);
+      }
+    }
+    for (const dependency of schema.apply?.requires ?? []) {
+      assert.equal(known.has(dependency), true, `apply requires unknown '${dependency}'`);
+    }
+    if (schema.apply?.tracks) {
+      assert.equal(
+        schema.artifacts.some(({ generates }) => generates === schema.apply.tracks),
+        true,
+        `apply tracks unknown output '${schema.apply.tracks}'`,
+      );
+    }
+    assertAcyclic(schema.artifacts);
   }
-  assertAcyclic(schema.artifacts);
 });
 
-test("base-v1 keeps verification as one final external task checkpoint", async () => {
-  const schemaRoot = path.join(TEMPLATE_ROOT, "openspec/schemas/base-v1");
+test("spec-driven-extended adds Verify without a separate Apply artifact", async () => {
+  const schemaRoot = path.join(TEMPLATE_ROOT, "openspec/schemas/spec-driven-extended");
   const schema = parse(await fs.readFile(path.join(schemaRoot, "schema.yaml"), "utf8"));
   const intake = await fs.readFile(path.join(schemaRoot, "templates/intake.md"), "utf8");
   const tasks = await fs.readFile(path.join(schemaRoot, "templates/tasks.md"), "utf8");
+  const verify = await fs.readFile(path.join(schemaRoot, "templates/verify.md"), "utf8");
   const taskInstruction = schema.artifacts.find(({ id }) => id === "tasks")?.instruction ?? "";
 
   assert.equal(intake.includes("Verification Expectations"), false);
+  assert.equal(schema.artifacts.some(({ id }) => id === "apply"), false);
+  assert.equal(schema.artifacts.some(({ generates }) => generates === "apply.md"), false);
+  assert.deepEqual(schema.artifacts.find(({ id }) => id === "verify")?.requires, ["tasks"]);
+  assert.match(schema.artifacts.find(({ id }) => id === "verify")?.instruction, /openspec-verify-change/u);
+  assert.match(verify, /`NOT_APPLICABLE`/u);
   assert.match(taskInstruction, /Проверка реализованного изменения/);
   assert.equal(tasks.match(/^## \d+\. Проверка реализованного изменения/gmu)?.length, 1);
   assert.equal(
@@ -165,22 +185,24 @@ test("base-v1 keeps verification as one final external task checkpoint", async (
   );
 });
 
-test("Superspec Template preserves the complete skill-driven lifecycle", async () => {
-  const descriptor = parse(
-    await fs.readFile(path.join(SUPERSPEC_TEMPLATE_ROOT, "template.yaml"), "utf8"),
+test("Base and Superspec use one exact Candidate Verification Contract", async () => {
+  const base = await fs.readFile(
+    path.join(TEMPLATE_ROOT, "openspec/schemas/spec-driven-extended/templates/verify.md"),
+    "utf8",
   );
-  assert.equal(descriptor.id, "superspec");
-  assert.deepEqual(Object.keys(descriptor).sort(), ["copy", "id", "name", "requires"]);
-  assert.deepEqual(descriptor.requires, {
-    extensions: ["superpowers"],
-  });
+  const superspec = await fs.readFile(
+    path.join(TEMPLATE_ROOT, "openspec/schemas/superspec-multirepo/templates/verify.md"),
+    "utf8",
+  );
+  assert.equal(candidateVerificationContract(base), candidateVerificationContract(superspec));
+  assert.equal(candidateVerificationContract(base).match(/- \[ \] `PASS`/gu)?.length, 1);
+  assert.equal(candidateVerificationContract(base).match(/- \[ \] `FAIL`/gu)?.length, 1);
+  assert.doesNotMatch(candidateVerificationContract(base), /PASS_WITH_WARNINGS/u);
+});
 
-  const configuration = parse(
-    await fs.readFile(path.join(SUPERSPEC_TEMPLATE_ROOT, "openspec/config.yaml"), "utf8"),
-  );
-  assert.equal(configuration.schema, "superspec-multirepo");
+test("superspec-multirepo preserves the complete skill-driven lifecycle", async () => {
   const schemaRoot = path.join(
-    SUPERSPEC_TEMPLATE_ROOT,
+    TEMPLATE_ROOT,
     "openspec/schemas/superspec-multirepo",
   );
   const schemaSource = await fs.readFile(path.join(schemaRoot, "schema.yaml"), "utf8");
@@ -237,35 +259,4 @@ test("Superspec Template preserves the complete skill-driven lifecycle", async (
     tasks.match(/^- \[ \] \d+\.\d+ Получить подтверждение, что текущая версия изменения успешно проверена/gmu)?.length,
     1,
   );
-});
-
-test("Superspec Template applies identically for every independent Agent", async (t) => {
-  const descriptor = parse(
-    await fs.readFile(path.join(SUPERSPEC_TEMPLATE_ROOT, "template.yaml"), "utf8"),
-  );
-  const agentDirectories = (await fs.readdir(AGENTS_ROOT, { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory())
-    .sort((left, right) => left.name.localeCompare(right.name));
-  const provider = new BundledAgentProvider(await Promise.all(agentDirectories.map(({ name }) => (
-    BundledAgentPackage.load(path.join(AGENTS_ROOT, name), { expectedId: name })
-  ))));
-  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-superspec-template-"));
-  const temporaryRoot = await fs.realpath(temporary);
-  t.after(() => fs.rm(temporaryRoot, { recursive: true, force: true }));
-
-  for (const { id: agentId } of provider.catalog.entries) {
-    const targetRoot = path.join(temporaryRoot, agentId);
-    await fs.mkdir(targetRoot);
-    const expected = await expectedTargets(descriptor.copy, SUPERSPEC_TEMPLATE_ROOT);
-    const plan = await new ProjectTemplateService().plan({
-      templateRoot: SUPERSPEC_TEMPLATE_ROOT,
-      targetRoot,
-      agent: provider.resolve(agentId),
-    });
-    const result = await plan.apply(await plan.inspectPreExistingFiles());
-
-    assert.deepEqual(result.created, expected, agentId);
-    assert.deepEqual(result.updated, [], agentId);
-    for (const relative of expected) await fs.access(path.join(targetRoot, relative));
-  }
 });

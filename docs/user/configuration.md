@@ -12,7 +12,7 @@ version: 2
 strict: true
 
 template:
-  id: base
+  id: default
 
 agent:
   id: qwen
@@ -89,10 +89,15 @@ Version, revision и абсолютный путь в Store не записыв�
 Project без Template или Agent недопустим.
 
 `openspec-base` и `superpowers` — independently delivered bundled Project Extensions.
-Template не копирует их payload, но может объявить required Extensions.
-Bundled профили: `base → openspec-base`, `superspec → superpowers`. Поэтому init показывает совместимую
-связку, добавляет requirement автоматически и отклоняет `--no-extensions` для обоих
-bundled Template. Дополнительные Extensions по-прежнему выбираются явно.
+Template не копирует их payload, но может объявить required Extensions. Единственный
+bundled Template `default` требует обе Extensions, поэтому init показывает их
+выбранными и заблокированными, добавляет автоматически и отклоняет
+`--no-extensions`. Дополнительные Extensions по-прежнему выбираются явно.
+
+Выбор процесса конкретного OpenSpec Change не хранится в `openspec-orch.yaml`.
+Штатный OpenSpec записывает `spec-driven-extended` или `superspec-multirepo` в
+`openspec/changes/<change-id>/.openspec.yaml`. Несколько Change в одном Store могут
+использовать разные schemas одновременно.
 
 `orchestrator-agent` не хранится в `extensions[]`: это distribution-owned user-level
 gateway, устанавливаемый явной командой `openspec-orch agent setup --agent <id>`.

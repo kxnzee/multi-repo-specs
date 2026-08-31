@@ -2,11 +2,16 @@
 
 Документ помогает выбрать поддерживаемый маршрут. Во всех сценариях Requirements и
 Scenarios принадлежат центральному OpenSpec Store, а Gate принимает человек.
+Сценарии Intake и `base-intent` ниже относятся только к `spec-driven-extended`.
+`superspec-multirepo` начинается с Brainstorm и следует собственному artifact DAG;
+общие правила capabilities, scope, verification, Release и Archive действуют для
+обеих schemas.
 
 ## Быстрый выбор
 
 | Ситуация | Маршрут |
 |---|---|
+| Нужен полный skill-driven процесс Superspec | Создать Change с `--schema superspec-multirepo` → Brainstorm |
 | Intent неполный | `base-intent` → Intake |
 | Неизвестно текущее поведение или решение | Intake `explore_recommended` → ограниченный Explore → повторный Intake |
 | Добавляется новое наблюдаемое поведение | `ADDED` Delta Spec на новой/принятой capability path |
@@ -17,7 +22,7 @@ Scenarios принадлежат центральному OpenSpec Store, а Gat
 | Нужен точный набор implementation revisions | После Planning вызвать `track`, не меняя OpenSpec Apply |
 | Появился новый implementation commit | Новый `done` → новая собранная версия → повторная проверка/Gates |
 | Change B зависит от принятого поведения активного A | Planning PR A → отдельный Sync A → Change B |
-| Реализация и ручная проверка завершены | Release → Archive → post-Archive Graph handoff |
+| Реализация и ручная проверка завершены | Verify artifact PASS → Release → Archive → post-Archive Graph handoff |
 
 ## 1. Intent уже есть
 
@@ -143,8 +148,9 @@ Change A остается активным. Sync делает принятое �
 
 ## 12. Archive
 
-До Archive должны быть завершены все реализации, ручная проверка текущей версии,
-Release и обязательные Gates. Проверьте Graph Report и prerequisite Changes. После
+До Archive должны быть завершены все реализации, Candidate Acceptance `PASS` в
+`verify.md` для текущей версии, ручная проверка, Release и обязательные Gates.
+Проверьте Graph Report и prerequisite Changes. После
 `/opsx-archive` снова выполните `openspec-orch graph inspect --json` и проверьте
 Master Specs и Repository-связи. Зависимые Changes архивируются в dependency order.
 

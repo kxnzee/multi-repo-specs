@@ -8,9 +8,11 @@
 1. [Обзор](overview.md) — модель проекта, термины и границы продукта.
 2. [Начало работы](getting-started.md) — создание Store, подключение workspace и
    первичная проверка.
-3. Выберите основной процесс:
+3. Для Change со schema `spec-driven-extended` выберите описание работы по ролям:
    - [один человек](solo-flow.md);
    - [команда и роли](team-flow.md).
+   Artifact DAG обеих schemas и полный маршрут `superspec-multirepo` описаны в
+   [Project Template](project-template.md).
 4. Используйте [сценарии Change](change-scenarios.md) для Explore, `skip_specs`,
    изменения scope, Change Tracking, зависимых Changes и Archive.
 5. При необходимости откройте [Plugins](plugins.md),

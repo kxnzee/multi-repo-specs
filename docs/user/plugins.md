@@ -197,13 +197,12 @@ Orchestrator MCP не требует такого lifecycle: он являетс
 `get_setup_context`, `get_change_context`, `get_next_action`, `get_assignment_scope`,
 `get_doctor_report`, `query_graph`, setup tools `initialize_project`, `connect_project`
 и read-only resources из фиксированного Store allowlist. В него входят Project
-registry, OpenSpec config, Markdown/YAML context, Master/Delta `spec.md`, Change
-artifacts с точными именами `intake.md`, `proposal.md`, `design.md`, `tasks.md` и
-YAML-журналы Change Tracking. Superspec artifacts `brainstorm.md`, `plan.md`,
-`apply.md`, `verify.md` и
-`finalize.md` resources не являются. Базовые Core/OpenSpec tools работают без
-Plugins. Tracking добавляет overlay после `plugin init`, даже до Store binding; Graph
-требует declaration и Store binding.
+registry, OpenSpec config, Markdown/YAML context, Master Specs, YAML-журналы Change
+Tracking и только artifacts, объявленные schema каждого Change. Поэтому Base и
+Superspec artifacts могут публиковаться одновременно, но `.openspec.yaml`, файлы
+чужого workflow и произвольные заметки resources не являются. Базовые Core/OpenSpec
+tools работают без Plugins. Tracking добавляет overlay после `plugin init`, даже до
+Store binding; Graph требует declaration и Store binding.
 
 `get_assignment_scope` возвращает `assignments[]` для всех Code Repositories Project:
 признак assignment, точный checkout, текущую revision, чистоту и состояние локального

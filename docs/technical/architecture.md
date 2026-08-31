@@ -183,6 +183,12 @@ verification, Release, Archive, произвольный Git write, Plugin lifec
 произвольный процесс или сетевой transport. Graph и Tracking остаются необязательными
 overlays, а Core не знает их IDs.
 
+Resource allowlist для Change строится из `generates` schema, записанной в
+`.openspec.yaml` этого Change. MCP загружает только установленную project-local schema
+(и встроенную `spec-driven`), принимает ограниченную безопасную glob-грамматику и не
+публикует metadata. Поэтому одновременно активные Base и Superspec Change не
+смешивают artifacts, а process-specific список имён не зашит в transport.
+
 Agent instructions не повторяют schemas, setup constraints и artifact rules, которые
 возвращает MCP. В них остаются только невыразимые transport allowlist правила:
 когда допустимо исследовать Code Repository, как не обходить отсутствующий tool через

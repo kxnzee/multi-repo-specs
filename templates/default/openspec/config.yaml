@@ -1,0 +1,42 @@
+schema: spec-driven-extended
+
+context: |
+  Перед работой прочитай openspec/context/00-start-here.md и только относящиеся к
+  Change файлы подтверждённого долговечного контекста. Не переноси сведения из
+  openspec/context/_raw/ как подтверждённые факты. Requirements, Scenarios и Master
+  Specs принадлежат OpenSpec Store. Если существует openspec-orch.yaml, используй
+  только зарегистрированные Code Repository IDs.
+
+  Определи schema текущего Change по его .openspec.yaml и следуй только её artifact
+  graph и process-specific instructions. spec-driven-extended и superspec-multirepo являются
+  независимыми workflows; доступность обоих Extensions не разрешает смешивать их
+  стадии или создавать параллельные planning documents.
+
+  Intent, Proposal, Requirements и Scenarios формируй без чтения Code Repository.
+  Code разрешено открывать на Design, Tasks и Apply только для проверки заранее
+  сформулированного current-state или feasibility утверждения. Evidence, code
+  inventory, внутренние symbols и path:line не переносятся в центральный Store.
+
+rules:
+  proposal:
+    - "Сначала зафиксировать WHY и наблюдаемое WHAT, scope, Non-Goals и критерии успеха; implementation details относятся к Design или execution artifacts выбранной schema."
+    - "Repository Impact содержит только зарегистрированные Code Repository IDs, где ожидаются изменения, и связывает каждый Repository с точными capability paths."
+  specs:
+    - "Requirements и Scenarios описывают наблюдаемое поведение, доменные правила и публичные контракты; внутренние paths, symbols, libraries, storage и implementation steps запрещены."
+    - "Каждому новому Scenario присваивать стабильный ID с change-id; MODIFIED содержит полный Requirement и все сохраняемые Scenarios."
+  design:
+    - "Design не создаёт новые требования и связывает решения с принятыми Requirements, Scenarios или ограничениями Proposal. Code inspection используется только как current-state evidence."
+  tasks:
+    - "Группировать реализацию по точным Repository IDs, связывать задачи с принятыми Requirements или Scenarios и указывать наблюдаемый способ проверки."
+    - "Завершить tasks.md ровно одним внешним checkpoint проверки текущей версии; агент не закрывает его по собственному evidence."
+  verify:
+    - "Candidate Acceptance использует Candidate Verification Contract v1 выбранной schema; новый commit, artifact или deployment делает прежний PASS устаревшим."
+
+operations:
+  archive:
+    guidance:
+      - "Определи schema Change по .openspec.yaml и не смешивай process-specific gates разных schemas."
+      - "Требуй Candidate Verification Contract v1 PASS для точных текущих commits, deliverable и target deployment; любой новый candidate делает Verify устаревшим."
+      - "Требуй завершённый ответственным участником финальный внешний checkpoint в tasks.md для той же версии."
+      - "Для superspec-multirepo дополнительно требуй актуальный finalize.md и Process Compliance PASS или PASS_WITH_WARNINGS для текущей Apply iteration."
+      - "Требуй фактический Release команды; Planning, локальные тесты, Verify или Finalize сами по себе не разрешают Archive."

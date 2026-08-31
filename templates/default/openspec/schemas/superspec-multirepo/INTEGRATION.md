@@ -2,10 +2,11 @@
 
 ## Required composition
 
-Project Template `superspec` declares the bundled `superpowers` Extension as required.
-During interactive init the Template is selected before Extensions; `superpowers` is
-then shown selected and locked. In flag mode it is added automatically. Explicit
-`--no-extensions` is rejected for this Template.
+Project Template `default` declares both `openspec-base` and `superpowers` Extensions
+as required and installs this schema beside `spec-driven-extended`. During interactive init both
+Extensions are shown selected and locked; flag mode adds them automatically. Explicit
+`--no-extensions` is rejected for this Template. A Change selects this schema with
+`openspec new change <change-id> --schema superspec-multirepo`.
 
 The Extension remains a standalone native Agent payload. The requirement guarantees
 composition; it does not copy skills into the Template or move their ownership to Core.
@@ -33,16 +34,23 @@ plan's dependency order.
 ## Apply and Verify convergence
 
 1. `/opsx:apply` performs repository work and writes `apply.md` iteration N.
-2. `/opsx:verify` runs fresh technical checks and writes `verify.md` for iteration N.
+2. The next schema artifact invokes `openspec-verify-change`, runs fresh technical
+   checks and writes `verify.md` for iteration N.
 3. Code failure invokes systematic debugging and returns to Apply iteration N+1.
 4. Artifact drift returns to the owning artifact, then Apply iteration N+1.
 5. A replaced repository result creates a new candidate identity.
 6. More than five failed iterations stop for user direction.
 
-PASS requires every technical repository result and the final external verification
-checkbox completed by its named responsible participant for the current version.
-Agent reasoning, tests and candidate identity are necessary evidence but are not that
-external confirmation.
+Candidate Acceptance PASS requires every technical repository result and the final
+external verification checkbox completed by its named responsible participant for the
+current version. It is exactly the same contract used by `spec-driven-extended`. Agent reasoning,
+tests and candidate identity are necessary evidence but are not that external
+confirmation. Superspec Process Compliance is evaluated separately and cannot weaken
+Candidate Acceptance.
+
+The standalone `/opsx:verify` surface returns the upstream verification report but
+does not persist a schema artifact. Use the schema artifact flow when the governed
+`verify.md` gate must be recorded.
 
 ## Finalize and Archive
 

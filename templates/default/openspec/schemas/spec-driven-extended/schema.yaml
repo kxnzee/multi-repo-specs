@@ -1,6 +1,6 @@
-name: base-v1
+name: spec-driven-extended
 version: 1
-description: Base Template workflow - intake → proposal → specs → design → tasks
+description: Extended spec-driven workflow - intake → proposal → specs/design → tasks → verify
 artifacts:
   - id: intake
     generates: intake.md
@@ -67,6 +67,9 @@ artifacts:
       Create the proposal document that establishes WHY this change is needed.
       Read intake.md first, resolve or preserve its relevant open questions, and
       promote only confirmed conclusions without copying the questionnaire verbatim.
+      Before completion invoke openspec-base-meta-planning for the proposal stage and
+      resolve its findings. Include a Repository Impact table containing only exact
+      registered Code Repository IDs and capability paths expected to change.
 
       Sections:
       - **Why**: 1-2 sentences on the problem or opportunity. What problem does this solve? Why now?
@@ -101,6 +104,7 @@ artifacts:
     template: spec.md
     instruction: |
       Create specification files that define WHAT the system should do.
+      Before completion invoke openspec-base-meta-planning for the specs stage.
 
       Read intake.md and proposal.md before writing Delta Specs. For every confirmed
       preliminary scenario, access rule, failure/degraded case, data/security
@@ -148,6 +152,7 @@ artifacts:
       - Each requirement: `### Requirement: <name>` followed by description
       - Use SHALL/MUST for normative requirements (avoid should/may)
       - Each scenario: `#### Scenario: <name>` with WHEN/THEN format
+      - Give every new Scenario a stable `<change-id>-<three-digit-index>` suffix
       - **CRITICAL**: Scenarios MUST use exactly 4 hashtags (`####`). Using 3 hashtags or bullets will fail silently.
       - Every requirement MUST have at least one scenario.
 
@@ -204,6 +209,8 @@ artifacts:
     template: design.md
     instruction: |
       Create the design document that explains HOW to implement the change.
+      Before completion invoke openspec-base-meta-planning for the design stage.
+      Include a Repository Implementation Map for Repository IDs accepted in Proposal.
 
       When to include design.md (create only if any apply):
       - Cross-cutting change (multiple services/modules) or new architectural pattern
@@ -239,6 +246,8 @@ artifacts:
     template: tasks.md
     instruction: |
       Create the task list that breaks down the implementation work.
+      Before completion invoke openspec-base-meta-planning for the tasks stage and
+      verify Scenario → Design decision → Task traceability.
 
       Before writing tasks, check design.md for Open Questions. If any of them
       would change what gets built, resolve them with the user first - do not
@@ -290,11 +299,36 @@ artifacts:
       - specs
       - design
 
+  - id: verify
+    generates: verify.md
+    description: Candidate Acceptance for the exact implemented version
+    template: verify.md
+    instruction: |
+      Base does not create an apply.md receipt. Treat this artifact as a separate
+      post-implementation gate: its availability in the artifact graph is not proof
+      that an Apply candidate exists and can never justify PASS by itself.
+
+      Invoke **openspec-verify-change**, then complete Candidate Verification Contract
+      v1 from the template without weakening or extending its acceptance criteria.
+      Run fresh OpenSpec and repository checks, verify every accepted Scenario in the
+      target environment, record exact commits and deliverable identity, resolve
+      blocking defects, and obtain the named responsible participant's confirmation
+      for this exact current version and deployment. Agent evidence cannot substitute
+      for that confirmation. If the candidate or mandatory evidence does not yet
+      exist, record FAIL or leave the gate pending; never manufacture PASS.
+
+      Candidate Acceptance has only PASS or FAIL. A new commit, build artifact or
+      deployment invalidates the result and requires a new Verify. Verify does not
+      authorize Release or Archive. Base Process Compliance is NOT_APPLICABLE.
+    requires:
+      - tasks
+
 apply:
   requires: [tasks]
   tracks: tasks.md
   instruction: |
-    Read context files, work through pending tasks, mark complete as you go.
+    Invoke openspec-base-apply-context, then read context files, work through pending
+    tasks and mark complete as you go. Apply does not create an apply.md artifact.
     Pause if you hit blockers or need clarification. Never perform or complete
     the final external verification checkpoint on behalf of its responsible
     participant; leave it pending until explicit confirmation is supplied.

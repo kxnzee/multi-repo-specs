@@ -22,6 +22,7 @@ test("Package owns one exact MCP SDK without pretending to be a Project Plugin",
   const manifest = JSON.parse(await fs.readFile(path.join(packageRoot, "package.json"), "utf8"));
   assert.equal(manifest.name, "@openspec-orch/mcp");
   assert.equal(manifest.dependencies["@modelcontextprotocol/sdk"], "1.30.0");
+  assert.equal(manifest.dependencies.yaml, "2.9.0");
   assert.equal(manifest.dependencies["@openspec-orch/plugin-sdk"], undefined);
 });
 
@@ -132,23 +133,67 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   assert.equal((await client.readResource({ uri: resources[0].uri })).contents[0].text, "# Payments");
 });
 
-test("Store resources expose only normative allowlisted artifacts", async () => {
+test("Store resources follow each Change schema without mixing workflow artifacts", async () => {
   const content = new Map([
     ["openspec-orch.yaml", "version: 2\n"],
-    ["openspec/config.yaml", "schema: spec-driven\n"],
+    ["openspec/config.yaml", "schema: spec-driven-extended\n"],
+    ["openspec/schemas/spec-driven-extended/schema.yaml", `artifacts:
+  - id: intake
+    generates: intake.md
+  - id: proposal
+    generates: proposal.md
+  - id: specs
+    generates: specs/**/*.md
+  - id: verify
+    generates: verify.md
+`],
+    ["openspec/schemas/superspec-multirepo/schema.yaml", `artifacts:
+  - id: brainstorm
+    generates: brainstorm.md
+  - id: proposal
+    generates: proposal.md
+  - id: specs
+    generates: specs/**/*.md
+  - id: plan
+    generates: plan.md
+  - id: apply
+    generates: apply.md
+  - id: verify
+    generates: verify.md
+  - id: finalize
+    generates: finalize.md
+`],
     ["openspec/context/03-architecture.md", "# Architecture\n"],
     ["openspec/specs/payments/spec.md", "# Payments\n"],
-    ["openspec/changes/pay/intake.md", "# Intake\n"],
-    ["openspec/changes/pay/proposal.md", "# Proposal\n"],
-    ["openspec/changes/pay/notes.txt", "private notes\n"],
+    ["openspec/changes/base-pay/.openspec.yaml", "schema: spec-driven-extended\n"],
+    ["openspec/changes/base-pay/intake.md", "# Intake\n"],
+    ["openspec/changes/base-pay/proposal.md", "# Proposal\n"],
+    ["openspec/changes/base-pay/verify.md", "# Verify\n"],
+    ["openspec/changes/base-pay/apply.md", "# Wrong workflow\n"],
+    ["openspec/changes/base-pay/notes.txt", "private notes\n"],
+    ["openspec/changes/super-pay/.openspec.yaml", "schema: superspec-multirepo\n"],
+    ["openspec/changes/super-pay/brainstorm.md", "# Brainstorm\n"],
+    ["openspec/changes/super-pay/proposal.md", "# Proposal\n"],
+    ["openspec/changes/super-pay/specs/api/spec.md", "# API delta\n"],
+    ["openspec/changes/super-pay/plan.md", "# Plan\n"],
+    ["openspec/changes/super-pay/apply.md", "# Apply\n"],
+    ["openspec/changes/super-pay/verify.md", "# Verify\n"],
+    ["openspec/changes/super-pay/finalize.md", "# Finalize\n"],
+    ["openspec/changes/super-pay/intake.md", "# Wrong workflow\n"],
     ["tracking/cycles/pay/cycle.yaml", "contract_version: 1\n"],
   ]);
   const directories = new Set([
     "openspec/context",
+    "openspec/schemas",
+    "openspec/schemas/spec-driven-extended",
+    "openspec/schemas/superspec-multirepo",
     "openspec/specs",
     "openspec/specs/payments",
     "openspec/changes",
-    "openspec/changes/pay",
+    "openspec/changes/base-pay",
+    "openspec/changes/super-pay",
+    "openspec/changes/super-pay/specs",
+    "openspec/changes/super-pay/specs/api",
     "tracking/cycles",
     "tracking/cycles/pay",
   ]);
@@ -169,20 +214,67 @@ test("Store resources expose only normative allowlisted artifacts", async () => 
   const listed = await resourcesService.list();
   assert.deepEqual(listed.map(({ name }) => name), [
     "openspec-orch.yaml",
-    "openspec/changes/pay/intake.md",
-    "openspec/changes/pay/proposal.md",
+    "openspec/changes/base-pay/intake.md",
+    "openspec/changes/base-pay/proposal.md",
+    "openspec/changes/base-pay/verify.md",
+    "openspec/changes/super-pay/apply.md",
+    "openspec/changes/super-pay/brainstorm.md",
+    "openspec/changes/super-pay/finalize.md",
+    "openspec/changes/super-pay/plan.md",
+    "openspec/changes/super-pay/proposal.md",
+    "openspec/changes/super-pay/specs/api/spec.md",
+    "openspec/changes/super-pay/verify.md",
     "openspec/config.yaml",
     "openspec/context/03-architecture.md",
     "openspec/specs/payments/spec.md",
     "tracking/cycles/pay/cycle.yaml",
   ]);
-  assert.equal((await resourcesService.read(listed[5].uri)).text, "# Payments\n");
+  const masterSpec = listed.find(({ name }) => name === "openspec/specs/payments/spec.md");
+  assert.equal((await resourcesService.read(masterSpec.uri)).text, "# Payments\n");
   await assert.rejects(
-    resourcesService.read("openspec-orch://store/specs/openspec/changes/pay/notes.txt"),
+    resourcesService.read("openspec-orch://store/specs/openspec/changes/base-pay/notes.txt"),
     /MCP_RESOURCE_NOT_FOUND/u,
   );
+  assert.equal(listed.some(({ name }) => name.endsWith("/.openspec.yaml")), false);
+  assert.equal(listed.some(({ name }) => name === "openspec/changes/base-pay/apply.md"), false);
+  assert.equal(listed.some(({ name }) => name === "openspec/changes/super-pay/intake.md"), false);
   await assert.rejects(
     resourcesService.read("openspec-orch://store/specs/..%2Fsecrets.txt"),
     /MCP_RESOURCE_NOT_FOUND/u,
+  );
+});
+
+test("Store resources reject unsafe schema artifact paths", async () => {
+  const content = new Map([
+    ["openspec/config.yaml", "schema: unsafe\n"],
+    ["openspec/schemas/unsafe/schema.yaml", `artifacts:
+  - id: escape
+    generates: ../secrets.md
+`],
+    ["openspec/changes/pay/.openspec.yaml", "schema: unsafe\n"],
+  ]);
+  const directories = new Set([
+    "openspec/schemas",
+    "openspec/schemas/unsafe",
+    "openspec/changes",
+    "openspec/changes/pay",
+  ]);
+  const files = Object.freeze({
+    read: async (relativePath, { optional = false } = {}) => {
+      if (content.has(relativePath)) return content.get(relativePath);
+      if (optional) return null;
+      throw new Error("ENOENT");
+    },
+    listFiles: async (directory) => [...content.keys()]
+      .filter((relativePath) => path.posix.dirname(relativePath) === directory)
+      .map((relativePath) => path.posix.basename(relativePath)),
+    listDirectories: async (directory) => [...directories]
+      .filter((candidate) => path.posix.dirname(candidate) === directory)
+      .map((candidate) => path.posix.basename(candidate)),
+  });
+
+  await assert.rejects(
+    new StoreResourceService({ files, storeId: "specs" }).list(),
+    /generates небезопасен/u,
   );
 });

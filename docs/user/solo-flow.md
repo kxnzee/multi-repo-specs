@@ -1,5 +1,11 @@
 # Поток работы одного человека
 
+Этот документ подробно описывает Change со schema `spec-driven-extended`. Для
+`superspec-multirepo` используйте его собственный DAG Brainstorm → Plan → Apply →
+Verify → Finalize из [Project Template](project-template.md); общие человеческие
+Gates, Repository Impact, проверка текущего candidate, Release и Archive сохраняются,
+но Intake и Base-команды в Superspec не добавляются.
+
 Один человек может выполнять все допустимые роли, но решения и evidence не должны
 исчезать. В течение процесса он последовательно меняет «шляпу»: Владелец принимает
 scope, Аналитик формирует Planning, Разработчик реализует, Тестировщик проверяет,
@@ -148,8 +154,10 @@ openspec-orch verify fail --note "регрессия"
 2. зафиксируйте поставляемый artifact и точные commits;
 3. выполните IFT/QA и принятые Scenarios;
 4. устраните блокирующие дефекты и повторите проверку;
-5. явно закройте финальный checkpoint `tasks.md`;
-6. примите Gate 2, Gate 3 и решение о Release.
+5. заполните schema artifact `verify.md` и получите Candidate Acceptance `PASS` для
+   этой версии; самостоятельный `/opsx:verify` без artifact flow файл не сохраняет;
+6. явно закройте финальный checkpoint `tasks.md`;
+7. примите Gate 2, Gate 3 и решение о Release.
 
 Новый commit или deployment после проверки делает evidence нетекущим. Повторите
 проверку и не оставляйте checkbox закрытым для старой версии.

@@ -14,8 +14,7 @@
 | CodeGraph | Repository lifecycle, launcher нативного CLI и Repository-scoped Agent Extension | `plugins/codegraph/` |
 | OpenSpec Graph | Компиляция и проверка Store-level графа OpenSpec, локальный viewer | `plugins/openspec-graph/` |
 | Orchestrator MCP | Built-in governed Agent API и Store resources | `packages/mcp/`, `bin/openspec-orch-mcp.js` |
-| Base Template | OpenSpec schema/config, context и project assets | `templates/base/` |
-| Superspec Template | Multi-repository OpenSpec + Superpowers schema/config и context | `templates/superspec/` |
+| Default Template | Общие config/context/assets и schemas Base + Superspec | `templates/default/` |
 | OpenSpec Base Extension | Project instructions, skills, commands и subagent | `extensions/openspec-base/` |
 | Superpowers Extension | Локально vendored общая библиотека skills и bootstrap | `extensions/superpowers/` |
 | Agent gateway | Явный user-level setup/status/remove общей MCP Extension | `packages/core/internal/agent-gateway.js`, `extensions/orchestrator-agent/` |
@@ -90,11 +89,13 @@ Git identity, origin, default branch, чистоту и полный SHA-1, за
 ```yaml
 version: 2
 strict: true
-template: {id: base}
+template: {id: default}
 agent: {id: qwen}
 extensions:
   - id: openspec-base
     source: bundled:openspec-base
+  - id: superpowers
+    source: bundled:superpowers
 plugins:
   - id: openspec-graph
     source: "@openspec-orch/plugin-openspec-graph@1.0.0"
@@ -147,9 +148,9 @@ Plugin — ESM package с `package.json`:
 Standalone Extension выбираются повторяемым `init --extension <id>` и хранятся в
 порядке выбора. Повторный `init` без Extension-флагов сохраняет набор, а явный
 `--extension`/`--no-extensions` заменяет его без повторного применения Template.
-Required Extensions из bundled Template всегда добавляются к выбору; для `base` это
-`openspec-base`, для `superspec` — `superpowers`. Поэтому `--no-extensions` с этими
-Template отклоняется.
+Required Extensions из bundled Template всегда добавляются к выбору. Единственный
+bundled Template `default` требует `openspec-base` и `superpowers`, поэтому
+`--no-extensions` с ним отклоняется.
 Общий `connect` сначала проверяет native CLI и manifests всех выбранных standalone
 Extension, затем активирует их в Store scope и восстанавливает Extension
 contributions всех сохранённых Plugin bindings. Общий `disconnect` отключает оба вида
@@ -253,10 +254,10 @@ exact-зависимостью workspace package и lock-файлом. Server co
 - controlled write: `initialize_project` только для cwd/strict и `connect_project`
   только без workspace/relaxed overrides; оба делегируют общему `ProjectSetupService`;
 - resources: exact allowlist `openspec-orch.yaml`, `openspec/config.yaml`,
-  Markdown/YAML context, Master/Delta `spec.md`, Change artifacts с точными именами
-  `intake.md`, `proposal.md`, `design.md`, `tasks.md` и YAML-журналы Change Tracking через
-  `openspec-orch://store/` URI; Superspec `brainstorm.md`, `plan.md`, `apply.md`,
-  `verify.md` и `finalize.md` не публикуются;
+  Markdown/YAML context, Master Specs, YAML-журналы Change Tracking и artifacts,
+  объявленные schema каждого активного или архивного Change, через
+  `openspec-orch://store/` URI; `.openspec.yaml`, чужие workflow-файлы и произвольные
+  заметки не публикуются;
 - отсутствуют receipt, verification, Release, Archive, произвольный Git write,
   planning write, disconnect, Plugin lifecycle, Agent management и network transport.
 
@@ -270,20 +271,28 @@ overlay требует и declaration, и binding Store Repository.
 
 ## Project Template
 
-Bundled Template catalog содержит default `base` и альтернативный `superspec`.
-Base Template поставляет schema `base-v1`, context и project assets,
-`openspec-base` Extension — project commands, skills, subagent и постоянные
-инструкции. Общий MCP gateway `orchestrator-agent` принадлежит distribution-level
-Agent setup, а не Template. Эти файлы управляют поведением агента, но не
-становятся проверками Core runtime. Base не обнаруживает и не вызывает конкретные
-Plugins; runtime каждого Plugin подключается независимо от Template, а Agent Extension
-активируется только для Plugin, который действительно его поставляет.
+Bundled catalog содержит один Template `default`. Он поставляет общий config/context,
+assets и две project-local schemas: короткую `spec-driven-extended` и полную
+`superspec-multirepo`. Descriptor требует обе независимо поставляемые Extensions —
+`openspec-base` и `superpowers`; init добавляет их в desired composition, а
+интерактивные checkbox показывают required choices заблокированными.
 
-Superspec Template поставляет schema `superspec-multirepo` с полным artifact DAG через
-Apply, Verify и Finalize. Descriptor декларативно требует `superpowers`; init добавляет
-его в desired composition, а интерактивные checkbox
-показывают required choices заблокированными. Execution выполняется в точных Code Repository scopes,
-а external verification и Release сохраняются отдельными gates.
+OpenSpec выбирает schema на уровне Change и сохраняет её в `.openspec.yaml`, поэтому
+Change разных типов сосуществуют в одном Store без merge Templates и без логики
+выбора workflow в Core. `spec-driven-extended` имеет Verify artifact, но не Apply artifact;
+`superspec-multirepo` сохраняет полный DAG через Apply, Verify и Finalize. Их Verify
+templates содержат идентичный `Candidate Verification Contract v1`; дополнительный
+Superspec Process Compliance оценивается отдельно.
+
+Зависимости artifacts являются машинным контрактом schema. Общие условия Release и
+Archive находятся в поддерживаемом `openspec/config.yaml` под
+`operations.archive.guidance`; OpenSpec передаёт их Agent как operation instructions,
+а не исполняет как пользовательский Archive hook.
+
+Общий MCP gateway `orchestrator-agent` принадлежит distribution-level Agent setup, а
+не Template. Template и Base Extension не обнаруживают конкретные Plugins; runtime
+каждого Plugin подключается независимо, а Plugin Agent Extension активируется только
+для Plugin, который действительно его поставляет.
 
 Template-правила Planning, Gate, Release и Archive являются политикой создаваемого
 проекта. Core их копирует и проверяет структуру, но сам не выполняет реализацию,

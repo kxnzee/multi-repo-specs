@@ -4,6 +4,11 @@
 понимать Specs и Changes, но не заменяет их. Материалы из `_raw/` не являются
 подтверждённым контекстом.
 
+Каждый Change закрепляет одну OpenSpec schema в `.openspec.yaml`: `spec-driven-extended` для
+лёгкого продуктового процесса либо `superspec-multirepo` для полного Superpowers
+lifecycle. Обе schemas используют общий project context и одинаковый Candidate
+Verification Contract, но их artifact graph и инженерный процесс не смешиваются.
+
 ## Правила
 
 - Отделяйте подтверждённые факты от выводов и открытых вопросов.

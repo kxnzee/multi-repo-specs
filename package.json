@@ -7,7 +7,7 @@
     "plugins/*"
   ],
   "openspecOrchestrator": {
-    "defaultTemplateId": "base",
+    "defaultTemplateId": "default",
     "bundledPlugins": [
       {
         "id": "change-tracking",

@@ -32,7 +32,7 @@ test("root distribution exposes the candidate entrypoint and required runtime fi
     "@openspec-orch/plugin-codegraph": "1.0.0",
     "@openspec-orch/plugin-openspec-graph": "1.0.0",
   });
-  assert.equal(manifest.openspecOrchestrator.defaultTemplateId, "base");
+  assert.equal(manifest.openspecOrchestrator.defaultTemplateId, "default");
   assert.deepEqual(
     manifest.openspecOrchestrator.bundledPlugins.map(({ packageName }) => packageName),
     Object.keys(manifest.dependencies).filter((name) => name.startsWith("@openspec-orch/plugin-")),

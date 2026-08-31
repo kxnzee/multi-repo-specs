@@ -12,16 +12,16 @@ import { initSelections } from "./init-selection.js";
 import { storeProjects } from "./store-project.js";
 import { hasMethods } from "./value.js";
 
-const LEGACY_TEMPLATE_ID = "base";
+const DEFAULT_TEMPLATE_ID = "default";
 
 /** Builds the compatibility provider used by direct CandidateCli tests. */
 function legacyTemplateProvider(templateRoot) {
   return Object.freeze({
-    defaultId: LEGACY_TEMPLATE_ID,
+    defaultId: DEFAULT_TEMPLATE_ID,
     catalog: Object.freeze({ entries: Object.freeze([]) }),
     resolve(templateId) {
-      if (templateId === LEGACY_TEMPLATE_ID && typeof templateRoot === "string") {
-        return Object.freeze({ id: LEGACY_TEMPLATE_ID, root: templateRoot });
+      if (templateId === DEFAULT_TEMPLATE_ID && typeof templateRoot === "string") {
+        return Object.freeze({ id: DEFAULT_TEMPLATE_ID, root: templateRoot });
       }
       throw new Error(`TEMPLATE_NOT_DISCOVERED: template-id '${templateId ?? ""}' не найден`);
     },

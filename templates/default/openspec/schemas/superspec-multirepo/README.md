@@ -28,7 +28,8 @@ brainstorm
 Apply and Verify form a convergence loop. Every Apply iteration overwrites `apply.md`
 with a higher iteration number; Verify checks that exact iteration and current
 candidate. A failure returns to the owning artifact or Apply. Finalize becomes
-reachable only from a current PASS or PASS_WITH_WARNINGS.
+reachable only when Candidate Acceptance is `PASS` and Superspec Process Compliance
+is `PASS` or `PASS_WITH_WARNINGS`.
 
 ## No parallel documents
 

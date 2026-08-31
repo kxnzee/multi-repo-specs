@@ -1,5 +1,11 @@
 # Командный поток и роли
 
+Подробная последовательность ниже относится к schema `spec-driven-extended`. Для
+`superspec-multirepo` роли сохраняют те же зоны ответственности и Candidate
+Acceptance, но команда следует его artifact DAG Brainstorm → Plan → Apply → Verify →
+Finalize из [Project Template](project-template.md), не добавляя Intake или другие
+Base-only artifacts.
+
 Роли в этом документе — ответственность в процессе, а не учетные записи или ACL
 Orchestrator. Один человек может совмещать несколько ролей. Для маленькой команды
 важно не количество людей, а явность решений, evidence и передачи ответственности.
@@ -134,6 +140,7 @@ scope, implementation revisions и проверки публикуются фа�
 - PR review и обязательные repository checks пройдены;
 - точные implementation commits и поставляемый artifact зафиксированы;
 - candidate соответствует принятому Change;
+- `verify.md` содержит Candidate Acceptance для этой точной версии;
 - отклонения либо отсутствуют, либо возвращены в Planning и приняты повторно;
 - в Change Tracking flow Gate относится к текущей собранной версии.
 
@@ -142,6 +149,7 @@ scope, implementation revisions и проверки публикуются фа�
 - IFT/QA выполнены на том же candidate;
 - принятые Scenarios проверены;
 - блокирующих дефектов нет;
+- Candidate Acceptance в `verify.md` имеет `PASS` и не устарел;
 - rollout, наблюдение и rollback подтверждены;
 - финальный checkpoint `tasks.md` закрыт человеком для текущей версии;
 - в Change Tracking flow результат проверки относится к текущей собранной версии.

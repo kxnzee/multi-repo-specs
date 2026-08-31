@@ -38,9 +38,10 @@ Code Repositories реализуют принятый Change и не созда�
 
 - **Intent** — принятое объяснение изменения, Why Now, ожидаемого улучшения,
   критериев успеха и ограничений.
-- **Intake** — первый artifact schema `base-v1`; уточняет входные данные и выбирает
+- **Intake** — первый artifact schema `spec-driven-extended`; уточняет входные данные и выбирает
   маршрут `ready_for_proposal`, `explore_recommended` или `blocked`.
-- **Change** — один согласуемый набор Proposal, Delta Specs, Design и Tasks.
+- **Change** — один согласуемый набор artifacts выбранной OpenSpec schema; schema
+  закреплена в `.openspec.yaml` этого Change.
 - **Master Spec** — нормативное описание уже действующего поведения после Archive.
 - **Repository Impact** — только Code Repositories, где Change требует изменения
   кода, тестов, конфигурации или документации.
@@ -53,25 +54,31 @@ Code Repositories реализуют принятый Change и не созда�
 
 ## Жизненный цикл Change
 
+Schema выбирается при создании Change и определяет его artifact DAG:
+
 ```text
-Intent
-  → Intake
-  → Explore при необходимости
-  → Proposal → Delta Specs → Design → Tasks
-  → Graph inspection и проверка scope
-  → Gate 1
-  → опциональный сбор implementation evidence через Change Tracking
-  → Apply
-  → PR / checks / merge / deployment
-  → проверка текущей версии
-  → Gate 2 → Gate 3 → Release
-  → Archive → Graph handoff
+spec-driven-extended:
+  Intent → Intake → optional Explore
+  → Proposal → Delta Specs + Design → Tasks → Verify
+
+superspec-multirepo:
+  Brainstorm → Proposal + optional Design → Delta Specs → Tasks → Plan
+  → Apply → Verify → Finalize
 ```
+
+Graph inspection, Gate 1 и при необходимости Change Tracking выполняются до
+реализации в границах выбранной schema. PR/checks, проверка целевого deployment,
+Gate 2–3, Release, Archive и post-Archive Graph handoff остаются внешними командными
+этапами. Их результат не разрешает смешивать artifacts двух schemas; новый candidate
+возвращает Change в Apply/Verify своего DAG.
 
 OpenSpec Graph подключается отдельно как Plugin: Template и Extensions не
 устанавливают его автоматически и не определяют выбор Plugins. Полный описанный
 `openspec-base` flow использует Graph после появления Delta Specs и перед Apply,
 поэтому пользователь явно выбирает и связывает Plugin для этого маршрута.
+В одном Store Base и Superspec Change могут идти одновременно; их Verify использует
+один Candidate Verification Contract, а Superspec отдельно добавляет Process
+Compliance.
 
 ## Поддерживаемые агенты
 

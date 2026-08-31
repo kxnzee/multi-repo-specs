@@ -34,4 +34,4 @@
 
 ## Next step
 
-`Run /opsx:verify` or `<required Apply correction>`.
+`Continue to the verify artifact` or `<required Apply correction>`.
