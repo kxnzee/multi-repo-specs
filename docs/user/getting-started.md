@@ -15,6 +15,15 @@ openspec-orch --help
 
 ## 2. Создайте Store
 
+Сначала проверьте локальные регистрации OpenSpec:
+
+```bash
+openspec store list
+```
+
+`--store` задаёт ID, уникальный на этой машине: один Store ID может указывать
+только на один локальный checkout. Для нового Store выберите свободный ID.
+
 ```bash
 openspec-orch init /absolute/path/to/workspace/specs \
   --store specs \
