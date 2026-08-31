@@ -24,8 +24,7 @@ composition; it does not copy skills into the Template or move their ownership t
 | Failure | `superpowers:systematic-debugging` |
 | Review feedback | `superpowers:receiving-code-review` |
 | Repository completion | `superpowers:verification-before-completion` with exact commit evidence |
-| Verify | `openspec-verify-change`, current candidate evidence and external checkpoint |
-| Finalize | authorized `superpowers:finishing-a-development-branch` per repository |
+| Verify | `openspec-verify-change`, evidence and human Feature Acceptance |
 
 Independent repository work may use `superpowers:dispatching-parallel-agents` only
 when plan dependencies, state and paths do not overlap. The default is to preserve the
@@ -39,27 +38,23 @@ plan's dependency order.
    checks and writes `verify.md` for the current candidate.
 3. Code failure invokes systematic debugging and returns to Apply.
 4. Artifact drift returns to the owning artifact, then Apply.
-5. A replaced repository result creates a new candidate identity.
+5. Implementation changes require current evidence and a new human decision.
 
-Candidate Acceptance PASS requires every technical repository result and the final
-external verification checkbox completed by its named responsible participant for the
-current version. It is exactly the same contract used by `spec-driven-extended`. Agent reasoning,
-tests and candidate identity are necessary evidence but are not that external
-confirmation. Superspec Process Compliance is evaluated separately and cannot weaken
-Candidate Acceptance.
+Feature Acceptance remains `PENDING` until the named responsible participant selects
+`PASS` or `FAIL` from the collected evidence. It is exactly the same universal contract
+used by `spec-driven-extended`. Agent reasoning and technical checks prepare evidence
+but cannot make the human decision. Superspec Process Compliance is evaluated
+separately and cannot weaken Feature Acceptance.
 
 The standalone `/opsx:verify` surface returns the upstream verification report but
 does not persist a schema artifact. Use the schema artifact flow when the governed
 `verify.md` gate must be recorded after implementation.
 
-## Finalize and Archive
+## Closeout and Archive
 
-Finalize is not a single Store-wide Git command. It repeats the Superpowers branch
-completion decision for every affected Code Repository after explicit authorization,
-records pull-request/review/worktree outcomes, and routes code-changing feedback back
-through Apply and Verify. The optional code-reviewer orientation is prepared from the
-governed artifacts and posted only under the team's normal authorization.
+A person explicitly invokes any required branch, review or PR command after Feature
+Acceptance. `superpowers:finishing-a-development-branch` remains available, but the
+schema does not call it or persist a separate closeout receipt.
 
-Archive requires current Finalize outcomes, external verification and the actual
-Release gate. Neither Verify nor
-Finalize alone authorizes deployment, Release or Archive.
+Archive requires human Feature Acceptance, Superspec Process Compliance and the
+actual Release gate. Verify alone does not authorize deployment, Release or Archive.

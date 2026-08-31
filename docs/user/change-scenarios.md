@@ -21,5 +21,6 @@
 - Explore подтверждает факты, но не принимает продуктовые решения.
 - Repository Impact включает только repositories с реальными изменениями.
 - Change Tracking не заменяет OpenSpec Apply и не хранит task statuses.
-- Verify всегда относится к точной версии candidate.
+- Verify является человеческой Feature Acceptance по собранному evidence; Change
+  Tracking при подключении связывает решение с точными revisions.
 - Archive не выполняется автоматически Orchestrator или Plugin.

@@ -28,15 +28,13 @@ rules:
     - "Design не создаёт новые требования и связывает решения с принятыми Requirements, Scenarios или ограничениями Proposal. Code inspection используется только как current-state evidence."
   tasks:
     - "Группировать реализацию по точным Repository IDs, связывать задачи с принятыми Requirements или Scenarios и указывать наблюдаемый способ проверки."
-    - "Завершить tasks.md ровно одним внешним checkpoint проверки текущей версии; агент не закрывает его по собственному evidence."
   verify:
-    - "Candidate Acceptance использует Candidate Verification Contract v1 выбранной schema; новый commit, artifact или deployment делает прежний PASS устаревшим."
+    - "Verify является универсальной Feature Acceptance: Agent готовит evidence, но решение PENDING, PASS или FAIL принимает только ответственный участник."
 
 operations:
   archive:
     guidance:
       - "Определи schema Change по .openspec.yaml и не смешивай process-specific gates разных schemas."
-      - "Требуй Candidate Verification Contract v1 PASS для точных текущих commits, deliverable и target deployment; любой новый candidate делает Verify устаревшим."
-      - "Требуй завершённый ответственным участником финальный внешний checkpoint в tasks.md для той же версии."
-      - "Для superspec-multirepo дополнительно требуй актуальный finalize.md и Process Compliance PASS или PASS_WITH_WARNINGS для текущего candidate."
-      - "Требуй фактический Release команды; Planning, локальные тесты, Verify или Finalize сами по себе не разрешают Archive."
+      - "Требуй human Feature Acceptance PASS в verify.md; Agent evidence не заменяет решение ответственного участника."
+      - "Для superspec-multirepo дополнительно требуй Process Compliance PASS или PASS_WITH_WARNINGS."
+      - "Требуй фактический Release команды; Planning, локальные тесты или Verify сами по себе не разрешают Archive."

@@ -27,14 +27,15 @@ openspec new change redesign-checkout --schema superspec-multirepo
 | Schema | Artifact path |
 |---|---|
 | `spec-driven-extended` | Intake → Proposal/Specs/Design → Tasks → Verify |
-| `superspec-multirepo` | Brainstorm → Proposal/Specs/Design → Tasks → Plan → Verify → Finalize |
+| `superspec-multirepo` | Brainstorm → Proposal/Specs/Design → Tasks → Plan → Verify |
 
 Не меняйте schema уже созданного Change для переключения процесса. Если DAG
 несовместим, создайте новый Change и перенесите только принятый смысл.
 
-Обе schemas требуют проверки точной версии кандидата. Новый commit, build или
-deployment делает прежнее подтверждение устаревшим. Verify не выполняет Release или
-Archive.
+Обе schemas используют одну Feature Acceptance: Agent собирает evidence, а решение
+`PENDING`, `PASS` или `FAIL` принимает ответственный участник. Change Tracking, если
+подключён, отдельно привязывает это решение к revisions и определяет устаревание.
+Verify не выполняет Release или Archive.
 
 ## Владение и обновление
 

@@ -61,8 +61,8 @@ Plugin передаёт evidence, но не назначает работу и �
 ## Gate 2: candidate принят
 
 - PR и обязательные repository checks прошли;
-- точные commits и artifact зафиксированы;
-- Verify относится к этой версии;
+- Verify содержит актуальное evidence;
+- ответственный участник установил Feature Acceptance `PASS`;
 - технические отклонения согласованы или возвращены в Planning.
 
 ## Gate 3: release ready

@@ -20,32 +20,32 @@ brainstorm
 → plan
 → /opsx:apply (implementation action, no artifact)
 → verify
-→ finalize
 → Release gate
 → archive
 ```
 
 Apply and Verify form a convergence loop without a separate Apply receipt. Apply
 updates implementation and completed Tasks; Verify independently checks the current
-candidate with fresh evidence. A failure returns to the owning artifact or Apply.
-Finalize becomes reachable only when Candidate Acceptance is `PASS` and Superspec
-Process Compliance is `PASS` or `PASS_WITH_WARNINGS`.
+feature with current evidence and records the responsible participant's decision. A
+failure returns to the owning artifact or Apply. Verify completes when Feature
+Acceptance is `PASS` and Superspec Process Compliance is `PASS` or
+`PASS_WITH_WARNINGS`.
 
 ## No parallel documents
 
 Superpowers' brainstorming and writing-plans outputs are redirected to the active
 OpenSpec Change. Do not create a second design or plan under `docs/superpowers/`.
-`verify.md` and `finalize.md` are OpenSpec receipts for the skill-driven workflow, not
-additional task lists. Apply produces no separate receipt artifact.
+`verify.md` is the human Feature Acceptance artifact, not an additional task list.
+Apply produces no separate receipt artifact.
 
 ## Multi-repository adaptation
 
 - The Store owns Change artifacts and cross-repository workflow receipts.
 - Proposal owns exact Repository Impact using IDs from `openspec-orch.yaml`.
 - Code changes, worktrees, TDD and repository verification remain in Code Repositories.
-- Technical Verify cannot complete the external current-version checkpoint.
-- Finalize uses Superpowers' structured branch choices separately for each repository
-  and requires explicit authorization for external mutations.
+- Technical evidence cannot complete the Human gate.
+- A person explicitly invokes any required branch, review or PR command or
+  `superpowers:finishing-a-development-branch`; the schema stores no closeout receipt.
 - Release remains a team gate and is required before Archive.
 
 See `INTEGRATION.md` for operational handoffs and failure routes. Upstream attribution

@@ -65,12 +65,12 @@ function assertAcyclic(artifacts) {
   for (const id of dependencies.keys()) visit(id);
 }
 
-/** Extracts the normative Candidate Acceptance block shared by both schemas. */
-function candidateVerificationContract(source) {
+/** Extracts the universal Feature Acceptance block shared by both schemas. */
+function featureAcceptanceContract(source) {
   const match = source.match(
-    /<!-- CANDIDATE_VERIFICATION_CONTRACT_V1_START -->[\s\S]*?<!-- CANDIDATE_VERIFICATION_CONTRACT_V1_END -->/u,
+    /<!-- FEATURE_ACCEPTANCE_CONTRACT_V1_START -->[\s\S]*?<!-- FEATURE_ACCEPTANCE_CONTRACT_V1_END -->/u,
   );
-  assert.ok(match, "Candidate Verification Contract v1 markers are required");
+  assert.ok(match, "Feature Acceptance Contract v1 markers are required");
   return match[0];
 }
 
@@ -177,15 +177,11 @@ test("spec-driven-extended adds Verify without a separate Apply artifact", async
   assert.deepEqual(schema.artifacts.find(({ id }) => id === "verify")?.requires, ["tasks"]);
   assert.match(schema.artifacts.find(({ id }) => id === "verify")?.instruction, /openspec-verify-change/u);
   assert.match(verify, /`NOT_APPLICABLE`/u);
-  assert.match(taskInstruction, /Проверка реализованного изменения/);
-  assert.equal(tasks.match(/^## \d+\. Проверка реализованного изменения/gmu)?.length, 1);
-  assert.equal(
-    tasks.match(/^- \[ \] \d+\.\d+ Получить подтверждение, что текущая версия изменения успешно проверена/gmu)?.length,
-    1,
-  );
+  assert.match(taskInstruction, /Human Feature Acceptance belongs.*Verify artifact/su);
+  assert.doesNotMatch(tasks, /Ответственный|Получить подтверждение/u);
 });
 
-test("Base and Superspec use one exact Candidate Verification Contract", async () => {
+test("Base and Superspec use one universal human Feature Acceptance", async () => {
   const base = await fs.readFile(
     path.join(TEMPLATE_ROOT, "openspec/schemas/spec-driven-extended/templates/verify.md"),
     "utf8",
@@ -194,10 +190,12 @@ test("Base and Superspec use one exact Candidate Verification Contract", async (
     path.join(TEMPLATE_ROOT, "openspec/schemas/superspec-multirepo/templates/verify.md"),
     "utf8",
   );
-  assert.equal(candidateVerificationContract(base), candidateVerificationContract(superspec));
-  assert.equal(candidateVerificationContract(base).match(/- \[ \] `PASS`/gu)?.length, 1);
-  assert.equal(candidateVerificationContract(base).match(/- \[ \] `FAIL`/gu)?.length, 1);
-  assert.doesNotMatch(candidateVerificationContract(base), /PASS_WITH_WARNINGS/u);
+  const contract = featureAcceptanceContract(base);
+  assert.equal(contract, featureAcceptanceContract(superspec));
+  assert.match(contract, /\*\*Decision:\*\* `PENDING` \/ `PASS` \/ `FAIL`/u);
+  assert.match(contract, /Agent prepares evidence but does not choose the gate decision/u);
+  assert.doesNotMatch(contract, /commit|artifact|deployment|timestamp|Verified at/iu);
+  assert.doesNotMatch(contract, /PASS_WITH_WARNINGS/u);
 });
 
 test("superspec-multirepo preserves the complete skill-driven lifecycle", async () => {
@@ -215,7 +213,6 @@ test("superspec-multirepo preserves the complete skill-driven lifecycle", async 
     "tasks",
     "plan",
     "verify",
-    "finalize",
   ]);
   assert.match(schema.artifacts[0].instruction, /superpowers:brainstorming/u);
   assert.match(schema.artifacts.find(({ id }) => id === "plan").instruction, /superpowers:writing-plans/u);
@@ -224,7 +221,6 @@ test("superspec-multirepo preserves the complete skill-driven lifecycle", async 
   assert.equal(schema.artifacts.some(({ id }) => id === "apply"), false);
   assert.equal(schema.artifacts.some(({ generates }) => generates === "apply.md"), false);
   assert.deepEqual(schema.artifacts.find(({ id }) => id === "verify").requires, ["plan"]);
-  assert.deepEqual(schema.artifacts.find(({ id }) => id === "finalize").requires, ["verify"]);
   assert.deepEqual(schema.apply.requires, ["plan"]);
   assert.equal(schema.apply.tracks, "tasks.md");
   for (const skill of [
@@ -238,7 +234,6 @@ test("superspec-multirepo preserves the complete skill-driven lifecycle", async 
     "requesting-code-review",
     "receiving-code-review",
     "verification-before-completion",
-    "finishing-a-development-branch",
   ]) {
     assert.match(schemaSource, new RegExp(`superpowers:${skill}`, "u"), skill);
   }
@@ -250,17 +245,16 @@ test("superspec-multirepo preserves the complete skill-driven lifecycle", async 
     /\bgit\s+(?:add|commit|checkout|pull|merge|push|branch)\b|\bgh\s+pr\b/iu,
   );
 
-  for (const artifact of ["verify", "finalize"]) {
-    await fs.access(path.join(schemaRoot, `templates/${artifact}.md`));
-  }
+  await fs.access(path.join(schemaRoot, "templates/verify.md"));
   await assert.rejects(
     fs.access(path.join(schemaRoot, "templates/apply.md")),
     { code: "ENOENT" },
   );
+  await assert.rejects(
+    fs.access(path.join(schemaRoot, "templates/finalize.md")),
+    { code: "ENOENT" },
+  );
 
   const tasks = await fs.readFile(path.join(schemaRoot, "templates/tasks.md"), "utf8");
-  assert.equal(
-    tasks.match(/^- \[ \] \d+\.\d+ Получить подтверждение, что текущая версия изменения успешно проверена/gmu)?.length,
-    1,
-  );
+  assert.doesNotMatch(tasks, /Ответственный|Получить подтверждение/u);
 });

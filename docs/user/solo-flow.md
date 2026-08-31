@@ -49,10 +49,11 @@ openspec-orch done
 
 `track` не назначает Tasks, а `done` не означает, что тесты прошли.
 
-## 4. Проверьте точный candidate
+## 4. Проведите Feature Acceptance
 
-Зафиксируйте commits и поставляемый artifact, выполните принятые Scenarios в целевом
-окружении и заполните Verify artifact. При Change Tracking после внешней проверки:
+Agent заполняет Verify evidence фактическими результатами проверок и Scenarios.
+Ответственный участник принимает `PASS` или `FAIL`; без его решения gate остаётся
+`PENDING`. При Change Tracking после человеческого решения:
 
 ```bash
 openspec-orch verify pass
@@ -60,8 +61,8 @@ openspec-orch verify pass
 openspec-orch verify fail --note "регрессия"
 ```
 
-Новый commit или deployment требует повторной проверки. Agent не закрывает
-человеческий verification checkpoint самостоятельно.
+После изменения реализации соберите актуальное evidence и повторите человеческий
+gate. Agent не принимает Feature Acceptance самостоятельно.
 
 ## 5. Release и Archive
 

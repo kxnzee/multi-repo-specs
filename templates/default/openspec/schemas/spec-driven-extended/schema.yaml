@@ -266,16 +266,8 @@ artifacts:
         the task's checkbox description. Add any other separate verification task
         only when it checks broader integration or system behavior that spans
         multiple implementation tasks.
-      - Finish every task list with exactly one shared, numbered section named
-        `Проверка реализованного изменения`. Its only checkbox MUST use this text,
-        with the next numeric task identifier:
-        `Получить подтверждение, что текущая версия изменения успешно проверена в
-        целевом окружении по принятым сценариям, а все блокирующие дефекты устранены
-        и повторно проверены.` Assign the section to the responsible participant
-        confirmed during Planning. This is an external checkpoint, not an
-        implementation action: never mark it complete in advance or solely from
-        agent reasoning. A new version or deployment after confirmation makes the
-        checkpoint incomplete again until that version is verified.
+      - Keep Tasks implementation-only. Human Feature Acceptance belongs to the
+        following Verify artifact.
 
       Example:
       ```
@@ -288,10 +280,6 @@ artifacts:
 
       - [ ] 2.1 Implement data export function and verify the export test passes
       - [ ] 2.2 Add CSV formatting utilities and verify unit tests cover quoting and delimiters
-
-      ## 3. Проверка реализованного изменения — Ответственный: <подтверждённый участник>
-
-      - [ ] 3.1 Получить подтверждение, что текущая версия изменения успешно проверена в целевом окружении по принятым сценариям, а все блокирующие дефекты устранены и повторно проверены.
       ```
 
       Reference specs for what needs to be built, design for how to build it.
@@ -301,25 +289,21 @@ artifacts:
 
   - id: verify
     generates: verify.md
-    description: Candidate Acceptance for the exact implemented version
+    description: Universal human Feature Acceptance after implementation
     template: verify.md
     instruction: |
       Treat this artifact as a separate post-implementation gate: its availability in
       the artifact graph is not proof that an Apply candidate exists and can never
       justify PASS by itself.
 
-      Invoke **openspec-verify-change**, then complete Candidate Verification Contract
-      v1 from the template without weakening or extending its acceptance criteria.
-      Run fresh OpenSpec and repository checks, verify every accepted Scenario in the
-      target environment, record exact commits and deliverable identity, resolve
-      blocking defects, and obtain the named responsible participant's confirmation
-      for this exact current version and deployment. Agent evidence cannot substitute
-      for that confirmation. If the candidate or mandatory evidence does not yet
-      exist, record FAIL or leave the gate pending; never manufacture PASS.
-
-      Candidate Acceptance has only PASS or FAIL. A new commit, build artifact or
-      deployment invalidates the result and requires a new Verify. Verify does not
-      authorize Release or Archive. Base Process Compliance is NOT_APPLICABLE.
+      Invoke **openspec-verify-change**, then fill the shared Feature Acceptance
+      evidence table with applicable OpenSpec, repository and Scenario results. Use
+      `N/A` only with a reason and `PENDING` for an applicable check that was not run.
+      Present that evidence to the named responsible participant. The Agent must keep
+      the Human gate `PENDING` until that participant explicitly selects `PASS` or
+      `FAIL`; Agent evidence cannot make this decision. After implementation changes,
+      collect current evidence and obtain a new decision. Verify does not authorize
+      Release or Archive. Base Process Compliance is NOT_APPLICABLE.
     requires:
       - tasks
 
@@ -329,6 +313,5 @@ apply:
   instruction: |
     Invoke openspec-base-apply-context, then read context files, work through pending
     tasks and mark complete as you go. Apply does not create a separate receipt artifact.
-    Pause if you hit blockers or need clarification. Never perform or complete
-    the final external verification checkpoint on behalf of its responsible
-    participant; leave it pending until explicit confirmation is supplied.
+    Pause if you hit blockers or need clarification. Human Feature Acceptance belongs
+    to the following Verify artifact, not to implementation Tasks.

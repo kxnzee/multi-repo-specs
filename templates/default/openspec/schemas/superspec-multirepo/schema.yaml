@@ -2,7 +2,7 @@ name: superspec-multirepo
 version: 2
 description: >
   Complete Superspec lifecycle adapted to a central multi-repository OpenSpec Store:
-  brainstorm → proposal → optional design → specs → tasks → plan → verify → finalize.
+  brainstorm → proposal → optional design → specs → tasks → plan → verify.
   OpenSpec governs artifacts; Superpowers governs execution discipline;
   Orchestrator owns repository identity and team gates.
 
@@ -89,10 +89,8 @@ artifacts:
       owns the work. Each task states the required result and how it will be checked.
       Do not introduce behavior outside the accepted Specs.
 
-      Finish with exactly one shared section named "Проверка реализованного изменения"
-      and one checkbox requiring confirmation from a named responsible participant
-      that the current version was verified in the target environment. An agent or
-      local tests cannot complete this checkpoint.
+      Human Feature Acceptance belongs to the following Verify artifact, not to
+      implementation Tasks.
     requires:
       - specs
 
@@ -115,7 +113,7 @@ artifacts:
 
   - id: verify
     generates: verify.md
-    description: Shared Candidate Acceptance plus Superspec Process Compliance
+    description: Universal human Feature Acceptance plus Superspec Process Compliance
     template: verify.md
     instruction: |
       Treat this artifact as a separate post-implementation gate: its availability in
@@ -127,53 +125,20 @@ artifacts:
       infer success from an earlier run or an agent claim. If a failure is unexpected,
       invoke **superpowers:systematic-debugging**, return to Apply and preserve evidence.
 
-      Then invoke **openspec-verify-change** and complete Candidate Verification
-      Contract v1 from the template without weakening or extending its criteria.
-      Candidate Acceptance has only PASS or FAIL and uses exactly the same mandatory
-      evidence, target-environment confirmation and freshness rules as Base.
+      Then invoke **openspec-verify-change** and fill the shared Feature Acceptance
+      evidence table. Present it to the named responsible participant. The Agent must
+      keep the Human gate `PENDING` until that participant explicitly selects `PASS`
+      or `FAIL`; Agent evidence cannot make this decision. This is the same universal
+      acceptance contract used by Base.
 
       Separately record Superspec Process Compliance: Delta Spec sync and
       Design/Specs coherence, clean implementation state, TDD evidence, task reviews,
       final review and required Superpowers workflow evidence. Process Compliance is
-      PASS, PASS_WITH_WARNINGS or FAIL. Candidate Acceptance PASS plus Process
-      Compliance PASS or PASS_WITH_WARNINGS makes Finalize reachable. Any failure
-      returns to the owning artifact or Apply, followed by a fresh Verify.
+      PASS, PASS_WITH_WARNINGS or FAIL. Feature Acceptance PASS plus Process
+      Compliance PASS or PASS_WITH_WARNINGS completes Verify. Any failure returns to
+      the owning artifact or Apply, followed by a fresh Verify.
     requires:
       - plan
-
-  - id: finalize
-    generates: finalize.md
-    description: Authorized multi-repository branch and review closeout receipt
-    template: finalize.md
-    instruction: |
-      Verify must report Candidate Acceptance PASS and Process Compliance PASS or
-      PASS_WITH_WARNINGS for the current candidate identity. Do
-      not finalize a stale candidate or bypass the external verification checkbox.
-
-      For each affected Code Repository, obtain explicit user or accepted team-process
-      authorization for the intended closeout. Then invoke
-      **superpowers:finishing-a-development-branch** in that repository and present its
-      structured choices: integrate locally, create or update a pull request, keep the
-      branch/worktree for later, or discard it. Never assume one choice for every
-      repository and never apply Store-repository Git operations to Code Repositories.
-
-      If review feedback arrives, invoke **superpowers:receiving-code-review** before
-      changing code. Validate the feedback technically; for code changes return to
-      Apply, run TDD and review again, record the new commit identities and re-run
-      Verify before re-entering Finalize.
-
-      When an authorized pull request exists, prepare the upstream-style code-reviewer
-      orientation from proposal.md, Specs, verify.md and the optional retrospective.
-      Posting or editing it is an external mutation and requires the same authorization
-      as the team's normal PR workflow. Record the outcome without claiming success
-      when the operation was skipped or failed.
-
-      Write finalize.md only after every affected repository has a recorded outcome.
-      Include authorization, branch/worktree disposition, review/PR state, verification
-      identity, optional retrospective, unresolved work and the exact Release/Archive
-      next step. Finalize does not deploy, release, archive or close an external gate.
-    requires:
-      - verify
 
 apply:
   requires: [plan]
@@ -217,10 +182,8 @@ apply:
        Before marking a repository result complete invoke
        **superpowers:verification-before-completion** and run the exact fresh commands
        from plan.md. Update only the coarse tasks whose observable repository result is
-       complete. Do not complete the final external verification checkbox.
-
-       Record the exact verified repository commit. Do not close a repository result
-       from uncommitted work.
+       complete. Do not close a repository result from uncommitted work. Human Feature
+       Acceptance belongs to the following Verify artifact.
 
     4. Completion and convergence
        Do not create a separate Apply receipt. Keep tasks.md aligned with only the
@@ -230,5 +193,5 @@ apply:
        skill-driven step, update implementation and tasks, and verify again.
 
     Apply never grants implicit authority to publish branches, merge, deploy, release,
-    archive or mutate Store Git. Those operations occur only through authorized
-    Finalize and the accepted team process.
+    archive or mutate Store Git. A person invokes any required closeout command or
+    skill explicitly through the accepted team process.
