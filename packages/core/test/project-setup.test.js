@@ -9,7 +9,7 @@ import test from "node:test";
 import { ProjectSetupService } from "../internal/project-setup.js";
 
 const templates = Object.freeze({
-  defaultId: "base",
+  defaultId: "default",
   catalog: Object.freeze({ entries: Object.freeze([]) }),
   resolve(id) { return Object.freeze({ id, root: `/templates/${id}` }); },
 });
@@ -71,7 +71,7 @@ test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence"
         return Object.freeze({
           storeId: options.store,
           agentId: options.agent,
-          template: options.template ?? "base",
+          template: options.template ?? "default",
           extensions: Object.freeze([]),
           extensionsSpecified: false,
           repositories: options.repo,
@@ -92,7 +92,7 @@ test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence"
   const initialized = await service.initializeExplicit({
     storeId: "specs",
     agentId: "qwen",
-    templateId: "base",
+    templateId: "default",
     repositories: [{
       id: "frontend",
       role: "code",
@@ -110,7 +110,7 @@ test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence"
     }],
     store: "specs",
     strict: true,
-    template: "base",
+    template: "default",
   }]);
   assert.equal(initializations[0].target, root);
   assert.equal(initializations[0].noStrict, false);

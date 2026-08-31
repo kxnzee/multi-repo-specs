@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/default/", import.meta.url));
-const EXTENSION_ROOT = fileURLToPath(new URL("../../extensions/openspec-base/", import.meta.url));
+const EXTENSION_ROOT = fileURLToPath(new URL("../../extensions/spec-driven-extended/", import.meta.url));
 const GATEWAY_ROOT = fileURLToPath(new URL("../../extensions/orchestrator-agent/", import.meta.url));
 const CORE_ROOT = fileURLToPath(new URL("../../packages/core/internal/", import.meta.url));
 const SDK_ROOT = fileURLToPath(new URL("../../packages/plugin-sdk/internal/", import.meta.url));
@@ -98,8 +98,8 @@ test("subagent adapters preserve the canonical body and own only provider metada
 test("repository evidence delegation keeps one question per subagent invocation", async () => {
   const artifacts = [
     "agent-instructions.md",
-    "skills/openspec-base-meta-planning/SKILL.md",
-    "subagents/openspec-base-repository-evidence-scout.md",
+    "skills/spec-driven-extended-meta-planning/SKILL.md",
+    "subagents/spec-driven-extended-repository-evidence-scout.md",
   ];
   for (const relative of artifacts) {
     const source = await fs.readFile(path.join(EXTENSION_ROOT, relative), "utf8");
@@ -116,7 +116,7 @@ test("repository evidence delegation keeps one question per subagent invocation"
   assert.doesNotMatch(globalInstructions, /Repository \| Capabilities/u);
 
   const scout = await fs.readFile(
-    path.join(EXTENSION_ROOT, "subagents/openspec-base-repository-evidence-scout.md"),
+    path.join(EXTENSION_ROOT, "subagents/spec-driven-extended-repository-evidence-scout.md"),
     "utf8",
   );
   assert.match(scout, /несколько вопросов[\s\S]*`status: blocked`/u);
@@ -149,7 +149,7 @@ test("Agent gateway instructions defer enforceable policy to MCP", async () => {
 });
 
 test("Apply context validates repository scope without Plugin-specific routing", async () => {
-  const relative = "skills/openspec-base-apply-context/SKILL.md";
+  const relative = "skills/spec-driven-extended-apply-context/SKILL.md";
   const source = await fs.readFile(path.join(EXTENSION_ROOT, relative), "utf8");
 
   assert.match(source, /`Repository \| Capabilities`/, relative);
@@ -157,11 +157,11 @@ test("Apply context validates repository scope without Plugin-specific routing",
   assert.match(source, /Plugin-specific поведение остаётся вне этого skill/iu, relative);
 });
 
-test("Base Extension does not route Superspec Changes through Base workflow", async () => {
+test("spec-driven-extended Extension does not route Superspec Changes through another workflow", async () => {
   const source = await fs.readFile(path.join(EXTENSION_ROOT, "agent-instructions.md"), "utf8");
   assert.match(source, /schemaName/u);
   assert.match(source, /только\s+к `spec-driven-extended`/u);
-  assert.match(source, /Для `superspec-multirepo`[\s\S]*не добавляй[\s\S]*Base Intake/u);
+  assert.match(source, /Для `superspec-multirepo`[\s\S]*не добавляй[\s\S]*spec-driven-extended Intake/u);
   assert.match(source, /Это правило не изменяет Superspec Brainstorm/u);
 });
 

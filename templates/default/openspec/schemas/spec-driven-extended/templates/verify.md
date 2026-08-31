@@ -27,7 +27,7 @@ Feature Acceptance does not authorize Release or Archive.
 
 ## Process Compliance
 
-`NOT_APPLICABLE` — Base does not prescribe TDD, worktrees, subagents or a specific
+`NOT_APPLICABLE` — `spec-driven-extended` does not prescribe TDD, worktrees, subagents or a specific
 review workflow.
 
 **Failures / next step:** `<details>`

@@ -1,9 +1,9 @@
 {
-  "name": "openspec-base",
+  "name": "spec-driven-extended",
   "version": "1.0.0",
   "description": "OpenSpec Store workflow, skills, commands and repository evidence subagent",
   "author": {
     "name": "OpenSpec Orchestrator"
   },
-  "agents": "./adapters/claude/subagents/openspec-base-repository-evidence-scout.md"
+  "agents": "./adapters/claude/subagents/spec-driven-extended-repository-evidence-scout.md"
 }

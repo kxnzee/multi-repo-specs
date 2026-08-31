@@ -1,5 +1,5 @@
-id: openspec-base
-name: OpenSpec Base Workflow
+id: spec-driven-extended
+name: spec-driven-extended Workflow
 manifests:
   claude: .claude-plugin/plugin.json
   qwen: qwen-extension.json

@@ -49,7 +49,7 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
   });
   const project = Object.freeze({
     strict: true,
-    template: Object.freeze({ id: "base" }),
+    template: Object.freeze({ id: "default" }),
     agent: Object.freeze({ id: "qwen" }),
     extensions: Object.freeze(["orchestrator-agent"]),
     plugins: Object.freeze([]),
@@ -129,7 +129,7 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
       inspect: async () => ({ toJSON: () => ({ version: 1, status: "ready" }) }),
     }),
     setupService: Object.freeze({
-      inspect: () => ({ default_template_id: "base" }),
+      inspect: () => ({ default_template_id: "default" }),
       initialize: async (input) => ({ store_id: input.storeId }),
       connect: async () => ({ status: "ready" }),
     }),
@@ -172,7 +172,7 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
 test("runtime does not advertise a bound Graph Plugin whose runtime is unavailable", async () => {
   const project = Object.freeze({
     strict: true,
-    template: Object.freeze({ id: "base" }),
+    template: Object.freeze({ id: "default" }),
     agent: Object.freeze({ id: "qwen" }),
     extensions: Object.freeze([]),
     plugins: Object.freeze(["openspec-graph"]),

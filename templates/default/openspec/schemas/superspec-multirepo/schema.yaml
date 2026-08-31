@@ -129,7 +129,7 @@ artifacts:
       evidence table. Present it for an explicit human decision. The Agent must keep
       the Human gate `PENDING` until a person explicitly selects `PASS`
       or `FAIL`; Agent evidence cannot make this decision. This is the same universal
-      acceptance contract used by Base.
+      acceptance contract used by `spec-driven-extended`.
 
       Separately record Superspec Process Compliance: Delta Spec sync and
       Design/Specs coherence, clean implementation state, TDD evidence, task reviews,

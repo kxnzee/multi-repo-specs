@@ -41,7 +41,7 @@ expected_source: Monitoring, runbooks, incidents, or maintainer confirmation
   Specs. Принятый `skip_specs` не требует фиктивной Delta Spec.
 - После Archive при наличии долговечного
   domain/architecture/security
-  изменения можно выполнить `/openspec-base-context audit --change <change-id>` либо
+  изменения можно выполнить `/spec-driven-extended-context audit --change <change-id>` либо
   передать точные `--spec`/`--domain`. Это необязательный context-promotion шаг:
   `current`, отложенный proposed diff или пропуск аудита не изменяют Master Specs и не
   блокируют Archive. Context и ADR обновляются только после показа diff и отдельного

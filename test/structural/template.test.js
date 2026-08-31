@@ -79,7 +79,7 @@ test("Default Template is copy-only and applies identically for every independen
   assert.deepEqual(Object.keys(descriptor).sort(), ["copy", "id", "name", "requires"]);
   assert.equal(descriptor.id, "default");
   assert.deepEqual(descriptor.requires, {
-    extensions: ["openspec-base", "superpowers"],
+    extensions: ["spec-driven-extended", "superpowers"],
   });
   assert.equal(Object.hasOwn(descriptor, "agents"), false);
   const agentDirectories = (await fs.readdir(AGENTS_ROOT, { withFileTypes: true }))
@@ -181,8 +181,8 @@ test("spec-driven-extended adds Verify without a separate Apply artifact", async
   assert.doesNotMatch(tasks, /Ответственный|Получить подтверждение/u);
 });
 
-test("Base and Superspec use one universal human Feature Acceptance", async () => {
-  const base = await fs.readFile(
+test("both schemas use one universal human Feature Acceptance", async () => {
+  const specDrivenExtended = await fs.readFile(
     path.join(TEMPLATE_ROOT, "openspec/schemas/spec-driven-extended/templates/verify.md"),
     "utf8",
   );
@@ -190,7 +190,7 @@ test("Base and Superspec use one universal human Feature Acceptance", async () =
     path.join(TEMPLATE_ROOT, "openspec/schemas/superspec-multirepo/templates/verify.md"),
     "utf8",
   );
-  const contract = featureAcceptanceContract(base);
+  const contract = featureAcceptanceContract(specDrivenExtended);
   assert.equal(contract, featureAcceptanceContract(superspec));
   assert.match(contract, /\*\*Decision:\*\* `PENDING` \/ `PASS` \/ `FAIL`/u);
   assert.match(contract, /Agent prepares evidence but does not choose the gate decision/u);

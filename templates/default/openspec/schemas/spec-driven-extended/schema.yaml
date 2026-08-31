@@ -13,7 +13,7 @@ artifacts:
       A new Change requires an agreed Intent. Use an accepted Daily Intent Brief,
       Jira Story, or another user-confirmed source when it explicitly provides the
       intended change, Why Now, expected improvement, success criteria, and
-      constraints. Do not require base-intent to run again when this source already
+      constraints. Do not require spec-driven-extended-intent to run again when this source already
       exists. If it does not exist, stop before Intake and ask the user to establish
       or supply the Intent; do not invent it inside this artifact.
 
@@ -67,7 +67,7 @@ artifacts:
       Create the proposal document that establishes WHY this change is needed.
       Read intake.md first, resolve or preserve its relevant open questions, and
       promote only confirmed conclusions without copying the questionnaire verbatim.
-      Before completion invoke openspec-base-meta-planning for the proposal stage and
+      Before completion invoke spec-driven-extended-meta-planning for the proposal stage and
       resolve its findings. Include a Repository Impact table containing only exact
       registered Code Repository IDs and capability paths expected to change.
 
@@ -104,7 +104,7 @@ artifacts:
     template: spec.md
     instruction: |
       Create specification files that define WHAT the system should do.
-      Before completion invoke openspec-base-meta-planning for the specs stage.
+      Before completion invoke spec-driven-extended-meta-planning for the specs stage.
 
       Read intake.md and proposal.md before writing Delta Specs. For every confirmed
       preliminary scenario, access rule, failure/degraded case, data/security
@@ -209,7 +209,7 @@ artifacts:
     template: design.md
     instruction: |
       Create the design document that explains HOW to implement the change.
-      Before completion invoke openspec-base-meta-planning for the design stage.
+      Before completion invoke spec-driven-extended-meta-planning for the design stage.
       Include a Repository Implementation Map for Repository IDs accepted in Proposal.
 
       When to include design.md (create only if any apply):
@@ -246,7 +246,7 @@ artifacts:
     template: tasks.md
     instruction: |
       Create the task list that breaks down the implementation work.
-      Before completion invoke openspec-base-meta-planning for the tasks stage and
+      Before completion invoke spec-driven-extended-meta-planning for the tasks stage and
       verify Scenario → Design decision → Task traceability.
 
       Before writing tasks, check design.md for Open Questions. If any of them
@@ -303,7 +303,7 @@ artifacts:
       Human gate `PENDING` until a person explicitly selects `PASS` or
       `FAIL`; Agent evidence cannot make this decision. After implementation changes,
       collect current evidence and obtain a new decision. Verify does not authorize
-      Release or Archive. Base Process Compliance is NOT_APPLICABLE.
+      Release or Archive. Process Compliance for `spec-driven-extended` is NOT_APPLICABLE.
     requires:
       - tasks
 
@@ -311,7 +311,7 @@ apply:
   requires: [tasks]
   tracks: tasks.md
   instruction: |
-    Invoke openspec-base-apply-context, then read context files, work through pending
+    Invoke spec-driven-extended-apply-context, then read context files, work through pending
     tasks and mark complete as you go. Apply does not create a separate receipt artifact.
     Pause if you hit blockers or need clarification. Human Feature Acceptance belongs
     to the following Verify artifact, not to implementation Tasks.

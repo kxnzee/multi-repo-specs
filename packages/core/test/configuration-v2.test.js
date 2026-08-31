@@ -8,14 +8,14 @@ import { configuration } from "@openspec-orch/core";
 const CONFIG_V2 = `version: 2
 strict: true
 template:
-  id: base
+  id: default
 agent:
   id: qwen
 extensions:
   - id: superpowers
     source: bundled:superpowers
-  - id: openspec-base
-    source: bundled:openspec-base
+  - id: spec-driven-extended
+    source: bundled:spec-driven-extended
 plugins:
   - id: codegraph
     source: "@openspec-orch/plugin-codegraph@1.0.0"
@@ -36,11 +36,11 @@ test("configuration parses and serializes the exact Project v2 assembly", () => 
   const project = configuration.parseProject(CONFIG_V2);
 
   assert.equal(project.version, 2);
-  assert.deepEqual(project.template, { id: "base" });
+  assert.deepEqual(project.template, { id: "default" });
   assert.deepEqual(project.agent, { id: "qwen" });
   assert.deepEqual(project.extensionDeclarations.map((entry) => entry.toConfig()), [
     { id: "superpowers", source: "bundled:superpowers" },
-    { id: "openspec-base", source: "bundled:openspec-base" },
+    { id: "spec-driven-extended", source: "bundled:spec-driven-extended" },
   ]);
   assert.deepEqual(project.pluginDeclarations.map((entry) => entry.toConfig()), [
     { id: "codegraph", source: "@openspec-orch/plugin-codegraph@1.0.0" },
@@ -50,9 +50,9 @@ test("configuration parses and serializes the exact Project v2 assembly", () => 
 
   const serialized = configuration.serializeProject(project);
   assert.match(serialized, /^version: 2$/m);
-  assert.match(serialized, /^template:\n {2}id: base$/m);
+  assert.match(serialized, /^template:\n {2}id: default$/m);
   assert.match(serialized, /^agent:\n {2}id: qwen$/m);
-  assert.equal(serialized.indexOf("id: superpowers") < serialized.indexOf("id: openspec-base"), true);
+  assert.equal(serialized.indexOf("id: superpowers") < serialized.indexOf("id: spec-driven-extended"), true);
   assert.deepEqual(configuration.parseProject(serialized).toConfig(), project.toConfig());
 });
 
@@ -74,7 +74,7 @@ test("configuration v2 rejects legacy fields, required Plugins and duplicate Ext
   );
   assert.throws(
     () => configuration.parseProject(CONFIG_V2.replace(
-      "  - id: openspec-base\n    source: bundled:openspec-base",
+      "  - id: spec-driven-extended\n    source: bundled:spec-driven-extended",
       "  - id: superpowers\n    source: bundled:superpowers",
     )),
     /повторяющийся extension-id/,

@@ -10,16 +10,16 @@ openspec new change <change-id> --schema spec-driven-extended
 openspec new change <change-id> --schema superspec-multirepo
 ```
 
-Дальнейшие Base-команды относятся к `spec-driven-extended`. Superspec следует
+Дальнейшие команды относятся к `spec-driven-extended`. Superspec следует
 собственному DAG, описанному в [Project Template](project-template.md).
 
 ## 2. Подготовьте Planning
 
 Если принятый Intent уже содержит изменение, причину, результат, критерии успеха и
-ограничения, не создавайте его повторно. Для Base выполните:
+ограничения, не создавайте его повторно. Для `spec-driven-extended` выполните:
 
 ```text
-/openspec-base-intake <change-id>
+/spec-driven-extended-intake <change-id>
 ```
 
 Затем подготовьте Proposal, Delta Specs, Design и Tasks штатным OpenSpec workflow.

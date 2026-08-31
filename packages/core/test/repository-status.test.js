@@ -50,7 +50,7 @@ async function repositoryScenario(t) {
   const project = new Project({
     version: 2,
     strict: true,
-    template: { id: "base" },
+    template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
     plugins: [],

@@ -2,7 +2,7 @@ id: default
 name: Default Project Template
 requires:
   extensions:
-    - openspec-base
+    - spec-driven-extended
     - superpowers
 copy:
   - from: context

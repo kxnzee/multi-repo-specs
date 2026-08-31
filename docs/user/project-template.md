@@ -9,7 +9,7 @@ Bundled Template `default` устанавливает:
 
 - `openspec/config.yaml` и project context;
 - schemas `spec-driven-extended` и `superspec-multirepo`;
-- Extensions `openspec-base` и `superpowers` как обязательные;
+- Extensions `spec-driven-extended` и `superpowers` как обязательные;
 - объявленные assets, включая `.gitignore`.
 
 Plugins и Agent gateway в Template не входят.

@@ -1,5 +1,5 @@
 ---
-name: openspec-base-apply-context
+name: spec-driven-extended-apply-context
 description: Подготовить нейтральный repository scope для штатного OpenSpec Apply по принятым Planning-артефактам. Не заменяет встроенный openspec-apply-change.
 ---
 

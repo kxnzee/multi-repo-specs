@@ -9,7 +9,7 @@
   actor, Repository scope и revision получай через Orchestrator MCP, а нормативные
   Store artifacts — через его resources. Не восстанавливай их из пересказа.
 - `openspec/context/` не заменяет Requirements и изменяется только через
-  `/openspec-base-context`.
+  `/spec-driven-extended-context`.
 
 ## Границы
 
@@ -28,22 +28,23 @@
 ## Маршрутизация
 
 - Для любого действия над существующим Change сначала получи его `schemaName` через
-  `get_change_context`. Применяй маршруты, skills и команды `openspec-base-*` только
+  `get_change_context`. Применяй маршруты, skills и команды `spec-driven-extended-*` только
   к `spec-driven-extended`. Для `superspec-multirepo` следуй artifact DAG и instructions этой
-  schema; не добавляй в него Base Intake, meta-planning или Apply preflight.
-- Для нового Base Change без принятого Intent начни с `base-intent`; готовый полный
+  schema; не добавляй в него spec-driven-extended Intake, meta-planning или Apply preflight.
+- Для нового `spec-driven-extended` Change без принятого Intent начни с
+  `spec-driven-extended-intent`; готовый полный
   Intent повторно не собирай. Первый artifact создаёт
-  `/openspec-base-intake <change-id>`. После Intake следующий маршрут выбирает
+  `/spec-driven-extended-intake <change-id>`. После Intake следующий маршрут выбирает
   пользователь. Это правило не изменяет Superspec Brainstorm.
-- Для проверки Planning используй `openspec-base-meta-planning`, для Apply preflight —
-  `openspec-base-apply-context`, для test cases — `openspec-base-test-cases`, для
-  долговечного context и ADR — `/openspec-base-context`.
+- Для проверки Planning используй `spec-driven-extended-meta-planning`, для Apply preflight —
+  `spec-driven-extended-apply-context`, для test cases — `spec-driven-extended-test-cases`, для
+  долговечного context и ADR — `/spec-driven-extended-context`.
 - Если маршрут не очевиден, вызови `get_next_action` и соблюдай возвращённого actor.
   Точные содержательные правила бери из `get_change_context`, а не из памяти.
 
 ## Repository evidence
 
-- Единственный project subagent — `openspec-base-repository-evidence-scout`. Используй
+- Единственный project subagent — `spec-driven-extended-repository-evidence-scout`. Используй
   его только на разрешённой стадии и по его собственному входному/выходному контракту.
 - Один вопрос — один новый subagent: пять вопросов — пять subagents. Scope и revision
   для каждого вызова возьми из `get_assignment_scope`.

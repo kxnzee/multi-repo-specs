@@ -1,5 +1,5 @@
 ---
-name: openspec-base-meta-planning
+name: spec-driven-extended-meta-planning
 description: Единая read-only проверка Proposal, Specs, Design, Tasks, impact или полного Planning OpenSpec Change. Использует фактические artifact rules, Store-артефакты и адресные вызовы repository evidence scout по правилу «один вопрос — один subagent»; не изменяет артефакты и не принимает Gate.
 ---
 
@@ -98,7 +98,7 @@ Requirement/Scenario или path:line и отделить факт, вывод, 
 ## Repository evidence
 
 Если на разрешённой стадии нужен current-state факт, вызвать только
-openspec-base-repository-evidence-scout.
+spec-driven-extended-repository-evidence-scout.
 
 - Один вопрос — один новый subagent. После декомпозиции N вопросов означают
   ровно N независимых вызовов: пять вопросов — пять subagents. Не передавать список
@@ -116,7 +116,7 @@ openspec-base-repository-evidence-scout.
 недоступен, выполнить такой же адресный read/search самостоятельно с теми же
 ограничениями. Store-level context и Planning review основной агент читает сам.
 
-openspec-base-test-cases применять только по запросу пользователя либо для проверки
+spec-driven-extended-test-cases применять только по запросу пользователя либо для проверки
 неоднозначного test coverage. Expected result брать из Planning; repository evidence
 может определить только automation placement. При его отсутствии использовать
 automation_placement: unknown.

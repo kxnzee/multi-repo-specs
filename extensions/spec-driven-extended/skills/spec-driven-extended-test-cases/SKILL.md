@@ -1,5 +1,5 @@
 ---
-name: openspec-base-test-cases
+name: spec-driven-extended-test-cases
 description: Сформировать проверяемый список тест-кейсов для конкретного OpenSpec Change. Использовать, когда пользователь просит подготовить тест-кейсы, тестовые сценарии, план тестирования или матрицу проверок по Change либо проверить покрытие его требований. Expected result выводить только из принятых Planning-артефактов; repository evidence использовать опционально для automation placement и существующего покрытия.
 ---
 

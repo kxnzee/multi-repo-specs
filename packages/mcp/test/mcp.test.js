@@ -163,12 +163,12 @@ test("Store resources follow each Change schema without mixing workflow artifact
 `],
     ["openspec/context/03-architecture.md", "# Architecture\n"],
     ["openspec/specs/payments/spec.md", "# Payments\n"],
-    ["openspec/changes/base-pay/.openspec.yaml", "schema: spec-driven-extended\n"],
-    ["openspec/changes/base-pay/intake.md", "# Intake\n"],
-    ["openspec/changes/base-pay/proposal.md", "# Proposal\n"],
-    ["openspec/changes/base-pay/verify.md", "# Verify\n"],
-    ["openspec/changes/base-pay/plan.md", "# Wrong workflow\n"],
-    ["openspec/changes/base-pay/notes.txt", "private notes\n"],
+    ["openspec/changes/extended-pay/.openspec.yaml", "schema: spec-driven-extended\n"],
+    ["openspec/changes/extended-pay/intake.md", "# Intake\n"],
+    ["openspec/changes/extended-pay/proposal.md", "# Proposal\n"],
+    ["openspec/changes/extended-pay/verify.md", "# Verify\n"],
+    ["openspec/changes/extended-pay/plan.md", "# Wrong workflow\n"],
+    ["openspec/changes/extended-pay/notes.txt", "private notes\n"],
     ["openspec/changes/super-pay/.openspec.yaml", "schema: superspec-multirepo\n"],
     ["openspec/changes/super-pay/brainstorm.md", "# Brainstorm\n"],
     ["openspec/changes/super-pay/proposal.md", "# Proposal\n"],
@@ -187,7 +187,7 @@ test("Store resources follow each Change schema without mixing workflow artifact
     "openspec/specs",
     "openspec/specs/payments",
     "openspec/changes",
-    "openspec/changes/base-pay",
+    "openspec/changes/extended-pay",
     "openspec/changes/super-pay",
     "openspec/changes/super-pay/specs",
     "openspec/changes/super-pay/specs/api",
@@ -211,9 +211,9 @@ test("Store resources follow each Change schema without mixing workflow artifact
   const listed = await resourcesService.list();
   assert.deepEqual(listed.map(({ name }) => name), [
     "openspec-orch.yaml",
-    "openspec/changes/base-pay/intake.md",
-    "openspec/changes/base-pay/proposal.md",
-    "openspec/changes/base-pay/verify.md",
+    "openspec/changes/extended-pay/intake.md",
+    "openspec/changes/extended-pay/proposal.md",
+    "openspec/changes/extended-pay/verify.md",
     "openspec/changes/super-pay/brainstorm.md",
     "openspec/changes/super-pay/finalize.md",
     "openspec/changes/super-pay/plan.md",
@@ -228,11 +228,11 @@ test("Store resources follow each Change schema without mixing workflow artifact
   const masterSpec = listed.find(({ name }) => name === "openspec/specs/payments/spec.md");
   assert.equal((await resourcesService.read(masterSpec.uri)).text, "# Payments\n");
   await assert.rejects(
-    resourcesService.read("openspec-orch://store/specs/openspec/changes/base-pay/notes.txt"),
+    resourcesService.read("openspec-orch://store/specs/openspec/changes/extended-pay/notes.txt"),
     /MCP_RESOURCE_NOT_FOUND/u,
   );
   assert.equal(listed.some(({ name }) => name.endsWith("/.openspec.yaml")), false);
-  assert.equal(listed.some(({ name }) => name === "openspec/changes/base-pay/plan.md"), false);
+  assert.equal(listed.some(({ name }) => name === "openspec/changes/extended-pay/plan.md"), false);
   assert.equal(listed.some(({ name }) => name === "openspec/changes/super-pay/intake.md"), false);
   await assert.rejects(
     resourcesService.read("openspec-orch://store/specs/..%2Fsecrets.txt"),

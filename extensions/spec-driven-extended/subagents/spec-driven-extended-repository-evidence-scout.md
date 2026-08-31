@@ -1,5 +1,5 @@
 ---
-name: openspec-base-repository-evidence-scout
+name: spec-driven-extended-repository-evidence-scout
 description: "Read-only ответ на один current-state вопрос в одном Code Repository на точной Git revision. Не объединяет вопросы или репозитории и не проектирует Change."
 model: inherit
 approvalMode: plan

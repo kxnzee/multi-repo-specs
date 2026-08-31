@@ -85,8 +85,8 @@ strict: true
 template: {id: default}
 agent: {id: qwen}
 extensions:
-  - id: openspec-base
-    source: bundled:openspec-base
+  - id: spec-driven-extended
+    source: bundled:spec-driven-extended
   - id: superpowers
     source: bundled:superpowers
 plugins: []

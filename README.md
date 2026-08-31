@@ -44,7 +44,7 @@ openspec-orch doctor
 openspec-orch repository status
 ```
 
-Template `default` автоматически добавляет Extensions `openspec-base` и
+Template `default` автоматически добавляет Extensions `spec-driven-extended` и
 `superpowers` и устанавливает две project-local schemas:
 
 - `spec-driven-extended` — короткий процесс с Intake и Verify;

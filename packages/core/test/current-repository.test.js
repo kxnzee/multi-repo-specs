@@ -27,7 +27,7 @@ async function commandWorkspace(t) {
   const project = createProject({
     version: 2,
     strict: true,
-    template: { id: "base" },
+    template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
     plugins: [{ id: "sample", source: "@test/sample@1.0.0" }],

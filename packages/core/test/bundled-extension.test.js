@@ -12,8 +12,8 @@ import {
   BundledExtensionProvider,
 } from "@openspec-orch/core";
 
-const OPENSPEC_BASE_ROOT = fileURLToPath(
-  new URL("../../../extensions/openspec-base/", import.meta.url),
+const SPEC_DRIVEN_EXTENDED_ROOT = fileURLToPath(
+  new URL("../../../extensions/spec-driven-extended/", import.meta.url),
 );
 const SUPERPOWERS_ROOT = fileURLToPath(
   new URL("../../../extensions/superpowers/", import.meta.url),
@@ -163,10 +163,10 @@ test("Extension payload may declare several simple MCP servers for every Agent",
   }
 });
 
-test("shipped openspec-base owns the complete workflow payload for every Agent", async () => {
-  const extension = await loadExtension(OPENSPEC_BASE_ROOT);
+test("shipped spec-driven-extended owns the complete workflow payload for every Agent", async () => {
+  const extension = await loadExtension(SPEC_DRIVEN_EXTENDED_ROOT);
 
-  assert.equal(extension.id, "openspec-base");
+  assert.equal(extension.id, "spec-driven-extended");
   assert.deepEqual(extension.manifests, {
     claude: ".claude-plugin/plugin.json",
     qwen: "qwen-extension.json",
@@ -174,15 +174,15 @@ test("shipped openspec-base owns the complete workflow payload for every Agent",
   });
   for (const relative of [
     "agent-instructions.md",
-    "commands/openspec-base-context.md",
-    "commands/openspec-base-intake.md",
-    "skills/base-intent/SKILL.md",
-    "skills/openspec-base-apply-context/SKILL.md",
-    "skills/openspec-base-meta-planning/SKILL.md",
-    "skills/openspec-base-test-cases/SKILL.md",
-    "subagents/openspec-base-repository-evidence-scout.md",
+    "commands/spec-driven-extended-context.md",
+    "commands/spec-driven-extended-intake.md",
+    "skills/spec-driven-extended-intent/SKILL.md",
+    "skills/spec-driven-extended-apply-context/SKILL.md",
+    "skills/spec-driven-extended-meta-planning/SKILL.md",
+    "skills/spec-driven-extended-test-cases/SKILL.md",
+    "subagents/spec-driven-extended-repository-evidence-scout.md",
   ]) {
-    assert.equal((await fs.stat(path.join(OPENSPEC_BASE_ROOT, relative))).isFile(), true, relative);
+    assert.equal((await fs.stat(path.join(SPEC_DRIVEN_EXTENDED_ROOT, relative))).isFile(), true, relative);
   }
 });
 

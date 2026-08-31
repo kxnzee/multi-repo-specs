@@ -2,7 +2,7 @@
 description: Инициализировать, проверить или обновить подтверждённый долговечный project context в openspec/context/.
 ---
 
-# /openspec-base-context
+# /spec-driven-extended-context
 
 - ОБЯЗАН отделять durable fact от owner decision, conflict, unknown,
   repository-local и transient данных.
@@ -29,8 +29,8 @@ Changes, Specs, Tasks и repository-specific техническую докуме
 Команда принимает необязательные selectors после режима:
 
 ```text
-/openspec-base-context audit [--change <change-id>] [--spec <capability-path>]... [--domain <domain-path>]...
-/openspec-base-context update [--change <change-id>] [--spec <capability-path>]... [--domain <domain-path>]...
+/spec-driven-extended-context audit [--change <change-id>] [--spec <capability-path>]... [--domain <domain-path>]...
+/spec-driven-extended-context update [--change <change-id>] [--spec <capability-path>]... [--domain <domain-path>]...
 ```
 
 - `--change` задаёт точный активный или архивный Change как источник scope и
@@ -75,7 +75,7 @@ Master Spec может подтвердить долговечный терми�
 Code Repository не является источником durable requirement, domain rule или
 architecture decision. На initialize он не открывается. В audit/update он допустим
 только для проверки одного явно сформулированного current-state conflict через
-openspec-base-repository-evidence-scout с полным входным контрактом. Finding из кода
+spec-driven-extended-repository-evidence-scout с полным входным контрактом. Finding из кода
 может стать conflict, unknown, TODO или implementation gap, но не durable fact без
 решения владельца.
 

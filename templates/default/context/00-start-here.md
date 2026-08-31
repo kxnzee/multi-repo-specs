@@ -24,7 +24,7 @@ Verification Contract, но их artifact graph и инженерный проц
 - Не переносите в центральный Store структуру модулей и классов, версии технологий,
   локальные API/config-параметры, команды build/test/lint, CI и упаковку отдельного
   Code Repository.
-- Для инициализации, аудита и обновления используйте команду `/openspec-base-context`.
+- Для инициализации, аудита и обновления используйте команду `/spec-driven-extended-context`.
   После Archive либо при периодической сверке ей можно передать точный `--change`,
   повторяемый `--spec <capability-path>` или `--domain <domain-path>`. Пользователь
   задаёт scope, а команда сама выбирает тематические context-файлы и ADR candidates,

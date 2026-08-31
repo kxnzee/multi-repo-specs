@@ -14,7 +14,7 @@ import {
 const CURRENT_CONFIG = `version: 2
 strict: true
 template:
-  id: base
+  id: default
 agent:
   id: qwen
 extensions: []
@@ -41,7 +41,7 @@ test("configuration parses version 2 YAML directly into the public domain model"
   assert.equal(project instanceof Project, true);
   assert.equal(project.storeRepository instanceof Repository, true);
   assert.equal(project.storeRepository.id, "specs");
-  assert.deepEqual(project.template, { id: "base" });
+  assert.deepEqual(project.template, { id: "default" });
   assert.deepEqual(project.agent, { id: "qwen" });
   assert.deepEqual(project.plugins, ["dependency-audit"]);
   assert.equal(project.isPluginConnected("dependency-audit", "frontend"), true);

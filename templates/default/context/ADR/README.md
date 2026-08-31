@@ -9,7 +9,7 @@ ADR создаётся только когда одновременно подт
 для ADR: Spec фиксирует WHAT, а ADR обязан сохранить принятое решение и WHY. Источником
 могут быть принятый Design, явное owner decision или maintained architecture document.
 
-Для change/spec/domain-scoped проверки используйте `/openspec-base-context audit`.
+Для change/spec/domain-scoped проверки используйте `/spec-driven-extended-context audit`.
 Команда только предлагает ADR candidate и точный diff; файл создаётся после отдельного
 подтверждения решения и записи.
 

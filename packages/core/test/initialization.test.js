@@ -310,7 +310,7 @@ test("custom Template is applied once and its source is not needed for repeated 
     target: root,
     storeId: "payments-specs",
     agentId: "claude",
-    extensions: [{ id: "openspec-base", source: "bundled:openspec-base" }],
+    extensions: [{ id: "spec-driven-extended", source: "bundled:spec-driven-extended" }],
     replaceExtensions: false,
   });
   assert.deepEqual(augmented.updated, ["openspec-orch.yaml"]);
@@ -318,7 +318,7 @@ test("custom Template is applied once and its source is not needed for repeated 
     configurationService.parseProject(
       await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"),
     ).extensions,
-    ["openspec-base", "superpowers"],
+    ["spec-driven-extended", "superpowers"],
   );
 
   const callCount = fake.calls.length;
@@ -566,9 +566,9 @@ test("CandidateCli interactive init builds the same normalized domain input", as
   ]);
   const extensionCatalog = new ExtensionCatalog([
     new ExtensionCatalogEntry({
-      id: "openspec-base",
-      name: "OpenSpec Base",
-      source: "bundled:openspec-base",
+      id: "spec-driven-extended",
+      name: "spec-driven-extended Workflow",
+      source: "bundled:spec-driven-extended",
     }),
     new ExtensionCatalogEntry({
       id: "superpowers",
@@ -580,7 +580,7 @@ test("CandidateCli interactive init builds the same normalized domain input", as
     new TemplateCatalogEntry({
       id: "default",
       name: "Default Project Template",
-      requiredExtensions: ["openspec-base", "superpowers"],
+      requiredExtensions: ["spec-driven-extended", "superpowers"],
     }),
   ]);
   const cli = new CandidateCli({
@@ -601,7 +601,7 @@ test("CandidateCli interactive init builds the same normalized domain input", as
         if (message === "Выберите Project Template") {
           assert.deepEqual(choices.map(({ name, value }) => ({ name, value })), [
             {
-              name: "Default Project Template (default) — требует: openspec-base, superpowers",
+              name: "Default Project Template (default) — требует: spec-driven-extended, superpowers",
               value: "default",
             },
             { name: "Локальный Project Template", value: "__local__" },
@@ -621,7 +621,7 @@ test("CandidateCli interactive init builds the same normalized domain input", as
           disabled: disabled ?? false,
         })), [
           {
-            value: "openspec-base",
+            value: "spec-driven-extended",
             checked: true,
             disabled: "Требуется Project Template default",
           },
@@ -672,7 +672,7 @@ test("CandidateCli interactive init builds the same normalized domain input", as
     templateId: "default",
     templateRoot: TEMPLATE_ROOT,
     extensions: [
-      { id: "openspec-base", source: "bundled:openspec-base" },
+      { id: "spec-driven-extended", source: "bundled:spec-driven-extended" },
       { id: "superpowers", source: "bundled:superpowers" },
     ],
     replaceExtensions: true,
@@ -694,9 +694,9 @@ test("init selects Template before Extensions and locks its required Extensions"
     ]),
     extensionCatalog: new ExtensionCatalog([
       new ExtensionCatalogEntry({
-        id: "openspec-base",
-        name: "OpenSpec Base",
-        source: "bundled:openspec-base",
+        id: "spec-driven-extended",
+        name: "spec-driven-extended Workflow",
+        source: "bundled:spec-driven-extended",
       }),
       new ExtensionCatalogEntry({
         id: "superpowers",
@@ -708,7 +708,7 @@ test("init selects Template before Extensions and locks its required Extensions"
       new TemplateCatalogEntry({
         id: "default",
         name: "Default Project Template",
-        requiredExtensions: ["openspec-base", "superpowers"],
+        requiredExtensions: ["spec-driven-extended", "superpowers"],
       }),
     ]),
     defaultTemplateId: "default",
@@ -734,7 +734,7 @@ test("init selects Template before Extensions and locks its required Extensions"
         disabled: disabled ?? false,
       })), [
         {
-          value: "openspec-base",
+          value: "spec-driven-extended",
           checked: true,
           disabled: "Требуется Project Template default",
         },
@@ -762,7 +762,7 @@ test("init selects Template before Extensions and locks its required Extensions"
     "Итоговое подтверждение",
   ]);
   assert.deepEqual(selection.extensions, [
-    { id: "openspec-base", source: "bundled:openspec-base" },
+    { id: "spec-driven-extended", source: "bundled:spec-driven-extended" },
     { id: "superpowers", source: "bundled:superpowers" },
   ]);
 });
@@ -774,9 +774,9 @@ test("init applies required Extension profiles in flag mode and rejects disablin
     ]),
     extensionCatalog: new ExtensionCatalog([
       new ExtensionCatalogEntry({
-        id: "openspec-base",
-        name: "OpenSpec Base",
-        source: "bundled:openspec-base",
+        id: "spec-driven-extended",
+        name: "spec-driven-extended Workflow",
+        source: "bundled:spec-driven-extended",
       }),
       new ExtensionCatalogEntry({
         id: "superpowers",
@@ -788,7 +788,7 @@ test("init applies required Extension profiles in flag mode and rejects disablin
       new TemplateCatalogEntry({
         id: "default",
         name: "Default Project Template",
-        requiredExtensions: ["openspec-base", "superpowers"],
+        requiredExtensions: ["spec-driven-extended", "superpowers"],
       }),
     ]),
     defaultTemplateId: "default",
@@ -798,12 +798,12 @@ test("init applies required Extension profiles in flag mode and rejects disablin
     store: "payments-specs",
     agent: "qwen",
   })).extensions, [
-    { id: "openspec-base", source: "bundled:openspec-base" },
+    { id: "spec-driven-extended", source: "bundled:spec-driven-extended" },
     { id: "superpowers", source: "bundled:superpowers" },
   ]);
 
   for (const [template, extension] of [
-    ["default", "openspec-base"],
+    ["default", "spec-driven-extended"],
     ["default", "superpowers"],
   ]) {
     await assert.rejects(service.resolve({

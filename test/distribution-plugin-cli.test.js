@@ -178,7 +178,7 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   const project = createProject({
     version: 2,
     strict: true,
-    template: { id: "base" },
+    template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
     plugins: [],
@@ -465,7 +465,7 @@ test("candidate distribution completes Change Tracking through the public CLI", 
   const project = createProject({
     version: 2,
     strict: true,
-    template: { id: "base" },
+    template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
     plugins: [],

@@ -2,7 +2,7 @@
 
 ## Required composition
 
-Project Template `default` declares both `openspec-base` and `superpowers` Extensions
+Project Template `default` declares both `spec-driven-extended` and `superpowers` Extensions
 as required and installs this schema beside `spec-driven-extended`. During interactive init both
 Extensions are shown selected and locked; flag mode adds them automatically. Explicit
 `--no-extensions` is rejected for this Template. A Change selects this schema with

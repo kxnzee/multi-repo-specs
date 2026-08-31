@@ -35,7 +35,7 @@ openspec-orch init /absolute/path/to/workspace/specs \
 В TTY можно запустить `openspec-orch init` без обязательных флагов и пройти
 интерактивный выбор. В non-TTY обязательны `--store` и `--agent`.
 
-Template `default` добавляет Extensions `openspec-base` и `superpowers`. Plugins
+Template `default` добавляет Extensions `spec-driven-extended` и `superpowers`. Plugins
 он не устанавливает.
 
 ## 3. Подключите машину
