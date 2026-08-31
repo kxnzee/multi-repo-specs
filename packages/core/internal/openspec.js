@@ -67,8 +67,10 @@ function nextArtifactAction(status, changeId, applyInstructions) {
   }
   const ready = artifacts.filter(({ status: value }) => value === "ready");
   const planningComplete = applyPrerequisitesComplete(status, artifacts);
-  if (ready.length > 0 && planningComplete && applyInstructions !== undefined) {
-    const progressState = applyProgressState(applyInstructions);
+  const progressState = planningComplete && applyInstructions !== undefined
+    ? applyProgressState(applyInstructions)
+    : undefined;
+  if (progressState !== undefined) {
     if (progressState === "pending") {
       return Object.freeze({
         action: "apply_change",
@@ -112,6 +114,14 @@ function nextArtifactAction(status, changeId, applyInstructions) {
       reason: "OpenSpec artifact graph содержит заблокированные artifacts",
       change_id: changeId,
       artifacts: Object.freeze(blocked.map(({ id }) => id)),
+    });
+  }
+  if (progressState === "complete") {
+    return Object.freeze({
+      action: "no_automatic_action",
+      actor: "human",
+      reason: "OpenSpec Apply завершён и не объявил следующий автоматический artifact",
+      change_id: changeId,
     });
   }
   return Object.freeze({
@@ -319,7 +329,7 @@ export class RepositoryOpenSpec {
     const status = await this.changeStatus(changeId);
     const candidate = nextArtifactAction(status, changeId);
     if (
-      !["prepare_artifact", "choose_ready_artifact"].includes(candidate.action) ||
+      !["apply_change", "prepare_artifact", "choose_ready_artifact"].includes(candidate.action) ||
       !Array.isArray(status.artifacts) ||
       !applyPrerequisitesComplete(status, status.artifacts)
     ) {

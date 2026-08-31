@@ -98,3 +98,25 @@ test("OpenSpec application keeps Apply ahead of a ready post-implementation arti
     change_id: "pay",
   });
 });
+
+test("OpenSpec application stops automation after every Apply task is complete", async () => {
+  const application = repositoryOpenSpec({
+    isPlanningComplete: true,
+    isComplete: true,
+    artifacts: [
+      { id: "tasks", status: "done" },
+      { id: "verify", status: "done" },
+    ],
+    applyRequires: ["tasks"],
+  }, {
+    state: "all_done",
+    progress: { total: 2, complete: 2, remaining: 0 },
+  });
+
+  assert.deepEqual(await application.nextAction("pay"), {
+    action: "no_automatic_action",
+    actor: "human",
+    reason: "OpenSpec Apply завершён и не объявил следующий автоматический artifact",
+    change_id: "pay",
+  });
+});
