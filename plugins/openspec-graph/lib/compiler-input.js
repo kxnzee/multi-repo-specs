@@ -105,7 +105,7 @@ export function capabilityFrom(file, marker) {
 
 /** Normalizes an archived OpenSpec directory to its original Change ID. */
 export function archivedChangeId(directory) {
-  return directory.replace(/^\d{4}-\d{2}-\d{2}-/u, "");
+  return directory.match(/^\d{4}-\d{2}-\d{2}-(.+)$/u)?.[1] ?? null;
 }
 
 /** Resolves exact repository declaration lines from the Orchestrator config when available. */

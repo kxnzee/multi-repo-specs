@@ -52,7 +52,7 @@ export const CORE_CLI_COMMANDS = Object.freeze({
 export const CORE_CONTRACT_VERSIONS = Object.freeze({
   coreState: 1,
   pluginStorage: 1,
-  project: 2,
+  project: 1,
   store: 1,
 });
 

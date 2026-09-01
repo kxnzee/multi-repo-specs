@@ -175,3 +175,59 @@ test("implementation map completion is retry-safe when only completion time chan
     completed_at: "2026-08-31T10:02:00.000Z",
   })).changed, false);
 });
+
+test("implementation map keeps concurrent completions for different tasks", async () => {
+  const context = assignmentContext();
+  const repository = new ImplementationMapRepository(context.files);
+  const attempt = (taskId, implementationRevision) => ({
+    repository_id: "frontend",
+    task: { id: taskId, description: `Implement task ${taskId}` },
+    schema_name: "spec-driven-extended",
+    planning_revision: BASE,
+    base_revision: BASE,
+    implementation_revision: implementationRevision,
+    started_at: "2026-08-31T10:00:00.000Z",
+    completed_at: "2026-08-31T10:01:00.000Z",
+  });
+
+  const results = await Promise.all([
+    repository.append("checkout-flow", attempt("1", IMPLEMENTATION)),
+    repository.append("checkout-flow", attempt("2", "c".repeat(40))),
+  ]);
+
+  assert.deepEqual(results.map(({ changed }) => changed), [true, true]);
+  assert.deepEqual(
+    (await repository.read("checkout-flow")).map(({ task }) => task.id),
+    ["1", "2"],
+  );
+});
+
+test("implementation map retries a transient Core file-update lock", async () => {
+  const context = assignmentContext();
+  let updates = 0;
+  const files = Object.freeze({
+    read: context.files.read.bind(context.files),
+    async update(...args) {
+      updates += 1;
+      if (updates === 1) {
+        throw Object.assign(new Error("FILE_UPDATE_BUSY: retry"), { code: "FILE_UPDATE_BUSY" });
+      }
+      return context.files.update(...args);
+    },
+  });
+  const repository = new ImplementationMapRepository(files);
+
+  const result = await repository.append("checkout-flow", {
+    repository_id: "frontend",
+    task: { id: "1", description: "Implement checkout" },
+    schema_name: "spec-driven-extended",
+    planning_revision: BASE,
+    base_revision: BASE,
+    implementation_revision: IMPLEMENTATION,
+    started_at: "2026-08-31T10:00:00.000Z",
+    completed_at: "2026-08-31T10:01:00.000Z",
+  });
+
+  assert.equal(result.changed, true);
+  assert.equal(updates, 2);
+});

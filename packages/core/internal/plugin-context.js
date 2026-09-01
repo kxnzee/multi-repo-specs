@@ -135,6 +135,9 @@ class PluginFilesFacade {
   write(relativePath, contents, options) {
     return this.#files.write(relativePath, contents, options);
   }
+  update(relativePath, operation, options) {
+    return this.#files.update(relativePath, operation, options);
+  }
 }
 
 /** Process API с Core cwd и timeout, которые Plugin не может переопределить. */

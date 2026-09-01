@@ -1,6 +1,7 @@
 /** @fileoverview Change-local task-to-revision manifest persistence. */
 
 import { parse, stringify } from "yaml";
+import { setTimeout as delay } from "node:timers/promises";
 
 import {
   assertChangeId,
@@ -60,7 +61,7 @@ export class ImplementationMapRepository {
   #files;
 
   constructor(files) {
-    if (!files || typeof files.read !== "function" || typeof files.write !== "function") {
+    if (!files || typeof files.read !== "function" || typeof files.update !== "function") {
       throw new Error("CHANGE_TRACKING_INVALID: требуется Files facade");
     }
     this.#files = files;
@@ -75,6 +76,10 @@ export class ImplementationMapRepository {
   async read(changeId) {
     const relativePath = this.pathFor(changeId);
     const source = await this.#files.read(relativePath, { optional: true });
+    return this.#parse(changeId, relativePath, source);
+  }
+
+  #parse(changeId, relativePath, source) {
     if (source === null) return Object.freeze([]);
     let document;
     try {
@@ -97,16 +102,29 @@ export class ImplementationMapRepository {
   async append(changeId, attempt) {
     const relativePath = this.pathFor(changeId);
     const checked = validateAttempt(attempt, relativePath);
-    const attempts = await this.read(changeId);
-    const existing = attempts.find((candidate) => sameAttempt(candidate, checked));
-    if (existing) {
-      return Object.freeze({ changed: false, path: relativePath, attempt: existing });
+    let result;
+    for (let retry = 0; retry < 20; retry += 1) {
+      try {
+        await this.#files.update(relativePath, (source) => {
+          const attempts = this.#parse(changeId, relativePath, source);
+          const existing = attempts.find((candidate) => sameAttempt(candidate, checked));
+          if (existing) {
+            result = Object.freeze({ changed: false, path: relativePath, attempt: existing });
+            return source;
+          }
+          result = Object.freeze({ changed: true, path: relativePath, attempt: checked });
+          return stringify({
+            contract_version: CHANGE_TRACKING_CONTRACT.implementationMapVersion,
+            change_id: changeId,
+            attempts: [...attempts, checked],
+          });
+        });
+        return result;
+      } catch (error) {
+        if (error?.code !== "FILE_UPDATE_BUSY" || retry === 19) throw error;
+        await delay(10);
+      }
     }
-    await this.#files.write(relativePath, stringify({
-      contract_version: CHANGE_TRACKING_CONTRACT.implementationMapVersion,
-      change_id: changeId,
-      attempts: [...attempts, checked],
-    }));
-    return Object.freeze({ changed: true, path: relativePath, attempt: checked });
+    throw new Error("FILE_UPDATE_BUSY: implementation map не удалось обновить");
   }
 }

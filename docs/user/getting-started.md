@@ -13,6 +13,19 @@ openspec-orch --help
 Нужен Node.js 20.19.0 или новее. Установка и обновление самого Orchestrator описаны
 [отдельно](installation-and-updates.md).
 
+До `connect` установите CLI выбранного Agent и убедитесь, что он доступен в `PATH`:
+
+```bash
+# для --agent claude
+claude --version
+
+# для --agent qwen или --agent gigacode
+qwen --version
+```
+
+Текущий adapter GigaCode использует совместимый `qwen` CLI. `connect` выполняет
+проверку выбранного Agent до подключения repositories и Extensions.
+
 ## 2. Создайте или клонируйте Store
 
 Сначала проверьте локальные регистрации OpenSpec:
@@ -21,8 +34,23 @@ openspec-orch --help
 openspec store list
 ```
 
-`--store` задаёт ID, уникальный на этой машине: один Store ID может указывать
-только на один локальный checkout. Для нового Store выберите свободный ID.
+`--store` задаёт стабильный ID Store. Он сохраняется в Store metadata и
+`openspec-orch.yaml`, попадает в Git и должен быть одинаковым у всех участников.
+Локальная регистрация OpenSpec дополнительно требует, чтобы на одной машине один
+Store ID указывал только на один checkout.
+
+Для нового Store заранее создайте существующий обычный каталог, сделайте его корнем
+чистого Git-репозитория и настройте `origin`:
+
+```bash
+mkdir -p /absolute/path/to/workspace/specs
+cd /absolute/path/to/workspace/specs
+git init -b main
+git remote add origin <store-remote>
+git status --short
+```
+
+Последняя команда не должна выводить изменённых файлов. После этого выполните `init`:
 
 ```bash
 openspec-orch init /absolute/path/to/workspace/specs \
@@ -40,22 +68,33 @@ Template `default` добавляет Extensions `spec-driven-extended` и `supe
 
 ### Существующий Store
 
-Новый участник не запускает `init` поверх существующего Store. Клонируйте принятую
-ветку или revision и убедитесь, что локальный Store ID не занят другим checkout:
+Новый участник не запускает `init` поверх существующего Store. Получите принятый
+Store ID у команды, клонируйте Store в стандартный каталог `<workspace>/<store-id>`
+и убедитесь, что локальный Store ID не занят другим checkout:
 
 ```bash
-git clone <store-remote> /absolute/path/to/workspace/specs
-cd /absolute/path/to/workspace/specs
+git clone <store-remote> /absolute/path/to/workspace/<store-id>
+cd /absolute/path/to/workspace/<store-id>
 git checkout <approved-branch-or-revision>
 openspec store list
 ```
 
 Дальше выполняйте обычный `connect` из следующего раздела. Он регистрирует Store в
 OpenSpec, подключает Code Repositories, восстанавливает standalone Extensions и
-Plugin-owned Extensions из portable bindings. После `connect` обязательно проверьте
-`doctor`, `repository status`, Agent gateway и Plugin status. Если Store ID уже указывает
-на другой путь, сначала разрешите конфликт локальной регистрации; не изменяйте identity
-клонированного Store.
+Plugin-owned Extensions для доступных Plugin packages из portable bindings. Bundled
+Plugins доступны из Orchestrator distribution. Runtime внешнего Plugin является
+machine-local и обычным `connect` не устанавливается: сначала установите его exact
+source из `openspec-orch.yaml`, затем повторите `connect`:
+
+```bash
+openspec-orch plugin init --plugin <plugin-id> --from <exact-source>
+openspec-orch connect
+```
+
+После `connect` обязательно проверьте `doctor`, `repository status`, Agent gateway и
+`plugin status`. Если Store ID уже указывает на другой путь, сначала разрешите конфликт
+локальной регистрации; не изменяйте identity клонированного Store. Если Store клонирован
+не в `<workspace>/<store-id>`, передайте `--workspace` явно, как показано ниже.
 
 ## 3. Подключите машину
 
@@ -116,6 +155,6 @@ openspec new change redesign-checkout --schema superspec-multirepo
 Для нового участника итоговая последовательность выглядит так:
 
 ```text
-clone Store → connect → doctor → repository status
+проверка Agent CLI → clone Store → connect → doctor → repository status
 → agent setup/status → plugin status → перезапуск Agent → работа с Change
 ```

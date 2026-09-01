@@ -310,6 +310,12 @@ test("Plugin exec defaults to registered command grammar without Repository boil
   assert.equal(calls[0].target, "PluginHost");
   assert.deepEqual(calls[0].options, { format: "json", tag: ["core", "sdk"] });
   assert.equal(Object.isFrozen(calls[0].options), true);
+
+  await assert.rejects(
+    plugin.exec(context, ["inspect", "PluginHost", "--format", "--tag", "core"]),
+    /--format требует значение/u,
+  );
+  assert.equal(calls.length, 1);
 });
 
 test("registered Store commands reject exec through a Code Repository instance", async () => {

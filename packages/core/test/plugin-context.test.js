@@ -37,7 +37,7 @@ async function contextScenario(t, { backendPlugin = false, storePlugin = false }
   await fs.mkdir(storeRoot);
   await fs.mkdir(frontendRoot, { recursive: true });
   const project = createProject({
-    version: 2,
+    version: 1,
     strict: true,
     template: { id: "default" },
     agent: { id: "qwen" },
@@ -160,6 +160,8 @@ test("PluginContextFactory creates a new immutable scoped context without exposi
 
   await context.files.write("plugin.txt", "safe\n");
   assert.equal(await context.files.read("plugin.txt"), "safe\n");
+  await context.files.update("plugin.txt", (current) => current.replace("safe", "updated"));
+  assert.equal(await context.files.read("plugin.txt"), "updated\n");
   await context.files.write("artifacts/result.txt", "done\n");
   assert.deepEqual(await context.files.listFiles("artifacts"), ["result.txt"]);
   await context.files.write("artifacts/results/record.yaml", "result: one\n");

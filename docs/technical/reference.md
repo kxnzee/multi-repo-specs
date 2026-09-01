@@ -77,10 +77,10 @@ CodeGraph использует общий `plugin connect/status/sync/exec/disco
 
 ## Project config
 
-`openspec-orch.yaml` поддерживает только version 2:
+`openspec-orch.yaml` поддерживает только version 1:
 
 ```yaml
-version: 2
+version: 1
 strict: true
 template: {id: default}
 agent: {id: qwen}

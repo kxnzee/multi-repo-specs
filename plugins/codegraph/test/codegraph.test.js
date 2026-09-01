@@ -1,18 +1,31 @@
 /** @fileoverview Самостоятельный контракт поставки CodeGraph Plugin Package. */
 
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import { assertPluginContract } from "@openspec-orch/plugin-sdk/testing";
 
 import plugin from "../index.js";
+import { CodeGraphRepository } from "../lib/repository.js";
 
 const packageRoot = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const launcher = path.join(packageRoot, "bin", "codegraph.js");
+const executeFile = promisify(execFile);
+
+/** Creates one disposable Git Repository for exclude-file tests. */
+async function gitRepositoryFixture(t) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-codegraph-repository-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  await executeFile("git", ["init", "--initial-branch=main"], { cwd: root });
+  return root;
+}
 
 test("Package owns its CodeGraph dependency and native Plugin entrypoint", async () => {
   const packageManifest = JSON.parse(await fs.readFile(
@@ -117,6 +130,41 @@ test("Native repository lifecycle delegates to the package launcher", async () =
     [process.execPath, [launcher, "sync", "."]],
     [process.execPath, [launcher, "explore", "authentication flow", "--json"]],
   ]);
+});
+
+test("CodeGraph Repository preserves line endings and adds its exclude once", async (t) => {
+  const root = await gitRepositoryFixture(t);
+  const excludePath = path.join(root, ".git", "info", "exclude");
+  await fs.writeFile(excludePath, "existing/\r\n", "utf8");
+  const repository = new CodeGraphRepository(root);
+
+  await repository.excludeGeneratedIndex();
+  await repository.excludeGeneratedIndex();
+
+  assert.equal(await fs.readFile(excludePath, "utf8"), "existing/\r\n.codegraph/\r\n");
+});
+
+test("CodeGraph Repository rejects a symlinked Git exclude file", async (t) => {
+  const root = await gitRepositoryFixture(t);
+  const excludePath = path.join(root, ".git", "info", "exclude");
+  const outside = path.join(root, "outside-exclude");
+  await fs.writeFile(outside, "outside\n", "utf8");
+  await fs.rm(excludePath);
+  try {
+    await fs.symlink(outside, excludePath);
+  } catch (error) {
+    if (["EPERM", "EACCES"].includes(error.code)) {
+      t.skip(`symlink creation unavailable: ${error.code}`);
+      return;
+    }
+    throw error;
+  }
+
+  await assert.rejects(
+    new CodeGraphRepository(root).excludeGeneratedIndex(),
+    /CODEGRAPH_GIT_EXCLUDE_UNSAFE/u,
+  );
+  assert.equal(await fs.readFile(outside, "utf8"), "outside\n");
 });
 
 test("Repository status maps native CodeGraph freshness without false ready", async () => {

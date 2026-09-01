@@ -1,36 +1,72 @@
 # Project Template
 
-Project Template — copy-only набор project-local config, context, schemas и assets.
-`openspec-orch init` применяет его один раз после штатного OpenSpec init.
+Project Template — copy-only пакет project-local конфигурации, context, schemas и
+assets. Он не выполняет hooks или произвольный код. При первом `openspec-orch init`
+Core сначала подготавливает штатный OpenSpec Agent pack, затем копирует файлы
+выбранного Template и записывает переносимую конфигурацию проекта.
+
+Template не владеет `openspec-orch.yaml`, Store identity, Plugins или Agent gateway.
+Встроенные OpenSpec skills `openspec-*` и команды `opsx-*` также создаются самим
+OpenSpec; Template и standalone Extensions не должны подменять их.
 
 ## Template по умолчанию
 
-Bundled Template `default` устанавливает:
+Bundled Template `default` копирует в Store:
 
-- `openspec/config.yaml` и project context;
-- schemas `spec-driven-extended` и `superspec-multirepo`;
-- Extensions `spec-driven-extended` и `superpowers` как обязательные;
-- объявленные assets, включая `.gitignore`.
+- `openspec/config.yaml`;
+- долговечный project context в `openspec/context/`;
+- schemas `spec-driven-extended` и `superspec-multirepo` со всеми templates;
+- `.gitignore` для локального состояния Orchestrator и Agent.
 
-Plugins и Agent gateway в Template не входят.
+Descriptor `default` требует standalone Extensions `spec-driven-extended` и
+`superpowers`. `init` добавляет их в project composition независимо от выбранного
+Agent и не позволяет отключить через `--no-extensions`. Их payload не является частью
+copy-only файлов Template: Extensions имеют собственный lifecycle.
+
+Plugins и user-scoped Agent gateway в Template не входят. Их подключают отдельно
+после создания Store.
+
+## Выбор Template и Extensions
+
+Без `--template` используется bundled Template `default`. В TTY `init` показывает
+каталог, а в non-TTY требует как минимум `--store` и `--agent`:
+
+```bash
+openspec-orch init /absolute/path/to/store \
+  --store specs \
+  --agent qwen \
+  --template default
+```
+
+Дополнительные standalone Extensions выбираются повторяемым `--extension`. Они не
+становятся частью Template и сохраняются отдельными declarations в
+`openspec-orch.yaml`. Обязательные Extensions выбранного bundled Template всегда
+добавляются к этому списку.
 
 ## Выбор schema
 
 Один Store может содержать Changes с разными schemas. OpenSpec сохраняет выбор в
-`.openspec.yaml` конкретного Change.
+`.openspec.yaml` конкретного Change:
 
 ```bash
 openspec new change update-copy --schema spec-driven-extended
 openspec new change redesign-checkout --schema superspec-multirepo
 ```
 
-| Schema | Artifact path |
+| Schema | Зависимости artifacts и действий |
 |---|---|
-| `spec-driven-extended` | Intake → Proposal/Specs/Design → Tasks → Verify |
-| `superspec-multirepo` | Brainstorm → Proposal/Specs/Design → Tasks → Plan → Verify |
+| `spec-driven-extended` | Intake → Proposal → Specs + Design → Tasks → Apply → Verify |
+| `superspec-multirepo` | Brainstorm → Proposal → Specs → Tasks → Plan → Apply → Verify; Design опционален после Brainstorm |
 
-Не меняйте schema уже созданного Change для переключения процесса. Если DAG
-несовместим, создайте новый Change и перенесите только принятый смысл.
+Знак `+` означает, что перед Tasks нужны оба artifact. Apply — штатное действие
+OpenSpec, а не отдельный файл. Доступность Verify в графе зависимостей artifacts не
+доказывает, что реализация выполнена: сначала нужен Apply candidate и фактическое
+evidence. Точный следующий шаг всегда определяйте через актуальные OpenSpec
+`status` и `instructions`; если одновременно разрешено несколько artifacts, один из
+них выбирает человек.
+
+Не переключайте schema уже созданного Change. Если её граф зависимостей больше не
+подходит, создайте новый Change и перенесите только принятый смысл.
 
 Обе schemas используют одну Feature Acceptance: Agent собирает evidence, человек
 явно принимает решение `PASS` или `FAIL`, а до решения gate остаётся `PENDING`.
@@ -39,17 +75,21 @@ Code Repositories. Verify не выполняет Release или Archive.
 
 ## Владение и обновление
 
-После `init` скопированные файлы принадлежат Store. Повторный `init` не обновляет
-их и не перезаписывает отличающийся target. Изменения Template переносятся отдельным
-проверяемым PR Store по [процедуре миграции](installation-and-updates.md).
+После успешного `init` скопированные файлы принадлежат Store. Повторный `init`
+распознаёт существующий Project, не применяет Template заново и не требует исходный
+каталог Custom Template. Он не обновляет и не перезаписывает скопированные assets.
 
-Не заменяйте несовместимый schema DAG, пока его используют активные Changes. Сначала
-завершите и архивируйте их либо сохраните прежнюю schema под отдельным локальным ID.
-После этого новые Changes можно создавать на обновлённой schema.
+Совместимые изменения инструкций Template переносятся в Store отдельным проверяемым
+PR по [процедуре миграции](installation-and-updates.md). Если меняется граф
+зависимостей schema, которую используют активные Changes, не заменяйте его под тем же
+ID. Оставьте прежнюю schema под прежним ID, установите новую под новым ID и выбирайте
+её только для новых Changes. Старую schema удаляйте отдельным изменением Store после
+завершения и Archive всех зависимых Changes.
 
 ## Custom Template
 
-Локальный Template состоит из descriptor и каталогов-источников:
+Локальный Template состоит из `template.yaml` и файлов-источников. Descriptor требует
+уникальный lowercase kebab-case `id`, непустой `name` и хотя бы одну операцию `copy`:
 
 ```text
 team-template/
@@ -75,9 +115,28 @@ openspec-orch init /absolute/path/to/store \
   --template /absolute/path/to/team-template
 ```
 
-Custom Template полностью заменяет `default`. Merge нескольких Templates,
-interpolation, conditions и delete rules не поддерживаются.
+Custom Template полностью заменяет copy payload `default`, но не штатный OpenSpec
+Agent pack, выбранный Agent или Core config. Автоматическое закрепление обязательных
+Extensions поддерживает bundled catalog; для локального Custom Template передавайте
+нужные standalone Extensions явно через `--extension`. Не полагайтесь на
+`requires.extensions` локального descriptor: он проверяется как metadata, но не
+добавляет и не блокирует Extensions при выборе `init`.
 
-Copy engine запрещает path traversal, запись в `.git/`, `.openspec-store/` и
-`openspec-orch.yaml`, symlinks, специальные файлы, collisions и перезапись
-отличающегося файла.
+Путь Template должен существовать отдельно от target Store; эти каталоги не могут
+совпадать или содержать друг друга. `copy.from` принимает обычный файл или каталог,
+а `copy.to` — относительный POSIX path внутри Store. Каталог копируется рекурсивно с
+сохранением file mode.
+
+Copy engine запрещает:
+
+- path traversal и замену корня Store;
+- запись в `.git/`, `.openspec-store/` и `openspec-orch.yaml`;
+- запись в защищённые пути Agent pack;
+- symlinks, специальные файлы и file-directory collisions;
+- регистронезависимые collisions;
+- перезапись существующего файла с отличающимся содержимым.
+
+Merge нескольких Templates, interpolation, conditions, delete rules и автоматическая
+миграция уже созданного Store не поддерживаются. Core сохраняет в
+`openspec-orch.yaml` только ID применённого Template, а не путь к его source; храните
+исходный Custom Template отдельно для будущих reviewable миграций.

@@ -69,7 +69,10 @@ test("FailClosedLock rejects concurrent mutation and releases after failure", as
   });
   await started;
 
-  await assert.rejects(lock.run(lockPath, async () => null), /STATE_BUSY/);
+  await assert.rejects(
+    lock.run(lockPath, async () => null),
+    (error) => error.code === "STATE_BUSY" && /STATE_BUSY/u.test(error.message),
+  );
   release();
   await assert.rejects(first, /operation failed/);
   assert.equal(await fs.lstat(lockPath).catch((error) => error.code), "ENOENT");

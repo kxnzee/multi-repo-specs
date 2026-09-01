@@ -16,7 +16,7 @@ Project содержит один Store Repository, Code Repositories, один 
 Extensions и Plugin declarations/bindings. Schema Change хранится самим OpenSpec в
 `.openspec.yaml`; она не является полем Project.
 
-`openspec-orch.yaml` поддерживает только `version: 2`. Неизвестная версия
+`openspec-orch.yaml` поддерживает только `version: 1`. Неизвестная версия
 отклоняется.
 
 ## Change Tracking

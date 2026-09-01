@@ -53,7 +53,7 @@ passthrough; иначе SDK может выполнить зарегистрир
 Core создаёт новый scoped context для каждого invocation:
 
 - immutable `project`, `repositories`, `repository` и `invocation`;
-- `files` для безопасных relative paths;
+- `files` для безопасных relative paths и атомарного read-modify-write через `update`;
 - read-only `git` operations;
 - OpenSpec version check;
 - `process` с executable, immutable argv, cwd, timeout и redaction;

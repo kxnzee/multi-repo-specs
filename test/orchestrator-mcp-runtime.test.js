@@ -173,6 +173,9 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
 });
 
 test("runtime does not advertise a bound Graph Plugin whose runtime is unavailable", async () => {
+  let resolutionError = Object.assign(new Error("PLUGIN_RUNTIME_UNAVAILABLE"), {
+    code: "PLUGIN_RUNTIME_UNAVAILABLE",
+  });
   const project = Object.freeze({
     strict: true,
     template: Object.freeze({ id: "default" }),
@@ -197,7 +200,7 @@ test("runtime does not advertise a bound Graph Plugin whose runtime is unavailab
     currentRepositoryService: Object.freeze({ resolve: async () => null }),
     managerService: Object.freeze({
       forStore: () => Object.freeze({
-        async resolve() { throw new Error("PLUGIN_RUNTIME_UNAVAILABLE"); },
+        async resolve() { throw resolutionError; },
       }),
     }),
     openSpecService: Object.freeze({
@@ -223,4 +226,7 @@ test("runtime does not advertise a bound Graph Plugin whose runtime is unavailab
     runtime.queryGraph({ query: "report" }),
     /not connected or unavailable/u,
   );
+
+  resolutionError = new TypeError("broken Plugin factory");
+  await assert.rejects(runtime.getStatus(), /broken Plugin factory/u);
 });
