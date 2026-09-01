@@ -10,3 +10,7 @@
 
 # Agent-local approvals
 .claude/settings.local.json
+
+# Gigacode settings
+.gigacode/settings*
+nul
