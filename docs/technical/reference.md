@@ -118,8 +118,14 @@ Read tools:
 
 Controlled setup tools:
 
-- `initialize_project` — только cwd MCP и strict mode;
+- `initialize_project` — только cwd MCP и strict mode; принимает обязательные
+  `store_id`, `agent_id`, опциональный bundled `template_id` и массив
+  `repositories` с полями `repository_id`, `remote`, `default_branch`;
 - `connect_project` — без workspace и relaxed overrides.
+
+Перед `initialize_project` клиент должен вызвать `get_setup_context` и подтвердить
+возвращённый `cwd`: tool не принимает другой target. Пользовательский сценарий
+описан в [руководстве по началу работы](../user/getting-started.md#альтернатива-инициализация-через-mcp).
 
 Task evidence tools:
 

@@ -28,6 +28,17 @@ qwen --version
 
 ## 2. Создайте или клонируйте Store
 
+`init` нужно выполнять для отдельного центрального Store Repository. Checkout
+Orchestrator, каталог установленного npm-пакета и Code Repositories не являются
+target для этой команды. Рекомендуемая раскладка:
+
+```text
+<workspace>/
+├── multi-repo-specs/   # исходники Orchestrator — init здесь не запускать
+├── specs/              # центральный Store — target команды init
+└── src/                # Code Repositories подключаются позднее через connect
+```
+
 Сначала проверьте локальные регистрации OpenSpec:
 
 ```bash
@@ -50,7 +61,20 @@ git remote add origin <store-remote>
 git status --short
 ```
 
-Последняя команда не должна выводить изменённых файлов. После этого выполните `init`:
+Последняя команда не должна выводить изменённых файлов. После этого выполните `init`.
+Можно перейти в Store и использовать текущий каталог:
+
+```bash
+cd /absolute/path/to/workspace/specs
+openspec-orch init . \
+  --store specs \
+  --agent qwen \
+  --repo frontend=ssh://git.example.org/product/frontend.git#main \
+  --repo backend=ssh://git.example.org/product/backend.git#main
+```
+
+Либо можно остаться в другом каталоге, но тогда путь к Store должен быть передан
+явно:
 
 ```bash
 openspec-orch init /absolute/path/to/workspace/specs \
@@ -65,6 +89,71 @@ openspec-orch init /absolute/path/to/workspace/specs \
 
 Template `default` добавляет Extensions `spec-driven-extended` и `superpowers`. Plugins
 он не устанавливает.
+
+### Альтернатива: инициализация через MCP
+
+MCP выполняет ту же Core-инициализацию, но всегда в strict mode и только в каталоге,
+из которого запущена текущая Agent-сессия. Поэтому сначала подготовьте чистый Git
+Store с `origin`, как описано выше, установите Agent gateway и перезапустите Agent:
+
+```bash
+cd /absolute/path/to/workspace/specs
+openspec-orch agent setup --agent qwen
+```
+
+Откройте новую Agent-сессию именно из корня Store, а не из checkout Orchestrator.
+До любых изменений вызовите read-only tool `get_setup_context` с пустым объектом и
+проверьте:
+
+- `cwd` точно совпадает с корнем Store;
+- нужные ID присутствуют в `choices.agents[].id` и `choices.templates[].id`, а
+  `choices.default_template_id` соответствует ожидаемому Template;
+- `doctor` не сообщает о повреждённом частично созданном Project; для нового Store
+  часть проверок ожидаемо станет доступна только после init;
+- в `constraints` указаны `fixed_cwd: true`, `strict_only: true`,
+  `target_role: store` и `separate_git_repository: true`;
+- текущий тип каталога не входит в `constraints.forbidden_targets`:
+  `orchestrator_checkout`, `template_source` или `code_repository`.
+
+Если `cwd` указывает на `multi-repo-specs` или другой Repository, не вызывайте
+`initialize_project`: завершите Agent-сессию, перейдите в корень Store и откройте
+новую сессию. У `initialize_project` нет аргумента для смены target.
+
+Если Agent всё же вызовет tool из неверного каталога, MCP вернёт ошибку
+`INIT_TARGET_INVALID` с причиной и корректным примером CLI. Agent должен передать эту
+причину пользователю, а не повторять вызов с тем же `cwd`.
+
+После проверки вызовите `initialize_project`. Это MCP tool, а не shell-команда:
+
+```json
+{
+  "store_id": "specs",
+  "agent_id": "qwen",
+  "template_id": "default",
+  "repositories": [
+    {
+      "repository_id": "frontend",
+      "remote": "ssh://git.example.org/product/frontend.git",
+      "default_branch": "main"
+    },
+    {
+      "repository_id": "backend",
+      "remote": "ssh://git.example.org/product/backend.git",
+      "default_branch": "main"
+    }
+  ]
+}
+```
+
+Обязательны только `store_id` и `agent_id`. Если `template_id` не указан,
+используется bundled Template по умолчанию. `repositories` можно не передавать для
+Store без Code Repositories. Локальный путь к Template, произвольный target,
+`--no-strict` и `--workspace` через `initialize_project` не поддерживаются.
+
+После успешной инициализации в той же Agent-сессии можно вызвать `connect_project`
+с пустым объектом, а затем read-only `get_doctor_report`. `connect_project` может
+клонировать зарегистрированные Code Repositories, поэтому перед его вызовом отдельно
+подтвердите этот шаг.
 
 ### Существующий Store
 
@@ -121,6 +210,9 @@ Relaxed mode (`--no-strict`) не клонирует repositories и не про
 используйте стандартную раскладку либо strict project с сохранённым workspace.
 
 ## 4. При необходимости установите Agent gateway
+
+Для инициализации через MCP gateway нужно установить до запуска Agent-сессии, как
+показано выше. При обычной CLI-инициализации этот шаг можно выполнить после `connect`.
 
 ```bash
 openspec-orch agent setup --agent qwen

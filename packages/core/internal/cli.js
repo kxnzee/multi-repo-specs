@@ -234,11 +234,22 @@ export class CandidateCli {
   }
 
   async #initialize(target, options) {
-    const operation = await this.#progress.run(
-      "Инициализация Store и Project Template...",
-      () => this.#setup.initialize({ target, options }),
-      { success: "Store и Project Template проверены" },
-    );
+    let progressStarted = false;
+    let operation;
+    try {
+      operation = await this.#setup.initialize({
+        target,
+        options,
+        onSelectionResolved: () => {
+          this.#progress.start("Инициализация Store и Project Template...");
+          progressStarted = true;
+        },
+      });
+      if (progressStarted) this.#progress.succeed("Store и Project Template проверены");
+    } catch (error) {
+      if (progressStarted) this.#progress.fail("Инициализация Store и Project Template: ошибка");
+      throw error;
+    }
     if (!operation) {
       console.log("Инициализация отменена.");
       return;

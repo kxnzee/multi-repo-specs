@@ -41,7 +41,16 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     getAssignmentScope() { return { assigned: true }; },
     getDoctorReport() { return { status: "ready" }; },
     queryGraph() { return { nodes: 1 }; },
-    initializeProject(args) { calls.push(["initialize_project", args]); return { created: [] }; },
+    initializeProject(args) {
+      if (args.store_id === "orchestrator") {
+        throw new Error(
+          "INIT_TARGET_INVALID: Store target пересекается с Project Template. " +
+            "Не запускайте openspec-orch init для checkout Orchestrator",
+        );
+      }
+      calls.push(["initialize_project", args]);
+      return { created: [] };
+    },
     connectProject() { calls.push(["connect_project"]); return { status: "ready" }; },
     startAttempt(args) { calls.push(["start_attempt", args]); return { stored: "local" }; },
     completeAttempt(args) { calls.push(["complete_attempt", args]); return { stored: "change" }; },
@@ -96,6 +105,14 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   assert.equal(
     listed.tools.find(({ name }) => name === "connect_project").annotations.openWorldHint,
     true,
+  );
+  assert.match(
+    listed.tools.find(({ name }) => name === "initialize_project").description,
+    /separate clean central Store Git repository/u,
+  );
+  assert.match(
+    listed.tools.find(({ name }) => name === "initialize_project").description,
+    /Never target an Orchestrator, Template, or Code Repository checkout/u,
   );
 
   const schemas = Object.fromEntries(listed.tools.map(({ name, inputSchema }) => (
@@ -175,6 +192,13 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   });
   assert.equal(unsafe.isError, true);
   assert.match(unsafe.content[0].text, /lowercase kebab-case/u);
+  const wrongTarget = await client.callTool({
+    name: "initialize_project",
+    arguments: { store_id: "orchestrator", agent_id: "qwen" },
+  });
+  assert.equal(wrongTarget.isError, true);
+  assert.match(wrongTarget.content[0].text, /INIT_TARGET_INVALID/u);
+  assert.match(wrongTarget.content[0].text, /checkout Orchestrator/u);
   const invalidChangeId = await client.callTool({
     name: "get_status",
     arguments: { change_id: "PAY_1" },

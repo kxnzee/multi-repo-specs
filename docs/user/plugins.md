@@ -216,6 +216,12 @@ assignment scope, doctor и Graph, controlled setup tools `initialize_project` �
 Намеренно отсутствуют verification, Release, Archive, arbitrary Git writes, Plugin
 lifecycle, Agent management и network transport.
 
+Для первого запуска через MCP откройте Agent из корня заранее подготовленного Store,
+а не из checkout Orchestrator или Code Repository. Проверьте фиксированный `cwd`
+через `get_setup_context`, затем вызовите `initialize_project`. Полный payload,
+ограничения strict mode и следующий `connect_project` приведены в разделе
+[«Альтернатива: инициализация через MCP»](getting-started.md#альтернатива-инициализация-через-mcp).
+
 ## Внешний Plugin
 
 `--from` принимает локальный package directory, tarball, Git URL или npm install

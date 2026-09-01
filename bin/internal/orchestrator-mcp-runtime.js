@@ -152,6 +152,13 @@ export class OrchestratorMcpRuntime {
         strict_only: true,
         arbitrary_workspace: false,
         disconnect_exposed: false,
+        target_role: "store",
+        separate_git_repository: true,
+        forbidden_targets: Object.freeze([
+          "orchestrator_checkout",
+          "template_source",
+          "code_repository",
+        ]),
       }),
     });
   }

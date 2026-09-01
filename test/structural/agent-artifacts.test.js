@@ -144,6 +144,8 @@ test("Agent gateway instructions defer enforceable policy to MCP", async () => {
   const source = await fs.readFile(path.join(GATEWAY_ROOT, "agent-instructions.md"), "utf8");
   assert.match(source, /get_change_context/u);
   assert.match(source, /get_next_action/u);
+  assert.match(source, /report its exact reason and\s+recommended recovery to the user/u);
+  assert.match(source, /Do not retry with unchanged input and context/u);
   assert.match(source, /do not emulate it with CLI, Git, file or process\s+tools/u);
   assert.doesNotMatch(source, /receipt|Release|Archive|strict mode|working directory/u);
 });

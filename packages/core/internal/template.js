@@ -75,6 +75,22 @@ async function resolveDirectoryRoot(requestedRoot, label) {
   return fs.realpath(absolute);
 }
 
+/** Отличает bundled Template установленного dependency от Template внутри Store source tree. */
+function isInstalledDependencyRoot(targetRoot, templateRoot) {
+  const relative = path.relative(targetRoot, templateRoot);
+  return relative.split(path.sep).some((segment) => segment.toLowerCase() === "node_modules");
+}
+
+/** Объясняет типичную ошибку запуска init из checkout самого Orchestrator. */
+function templateTargetOverlapError() {
+  return new Error(
+    "INIT_TARGET_INVALID: Store target пересекается с Project Template. " +
+      "Не запускайте openspec-orch init для checkout Orchestrator или Template; " +
+      "перейдите в отдельный чистый Git Store либо передайте его путь: " +
+      "openspec-orch init <store-path> --store <store-id> --agent <agent-id>",
+  );
+}
+
 /** Reads one validated descriptor after checking the complete Template source tree. */
 async function readTemplateDescriptor(templateRoot, schema) {
   await listSourceFiles(templateRoot, "", "Template root");
@@ -358,11 +374,13 @@ export class ProjectTemplateService {
   async plan({ templateRoot: requestedTemplateRoot, targetRoot: requestedTargetRoot, agent }) {
     const { descriptor, root: templateRoot } = await loadTemplateDefinition(requestedTemplateRoot);
     const targetRoot = await resolveDirectoryRoot(requestedTargetRoot, "Target root");
+    const targetInsideTemplate = isContainedPath(templateRoot, targetRoot, { allowRoot: true });
+    const templateInsideTarget = isContainedPath(targetRoot, templateRoot, { allowRoot: true });
     if (
-      isContainedPath(templateRoot, targetRoot, { allowRoot: true }) ||
-      isContainedPath(targetRoot, templateRoot, { allowRoot: true })
+      targetInsideTemplate ||
+      (templateInsideTarget && !isInstalledDependencyRoot(targetRoot, templateRoot))
     ) {
-      throw new Error("Template root и target root не должны пересекаться");
+      throw templateTargetOverlapError();
     }
     if (!(agent instanceof AgentDefinition)) {
       throw new Error("TEMPLATE_AGENT_INVALID: требуется независимый AgentDefinition");
@@ -383,6 +401,14 @@ export class ProjectTemplateService {
       "copy",
       (targetRelative) => agent.protects(targetRelative),
     );
+    const overlappingTarget = files.find(({ target }) => (
+      isContainedPath(templateRoot, target, { allowRoot: true })
+    ));
+    if (overlappingTarget) {
+      throw new Error(
+        `Template не может писать внутрь собственного root: ${overlappingTarget.targetRelative}`,
+      );
+    }
     return new TemplatePlan({
       templateRoot,
       targetRoot,

@@ -140,6 +140,18 @@ function fakeExecutor(projectRoot, { registered = false, failSetup = false } = {
   return { calls, executor };
 }
 
+/** Записывает lifecycle progress без реального терминального вывода. */
+function recordingProgress(events) {
+  return {
+    fail(message) { events.push(`progress:fail:${message}`); return this; },
+    run() { throw new Error("progress.run не должен охватывать интерактивный выбор init"); },
+    start(message) { events.push(`progress:start:${message}`); return this; },
+    succeed(message) { events.push(`progress:succeed:${message}`); return this; },
+    update(message) { events.push(`progress:update:${message}`); return this; },
+    warn(message) { events.push(`progress:warn:${message}`); return this; },
+  };
+}
+
 /** Собирает init service с одним fake process boundary для Git и OpenSpec. */
 function initFixture(executor) {
   const processService = new ProcessService(executor);
@@ -686,6 +698,72 @@ test("CandidateCli interactive init builds the same normalized domain input", as
   assert.equal(calls[0].repositories[0].role, "code");
   assert.equal(calls[0].repositories[0].remote, "https://example.test/frontend.git");
   assert.equal(calls[0].repositories[0].defaultBranch, "main");
+});
+
+test("CandidateCli starts init progress after interactive selection and closes it on failure", async () => {
+  const selection = {
+    storeId: "payments-specs",
+    agentId: "claude",
+    extensions: [],
+    extensionsSpecified: true,
+    repositories: [],
+    noStrict: false,
+  };
+  const successEvents = [];
+  const successfulCli = new CandidateCli({
+    initSelectionService: {
+      async resolve() {
+        successEvents.push("selection:complete");
+        return selection;
+      },
+    },
+    initializationService: {
+      async initialize() {
+        successEvents.push("initialization:start");
+        return {
+          target: "/workspace/payments-specs",
+          storeId: "payments-specs",
+          alreadyInitialized: true,
+          executionMode: "strict",
+          created: [],
+          updated: [],
+        };
+      },
+    },
+    progress: recordingProgress(successEvents),
+    templateRoot: TEMPLATE_ROOT,
+  });
+
+  await successfulCli.createProgram().parseAsync(["node", "openspec-orch", "init", "project"]);
+  assert.deepEqual(successEvents, [
+    "selection:complete",
+    "progress:start:Инициализация Store и Project Template...",
+    "initialization:start",
+    "progress:succeed:Store и Project Template проверены",
+  ]);
+
+  const failureEvents = [];
+  const failingCli = new CandidateCli({
+    initSelectionService: { async resolve() { return selection; } },
+    initializationService: {
+      async initialize() {
+        failureEvents.push("initialization:start");
+        throw new Error("template failed");
+      },
+    },
+    progress: recordingProgress(failureEvents),
+    templateRoot: TEMPLATE_ROOT,
+  });
+
+  await assert.rejects(
+    failingCli.createProgram().parseAsync(["node", "openspec-orch", "init", "project"]),
+    /template failed/u,
+  );
+  assert.deepEqual(failureEvents, [
+    "progress:start:Инициализация Store и Project Template...",
+    "initialization:start",
+    "progress:fail:Инициализация Store и Project Template: ошибка",
+  ]);
 });
 
 test("init selects Template before Extensions and locks its required Extensions", async () => {
