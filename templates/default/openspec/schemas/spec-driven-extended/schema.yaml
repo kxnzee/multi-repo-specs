@@ -1,0 +1,317 @@
+name: spec-driven-extended
+version: 1
+description: Extended spec-driven workflow - intake → proposal → specs/design → tasks → verify
+artifacts:
+  - id: intake
+    generates: intake.md
+    description: Confirmed source context and planning route for the change
+    template: intake.md
+    instruction: |
+      Create the intake document before Proposal to preserve the confirmed source
+      context of this Change and make the next planning decision explicit.
+
+      A new Change requires an agreed Intent. Use an accepted Daily Intent Brief,
+      Jira Story, or another user-confirmed source when it explicitly provides the
+      intended change, Why Now, expected improvement, success criteria, and
+      constraints. Do not require spec-driven-extended-intent to run again when this source already
+      exists. If it does not exist, stop before Intake and ask the user to establish
+      or supply the Intent; do not invent it inside this artifact.
+
+      Conduct a focused dialogue rather than dumping a static checklist:
+      - ask one missing question at a time;
+      - preload confirmed Intent conclusions and supplied answers, and never ask the
+        user to repeat information they already establish;
+      - when the available context supports honest alternatives, offer 2-4 concise
+        mutually exclusive options and allow the user to refine or reject them;
+      - distinguish confirmed facts, assumptions, conflicts, and open questions;
+      - do not read Code Repositories, CodeGraph, implementation tests, or
+        repository-specific configuration during Intake. A separate user request
+        does not change the allowed sources of this artifact;
+      - do not create the file until the intake is complete enough for the user to
+        choose the next route.
+
+      Capture:
+      - one or more applicable Change Profiles: new integration, UI change,
+        access/security, extension of existing behavior, or technical change;
+      - source references such as a Jira Story and supplied documents;
+      - the problem or opportunity, affected actors, Why Now, current observable
+        behavior, expected outcome, scope, constraints, and success criteria;
+      - known user and system scenarios, public interactions, access/security/data
+        constraints, and failure and degraded behavior;
+      - a PlantUML sequence diagram when the Change involves two or more interacting
+        components, an external dependency, asynchronous messaging, or meaningful
+        error branches. Otherwise retain the Interaction Diagram section with a
+        concise Not applicable reason;
+      - open questions and one Planning Route: ready_for_proposal,
+        explore_recommended, or blocked, with its rationale and exact Explore
+        questions when applicable.
+
+      For explore_recommended, keep the Exploration section pending with exact
+      researchable questions. When Explore results are supplied, classify findings
+      as CONFIRMED, CONTRADICTED, UNKNOWN, or MISSING, update this same intake.md,
+      and reassess the Planning Route. Do not create a second questionnaire or
+      exploration artifact and do not continue to Proposal automatically.
+
+      intake.md is planning input and historical provenance, not an accepted
+      Requirement, Scenario, Design decision, ADR, repository scope, or proof of
+      implementation. Proposal and later artifacts must promote only confirmed
+      conclusions into their proper normative boundaries. Do not add an Owner
+      Confirmation section.
+    requires: []
+
+  - id: proposal
+    generates: proposal.md
+    description: Initial proposal document outlining the change
+    template: proposal.md
+    instruction: |
+      Create the proposal document that establishes WHY this change is needed.
+      Read intake.md first, resolve or preserve its relevant open questions, and
+      promote only confirmed conclusions without copying the questionnaire verbatim.
+      Before completion invoke spec-driven-extended-meta-planning for the proposal stage and
+      resolve its findings. Include a Repository Impact table containing only exact
+      registered Code Repository IDs and capability paths expected to change.
+
+      Sections:
+      - **Why**: 1-2 sentences on the problem or opportunity. What problem does this solve? Why now?
+      - **What Changes**: Bullet list of changes. Be specific about new capabilities, modifications, or removals. Mark breaking changes with **BREAKING**.
+      - **Capabilities**: Identify which specs will be created or modified:
+        - **New Capabilities**: List capabilities being introduced. Each becomes a new `specs/<capability-path>/spec.md`. Use kebab-case for path segments you introduce (e.g., `user-auth` or `identity/user-auth`) and follow the project's existing spec organization.
+        - **Modified Capabilities**: List existing capabilities whose REQUIREMENTS are changing. Only include if spec-level behavior changes (not just implementation details). Each needs a delta spec file. Use the exact existing path under `openspec/specs/`. Leave empty if no requirement changes.
+      - **Impact**: Affected code, APIs, dependencies, or systems.
+
+      IMPORTANT: The Capabilities section is critical. It creates the contract between
+      proposal and specs phases. Research existing specs before filling this in.
+      Each capability listed here will need a corresponding spec file.
+
+      Every change must either declare at least one capability (new or
+      modified) or explicitly opt out of specs: `openspec validate` rejects a
+      change with zero deltas unless the change's `.openspec.yaml` sets
+      `skip_specs: true`. Use `skip_specs: true` only when no spec-level
+      behavior changes (pure refactor, tooling, docs) - specs describe
+      behavior, so if behavior does not change, no spec should change either.
+      Do not invent a requirement just to satisfy validation.
+
+      Keep it concise (1-2 pages). Focus on the "why" not the "how" -
+      implementation details belong in design.md.
+
+      This is the foundation - specs, design, and tasks all build on this.
+    requires:
+      - intake
+
+  - id: specs
+    generates: "specs/**/*.md"
+    description: Detailed specifications for the change
+    template: spec.md
+    instruction: |
+      Create specification files that define WHAT the system should do.
+      Before completion invoke spec-driven-extended-meta-planning for the specs stage.
+
+      Read intake.md and proposal.md before writing Delta Specs. For every confirmed
+      preliminary scenario, access rule, failure/degraded case, data/security
+      constraint, and public interaction in Intake, decide explicitly whether it is
+      observable normative behavior. If it is, cover it with a Requirement and
+      Scenario in the appropriate capability. If it is not, keep it in its proper
+      Proposal/Design/open-question boundary. Never silently drop a confirmed Intake
+      item and never promote an assumption or unknown into a Requirement.
+
+      A spec is a behavior contract, not an implementation plan.
+
+      Good spec content:
+      - Observable behavior users or downstream systems rely on
+      - Inputs, outputs, and error conditions
+      - External constraints (security, privacy, reliability, compatibility)
+      - Scenarios that can be tested or explicitly validated
+
+      Avoid in specs:
+      - Internal class/function names
+      - Library or framework choices
+      - Step-by-step implementation details
+      - Detailed execution plans (those belong in design.md or tasks.md)
+
+      Quick test: if the implementation can change without changing externally
+      visible behavior, it likely does not belong in the spec.
+
+      Create one spec file per capability listed in the proposal's Capabilities section.
+      `<capability-path>` is the spec directory relative to `specs/` (for example,
+      `user-auth` or `identity/user-auth`). Preserve the full path:
+      - New capabilities: use the exact path from the proposal at `specs/<capability-path>/spec.md`. Any path segment newly introduced in the proposal must be kebab-case. Follow the project's existing organization; do not add a new domain level when the project uses a flat layout.
+      - Modified capabilities: use the exact existing path from `openspec/specs/<capability-path>/` when creating the delta at `specs/<capability-path>/spec.md`. Do not move or rename the capability.
+
+      There must be at least one spec file unless the change's `.openspec.yaml`
+      sets `skip_specs: true` (no spec-level behavior change) - `openspec validate`
+      rejects a zero-delta change without that marker. If the proposal lists no
+      capabilities and `skip_specs` is not set, revisit the proposal first.
+
+      Delta operations (use ## headers):
+      - **ADDED Requirements**: New capabilities
+      - **MODIFIED Requirements**: Changed behavior - MUST include full updated content
+      - **REMOVED Requirements**: Deprecated features - MUST include **Reason** and **Migration**
+      - **RENAMED Requirements**: Name changes only - use FROM:/TO: format
+
+      Format requirements:
+      - Each requirement: `### Requirement: <name>` followed by description
+      - Use SHALL/MUST for normative requirements (avoid should/may)
+      - Each scenario: `#### Scenario: <name>` with WHEN/THEN format
+      - Give every new Scenario a stable `<change-id>-<three-digit-index>` suffix
+      - **CRITICAL**: Scenarios MUST use exactly 4 hashtags (`####`). Using 3 hashtags or bullets will fail silently.
+      - Every requirement MUST have at least one scenario.
+
+      New capabilities only: start the delta spec with a `## Purpose` section -
+      one or two sentences (50+ characters, or `openspec validate --strict`
+      reports it as too brief) describing what the capability is for. Archive
+      copies it into the main spec it creates; without it the new main spec is
+      left with a `TBD ... Update Purpose after archive` placeholder to fill in
+      by hand. Do NOT add `## Purpose` to a delta for an existing capability -
+      that spec already has one and the delta's is ignored. If an existing
+      capability's Purpose is missing, still contains a `TBD` placeholder, or
+      must change, stop and return a blocker to the Spec Owner. Do not edit a
+      Master Spec directly from this Change; its correction requires a separate
+      accepted Store operation under the project's Master Spec rules.
+
+      MODIFIED requirements workflow:
+      1. Locate the existing requirement in `<planningHome.root>/openspec/specs/<capability-path>/spec.md` (the same store-aware root as above)
+      2. Copy the ENTIRE requirement block (from `### Requirement:` through all scenarios)
+      3. Paste under `## MODIFIED Requirements` and edit to reflect new behavior
+      4. Ensure header text matches exactly (whitespace-insensitive)
+
+      Common pitfall: Using MODIFIED with partial content loses detail at archive time.
+      If adding new concerns without changing existing behavior, use ADDED instead.
+
+      Example (a new capability, so it opens with `## Purpose`):
+      ```
+      ## Purpose
+
+      Lets users take their data out of the product in a portable format.
+
+      ## ADDED Requirements
+
+      ### Requirement: User can export data
+      The system SHALL allow users to export their data in CSV format.
+
+      #### Scenario: Successful export
+      - **WHEN** user clicks "Export" button
+      - **THEN** system downloads a CSV file with all user data
+
+      ## REMOVED Requirements
+
+      ### Requirement: Legacy export
+      **Reason**: Replaced by new export system
+      **Migration**: Use new export endpoint at /api/v2/export
+      ```
+
+      Specs should be testable - each scenario is a potential test case.
+    requires:
+      - proposal
+
+  - id: design
+    generates: design.md
+    description: Technical design document with implementation details
+    template: design.md
+    instruction: |
+      Create the design document that explains HOW to implement the change.
+      Before completion invoke spec-driven-extended-meta-planning for the design stage.
+      Include a Repository Implementation Map for Repository IDs accepted in Proposal.
+
+      When to include design.md (create only if any apply):
+      - Cross-cutting change (multiple services/modules) or new architectural pattern
+      - New external dependency or significant data model changes
+      - Security, performance, or migration complexity
+      - Ambiguity that benefits from technical decisions before coding
+
+      Sections:
+      - **Context**: Only the current state and constraints needed to explain the approach. Reference the proposal for motivation instead of restating it (e.g., "See proposal.md - Why").
+      - **Goals / Non-Goals**: What this design achieves and explicitly excludes. Don't restate the proposal's scope - add only design-level boundaries.
+      - **Decisions**: Key technical choices with rationale (why X over Y?). Include alternatives considered for each decision.
+      - **Risks / Trade-offs**: Known limitations, things that could go wrong. Format: [Risk] → Mitigation
+      - **Migration Plan**: Steps to deploy, rollback strategy (if applicable)
+      - **Open Questions**: Unknowns that can safely be answered later without
+        changing the specs, the approach, or the task breakdown. Omit if none.
+
+      Open questions are for genuinely deferrable unknowns, not decisions you
+      skipped. If a question would change the specs, the chosen approach, or
+      the task breakdown, resolve it now - ask the user instead of guessing.
+
+      Focus on architecture and approach, not line-by-line implementation.
+      The proposal covers why and what; design covers how. Reference the
+      proposal for motivation and, once written, the specs for requirements -
+      if a section would only restate them, point to them instead.
+
+      Good design docs explain the "why" behind technical decisions.
+    requires:
+      - proposal
+
+  - id: tasks
+    generates: tasks.md
+    description: Implementation checklist with a final verification checkpoint
+    template: tasks.md
+    instruction: |
+      Create the task list that breaks down the implementation work.
+      Before completion invoke spec-driven-extended-meta-planning for the tasks stage and
+      verify Scenario → Design decision → Task traceability.
+
+      Before writing tasks, check design.md for Open Questions. If any of them
+      would change what gets built, resolve them with the user first - do not
+      bake an unstated assumption into the task list.
+
+      **IMPORTANT: Follow the template below exactly.** The apply phase parses
+      checkbox format to track progress. Tasks not using `- [ ]` won't be tracked.
+
+      Guidelines:
+      - Group related tasks under ## numbered headings
+      - Each task MUST be a checkbox: `- [ ] X.Y Task description`
+      - Implementation tasks should be small enough to complete in one session
+      - Order tasks by dependency (what must be done first?)
+      - Each implementation task MUST state how to verify completion (a test,
+        command, observable behavior, or delivered artifact). Put that check in
+        the task's checkbox description. Add any other separate verification task
+        only when it checks broader integration or system behavior that spans
+        multiple implementation tasks.
+      - Keep Tasks implementation-only. Human Feature Acceptance belongs to the
+        following Verify artifact.
+
+      Example:
+      ```
+      ## 1. Setup
+
+      - [ ] 1.1 Create new module structure and verify expected files are present
+      - [ ] 1.2 Add dependencies to package.json and verify package installation succeeds
+
+      ## 2. Core Implementation
+
+      - [ ] 2.1 Implement data export function and verify the export test passes
+      - [ ] 2.2 Add CSV formatting utilities and verify unit tests cover quoting and delimiters
+      ```
+
+      Reference specs for what needs to be built, design for how to build it.
+    requires:
+      - specs
+      - design
+
+  - id: verify
+    generates: verify.md
+    description: Universal human Feature Acceptance after implementation
+    template: verify.md
+    instruction: |
+      Treat this artifact as a separate post-implementation gate: its availability in
+      the artifact graph is not proof that an Apply candidate exists and can never
+      justify PASS by itself.
+
+      Invoke **openspec-verify-change**, then fill the shared Feature Acceptance
+      evidence table with applicable OpenSpec, repository and Scenario results. Use
+      `N/A` only with a reason and `PENDING` for an applicable check that was not run.
+      Present that evidence for an explicit human decision. The Agent must keep the
+      Human gate `PENDING` until a person explicitly selects `PASS` or
+      `FAIL`; Agent evidence cannot make this decision. After implementation changes,
+      collect current evidence and obtain a new decision. Verify does not authorize
+      Release or Archive. Process Compliance for `spec-driven-extended` is NOT_APPLICABLE.
+    requires:
+      - tasks
+
+apply:
+  requires: [tasks]
+  tracks: tasks.md
+  instruction: |
+    Invoke spec-driven-extended-apply-context, then read context files, work through pending
+    tasks and mark complete as you go. Apply does not create a separate receipt artifact.
+    Pause if you hit blockers or need clarification. Human Feature Acceptance belongs
+    to the following Verify artifact, not to implementation Tasks.

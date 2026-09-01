@@ -307,6 +307,10 @@ export class PluginLifecycleService {
     const connectedIds = selectedIds.filter((repositoryId) => (
       storeProject.project.isPluginConnected(pluginId, repositoryId)
     ));
+    const disconnectedIds = new Set(connectedIds);
+    const remainingIds = storeProject.project.pluginConnections({ pluginId })
+      .map(({ repository }) => repository.id)
+      .filter((repositoryId) => !disconnectedIds.has(repositoryId));
     for (const repositoryId of connectedIds) {
       await this.#host.disconnectExtensions({ pluginId, repositoryId, storeProject });
     }
@@ -315,6 +319,16 @@ export class PluginLifecycleService {
       pluginId,
       selectedIds,
     );
+    if (connectedIds.length > 0 && remainingIds.length > 0) {
+      const currentStoreProject = await this.#storeProjects.find(storeProject.root);
+      for (const repositoryId of remainingIds) {
+        await this.#host.connectExtensions({
+          pluginId,
+          repositoryId,
+          storeProject: currentStoreProject,
+        });
+      }
+    }
     return Object.freeze(changes.map((change, index) => new PluginDisconnectionResult({
       disconnected: change.changed,
       pluginId,

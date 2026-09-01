@@ -66,10 +66,10 @@ test("DoctorService reuses read-only status services and keeps checking after fa
         calls.push(["extensions"]);
         return [
           {
-            extensionId: "openspec-base",
+            extensionId: "spec-driven-extended",
             targetId: "specs",
             state: "unavailable",
-            output: "EXTENSION_NATIVE_FAILED: openspec-base unavailable",
+            output: "EXTENSION_NATIVE_FAILED: spec-driven-extended unavailable",
           },
           {
             extensionId: "superpowers",
@@ -107,7 +107,7 @@ test("DoctorService reuses read-only status services and keeps checking after fa
     { id: "repository:specs", outcome: "pass" },
     { id: "repository:frontend", outcome: "warning" },
     { id: "repository:backend", outcome: "error" },
-    { id: "extension:openspec-base:specs", outcome: "error" },
+    { id: "extension:spec-driven-extended:specs", outcome: "error" },
     { id: "extension:superpowers:specs", outcome: "pass" },
     { id: "plugin:codegraph:frontend", outcome: "pass" },
     { id: "plugin:sample:backend", outcome: "error" },

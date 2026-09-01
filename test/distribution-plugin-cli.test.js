@@ -9,28 +9,22 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { execa } from "execa";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { parse } from "yaml";
 
 import { configuration, createProject } from "@openspec-orch/core";
 
-import {
-  commitFiles,
-  createCheckoutWithRemote,
-  runCommand,
-  temporaryDirectory,
-  writeFiles,
-} from "../test-fixtures/workspace.js";
-
 const CLI_PATH = process.env.OPENSPEC_ORCH_TEST_CLI_PATH ??
   fileURLToPath(new URL("../bin/openspec-orch.js", import.meta.url));
+const MCP_PATH = fileURLToPath(new URL("../bin/openspec-orch-mcp.js", import.meta.url));
+const distributionTest = process.env.OPENSPEC_ORCH_SKIP_DISTRIBUTION_SMOKE === "1"
+  ? test.skip
+  : test;
 
 /** Запускает candidate CLI в изолированном Store. */
 function runCli(cwd, ...args) {
   return execa(process.execPath, [CLI_PATH, ...args], { cwd });
-}
-
-/** Запускает подтверждаемую command через реальный stdin публичного CLI. */
-function confirmCli(cwd, ...args) {
-  return execa(process.execPath, [CLI_PATH, ...args], { cwd, input: "y\n" });
 }
 
 /** Создаёт fake Qwen с общей установкой packages и workspace-scoped activation. */
@@ -76,7 +70,7 @@ async function writeFakeQwen(fakeBin) {
   );
 }
 
-test("candidate distribution bootstraps the Agent gateway once in user scope", async (t) => {
+distributionTest("candidate distribution bootstraps the Agent gateway once in user scope", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-agent-bootstrap-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const fakeBin = path.join(root, "bin");
@@ -141,34 +135,57 @@ async function initializeGitRepository(root) {
   );
 }
 
-test("candidate distribution initializes bundled Plugins and mounts trusted root commands", async (t) => {
-  const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-distribution-"));
+/** Фиксирует текущее состояние изолированного fixture без зависимости от user config. */
+async function commitAll(root, message) {
+  await execa("git", ["add", "."], { cwd: root });
+  await execa(
+    "git",
+    [
+      "-c", "user.name=OpenSpec Orchestrator Test",
+      "-c", "user.email=orchestrator@example.test",
+      "commit", "-m", message,
+    ],
+    { cwd: root },
+  );
+}
+
+/** Создаёт общий public-distribution fixture с упорядоченным освобождением ресурсов. */
+async function distributionFixture(t, prefix) {
+  const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   const storeRoot = path.join(workspaceRoot, "specs");
   const codeRoot = path.join(workspaceRoot, "src", "frontend");
-  t.after(() => fs.rm(workspaceRoot, { recursive: true, force: true }));
   const originalXdgConfigHome = process.env.XDG_CONFIG_HOME;
   const originalXdgDataHome = process.env.XDG_DATA_HOME;
+  const originalPath = process.env.PATH;
+  const originalNativeLog = process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
+  const resourceCleanups = [];
+  t.after(async () => {
+    try {
+      for (const cleanup of resourceCleanups.reverse()) await cleanup();
+    } finally {
+      if (originalXdgConfigHome === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
+      if (originalXdgDataHome === undefined) delete process.env.XDG_DATA_HOME;
+      else process.env.XDG_DATA_HOME = originalXdgDataHome;
+      process.env.PATH = originalPath;
+      if (originalNativeLog === undefined) delete process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
+      else process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG = originalNativeLog;
+      await fs.rm(workspaceRoot, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 100,
+      });
+    }
+  });
   process.env.XDG_CONFIG_HOME = path.join(workspaceRoot, "xdg-config");
   process.env.XDG_DATA_HOME = path.join(workspaceRoot, "xdg-data");
-  t.after(() => {
-    if (originalXdgConfigHome === undefined) delete process.env.XDG_CONFIG_HOME;
-    else process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
-    if (originalXdgDataHome === undefined) delete process.env.XDG_DATA_HOME;
-    else process.env.XDG_DATA_HOME = originalXdgDataHome;
-  });
   const fakeBin = path.join(workspaceRoot, "bin");
   const nativeLog = path.join(workspaceRoot, "qwen-native.jsonl");
   await fs.mkdir(fakeBin);
   await writeFakeQwen(fakeBin);
-  const originalPath = process.env.PATH;
-  const originalNativeLog = process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
   process.env.PATH = `${fakeBin}${path.delimiter}${originalPath}`;
   process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG = nativeLog;
-  t.after(() => {
-    process.env.PATH = originalPath;
-    if (originalNativeLog === undefined) delete process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
-    else process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG = originalNativeLog;
-  });
   await fs.mkdir(storeRoot);
   await fs.mkdir(codeRoot, { recursive: true });
   await fs.writeFile(path.join(codeRoot, "index.js"), "export const ready = true;\n");
@@ -177,7 +194,7 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   const project = createProject({
     version: 2,
     strict: true,
-    template: { id: "base" },
+    template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
     plugins: [],
@@ -224,6 +241,22 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     "openspec",
     ["store", "register", storeRoot, "--id", "specs", "--yes", "--json"],
     { cwd: storeRoot },
+  );
+
+  return Object.freeze({
+    codeRoot,
+    nativeLog,
+    registerCleanup(cleanup) {
+      resourceCleanups.push(cleanup);
+    },
+    storeRoot,
+  });
+}
+
+distributionTest("candidate distribution initializes bundled Plugins and mounts trusted root commands", async (t) => {
+  const { codeRoot, nativeLog, storeRoot } = await distributionFixture(
+    t,
+    "openspec-orch-distribution-cli-",
   );
 
   const graphSeed = path.join(storeRoot, "openspec/graph.yaml");
@@ -274,6 +307,10 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   await assert.rejects(fs.access(graphSeed), { code: "ENOENT" });
   await runCli(
     storeRoot,
+    "plugin", "connect", "change-tracking", "--repo", "specs", "--repo", "frontend",
+  );
+  await runCli(
+    storeRoot,
     "plugin", "connect", "codegraph", "--repo", "specs", "--repo", "frontend",
   );
   const connectedExtensions = (await fs.readFile(nativeLog, "utf8"))
@@ -283,11 +320,19 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     .filter(({ args }) => args[1] === "install");
   assert.deepEqual(connectedExtensions.map(({ cwd, args }) => ({
     cwd,
+    nativeId: args[2].slice(args[2].lastIndexOf(":") + 1),
     operation: args.slice(0, 2),
     scope: args.slice(-3),
   })), [
     {
+      cwd: await fs.realpath(codeRoot),
+      nativeId: "change-tracking-agent",
+      operation: ["extensions", "install"],
+      scope: ["--scope", "project", "--consent"],
+    },
+    {
       cwd: await fs.realpath(storeRoot),
+      nativeId: "codegraph-agent",
       operation: ["extensions", "install"],
       scope: ["--scope", "project", "--consent"],
     },
@@ -298,6 +343,7 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     .map((line) => JSON.parse(line))
     .filter(({ args }) => args[1] === "enable");
   assert.deepEqual(enabledExtensions.map(({ cwd }) => cwd), [
+    await fs.realpath(codeRoot),
     await fs.realpath(storeRoot),
     await fs.realpath(codeRoot),
   ]);
@@ -361,9 +407,8 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   );
   assert.match(execAll.stdout, /✓ codegraph → specs — команда выполнена/);
   assert.match(execAll.stdout, /✓ codegraph → frontend — команда выполнена/);
-  for (const command of ["track", "done", "status", "verify"]) {
-    assert.match(stdout, new RegExp(`\\b${command}\\b`));
-  }
+  assert.match(stdout, /\battempt\b/u);
+  assert.doesNotMatch(stdout, /\b(?:track|done|status|verify)\b/u);
   assert.doesNotMatch(stdout, /\b(?:assign|record)\b/u);
   assert.doesNotMatch(stdout, /\bmcp\b/);
   assert.doesNotMatch(stdout, /change-tracking\s+Команды Plugin/);
@@ -410,241 +455,70 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
   assert.deepEqual(withoutGraph.plugins, ["change-tracking"]);
 });
 
-test("candidate distribution completes Change Tracking through the public CLI", async (t) => {
-  const root = await temporaryDirectory(t, "openspec-orch-distribution-cycle-");
-  const originalXdgConfigHome = process.env.XDG_CONFIG_HOME;
-  const originalXdgDataHome = process.env.XDG_DATA_HOME;
-  process.env.XDG_CONFIG_HOME = path.join(root, "xdg-config");
-  process.env.XDG_DATA_HOME = path.join(root, "xdg-data");
-  t.after(() => {
-    if (originalXdgConfigHome === undefined) delete process.env.XDG_CONFIG_HOME;
-    else process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
-    if (originalXdgDataHome === undefined) delete process.env.XDG_DATA_HOME;
-    else process.env.XDG_DATA_HOME = originalXdgDataHome;
-  });
-  const fakeBin = path.join(root, "bin");
-  const nativeLog = path.join(root, "qwen-native.jsonl");
-  await fs.mkdir(fakeBin);
-  await writeFakeQwen(fakeBin);
-  const originalPath = process.env.PATH;
-  const originalNativeLog = process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
-  process.env.PATH = `${fakeBin}${path.delimiter}${originalPath}`;
-  process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG = nativeLog;
-  t.after(() => {
-    process.env.PATH = originalPath;
-    if (originalNativeLog === undefined) delete process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
-    else process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG = originalNativeLog;
-  });
-  const store = await createCheckoutWithRemote(
-    root,
-    "workspace/specs",
-    "specs",
-    { "openspec/config.yaml": "schema: spec-driven\n" },
-    { transportable: true },
+distributionTest("candidate distribution completes Change Tracking through public MCP", async (t) => {
+  const { codeRoot, registerCleanup, storeRoot } = await distributionFixture(
+    t,
+    "openspec-orch-distribution-mcp-",
   );
-  const frontend = await createCheckoutWithRemote(
-    root,
-    "workspace/src/frontend",
-    "frontend",
-    { "README.md": "frontend\n" },
+  await runCli(storeRoot, "plugin", "init", "--plugin", "change-tracking");
+  await runCli(
+    storeRoot,
+    "plugin", "connect", "change-tracking", "--repo", "specs", "--repo", "frontend",
   );
-  const backend = await createCheckoutWithRemote(
-    root,
-    "workspace/src/backend",
-    "backend",
-    { "README.md": "backend\n" },
-  );
-  const repository = ({ id, role, remote }) => ({
-    id,
-    role,
-    remote,
-    defaultBranch: "main",
-    plugins: [],
-  });
-  const project = createProject({
-    version: 2,
-    strict: true,
-    template: { id: "base" },
-    agent: { id: "qwen" },
-    extensions: [],
-    plugins: [],
-    repositories: [
-      repository({ id: "specs", role: "store", remote: store.remote }),
-      repository({ id: "frontend", role: "code", remote: frontend.remote }),
-      repository({ id: "backend", role: "code", remote: backend.remote }),
-    ],
-  });
-  await writeFiles(store.checkout, {
-    ".gitignore": [
-      ".openspec-orch/cache/",
-      ".openspec-orch/plugins/",
-      ".openspec-orch/state.json",
-      "",
-    ].join("\n"),
-    ".openspec-store/store.yaml": [
-      "version: 1",
-      "id: specs",
-      `remote: ${JSON.stringify(store.remote)}`,
-      "",
-    ].join("\n"),
-    "openspec-orch.yaml": configuration.serializeProject(project),
-    "openspec/changes/checkout-flow/proposal.md": [
-      "## Repository Impact",
-      "",
-      "| Repository | Capabilities |",
-      "| --- | --- |",
-      "| `frontend` | `checkout/ui` |",
-      "| `backend` | `checkout/api` |",
-      "",
-    ].join("\n"),
-    "openspec/changes/checkout-flow/design.md": "# Design\n",
-    "openspec/changes/checkout-flow/specs/checkout/spec.md": "# Checkout spec\n",
-    "openspec/changes/checkout-flow/tasks.md": "# Tasks\n",
-    "openspec/changes/duplicate-impact/proposal.md": [
-      "## Repository Impact",
-      "",
-      "| Repository | Capabilities |",
-      "| --- | --- |",
-      "| `frontend` | `checkout/ui` |",
-      "| `frontend` | `checkout/ui` |",
-      "",
-    ].join("\n"),
-    "openspec/changes/duplicate-impact/design.md": "# Design\n",
-    "openspec/changes/duplicate-impact/specs/checkout/spec.md": "# Checkout spec\n",
-    "openspec/changes/duplicate-impact/tasks.md": "# Tasks\n",
-    "openspec/changes/refund-flow/proposal.md": [
-      "## Repository Impact",
-      "",
-      "| Repository | Capabilities |",
-      "| --- | --- |",
-      "| `frontend` | `refund/ui` |",
-      "",
-    ].join("\n"),
-    "openspec/changes/refund-flow/design.md": "# Design\n",
-    "openspec/changes/refund-flow/specs/refund/spec.md": "# Refund spec\n",
-    "openspec/changes/refund-flow/tasks.md": "# Tasks\n",
-  });
-  await commitFiles(store.checkout, {}, { message: "configure distribution Store" });
   await execa(
     "openspec",
-    ["store", "register", store.checkout, "--id", "specs", "--yes", "--json"],
-    { cwd: store.checkout },
+    ["new", "change", "tracker-smoke", "--schema", "spec-driven"],
+    { cwd: storeRoot },
   );
-  for (const checkout of [frontend.checkout, backend.checkout]) {
-    await commitFiles(
-      checkout,
-      { "openspec/config.yaml": "store: specs\n" },
-      { message: "connect Store pointer" },
-    );
-  }
+  const tasksPath = path.join(storeRoot, "openspec/changes/tracker-smoke/tasks.md");
+  await fs.writeFile(tasksPath, "# Tasks\n\n- [ ] 1.1 Implement tracker smoke\n");
+  await commitAll(storeRoot, "Plan tracker smoke");
+  await fs.mkdir(path.join(codeRoot, "openspec"), { recursive: true });
+  await fs.writeFile(path.join(codeRoot, "openspec/config.yaml"), "store: specs\n");
+  await commitAll(codeRoot, "Connect OpenSpec Store");
+  const baseRevision = (await execa("git", ["rev-parse", "HEAD"], { cwd: codeRoot })).stdout;
 
-  await runCli(store.checkout, "plugin", "init", "--plugin", "change-tracking");
-  await runCli(
-    store.checkout,
-    "plugin", "connect", "change-tracking",
-    "--repo", "specs", "--repo", "frontend", "--repo", "backend",
-  );
-  const nativeCalls = await fs.readFile(nativeLog, "utf8").catch((error) => (
-    error.code === "ENOENT" ? "" : Promise.reject(error)
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [MCP_PATH],
+    cwd: codeRoot,
+    env: { ...process.env },
+    stderr: "pipe",
+  });
+  const client = new Client({ name: "tracker-composition-smoke", version: "1.0.0" });
+  registerCleanup(() => client.close());
+  await client.connect(transport);
+  const started = await client.callTool({
+    name: "start_attempt",
+    arguments: { change_id: "tracker-smoke", task_id: "1" },
+  });
+  assert.equal(JSON.parse(started.content[0].text).base_revision, baseRevision);
+
+  await fs.writeFile(path.join(codeRoot, "index.js"), "export const ready = 'tracked';\n");
+  await commitAll(codeRoot, "Implement tracker smoke");
+  const implementationRevision = (
+    await execa("git", ["rev-parse", "HEAD"], { cwd: codeRoot })
+  ).stdout;
+  await fs.writeFile(tasksPath, "# Tasks\n\n- [x] 1.1 Implement tracker smoke\n");
+  const completed = await client.callTool({
+    name: "complete_attempt",
+    arguments: { change_id: "tracker-smoke", task_id: "1" },
+  });
+  assert.equal(JSON.parse(completed.content[0].text).attempt.implementation_revision,
+    implementationRevision);
+  const implementationMap = parse(await fs.readFile(
+    path.join(storeRoot, "openspec/changes/tracker-smoke/implementation-map.yaml"),
+    "utf8",
   ));
-  assert.doesNotMatch(nativeCalls, /change-tracking-agent/u);
-  await runCommand("git", ["-C", store.checkout, "add", "openspec-orch.yaml"]);
-  await runCommand("git", ["-C", store.checkout, "commit", "-m", "enable change tracking"]);
-
-  await assert.rejects(
-    confirmCli(store.checkout, "track", "duplicate-impact"),
-    (error) => error.exitCode === 1 && /REPOSITORY_IMPACT_INVALID/u.test(error.stderr),
-  );
-  const tracked = await runCli(store.checkout, "track", "checkout-flow");
-  assert.match(tracked.stdout, /Repository scope: frontend, backend/u);
-  assert.match(tracked.stdout, /Сбор evidence начат/u);
-  assert.doesNotMatch(tracked.stdout, /взят|задач.*работ/u);
-
-  await assert.rejects(
-    runCli(store.checkout, "verify", "checkout-flow"),
-    (error) => error.exitCode === 1 && /VERIFY_INVALID/.test(error.stderr),
-  );
-
-  const workInProgress = path.join(frontend.checkout, "work-in-progress.txt");
-  await fs.writeFile(workInProgress, "not committed\n", "utf8");
-  await assert.rejects(
-    runCli(frontend.checkout, "done"),
-    (error) => error.exitCode === 1 && /WORKTREE_DIRTY/u.test(error.stderr),
-  );
-  await fs.rm(workInProgress);
-  await assert.rejects(
-    runCli(frontend.checkout, "done", "--sha", "f".repeat(40)),
-    (error) => error.exitCode === 1 && /COMMIT_NOT_FOUND/u.test(error.stderr),
-  );
-
-  const frontendDone = await runCli(frontend.checkout, "done");
-  assert.match(frontendDone.stdout, /frontend @ [0-9a-f]{40}/u);
-  assert.match(frontendDone.stdout, /не найден в известных remote-tracking refs/u);
-  assert.doesNotMatch(frontendDone.stdout, /Версия собрана/u);
-  const backendDone = await runCli(backend.checkout, "done");
-  assert.match(backendDone.stdout, /backend @ [0-9a-f]{40}/u);
-  assert.match(backendDone.stdout, /Версия собрана: snap-v1-/u);
-  const awaitingVerification = (await runCli(
-    store.checkout,
-    "status", "checkout-flow",
-  )).stdout;
-  assert.match(awaitingVerification, /Проверка: не выполнена/u);
-  assert.doesNotMatch(awaitingVerification, /→ Далее:/u);
-  assert.doesNotMatch(awaitingVerification, /\b(?:Cycle|Snapshot|Receipt|Planning revision)\b/u);
-  const verification = await runCli(store.checkout, "verify", "pass");
-  assert.match(verification.stdout, /Проверка пройдена для версии snap-v1-/u);
-  const status = JSON.parse((await runCli(
-    store.checkout,
-    "status", "checkout-flow", "--json",
-  )).stdout);
-  const humanStatus = (await runCli(store.checkout, "status", "checkout-flow")).stdout;
-  assert.match(humanStatus, /Implementation revisions/u);
-  assert.match(humanStatus, /Версия: собрана/u);
-  assert.match(humanStatus, /Проверка: пройдена/u);
-  assert.doesNotMatch(humanStatus, /\b(?:Cycle|Snapshot|Receipt|Planning revision)\b/u);
-  const execStatus = JSON.parse((await runCli(
-    store.checkout,
-    "plugin", "exec", "change-tracking", "--repo", "specs", "--",
-    "status", "checkout-flow", "--json",
-  )).stdout);
-
-  assert.equal("next_action" in status, false);
-  assert.equal(execStatus.current_repository, null);
-  assert.equal(execStatus.change_id, status.change_id);
-  assert.equal(execStatus.cycle_id, status.cycle_id);
-  assert.deepEqual(execStatus.results, status.results);
-  assert.deepEqual(execStatus.snapshot, status.snapshot);
-  assert.deepEqual(execStatus.verification, status.verification);
-  assert.equal(status.verification.result, "pass");
-  assert.equal(status.results.every((result) => !("status" in result)), true);
-  assert.equal(status.results.every((result) => result.implementation_revision), true);
-
-  await commitFiles(
-    backend.checkout,
-    { "README.md": "backend v2\n" },
-    { message: "change backend implementation" },
-  );
-  await runCli(backend.checkout, "done");
-  const stale = JSON.parse((await runCli(
-    store.checkout,
-    "status", "checkout-flow", "--json",
-  )).stdout);
-  assert.equal(stale.snapshot.current, true);
-  assert.equal(stale.verification.current, false);
-  const failedVerification = await runCli(
-    store.checkout,
-    "verify", "fail", "--change", "checkout-flow", "--note", "regression",
-  );
-  assert.match(failedVerification.stdout, /Проверка не пройдена для версии snap-v1-/u);
-
-  await runCli(store.checkout, "track", "refund-flow");
-  await assert.rejects(
-    runCli(frontend.checkout, "done"),
-    (error) => error.exitCode === 1 &&
-      /CYCLE_AMBIGUOUS/u.test(error.stderr) && /--change/u.test(error.stderr),
-  );
-  await assert.rejects(
-    runCli(frontend.checkout, "done", "--change", "refund-flow", "--blocked", "waiting"),
-    (error) => error.exitCode === 2 && /unknown option '--blocked'/u.test(error.stderr),
-  );
+  assert.deepEqual(implementationMap.attempts.map((attempt) => ({
+    repository: attempt.repository_id,
+    task: attempt.task.id,
+    base: attempt.base_revision,
+    implementation: attempt.implementation_revision,
+  })), [{
+    repository: "frontend",
+    task: "1",
+    base: baseRevision,
+    implementation: implementationRevision,
+  }]);
 });

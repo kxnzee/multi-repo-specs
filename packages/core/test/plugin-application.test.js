@@ -31,7 +31,7 @@ async function storeFixture(t) {
   await fs.writeFile(path.join(root, "openspec-orch.yaml"), `version: 2
 strict: true
 template:
-  id: base
+  id: default
 agent:
   id: qwen
 extensions: []

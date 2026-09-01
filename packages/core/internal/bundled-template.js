@@ -117,7 +117,7 @@ export class BundledTemplateProvider {
   #defaultId;
   #packages;
 
-  constructor(packages = [], { defaultId = "base" } = {}) {
+  constructor(packages = [], { defaultId = "default" } = {}) {
     if (
       !Array.isArray(packages) ||
       packages.some((templatePackage) => !(templatePackage instanceof BundledTemplatePackage))

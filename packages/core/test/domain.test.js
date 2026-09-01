@@ -40,7 +40,7 @@ function projectConfig() {
   return {
     version: 2,
     strict: true,
-    template: { id: "base" },
+    template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
     plugins: [],

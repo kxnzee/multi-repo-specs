@@ -27,6 +27,8 @@ test("public MCP executable completes stdio handshake and calls Core Doctor", as
   const tools = await client.listTools();
   assert.equal(tools.tools.some(({ name }) => name === "get_doctor_report"), true);
   assert.equal(tools.tools.some(({ name }) => name === "record_result_receipt"), false);
+  assert.equal(tools.tools.some(({ name }) => name === "start_attempt"), true);
+  assert.equal(tools.tools.some(({ name }) => name === "complete_attempt"), true);
   const response = await client.callTool({ name: "get_doctor_report", arguments: {} });
   const report = JSON.parse(response.content[0].text);
   assert.equal(report.version, 1);
@@ -36,24 +38,34 @@ test("public MCP executable completes stdio handshake and calls Core Doctor", as
 
 test("runtime rereads Project state and exposes OpenSpec context without optional Plugins", async () => {
   let resolutions = 0;
+  const storeRepository = Object.freeze({
+    id: "specs",
+    role: "store",
+    plugins: Object.freeze([]),
+    hasPlugin: () => false,
+  });
+  const codeRepository = Object.freeze({
+    id: "frontend",
+    role: "code",
+    plugins: Object.freeze([]),
+  });
   const project = Object.freeze({
     strict: true,
-    template: Object.freeze({ id: "base" }),
+    template: Object.freeze({ id: "default" }),
     agent: Object.freeze({ id: "qwen" }),
     extensions: Object.freeze(["orchestrator-agent"]),
     plugins: Object.freeze([]),
-    repositories: Object.freeze([Object.freeze({
-      id: "specs",
-      role: "store",
-      plugins: Object.freeze([]),
-    })]),
-    storeRepository: Object.freeze({ hasPlugin: () => false }),
+    repositories: Object.freeze([storeRepository, codeRepository]),
+    storeRepository,
     pluginDeclaration: () => undefined,
-    requireRepository: () => Object.freeze({ id: "specs", role: "store" }),
+    requireRepository: (repositoryId) => (
+      [storeRepository, codeRepository].find(({ id }) => id === repositoryId)
+    ),
   });
   const storeProject = Object.freeze({
     store: Object.freeze({ id: "specs" }),
     checkout: Object.freeze({}),
+    root: "/workspace/specs",
     project,
   });
   const openSpecCalls = [];
@@ -77,7 +89,7 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
         },
         async changeStatus(changeId) {
           openSpecCalls.push(["status", changeId]);
-          return { changeName: changeId, schemaName: "base-v1" };
+          return { changeName: changeId, schemaName: "spec-driven-extended" };
         },
         async artifactInstructions(changeId, artifact) {
           openSpecCalls.push(["instructions", changeId, artifact]);
@@ -99,11 +111,27 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
     gitService: Object.freeze({
       forRepository: () => Object.freeze({ revision: async () => "a".repeat(40) }),
     }),
+    repositoryStatusService: Object.freeze({
+      async inspect(options) {
+        assert.deepEqual(options, {
+          start: "/workspace/specs",
+          repositoryIds: ["frontend"],
+        });
+        return [Object.freeze({
+          id: "frontend",
+          role: "code",
+          path: "/workspace/src/frontend",
+          connected: true,
+          clean: true,
+          state: "connected",
+        })];
+      },
+    }),
     doctorService: Object.freeze({
       inspect: async () => ({ toJSON: () => ({ version: 1, status: "ready" }) }),
     }),
     setupService: Object.freeze({
-      inspect: () => ({ default_template_id: "base" }),
+      inspect: () => ({ default_template_id: "default" }),
       initialize: async (input) => ({ store_id: input.storeId }),
       connect: async () => ({ status: "ready" }),
     }),
@@ -119,10 +147,20 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
   assert.equal(resolutions, 4);
   assert.equal(status.capabilities.tracking.available, false);
   assert.equal(status.capabilities.graph.available, false);
-  assert.deepEqual(context.openspec_status, { changeName: "pay", schemaName: "base-v1" });
+  assert.deepEqual(context.openspec_status, { changeName: "pay", schemaName: "spec-driven-extended" });
   assert.deepEqual(context.artifact_instructions, { instruction: "Use exact schema" });
   assert.deepEqual(next, { action: "prepare_artifact", actor: "agent", artifact: "design" });
   assert.equal(assignment.current_assignment.revision, "a".repeat(40));
+  assert.equal(assignment.assigned, null);
+  assert.deepEqual(assignment.assignments, [{
+    repository_id: "frontend",
+    assigned: null,
+    checkout: "/workspace/src/frontend",
+    revision: "a".repeat(40),
+    connected: true,
+    clean: true,
+    state: "connected",
+  }]);
   assert.equal(setup.constraints.strict_only, true);
   assert.equal(initialized.store_id, "specs");
   assert.equal(connected.status, "ready");
@@ -132,4 +170,57 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
     ["instructions", "pay", "design"],
     ["next-action", "pay"],
   ]);
+});
+
+test("runtime does not advertise a bound Graph Plugin whose runtime is unavailable", async () => {
+  const project = Object.freeze({
+    strict: true,
+    template: Object.freeze({ id: "default" }),
+    agent: Object.freeze({ id: "qwen" }),
+    extensions: Object.freeze([]),
+    plugins: Object.freeze(["openspec-graph"]),
+    repositories: Object.freeze([]),
+    storeRepository: Object.freeze({ hasPlugin: (pluginId) => pluginId === "openspec-graph" }),
+    pluginDeclaration: (pluginId) => pluginId === "openspec-graph"
+      ? Object.freeze({ id: pluginId, source: "bundled:openspec-graph" })
+      : undefined,
+  });
+  const runtime = new OrchestratorMcpRuntime({
+    start: "/workspace/specs",
+    storeProjectService: Object.freeze({
+      resolve: async () => Object.freeze({
+        store: Object.freeze({ id: "specs" }),
+        checkout: Object.freeze({}),
+        project,
+      }),
+    }),
+    currentRepositoryService: Object.freeze({ resolve: async () => null }),
+    managerService: Object.freeze({
+      forStore: () => Object.freeze({
+        async resolve() { throw new Error("PLUGIN_RUNTIME_UNAVAILABLE"); },
+      }),
+    }),
+    openSpecService: Object.freeze({
+      forRepository: () => Object.freeze({ listChanges: async () => ({ changes: [] }) }),
+    }),
+    doctorService: Object.freeze({
+      inspect: async () => ({ toJSON: () => ({ version: 1, status: "blocked" }) }),
+    }),
+    setupService: Object.freeze({
+      inspect: () => ({}),
+      initialize: async () => ({}),
+      connect: async () => ({}),
+    }),
+  });
+
+  const status = await runtime.getStatus();
+  assert.deepEqual(status.capabilities.graph, {
+    provider: "openspec-graph",
+    available: false,
+    reason: "Plugin is not connected or unavailable; inspect Doctor",
+  });
+  await assert.rejects(
+    runtime.queryGraph({ query: "report" }),
+    /not connected or unavailable/u,
+  );
 });

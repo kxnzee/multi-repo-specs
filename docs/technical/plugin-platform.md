@@ -2,7 +2,7 @@
 
 ## Package contract
 
-Plugin — ESM package с единственным entrypoint, объявленным в `package.json`:
+Plugin — ESM package с одним entrypoint:
 
 ```json
 {
@@ -20,132 +20,146 @@ Plugin — ESM package с единственным entrypoint, объявлен�
 }
 ```
 
-Loader проверяет manifest, допустимую package identity, entrypoint внутри package
-root и полный структурный Plugin API. Для external export обязательны методы public
-Plugin object, включая `canExec` и `exec`; класс Core или `instanceof` не требуются.
+Loader проверяет package identity, entrypoint внутри package root и структурный
+Plugin API. Совпадение `instanceof` не требуется.
 
 ## Contributions
 
-`definePlugin` принимает хотя бы один contribution.
+`definePlugin` требует хотя бы один contribution:
 
-### Commands
+- `commands` — декларативная grammar в namespace Plugin;
+- `repository` — `connect/status` и optional `sync/exec`;
+- `extensions` — data-only Agent Extension для Store или Code Repository.
 
 ```js
+import { definePlugin } from "@openspec-orch/plugin-sdk";
+
 export default definePlugin({
   id: "dependency-audit",
   registerCommands(commands) {
     commands.command("inspect")
       .description("Inspect dependencies")
-      .action(() => console.log("ready"));
+      .action(async () => {});
   },
 });
 ```
 
-Builder поддерживает nested commands, arguments, options, choices/parsers и action с
-ограниченным PluginContext. Plugin не получает Commander instance. Duplicate/reserved
-paths отклоняются до выполнения action.
-
-Commands-only Plugin запускается через собственный namespace и не требует binding:
-
-```bash
-openspec-orch dependency-audit inspect
-```
-
-### Repository
-
-Repository contribution объявляет поддерживаемые roles и обязательные
-`connect/status`. `sync` и native `exec` необязательны. Lifecycle получает context
-ровно выбранного Store или Code Repository.
-
-Если `registerCommands` уже существует, универсальный `plugin exec` умеет выполнить
-эту grammar для Repository Plugin. `repository.exec` нужен только для передачи argv
-собственному native runtime.
-
-### Extensions
-
-Plugin возвращает data-only declarations с package-relative `root` и точным
-Store/Repository `target`. Core разрешает canonical `realpath`, запрещает root symlink
-и выход из package, сверяет target и через Agent Adapter проверяет manifests/ID всех
-Agent поставки. После этого native `connect/status/update/disconnect` проксируются
-выбранному provider adapter. Автоматического Plugin Template fallback нет.
-
-Общий `openspec-orch connect` повторно вызывает repository `connect` для каждого
-portable binding, восстанавливая runtime на новой машине, а затем выполняет итоговый
-Plugin/Extension status. Адресный повторный `plugin connect` существующего binding
-по-прежнему не повторяет repository callback и только реактивирует contribution.
-
-Отдельного `agent.integration` API нет: вся Agent-интеграция Plugin реализуется
-только через `extensions` и штатный lifecycle выбранного Agent.
-
-## Public Plugin object
-
-Структурная поверхность включает:
-
-```text
-id, supports, supportsRole, assertSupports,
-hasRepositoryContribution, connect, status, canSync, sync, canExec, exec,
-hasExtensionContribution, extensions,
-hasCommandContribution, registerCommands
-```
-
-Capability methods возвращают boolean. Loader и SDK contract test kit проверяют
-одинаковую межпакетную границу.
+Commands-only Plugin не требует binding. Repository contribution объявляет
+поддерживаемые roles. Native `repository.exec` нужен только для непрозрачного argv
+passthrough; иначе SDK может выполнить зарегистрированную grammar.
 
 ## PluginContext
 
-Context создается Core только после Project/Repository validation. Основные facades:
+Core создаёт новый scoped context для каждого invocation:
 
-- `project` и `repository` — immutable identity/role/path handles;
-- `files` — scoped read/write и safe relative paths;
-- `git` — ограниченное чтение Git состояния;
-- `process` — executable/argv без shell interpolation, timeout и redaction;
-- `storage` — versioned local state с atomic update;
-- progress/output — человекочитаемый stderr и чистый stdout.
+- immutable `project`, `repositories`, `repository` и `invocation`;
+- `files` для безопасных relative paths;
+- read-only `git` operations;
+- OpenSpec version check;
+- `process` с executable, immutable argv, cwd, timeout и redaction;
+- versioned `storage`;
+- Agent identity и logger.
 
-Repository setup context используется только во время `connect`. Обычные lifecycle и
-commands могут требовать binding. Store-scoped action явно запрашивает Store context;
-запуск через Code Repository отклоняется как scope mismatch.
+Plugin не получает checkout paths через Repository handles и не должен искать их
+самостоятельно.
 
-## Selection contract
+## Extensions
 
-Для repository lifecycle:
+Extension declaration содержит package-relative `root` и точный target. Core
+проверяет realpath, manifests и ID всех providers до mutation. Native lifecycle
+выполняет выбранный Agent adapter.
 
-- повторяемый `--repo` выбирает точные IDs;
-- `--all` выбирает все candidates/bindings;
-- оба вместе запрещены;
-- без selector TTY показывает stable `[ ]`/`[✓]` checkbox;
-- non-TTY требует явный selector.
+Plugin-owned Extension подключается и отключается вместе с binding. Отдельного
+`agent.integration` API и Template fallback нет.
 
-Core дедуплицирует IDs и выполняет multi-selection с ограниченной concurrency. Ошибка
-одного instance не должна выдаваться за общий успех.
+## Selection и output
 
-## External source materialization
+Для multi-repository lifecycle повторяемый `--repo` выбирает IDs, `--all` —
+все candidates или bindings. Флаги несовместимы. Без selector non-TTY завершается
+ошибкой, TTY показывает выбор.
 
-`plugin init --from` принимает npm install spec, Git URL, tarball или локальный
-package directory. Core создает Store-local runtime, устанавливает production
-dependencies с отключенными lifecycle scripts, проверяет package и сохраняет exact
-identity. Bundled package загружается из installation distribution и не копируется в
-Store cache.
+Progress пишется в stderr; structured output остаётся в stdout. Ошибка одного instance
+не считается общим успехом.
 
-Secrets нельзя встраивать в HTTP(S) source URL. Package entrypoint и dependencies
-разрешаются относительно materialized package, а не глобального PATH или
-`node_modules` подключенного Repository.
+## External packages
 
-## Независимость от Template
+`plugin init --from` принимает npm spec, Git URL, tarball или локальный package.
+Core создаёт Store-local runtime, устанавливает production dependencies без lifecycle
+scripts и сохраняет exact identity. Bundled Plugins загружаются из distribution.
 
-Template не объявляет обязательные Plugins. Пользователь выбирает Plugins отдельно,
-а Project config хранит только их exact package declarations и Repository bindings.
-Автоматической установки или удаления Plugin из-за Template нет.
+Template не управляет Plugins.
 
-## Authoring и проверки
+## Проверка Plugin
 
-```bash
-openspec-orch plugin register example --profile repository --support code --extension
-cd plugins/example
-npm install
-npm test
+```js
+import manifest from "../package.json" with { type: "json" };
+import plugin from "../index.js";
+import { testPluginContract } from "@openspec-orch/plugin-sdk/testing";
+
+testPluginContract({ plugin, packageManifest: manifest });
 ```
 
-Package tests должны использовать `@openspec-orch/plugin-sdk/testing`, проверять
-manifest/export, contribution shape, status semantics и command grammar. Plugin test
-не импортирует Core и не полагается на порядок других Plugins.
+Contract test проверяет manifest, public export и contribution shape без импорта Core.
+
+## Полный developer flow
+
+### 1. Создайте package
+
+```bash
+# commands-only Plugin без Repository binding
+openspec-orch plugin register dependency-audit /absolute/path/to/dependency-audit
+
+# repository lifecycle для Store и Code Repositories
+openspec-orch plugin register dependency-audit /absolute/path/to/dependency-audit \
+  --profile repository --support store --support code
+
+# native argv runtime и Plugin-owned Agent Extension
+openspec-orch plugin register dependency-audit /absolute/path/to/dependency-audit \
+  --profile native --support code --extension
+```
+
+`commands` создаёт декларативную команду и не требует binding. `repository` создаёт
+`connect/status` и зарегистрированную command grammar. `native` добавляет `bin/` для
+непрозрачного argv runtime. Для `repository` и `native` scaffold намеренно оставляет
+`connect/status` незавершёнными: реализуйте их до установки.
+
+### 2. Реализуйте и проверьте контракт
+
+```bash
+cd /absolute/path/to/dependency-audit
+npm install
+npm test
+npm pack --dry-run
+```
+
+Сохраните `testPluginContract`, добавьте regression tests для наблюдаемого поведения и
+не импортируйте Core. Extension должна содержать валидные manifests всех заявленных
+Agent providers.
+
+### 3. Установите в тестовый Store
+
+```bash
+cd /absolute/path/to/workspace/specs
+openspec-orch plugin init \
+  --plugin dependency-audit \
+  --from /absolute/path/to/dependency-audit
+
+# только для repository/native profile
+openspec-orch plugin connect dependency-audit --repo frontend
+openspec-orch plugin status --plugin dependency-audit --json
+openspec-orch doctor
+```
+
+Проверьте root command для commands/repository profile либо `plugin exec` для
+repository/native profile. Если есть Agent Extension, перезапустите Agent и проверьте
+его native status. Тестируйте disconnect/remove по пользовательскому
+[операционному flow](../user/plugins.md#проверяемое-отключение-и-удаление).
+
+### 4. Зафиксируйте поставку
+
+После локальной проверки опубликуйте package принятым командой способом: immutable npm
+version, tarball или Git revision. В Store замените локальный `--from` на exact source,
+просмотрите изменение `openspec-orch.yaml`, затем выполните `plugin status` и `doctor`.
+Повторный `plugin connect` восстанавливает Agent Extension существующего binding, но не
+заменяет Plugin-specific `sync` или migration. Обновление Plugin проходит тем же
+reviewable Store flow; Template не должен устанавливать или обновлять Plugins.

@@ -12,16 +12,16 @@ import { initSelections } from "./init-selection.js";
 import { storeProjects } from "./store-project.js";
 import { hasMethods } from "./value.js";
 
-const LEGACY_TEMPLATE_ID = "base";
+const DEFAULT_TEMPLATE_ID = "default";
 
 /** Builds the compatibility provider used by direct CandidateCli tests. */
 function legacyTemplateProvider(templateRoot) {
   return Object.freeze({
-    defaultId: LEGACY_TEMPLATE_ID,
+    defaultId: DEFAULT_TEMPLATE_ID,
     catalog: Object.freeze({ entries: Object.freeze([]) }),
     resolve(templateId) {
-      if (templateId === LEGACY_TEMPLATE_ID && typeof templateRoot === "string") {
-        return Object.freeze({ id: LEGACY_TEMPLATE_ID, root: templateRoot });
+      if (templateId === DEFAULT_TEMPLATE_ID && typeof templateRoot === "string") {
+        return Object.freeze({ id: DEFAULT_TEMPLATE_ID, root: templateRoot });
       }
       throw new Error(`TEMPLATE_NOT_DISCOVERED: template-id '${templateId ?? ""}' не найден`);
     },
@@ -191,16 +191,18 @@ export class ProjectSetupService {
 
   /** Runs the same complete connect sequence for every protocol adapter. */
   async connect({ workspace, noStrict = false, onProgress = () => {}, requireStrict = false } = {}) {
+    let start = this.#start;
     if (requireStrict) {
       const storeProject = await this.#storeProjects.resolve(this.#start);
       if (!storeProject.project.strict) {
         throw new Error("MCP_SETUP_STRICT_REQUIRED: connect_project недоступен для relaxed Project");
       }
+      start = storeProject.root;
     }
     onProgress("Проверка native CLI выбранного Agent...");
     await this.#extensionPreflight?.preflight();
     const result = await this.#connection.connect({
-      start: this.#start,
+      start,
       workspace,
       noStrict,
       onProgress,

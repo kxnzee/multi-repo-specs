@@ -1,0 +1,15 @@
+id: default
+name: Default Project Template
+requires:
+  extensions:
+    - spec-driven-extended
+    - superpowers
+copy:
+  - from: context
+    to: openspec/context
+  - from: openspec/config.yaml
+    to: openspec/config.yaml
+  - from: openspec/schemas
+    to: openspec/schemas
+  - from: assets/gitignore.template
+    to: .gitignore

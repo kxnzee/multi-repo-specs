@@ -28,7 +28,7 @@ async function createStoreFixture(t, { backendConnected = false, connected = fal
   const project = createProject({
     version: 2,
     strict: true,
-    template: { id: "base" },
+    template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
     plugins: [{ id: "sample", source: "@test/plugin-sample@1.0.0" }],
@@ -176,6 +176,53 @@ test("PluginLifecycleService disconnects Extension before removing binding", asy
   assert.equal(Object.isFrozen(calls[1][3]), true);
   const persisted = configuration.parseProject(await fs.readFile(fixture.configPath, "utf8"));
   assert.equal(persisted.isPluginConnected("sample", "frontend"), false);
+});
+
+test("PluginLifecycleService restores sibling Extensions after partial disconnect", async (t) => {
+  const fixture = await createStoreFixture(t, { backendConnected: true, connected: true });
+  const calls = [];
+  const { service } = await lifecycle(t, calls, {
+    extensions: true,
+    agentAdapter: {
+      async invokeExtension(context, extension, request) {
+        const current = configuration.parseProject(await fs.readFile(fixture.configPath, "utf8"));
+        calls.push([
+          "agent-extension",
+          context.repositoryId,
+          request,
+          current.isPluginConnected("sample", "frontend"),
+          current.isPluginConnected("sample", "backend"),
+        ]);
+      },
+    },
+  });
+
+  const result = await service.disconnect({
+    start: fixture.storeRoot,
+    pluginId: "sample",
+    repositoryId: "frontend",
+  });
+
+  assert.equal(result.disconnected, true);
+  assert.deepEqual(calls.filter(([operation]) => operation === "agent-extension"), [
+    [
+      "agent-extension",
+      "frontend",
+      { operation: "disconnect", ownerId: "sample" },
+      true,
+      true,
+    ],
+    [
+      "agent-extension",
+      "backend",
+      { operation: "connect", ownerId: "sample" },
+      false,
+      true,
+    ],
+  ]);
+  const persisted = configuration.parseProject(await fs.readFile(fixture.configPath, "utf8"));
+  assert.equal(persisted.isPluginConnected("sample", "frontend"), false);
+  assert.equal(persisted.isPluginConnected("sample", "backend"), true);
 });
 
 test("PluginLifecycleService reconnects Extension for an existing portable binding", async (t) => {

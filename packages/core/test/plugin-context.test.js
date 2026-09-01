@@ -39,7 +39,7 @@ async function contextScenario(t, { backendPlugin = false, storePlugin = false }
   const project = createProject({
     version: 2,
     strict: true,
-    template: { id: "base" },
+    template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
     plugins: [{ id: "sample", source: "@test/plugin-sample@1.0.0" }],

@@ -1,0 +1,13 @@
+{
+  "name": "openspec-orch-spec-driven-extended",
+  "description": "Bundled spec-driven-extended workflow Extension",
+  "owner": {
+    "name": "OpenSpec Orchestrator"
+  },
+  "plugins": [
+    {
+      "name": "spec-driven-extended",
+      "source": "./"
+    }
+  ]
+}

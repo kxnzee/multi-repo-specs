@@ -67,7 +67,7 @@ async function connectionScenario(t, { codeRepository = true, pointer = false, s
   const project = new Project({
     version: 2,
     strict,
-    template: { id: "base" },
+    template: { id: "default" },
     agent: { id: "claude" },
     extensions: [],
     plugins: [],

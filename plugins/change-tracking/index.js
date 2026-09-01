@@ -9,6 +9,14 @@ import { requireOpenSpec11 } from "./lib/openspec-compatibility.js";
 const plugin = definePlugin({
   id: "change-tracking",
   supports: [REPOSITORY_ROLE.store, REPOSITORY_ROLE.code],
+  extensions(context) {
+    if (context.repository.role !== REPOSITORY_ROLE.code) return [];
+    return [{
+      id: "agent",
+      root: "./extension",
+      target: context.repository,
+    }];
+  },
   repository: {
     async connect(context) {
       await requireOpenSpec11(context.process);

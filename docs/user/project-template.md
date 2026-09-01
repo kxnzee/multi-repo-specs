@@ -1,109 +1,55 @@
 # Project Template
 
-Project Template — copy-only каталог, который `openspec-orch init` один раз безопасно
-накладывает на результат штатного OpenSpec init. Он не выбирает Agent или Plugin, но
-может объявить обязательный совместимый Extension-профиль через `requires.extensions`.
+Project Template — copy-only набор project-local config, context, schemas и assets.
+`openspec-orch init` применяет его один раз после штатного OpenSpec init.
 
-## Bundled Project Templates
+## Template по умолчанию
 
-| ID | Required Extension | Schema | Назначение |
-|---|---|---|---|
-| `base` | `openspec-base` | `base-v1` | Product-first Intake, Planning, multi-repository Gates и внешний verification checkpoint |
-| `superspec` | `superpowers` | `superspec-multirepo` | Полный Superspec lifecycle с multi-repository Apply, Verify и Finalize |
+Bundled Template `default` устанавливает:
 
-Без `--template` используется `base`. `superspec` полностью заменяет его и не
-наследует Base-specific Intake, instructions или skills.
+- `openspec/config.yaml` и project context;
+- schemas `spec-driven-extended` и `superspec-multirepo`;
+- Extensions `spec-driven-extended` и `superpowers` как обязательные;
+- объявленные assets, включая `.gitignore`.
 
-### Base Template
+Plugins и Agent gateway в Template не входят.
 
-- schema `base-v1`: `intake → proposal → specs → design → tasks`;
-- `openspec/config.yaml`;
-- заготовки project context и ADR;
-- `.gitignore` из явного asset mapping.
+## Выбор schema
 
-Команды, skills, bootstrap instructions и subagent принадлежат отдельному bundled
-Extension `openspec-base` и активируются нативным механизмом выбранного Agent. Base
-декларативно требует его: init блокирует снятие выбора и добавляет Extension
-автоматически в flag mode. Общий MCP gateway не входит в Project composition и
-устанавливается отдельно командой `openspec-orch agent setup` в user scope.
-
-Base Template и `openspec-base` Extension не обнаруживают и не вызывают конкретные
-Plugins. Change Tracking и OpenSpec Graph поставляют собственные application/CLI
-capabilities и подключаются независимо от Template; встроенный MCP читает их только
-когда соответствующий Plugin доступен.
-
-### Superspec Template
-
-Superspec использует pipeline
-`brainstorm → proposal → optional design → specs → tasks → plan → apply → verify →
-finalize`. Schema сохраняет полный skill-driven цикл: brainstorming, writing-plans,
-worktrees, subagent-driven TDD, task/final review, systematic debugging, fresh
-verification и structured branch closeout. `apply.md`, `verify.md` и `finalize.md`
-делают handoff и convergence loop проверяемыми.
-
-Template и Extension сохраняют раздельное владение: `superspec` декларативно
-требует только `superpowers`. В интерактивном init порядок такой:
-
-```text
-Store ID → Project Template → Agent → Extensions → Code Repositories
-→ strict mode → итоговое подтверждение
-```
-
-После выбора `superspec` required Extension уже отмечен и заблокирован. В flag mode
-он добавляется автоматически, поэтому достаточно:
+Один Store может содержать Changes с разными schemas. OpenSpec сохраняет выбор в
+`.openspec.yaml` конкретного Change.
 
 ```bash
-openspec-orch init /absolute/path/to/store \
-  --store specs \
-  --agent qwen \
-  --template superspec
+openspec new change update-copy --schema spec-driven-extended
+openspec new change redesign-checkout --schema superspec-multirepo
 ```
 
-Upstream single-repository Git automation адаптирована, а не удалена: Finalize
-вызывает `superpowers:finishing-a-development-branch` отдельно в каждом затронутом
-Code Repository после явной авторизации и записывает выбранный outcome. Внешняя
-проверка текущей версии и реальный Release gate остаются обязательными и не
-подменяются Agent Verify.
-
-## Работа с субагентом
-
-Для точечной проверки текущего кода `openspec-base` вызывает отдельного субагента только для
-чтения. Он не планирует изменение и отвечает на один вопрос по одному репозиторию.
-
-- Один вопрос — один новый субагент. Пять вопросов означают пять независимых
-  субагентов; их контекст не переиспользуется. Вопрос по нескольким репозиториям
-  основной агент сначала разделяет по репозиторию.
-- Каждый субагент возвращает один структурированный ответ. Технические подтверждения
-  остаются в результате проверки, а в описание изменения попадает только итоговый
-  вывод без внутренних деталей кода.
-- Проверка кода допустима на Design, Tasks и Apply либо для подтверждения конфликта с
-  текущим состоянием. На Intent, Intake, Proposal и Specs она не используется.
-
-## Границы владения
-
-| Владелец | Содержимое |
+| Schema | Artifact path |
 |---|---|
-| OpenSpec | Официальный agent pack, schema lifecycle и operations |
-| Core | Безопасное одноразовое копирование объявленных Template assets |
-| Project Template | Context, custom schema/config и дополнительные assets |
-| Extension | Instructions, commands, skills, subagents, hooks и простые MCP |
-| Plugin | Runtime, repository lifecycle и Plugin-contributed Extension |
+| `spec-driven-extended` | Intake → Proposal/Specs/Design → Tasks → Verify |
+| `superspec-multirepo` | Brainstorm → Proposal/Specs/Design → Tasks → Plan → Verify |
 
-Встроенные `openspec-*` skills и `opsx-*` commands выбранного provider нельзя
-переписывать Project Template. Project-local правила используют свой namespace.
+Не меняйте schema уже созданного Change для переключения процесса. Если DAG
+несовместим, создайте новый Change и перенесите только принятый смысл.
 
-## Жизненный цикл
+Обе schemas используют одну Feature Acceptance: Agent собирает evidence, человек
+явно принимает решение `PASS` или `FAIL`, а до решения gate остаётся `PENDING`.
+Change Tracking не участвует в этом решении: он связывает OpenSpec tasks с revisions
+Code Repositories. Verify не выполняет Release или Archive.
 
-Template применяется только во время `init`. Скопированные файлы принадлежат Store и
-автоматически не обновляются. Повторный `init` не перезаписывает отличающийся
-target-файл и не управляет Plugins.
+## Владение и обновление
 
-Явный bundled ID полностью заменяет default `base`. Автоматического merge двух
-Project Templates нет. Строка в форме lowercase kebab-case трактуется как bundled
-ID и при отсутствии в каталоге отклоняется. Относительный локальный путь указывайте
-с `./`, например `--template ./team-template`.
+После `init` скопированные файлы принадлежат Store. Повторный `init` не обновляет
+их и не перезаписывает отличающийся target. Изменения Template переносятся отдельным
+проверяемым PR Store по [процедуре миграции](installation-and-updates.md).
 
-## Минимальный custom Template
+Не заменяйте несовместимый schema DAG, пока его используют активные Changes. Сначала
+завершите и архивируйте их либо сохраните прежнюю schema под отдельным локальным ID.
+После этого новые Changes можно создавать на обновлённой schema.
+
+## Custom Template
+
+Локальный Template состоит из descriptor и каталогов-источников:
 
 ```text
 team-template/
@@ -122,36 +68,16 @@ copy:
     to: .gitignore
 ```
 
-Применение:
-
 ```bash
 openspec-orch init /absolute/path/to/store \
   --store specs \
   --agent qwen \
-  --extension openspec-base \
   --template /absolute/path/to/team-template
 ```
 
-Identity custom Template берётся из `template.yaml`; source path после применения не
-сохраняется. Agent definition выбирается отдельно из distribution-owned каталога.
+Custom Template полностью заменяет `default`. Merge нескольких Templates,
+interpolation, conditions и delete rules не поддерживаются.
 
-## Безопасность применения
-
-Core запрещает:
-
-- выход target path за корень Store;
-- запись в `.git/`, `.openspec-store/` и `openspec-orch.yaml`;
-- symlink и специальные файлы;
-- file/directory collision;
-- неизвестные поля `template.yaml`;
-- перезапись существующего отличающегося файла.
-
-Interpolation, conditions, delete rules и автоматическое удаление старых assets не
-реализованы.
-
-## Plugin-owned Extension
-
-Plugin может вернуть один или несколько data-only Extension с package-relative root и
-Store/Repository target. Core передаёт их тому же Agent Adapter, который обслуживает
-standalone Extensions. Автоматического поиска или применения `template/` внутри
-Plugin Package нет.
+Copy engine запрещает path traversal, запись в `.git/`, `.openspec-store/` и
+`openspec-orch.yaml`, symlinks, специальные файлы, collisions и перезапись
+отличающегося файла.

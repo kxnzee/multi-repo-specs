@@ -9,7 +9,7 @@ import test from "node:test";
 import { ProjectSetupService } from "../internal/project-setup.js";
 
 const templates = Object.freeze({
-  defaultId: "base",
+  defaultId: "default",
   catalog: Object.freeze({ entries: Object.freeze([]) }),
   resolve(id) { return Object.freeze({ id, root: `/templates/${id}` }); },
 });
@@ -71,7 +71,7 @@ test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence"
         return Object.freeze({
           storeId: options.store,
           agentId: options.agent,
-          template: options.template ?? "base",
+          template: options.template ?? "default",
           extensions: Object.freeze([]),
           extensionsSpecified: false,
           repositories: options.repo,
@@ -83,14 +83,16 @@ test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence"
     start: root,
     storeProjectService: Object.freeze({
       async load() { throw new Error("load не ожидается для нового Project"); },
-      async resolve() { return Object.freeze({ project: Object.freeze({ strict: true }) }); },
+      async resolve() {
+        return Object.freeze({ root, project: Object.freeze({ strict: true }) });
+      },
     }),
   });
 
   const initialized = await service.initializeExplicit({
     storeId: "specs",
     agentId: "qwen",
-    templateId: "base",
+    templateId: "default",
     repositories: [{
       id: "frontend",
       role: "code",
@@ -108,7 +110,7 @@ test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence"
     }],
     store: "specs",
     strict: true,
-    template: "base",
+    template: "default",
   }]);
   assert.equal(initializations[0].target, root);
   assert.equal(initializations[0].noStrict, false);
@@ -155,4 +157,39 @@ test("ProjectSetupService rejects an existing relaxed Project before initializat
     /MCP_SETUP_STRICT_REQUIRED/u,
   );
   assert.equal(initializationCalled, false);
+});
+
+test("ProjectSetupService connects a strict Project from its resolved Code Repository pointer", async () => {
+  const storeRoot = "/workspace/specs";
+  const codeRoot = "/workspace/src/frontend";
+  const starts = [];
+  const service = new ProjectSetupService({
+    bundledTemplateProvider: templates,
+    connectionService: Object.freeze({
+      async connect(options) {
+        starts.push(options.start);
+        return {
+          storeId: "specs",
+          storeRoot,
+          workspace: "/workspace",
+          executionMode: "strict",
+          status: "ready",
+          repositories: [],
+        };
+      },
+    }),
+    initializationService: Object.freeze({ async initialize() { return {}; } }),
+    initSelectionService: Object.freeze({ async resolve() { return {}; } }),
+    start: codeRoot,
+    storeProjectService: Object.freeze({
+      async load() { throw new Error("load не ожидается"); },
+      async resolve(start) {
+        assert.equal(start, codeRoot);
+        return Object.freeze({ root: storeRoot, project: Object.freeze({ strict: true }) });
+      },
+    }),
+  });
+
+  assert.equal((await service.connect({ requireStrict: true })).status, "ready");
+  assert.deepEqual(starts, [storeRoot]);
 });

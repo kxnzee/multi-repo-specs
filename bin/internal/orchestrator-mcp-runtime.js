@@ -7,6 +7,7 @@ import {
   git,
   openspec,
   pluginContexts,
+  repositoryStatuses,
   storeProjects,
 } from "@openspec-orch/core";
 import { ChangeTrackingApplication } from "@openspec-orch/plugin-change-tracking/application";
@@ -58,6 +59,7 @@ export class OrchestratorMcpRuntime {
   #git;
   #managers;
   #openSpec;
+  #repositoryStatuses;
   #setup;
   #start;
   #storeProjects;
@@ -70,6 +72,7 @@ export class OrchestratorMcpRuntime {
     gitService = git,
     managerService,
     openSpecService = openspec,
+    repositoryStatusService = repositoryStatuses,
     setupService,
     start,
     storeProjectService = storeProjects,
@@ -80,6 +83,9 @@ export class OrchestratorMcpRuntime {
     }
     if (!managerService || typeof managerService.forStore !== "function") {
       throw new Error("MCP_RUNTIME_INVALID: managerService обязателен");
+    }
+    if (!repositoryStatusService || typeof repositoryStatusService.inspect !== "function") {
+      throw new Error("MCP_RUNTIME_INVALID: repositoryStatusService обязателен");
     }
     if (!setupService || ["connect", "initialize", "inspect"].some((method) => (
       typeof setupService[method] !== "function"
@@ -93,6 +99,7 @@ export class OrchestratorMcpRuntime {
     this.#git = gitService;
     this.#managers = managerService;
     this.#openSpec = openSpecService;
+    this.#repositoryStatuses = repositoryStatusService;
     this.#setup = setupService;
     this.#start = start;
     this.#storeProjects = storeProjectService;
@@ -101,14 +108,21 @@ export class OrchestratorMcpRuntime {
 
   async getStatus({ change_id: changeId } = {}) {
     const state = await this.#state();
-    const tracking = await this.#optionalApplication(
-      state,
-      "change-tracking",
-      false,
-      (context) => new ChangeTrackingApplication(context),
-    );
+    const [tracking, graph] = await Promise.all([
+      this.#optionalApplication(
+        state,
+        "change-tracking",
+        false,
+        (context) => new ChangeTrackingApplication(context),
+      ),
+      this.#optionalApplication(
+        state,
+        "openspec-graph",
+        true,
+        (context) => new OpenSpecGraphApplication(context),
+      ),
+    ]);
     const openSpec = this.#openSpec.forRepository(state.storeProject.checkout);
-    const graphConnected = this.#isConnected(state, "openspec-graph");
     return Object.freeze({
       ...projectJson(state.storeProject, state.invocation),
       capabilities: Object.freeze({
@@ -119,12 +133,12 @@ export class OrchestratorMcpRuntime {
         ),
         graph: capability(
           "openspec-graph",
-          graphConnected,
-          graphConnected ? null : "Plugin is not connected to Store",
+          graph !== null,
+          graph ? null : "Plugin is not connected or unavailable; inspect Doctor",
         ),
       }),
       openspec: await openSpec.listChanges(),
-      tracking: tracking ? await tracking.getStatus(changeId) : null,
+      tracking: tracking && changeId ? await tracking.getStatus(changeId) : null,
     });
   }
 
@@ -163,6 +177,16 @@ export class OrchestratorMcpRuntime {
 
   connectProject() {
     return this.#setup.connect();
+  }
+
+  async startAttempt({ change_id: changeId, task_id: taskId } = {}) {
+    const tracking = await this.#trackingApplication(await this.#state());
+    return tracking.startAttempt({ changeId, taskId });
+  }
+
+  async completeAttempt({ change_id: changeId, task_id: taskId } = {}) {
+    const tracking = await this.#trackingApplication(await this.#state());
+    return tracking.completeAttempt({ changeId, taskId });
   }
 
   async getChangeContext({ change_id: changeId, artifact } = {}) {
@@ -209,40 +233,25 @@ export class OrchestratorMcpRuntime {
         openspec: await repositoryOpenSpec.listChanges(),
       });
     }
-    const openSpecAction = await repositoryOpenSpec.nextAction(changeId);
-    if (openSpecAction.action !== "apply_change") return openSpecAction;
-    const tracking = await this.#optionalApplication(
-      state,
-      "change-tracking",
-      false,
-      (context) => new ChangeTrackingApplication(context),
-    );
-    if (!tracking) return openSpecAction;
-    const trackingStatus = await tracking.getStatus(changeId);
-    return trackingStatus.tracked ? tracking.getNextAction(changeId) : openSpecAction;
+    return repositoryOpenSpec.nextAction(changeId);
   }
 
   async getAssignmentScope({ change_id: changeId } = {}) {
     const state = await this.#state();
-    const [tracking, graph] = await Promise.all([
-      this.#optionalApplication(
-        state,
-        "change-tracking",
-        false,
-        (context) => new ChangeTrackingApplication(context),
-      ),
-      this.#optionalApplication(
-        state,
-        "openspec-graph",
-        true,
-        (context) => new OpenSpecGraphApplication(context),
-      ),
-    ]);
-    const trackingScope = tracking ? await tracking.getAssignmentScope(changeId) : null;
+    const graph = await this.#optionalApplication(
+      state,
+      "openspec-graph",
+      true,
+      (context) => new OpenSpecGraphApplication(context),
+    );
     const graphImpact = graph && changeId ? await graph.query("change_impact", changeId) : null;
     const graphRepositoryIds = graphImpact?.repositories.map(({ id }) => (
       id.replace(/^repository:/u, "")
     ));
+    const assignedRepositoryIds = graphRepositoryIds === undefined
+      ? null
+      : new Set(graphRepositoryIds);
+    const assignments = await this.#assignmentScopes(state, assignedRepositoryIds);
     const currentCheckout = state.invocation?.role === "store"
       ? state.storeProject.checkout
       : state.invocation
@@ -256,11 +265,11 @@ export class OrchestratorMcpRuntime {
       : null;
     return Object.freeze({
       ...projectJson(state.storeProject, state.invocation),
-      assigned: trackingScope?.assigned ?? (
-        state.invocation?.role === "code" && graphRepositoryIds?.includes(state.invocation.id)
-      ) ?? false,
-      tracking_scope: trackingScope,
+      assigned: graphRepositoryIds === undefined
+        ? null
+        : state.invocation?.role === "code" && graphRepositoryIds.includes(state.invocation.id),
       graph_impact: graphImpact,
+      assignments,
       current_assignment: state.invocation ? Object.freeze({
         repository_id: state.invocation.id,
         role: state.invocation.role,
@@ -282,7 +291,11 @@ export class OrchestratorMcpRuntime {
       true,
       (context) => new OpenSpecGraphApplication(context),
     );
-    if (!graph) throw new Error("CAPABILITY_UNAVAILABLE: openspec-graph is not connected to Store");
+    if (!graph) {
+      throw new Error(
+        "CAPABILITY_UNAVAILABLE: openspec-graph is not connected or unavailable; inspect Doctor",
+      );
+    }
     return graph.query(query, id);
   }
 
@@ -292,6 +305,34 @@ export class OrchestratorMcpRuntime {
 
   async readResource(uri) {
     return this.#resourceService(await this.#state()).read(uri);
+  }
+
+  async #assignmentScopes(state, assignedRepositoryIds) {
+    const repositoryIds = state.storeProject.project.repositories
+      .filter(({ role }) => role === "code")
+      .map(({ id }) => id);
+    if (repositoryIds.length === 0) return Object.freeze([]);
+    const statuses = await this.#repositoryStatuses.inspect({
+      start: state.storeProject.root,
+      repositoryIds,
+    });
+    return Object.freeze(await Promise.all(statuses.map(async (status) => {
+      const revision = status.connected
+        ? await this.#git.forRepository(createRepositoryCheckout(
+          state.storeProject.project.requireRepository(status.id),
+          status.path,
+        )).revision()
+        : null;
+      return Object.freeze({
+        repository_id: status.id,
+        assigned: assignedRepositoryIds?.has(status.id) ?? null,
+        checkout: status.path,
+        revision,
+        connected: status.connected,
+        clean: status.clean ?? null,
+        state: status.state,
+      });
+    })));
   }
 
   #resourceService(state) {
@@ -323,6 +364,21 @@ export class OrchestratorMcpRuntime {
     } catch {
       return null;
     }
+  }
+
+  async #trackingApplication(state) {
+    const tracking = await this.#optionalApplication(
+      state,
+      "change-tracking",
+      false,
+      (context) => new ChangeTrackingApplication(context),
+    );
+    if (!tracking) {
+      throw new Error(
+        "CAPABILITY_UNAVAILABLE: change-tracking is not initialized; inspect Doctor",
+      );
+    }
+    return tracking;
   }
 
   async #state() {

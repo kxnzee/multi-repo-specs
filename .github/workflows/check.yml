@@ -18,8 +18,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        node: ["20", "22"]
+        include:
+          - os: ubuntu-latest
+            node: "20"
+            distribution_smoke: false
+          - os: ubuntu-latest
+            node: "22"
+            distribution_smoke: true
+          - os: macos-latest
+            node: "20"
+            distribution_smoke: false
+          - os: macos-latest
+            node: "22"
+            distribution_smoke: true
+          - os: windows-latest
+            node: "20"
+            distribution_smoke: false
+          - os: windows-latest
+            node: "22"
+            distribution_smoke: true
     steps:
       - name: Disable git CRLF conversion
         run: git config --global core.autocrlf false
@@ -31,4 +48,12 @@ jobs:
       - name: Install global openspec CLI (distribution tests call it)
         run: npm install --global @fission-ai/openspec@1
       - run: npm ci
-      - run: npm run check
+      - run: npm run lint
+      - name: Run tests with distribution smoke
+        if: matrix.distribution_smoke
+        run: npm run test:code
+      - name: Run tests without duplicate distribution smoke
+        if: ${{ !matrix.distribution_smoke }}
+        env:
+          OPENSPEC_ORCH_SKIP_DISTRIBUTION_SMOKE: "1"
+        run: npm run test:code
