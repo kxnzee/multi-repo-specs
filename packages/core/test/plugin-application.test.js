@@ -15,7 +15,7 @@ import {
   storeProjects,
 } from "@openspec-orch/core";
 
-/** Создаёт минимальный существующий Store с project config version 2. */
+/** Создаёт минимальный существующий Store с project config version 1. */
 async function storeFixture(t) {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-plugin-app-"));
   const root = await fs.realpath(temporary);
@@ -28,7 +28,7 @@ async function storeFixture(t) {
     "version: 1\nid: specs\nremote: https://example.test/specs.git\n",
   );
   await fs.writeFile(path.join(root, "openspec/config.yaml"), "schema: spec-driven\n");
-  await fs.writeFile(path.join(root, "openspec-orch.yaml"), `version: 2
+  await fs.writeFile(path.join(root, "openspec-orch.yaml"), `version: 1
 strict: true
 template:
   id: default
@@ -93,14 +93,14 @@ test("PluginApplicationService publishes config only after installation", async 
   assert.equal(result instanceof PluginApplicationResult, true);
   assert.equal(result.initialized, true);
   const current = await storeProjects.load(root);
-  assert.equal(current.project.version, 2);
+  assert.equal(current.project.version, 1);
   assert.equal(
     current.project.pluginDeclaration("sample").source,
     "@test/plugin-sample@1.0.0",
   );
   assert.equal(calls.length, 1);
   const projectSource = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
-  assert.match(projectSource, /version: 2/);
+  assert.match(projectSource, /version: 1/);
   assert.match(projectSource, /id: sample\n\s+source: "@test\/plugin-sample@1.0.0"/);
 });
 

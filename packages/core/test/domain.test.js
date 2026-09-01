@@ -38,7 +38,7 @@ function projectConfig() {
     },
   ];
   return {
-    version: 2,
+    version: 1,
     strict: true,
     template: { id: "default" },
     agent: { id: "qwen" },
@@ -139,7 +139,7 @@ test("Project requires Plugin declarations and replaces their exact source", () 
   const project = createProject(projectConfig());
 
   assert.equal(project.declarePlugin("dependency-audit", "@test/plugin-dependency-audit@1.0.0"), true);
-  assert.equal(project.version, 2);
+  assert.equal(project.version, 1);
   assert.deepEqual(project.plugins, ["dependency-audit"]);
   assert.deepEqual(project.pluginDeclarations[0].toConfig(), {
     id: "dependency-audit",
@@ -154,7 +154,7 @@ test("Project requires Plugin declarations and replaces their exact source", () 
     /PLUGIN_DECLARATION_INVALID/,
   );
   assert.throws(
-    () => createProject({ ...projectConfig(), version: 1 }),
-    /поддерживается только version 2/,
+    () => createProject({ ...projectConfig(), version: 2 }),
+    /поддерживается только version 1/,
   );
 });

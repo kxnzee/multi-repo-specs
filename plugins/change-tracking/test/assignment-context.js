@@ -12,6 +12,7 @@ export function assignmentContext({
   tasks = [{ id: "1", description: "1.1 Implement checkout", done: false }],
 } = {}) {
   const values = new Map();
+  const updates = new Map();
   let stateDocument = null;
   const repositories = new Map([
     ["specs", Object.freeze({ id: "specs", role: "store" })],
@@ -54,6 +55,21 @@ export function assignmentContext({
         throw new Error(`missing ${relativePath}`);
       },
       async write(relativePath, contents) { values.set(relativePath, contents); },
+      async update(relativePath, operation) {
+        const previous = updates.get(relativePath) ?? Promise.resolve();
+        let release;
+        const current = new Promise((resolve) => { release = resolve; });
+        updates.set(relativePath, current);
+        await previous;
+        try {
+          const next = await operation(values.get(relativePath) ?? null);
+          values.set(relativePath, next);
+          return next;
+        } finally {
+          release();
+          if (updates.get(relativePath) === current) updates.delete(relativePath);
+        }
+      },
     }),
     storage: Object.freeze({
       async read() { return stateDocument; },

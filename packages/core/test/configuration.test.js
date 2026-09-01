@@ -11,7 +11,7 @@ import {
   Store,
 } from "@openspec-orch/core";
 
-const CURRENT_CONFIG = `version: 2
+const CURRENT_CONFIG = `version: 1
 strict: true
 template:
   id: default
@@ -34,7 +34,7 @@ repositories:
     plugins: [dependency-audit]
 `;
 
-test("configuration parses version 2 YAML directly into the public domain model", () => {
+test("configuration parses version 1 YAML directly into the public domain model", () => {
   assert.equal(configuration instanceof CoreConfiguration, true);
   const project = configuration.parseProject(CURRENT_CONFIG);
 
@@ -72,7 +72,7 @@ test("configuration stores the package identity selected by Plugin Manager", () 
     /CONFIG_INVALID/,
   );
   assert.throws(
-    () => configuration.parseProject(CURRENT_CONFIG.replace("version: 2", "version: 1")),
+    () => configuration.parseProject(CURRENT_CONFIG.replace("version: 1", "version: 2")),
     /CONFIG_INVALID/,
   );
 });

@@ -1,18 +1,23 @@
 /** @fileoverview Безопасные files, привязанные к RepositoryCheckout. */
 
 import { promises as fs } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 import { atomicWriter } from "./atomic-writer.js";
+import { CORE_SERVICE_PATHS } from "./constants.js";
 import { ensureDirectory, lstatOrNull } from "./fs.js";
+import { locks } from "./lock.js";
 import { isPortableRelativePath } from "./path.js";
 
 /** Files API внутри одного canonical Repository root. */
 export class RepositoryFiles {
+  #lock;
   #root;
   #writer;
 
-  constructor(checkout, writer = atomicWriter) {
+  constructor(checkout, { lock = locks, writer = atomicWriter } = {}) {
+    this.#lock = lock;
     this.#root = checkout.root;
     this.#writer = writer;
     Object.freeze(this);
@@ -69,6 +74,25 @@ export class RepositoryFiles {
       throw new Error(`Путь ${relativePath} выходит за Repository root`);
     }
     await this.#writer.write(target, contents, { mode });
+  }
+
+  /** Atomically applies one read-modify-write operation under a Repository-local lock. */
+  async update(relativePath, operation, { mode } = {}) {
+    if (typeof operation !== "function") {
+      throw new Error("Параметр update operation должен быть function");
+    }
+    const target = await this.#resolveDeclared(relativePath);
+    const lockDirectory = await this.#ensureDirectory(CORE_SERVICE_PATHS.lockDirectory);
+    const lockName = createHash("sha256").update(target).digest("hex");
+    return this.#lock.run(path.join(lockDirectory, `${lockName}.lock`), async () => {
+      const current = await this.read(relativePath, { optional: true });
+      const next = await operation(current);
+      if (typeof next !== "string") {
+        throw new Error("Результат update operation должен быть строкой");
+      }
+      await this.write(relativePath, next, { mode });
+      return next;
+    }, { busyCode: "FILE_UPDATE_BUSY" });
   }
 
   async #resolveExisting(relativePath, kind, { allowDot = false, optional = false } = {}) {

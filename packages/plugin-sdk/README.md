@@ -57,7 +57,7 @@ Core создаёт scoped context для каждого invocation:
 
 - immutable Project/Repository handles;
 - optional invocation metadata;
-- safe files;
+- safe files с атомарным `update` для read-modify-write;
 - read-only Git helpers;
 - OpenSpec version check;
 - process runner без shell interpolation;

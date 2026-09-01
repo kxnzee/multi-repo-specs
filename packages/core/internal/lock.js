@@ -16,7 +16,10 @@ export class FailClosedLock {
       await fs.mkdir(lockPath, { mode: 0o700 });
     } catch (error) {
       if (error.code === "EEXIST") {
-        throw new Error(`${busyCode}: состояние уже изменяется другой командой; повторите вызов`);
+        throw Object.assign(
+          new Error(`${busyCode}: состояние уже изменяется другой командой; повторите вызов`),
+          { code: busyCode },
+        );
       }
       throw error;
     }

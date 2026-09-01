@@ -35,8 +35,15 @@ function assertPluginEnabled(output, qualifiedId, scope, projectPath) {
       path.resolve(candidateProjectPath) === path.resolve(projectPath)
     ))
   ));
-  if (!plugin && scope !== undefined && plugins.some(({ id }) => id === qualifiedId)) {
+  const matchingId = plugins.filter(({ id }) => id === qualifiedId);
+  const matchingScope = matchingId.filter(({ scope: candidateScope }) => (
+    scope === undefined || candidateScope === scope
+  ));
+  if (!plugin && scope !== undefined && matchingScope.length === 0 && matchingId.length > 0) {
     throw new Error(`AGENT_EXTENSION_STATUS_SCOPE_MISSING: ${qualifiedId} (${scope})`);
+  }
+  if (!plugin && projectPath !== undefined && matchingScope.length > 0) {
+    throw new Error(`AGENT_EXTENSION_STATUS_PROJECT_MISMATCH: ${qualifiedId} (${projectPath})`);
   }
   if (!plugin) throw new Error(`AGENT_EXTENSION_STATUS_MISSING: ${qualifiedId}`);
   if (plugin.enabled !== true) {

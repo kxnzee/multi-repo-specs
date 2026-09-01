@@ -361,8 +361,9 @@ export class OrchestratorMcpRuntime {
         invocation: state.invocation,
       });
       return create(context);
-    } catch {
-      return null;
+    } catch (error) {
+      if (error?.code === "PLUGIN_RUNTIME_UNAVAILABLE") return null;
+      throw error;
     }
   }
 

@@ -187,6 +187,25 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   });
   assert.equal(invalidArtifact.isError, true);
   assert.match(invalidArtifact.content[0].text, /artifact.*lowercase kebab-case/u);
+  const duplicateRepository = await client.callTool({
+    name: "initialize_project",
+    arguments: {
+      store_id: "specs",
+      agent_id: "qwen",
+      repositories: [
+        { repository_id: "frontend", remote: "ssh://one", default_branch: "main" },
+        { repository_id: "frontend", remote: "ssh://two", default_branch: "main" },
+      ],
+    },
+  });
+  assert.equal(duplicateRepository.isError, true);
+  assert.match(duplicateRepository.content[0].text, /повторяющийся repository_id frontend/u);
+  const graphWithoutId = await client.callTool({
+    name: "query_graph",
+    arguments: { query: "node" },
+  });
+  assert.equal(graphWithoutId.isError, true);
+  assert.match(graphWithoutId.content[0].text, /id должен быть непустой строкой/u);
   assert.deepEqual((await client.listResources()).resources, resources);
   assert.equal((await client.readResource({ uri: resources[0].uri })).contents[0].text, "# Payments");
 });
@@ -241,7 +260,7 @@ test("every advertised MCP tool dispatches to its matching application method", 
 
 test("Store resources follow each Change schema without mixing workflow artifacts", async () => {
   const content = new Map([
-    ["openspec-orch.yaml", "version: 2\n"],
+    ["openspec-orch.yaml", "version: 1\n"],
     ["openspec/config.yaml", "schema: spec-driven-extended\n"],
     ["openspec/schemas/spec-driven-extended/schema.yaml", `artifacts:
   - id: intake

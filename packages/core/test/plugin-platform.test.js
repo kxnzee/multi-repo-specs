@@ -25,7 +25,7 @@ async function storeFixture(t, { declared = true } = {}) {
   await fs.mkdir(path.join(root, ".openspec-store"));
   await fs.mkdir(path.join(root, "openspec"));
   const project = createProject({
-    version: 2,
+    version: 1,
     strict: true,
     template: { id: "default" },
     agent: { id: "qwen" },

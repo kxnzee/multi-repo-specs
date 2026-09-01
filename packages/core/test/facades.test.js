@@ -182,6 +182,11 @@ test("FileService reads and atomically writes only inside Repository checkout", 
   assert.equal(await service.read("config/project.txt"), "after");
   await service.write("config/new.txt", "new");
   assert.equal(await service.read("config/new.txt"), "new");
+  assert.equal(
+    await service.update("config/new.txt", (current) => `${current} value`),
+    "new value",
+  );
+  assert.equal(await service.read("config/new.txt"), "new value");
   assert.deepEqual(await service.listFiles("config"), ["new.txt", "project.txt"]);
   await fs.mkdir(path.join(root, "config", "alpha"));
   await fs.mkdir(path.join(root, "config", "zeta"));
@@ -196,6 +201,8 @@ test("FileService reads and atomically writes only inside Repository checkout", 
     service.read("config/missing.txt", { optional: "yes" }),
     /optional должен быть boolean/,
   );
+  await assert.rejects(service.update("config/new.txt", null), /operation должен быть function/);
+  await assert.rejects(service.update("config/new.txt", async () => null), /должен быть строкой/);
 
   const outside = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-core-outside-"));
   t.after(() => fs.rm(outside, { recursive: true, force: true }));

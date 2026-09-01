@@ -192,7 +192,7 @@ async function distributionFixture(t, prefix) {
   await fs.mkdir(path.join(storeRoot, ".openspec-store"));
   await fs.mkdir(path.join(storeRoot, "openspec"));
   const project = createProject({
-    version: 2,
+    version: 1,
     strict: true,
     template: { id: "default" },
     agent: { id: "qwen" },

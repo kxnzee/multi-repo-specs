@@ -267,7 +267,8 @@ function parseCommandArgs(node, argv) {
     let value = resolved.inlineValue;
     if (resolved.option.takesValue && value === undefined) {
       const candidate = argv[index + 1];
-      if (candidate !== undefined && (!candidate.startsWith("-") || resolved.option.valueRequired)) {
+      const candidateIsOption = candidate === "--" || resolveOption(node, candidate ?? "") !== undefined;
+      if (candidate !== undefined && !candidateIsOption) {
         value = candidate;
         index += 1;
       }

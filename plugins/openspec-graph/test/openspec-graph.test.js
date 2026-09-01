@@ -13,6 +13,7 @@ import { assertPluginContract } from "@openspec-orch/plugin-sdk/testing";
 import plugin from "../index.js";
 import { compileOpenSpecGraph } from "../lib/builder.js";
 import { runGraphView } from "../lib/commands.js";
+import { archivedChangeId } from "../lib/compiler-input.js";
 import { parseDeltaOperations } from "../lib/operation-headings.js";
 import { inspectChangeImpact, inspectGraphNode } from "../lib/query.js";
 import { startGraphViewer } from "../lib/viewer.js";
@@ -23,6 +24,12 @@ const repositories = [
   { id: "web", role: "code" },
 ];
 const storeId = "specs";
+
+test("archived Change directories require the canonical date prefix", () => {
+  assert.equal(archivedChangeId("2026-08-27-jit-100-promote"), "jit-100-promote");
+  assert.equal(archivedChangeId("jit-100-promote"), null);
+  assert.equal(archivedChangeId("2026-08-27-"), null);
+});
 
 /** Writes one Store-relative file and its parents. */
 async function write(root, relativePath, source) {

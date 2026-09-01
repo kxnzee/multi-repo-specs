@@ -228,7 +228,7 @@ test("InitializationService creates Store through domain and public facade contr
   assert.equal(fake.calls.length, callCount);
 });
 
-test("InitializationService preserves relaxed mode for an existing v2 Store", async (t) => {
+test("InitializationService preserves relaxed mode for an existing v1 Store", async (t) => {
   const root = await storeFixture(t);
   const fake = fakeExecutor(root);
   const { service, configurationService } = initFixture(fake.executor);

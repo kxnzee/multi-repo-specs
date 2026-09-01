@@ -270,8 +270,9 @@ test("Claude status ignores a local Extension enabled for another project", asyn
       extension(root),
       { operation: "status", ownerId: "codegraph" },
     ),
-    /AGENT_EXTENSION_STATUS_MISSING.*codegraph-agent@openspec-orch-codegraph-agent/u,
+    /AGENT_EXTENSION_STATUS_PROJECT_MISMATCH.*codegraph-agent@openspec-orch-codegraph-agent/u,
   );
+
 });
 
 test("Claude adapter honors explicit user scope for the gateway", async (t) => {

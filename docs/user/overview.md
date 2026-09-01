@@ -9,7 +9,7 @@ Repositories и локальными AI Agents. Он нужен, чтобы од
 Project содержит:
 
 - один Store с Requirements, Master Specs и Changes;
-- ноль или несколько Code Repositories;
+- подключенные после инициализации Code Repositories;
 - один Project Template и один Agent;
 - набор standalone Extensions;
 - необязательные Plugins и их bindings.
