@@ -49,7 +49,7 @@ Changes, Specs, Tasks и repository-specific техническую докуме
 обязан выбирать target context files или ADR: их определяет агент по
 `00-start-here.md` и подтверждённым источникам.
 
-## Scope и источники
+## Область и источники
 
 Начать с openspec/context/00-start-here.md и читать только относящиеся к вопросу
 файлы. Допустимые нормативные источники:

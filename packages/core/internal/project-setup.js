@@ -139,9 +139,13 @@ export class ProjectSetupService {
   }
 
   /** Resolves explicit/interactive selection and delegates the mutation to InitializationService. */
-  async initialize({ target = this.#start, options = {} } = {}) {
+  async initialize({ target = this.#start, options = {}, onSelectionResolved = () => {} } = {}) {
+    if (typeof onSelectionResolved !== "function") {
+      throw new Error("PROJECT_SETUP_INVALID: onSelectionResolved должен быть function");
+    }
     const selection = await this.#initSelection.resolve(options);
     if (!selection) return null;
+    onSelectionResolved(selection);
     const templateRequest = selection.template ?? this.#templates.defaultId;
     const template = resolveTemplateRequest(this.#templates, templateRequest);
     const result = await this.#initialization.initialize({

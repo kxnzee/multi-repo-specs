@@ -42,7 +42,7 @@
 - Если маршрут не очевиден, вызови `get_next_action` и соблюдай возвращённого actor.
   Точные содержательные правила бери из `get_change_context`, а не из памяти.
 
-## Repository evidence
+## Подтверждения из Repository
 
 - Единственный project subagent — `spec-driven-extended-repository-evidence-scout`. Используй
   его только на разрешённой стадии и по его собственному входному/выходному контракту.

@@ -3,7 +3,7 @@ name: spec-driven-extended-meta-planning
 description: Единая read-only проверка Proposal, Specs, Design, Tasks, impact или полного Planning OpenSpec Change. Использует фактические artifact rules, Store-артефакты и адресные вызовы repository evidence scout по правилу «один вопрос — один subagent»; не изменяет артефакты и не принимает Gate.
 ---
 
-# Meta Planning
+# Проверка Planning
 
 - ОБЯЗАН проверять только фактические rules текущей стадии и подтверждённые sources.
 - ЗАПРЕЩЕНО компенсировать отсутствие evidence догадкой, чтением запрещённого Code
@@ -29,7 +29,7 @@ planning-review разрешены только адресные repository evid
 scout, а при его недоступности — тем же адресным read/search основного агента. Каждый
 request проверяет один вопрос в одном Repository.
 
-## Preflight
+## Предварительная проверка
 
 1. Вызвать MCP `get_change_context` с `change_id` и текущим `artifact`. Использовать
    возвращённые planningHome, changeRoot, artifactPaths, actionContext и rules.
@@ -40,7 +40,7 @@ request проверяет один вопрос в одном Repository.
 4. Если существует openspec-orch.yaml, использовать code repository records как
    точные identity, но не как доказательство impact.
 
-## Capability и repository scope
+## Область capability и Repository
 
 До валидных Delta Specs:
 
@@ -95,7 +95,7 @@ repository-id и проверяемый результат. Публичный �
 compatibility, migration, rollout, rollback и verification. Для каждого вывода дать
 Requirement/Scenario или path:line и отделить факт, вывод, конфликт и unknown.
 
-## Repository evidence
+## Подтверждения из Repository
 
 Если на разрешённой стадии нужен current-state факт, вызвать только
 spec-driven-extended-repository-evidence-scout.
@@ -121,7 +121,7 @@ spec-driven-extended-test-cases применять только по запро�
 может определить только automation placement. При его отсутствии использовать
 automation_placement: unknown.
 
-## Findings
+## Результаты проверки
 
 - BLOCKER — противоречие intent, Requirement, публичному контракту или обязательному
   rule либо нерешённое решение владельца.

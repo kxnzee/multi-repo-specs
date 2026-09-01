@@ -54,7 +54,7 @@ const TOOL_DEFINITIONS = Object.freeze([
   defineTool({
     name: "get_setup_context",
     applicationMethod: "getSetupContext",
-    description: "Read exact Agent and Template choices, required Extensions and setup constraints.",
+    description: "Read exact Agent and Template choices, required Extensions and fixed Store target constraints.",
     inputSchema: EMPTY_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
@@ -122,7 +122,9 @@ const TOOL_DEFINITIONS = Object.freeze([
   defineTool({
     name: "initialize_project",
     applicationMethod: "initializeProject",
-    description: "Idempotently initialize only the MCP cwd in strict mode through Core.",
+    description: "Idempotently initialize the fixed MCP cwd in strict mode only when it is a " +
+      "separate clean central Store Git repository. Never target an Orchestrator, Template, " +
+      "or Code Repository checkout.",
     inputSchema: Object.freeze({
       type: "object",
       properties: Object.freeze({

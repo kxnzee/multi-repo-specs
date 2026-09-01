@@ -161,7 +161,19 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
     clean: true,
     state: "connected",
   }]);
-  assert.equal(setup.constraints.strict_only, true);
+  assert.deepEqual(setup.constraints, {
+    fixed_cwd: true,
+    strict_only: true,
+    arbitrary_workspace: false,
+    disconnect_exposed: false,
+    target_role: "store",
+    separate_git_repository: true,
+    forbidden_targets: [
+      "orchestrator_checkout",
+      "template_source",
+      "code_repository",
+    ],
+  });
   assert.equal(initialized.store_id, "specs");
   assert.equal(connected.status, "ready");
   assert.deepEqual(openSpecCalls, [

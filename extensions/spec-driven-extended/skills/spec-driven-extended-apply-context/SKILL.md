@@ -3,7 +3,7 @@ name: spec-driven-extended-apply-context
 description: Подготовить нейтральный repository scope для штатного OpenSpec Apply по принятым Planning-артефактам. Не заменяет встроенный openspec-apply-change.
 ---
 
-# Apply context
+# Контекст Apply
 
 - ОБЯЗАН выполнить общий preflight до передачи управления встроенному Apply.
 - ЗАПРЕЩЕНО писать код, подменять ошибку fallback-режимом или продолжать при
@@ -14,7 +14,7 @@ description: Подготовить нейтральный repository scope дл
 Это единый project entrypoint Apply. Он проверяет только OpenSpec Planning и текущий
 Repository; Plugin-specific поведение остаётся вне этого skill.
 
-## Общий preflight
+## Общая предварительная проверка
 
 1. Вызвать MCP `get_change_context` с `change_id` и `artifact: apply`, затем
    `get_assignment_scope`. Использовать возвращённые rules, paths, Tasks, Repository
@@ -36,7 +36,7 @@ Repository; Plugin-specific поведение остаётся вне этог�
 Для Code Repository передать встроенному Apply только Tasks его принятой repository
 section. Для Store-level координации передать исходный набор Tasks без фильтрации.
 
-## Навигация и evidence
+## Навигация и подтверждения
 
 До кода проверить Git root и пользовательский worktree. Repository-id и полный HEAD
 брать из `get_assignment_scope`. Не очищать чужие изменения.

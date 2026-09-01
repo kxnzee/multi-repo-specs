@@ -12,7 +12,7 @@ import {
   BundledAgentProvider,
   ProjectTemplateService,
 } from "@openspec-orch/core";
-import { parse } from "yaml";
+import { parse, stringify } from "yaml";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/default/", import.meta.url));
 const AGENTS_ROOT = fileURLToPath(new URL("../../agents/", import.meta.url));
@@ -118,6 +118,76 @@ test("Default Template is copy-only and applies identically for every independen
   for (const relative of await listFiles(TEMPLATE_ROOT)) {
     assert.match(relative, allowed, `Template содержит не copy-only asset: ${relative}`);
   }
+});
+
+test("Template installed below target remains safe and cannot overwrite its own source", async (t) => {
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-template-nested-"));
+  const targetRoot = await fs.realpath(temporary);
+  t.after(() => fs.rm(targetRoot, { recursive: true, force: true }));
+  const templateRoot = path.join(
+    targetRoot,
+    "node_modules",
+    "openspec-orchestrator",
+    "templates",
+    "default",
+  );
+  await fs.mkdir(path.dirname(templateRoot), { recursive: true });
+  await fs.cp(TEMPLATE_ROOT, templateRoot, { recursive: true });
+  const descriptorPath = path.join(templateRoot, "template.yaml");
+  const descriptorSource = await fs.readFile(descriptorPath, "utf8");
+  const agentPackage = await BundledAgentPackage.load(path.join(AGENTS_ROOT, "qwen"), {
+    expectedId: "qwen",
+  });
+  const service = new ProjectTemplateService();
+
+  const projectTemplateRoot = path.join(targetRoot, "templates", "default");
+  await fs.mkdir(path.dirname(projectTemplateRoot), { recursive: true });
+  await fs.cp(TEMPLATE_ROOT, projectTemplateRoot, { recursive: true });
+  await assert.rejects(
+    service.plan({
+      templateRoot: projectTemplateRoot,
+      targetRoot,
+      agent: agentPackage.definition,
+    }),
+    (error) => {
+      assert.match(error.message, /INIT_TARGET_INVALID/u);
+      assert.match(error.message, /Не запускайте openspec-orch init для checkout Orchestrator/u);
+      assert.match(
+        error.message,
+        /openspec-orch init <store-path> --store <store-id> --agent <agent-id>/u,
+      );
+      return true;
+    },
+  );
+
+  const plan = await service.plan({
+    templateRoot,
+    targetRoot,
+    agent: agentPackage.definition,
+  });
+  const result = await plan.apply(await plan.inspectPreExistingFiles());
+
+  assert.equal(result.created.length > 0, true);
+  assert.equal(await fs.readFile(descriptorPath, "utf8"), descriptorSource);
+  await assert.rejects(
+    service.plan({
+      templateRoot,
+      targetRoot: path.join(templateRoot, "context"),
+      agent: agentPackage.definition,
+    }),
+    /INIT_TARGET_INVALID/u,
+  );
+
+  const unsafeDescriptor = parse(descriptorSource);
+  unsafeDescriptor.copy = [{
+    from: "assets/gitignore.template",
+    to: "node_modules/openspec-orchestrator/templates/default/copied",
+  }];
+  await fs.writeFile(descriptorPath, stringify(unsafeDescriptor), "utf8");
+  await assert.rejects(
+    service.plan({ templateRoot, targetRoot, agent: agentPackage.definition }),
+    /Template не может писать внутрь собственного root/u,
+  );
 });
 
 test("both configured OpenSpec schemas have closed acyclic artifact graphs", async () => {
