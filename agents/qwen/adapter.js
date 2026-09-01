@@ -12,6 +12,10 @@ import {
 
 const WORKSPACE_SCOPE = "workspace";
 const ANSI_ESCAPE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "gu");
+const QWEN_SCOPE_MARKERS = Object.freeze({
+  user: Object.freeze(["Enabled (User): true"]),
+  workspace: Object.freeze(["Enabled (Workspace): true"]),
+});
 
 /** Escapes one native ID before matching the stable first line of Qwen list output. */
 function escapePattern(value) {
@@ -19,7 +23,7 @@ function escapePattern(value) {
 }
 
 /** Requires the requested Extension to be enabled in the current workspace. */
-function assertExtensionEnabled(output, nativeId, scope) {
+function assertExtensionEnabled(output, nativeId, scope, scopeMarkers) {
   const plain = output.replace(ANSI_ESCAPE, "");
   const entry = plain.split(/\n\s*\n/gu).find((block) => (
     new RegExp(`^[✓✗]\\s+${escapePattern(nativeId)}\\s+\\(`, "u").test(block)
@@ -31,8 +35,7 @@ function assertExtensionEnabled(output, nativeId, scope) {
     throw new Error(`AGENT_EXTENSION_STATUS_DISABLED: ${nativeId}`);
   }
   if (scope !== undefined) {
-    const label = `${scope[0].toUpperCase()}${scope.slice(1)}`;
-    if (!entry.includes(`Enabled (${label}): true`)) {
+    if (!scopeMarkers[scope]?.some((marker) => entry.includes(marker))) {
       throw new Error(`AGENT_EXTENSION_STATUS_SCOPE_MISSING: ${nativeId} (${scope})`);
     }
   }
@@ -43,53 +46,58 @@ function isMissingExtension(error, nativeId) {
   return error.message?.includes(`Extension with name ${nativeId} does not exist.`) === true;
 }
 
-/** Общая CLI grammar Qwen и GigaCode с разными Agent definitions/manifests. */
-const qwenAdapter = Object.freeze({
-  adaptOpenSpecPack,
-  preflight: preflightNative,
+/** Создаёт Qwen-compatible adapter с Agent-owned маркерами status scope. */
+export function createQwenCompatibleAdapter({ scopeMarkers = QWEN_SCOPE_MARKERS } = {}) {
+  return Object.freeze({
+    adaptOpenSpecPack,
+    preflight: preflightNative,
 
-  async validateExtension(extension, agent, { nativeId = extension.id } = {}) {
-    const manifest = await readNativeManifest(
-      path.join(extension.root, agent.manifest),
-      extension.root,
-    );
-    if (manifest.name !== nativeId) {
-      throw new Error(
-        `AGENT_EXTENSION_INVALID: ${agent.manifest} name '${manifest.name ?? ""}' ` +
-          `не совпадает с native ID '${nativeId}'`,
+    async validateExtension(extension, agent, { nativeId = extension.id } = {}) {
+      const manifest = await readNativeManifest(
+        path.join(extension.root, agent.manifest),
+        extension.root,
       );
-    }
-  },
-
-  async invokeExtension(context, extension, request) {
-    const resolvedNativeId = nativeExtensionId(extension.id, request.ownerId);
-    const activationScope = request.scope ?? WORKSPACE_SCOPE;
-    const installationScope = request.scope ?? context.agent.scope;
-    let args;
-    if (request.operation === "connect") {
-      await this.validateExtension(extension, context.agent, { nativeId: resolvedNativeId });
-      try {
-        return await runNative(context, extension, [
-          "extensions", "enable", resolvedNativeId, "--scope", activationScope,
-        ]);
-      } catch (error) {
-        if (!isMissingExtension(error, resolvedNativeId)) throw error;
-        args = [
-          "extensions", "install", `${extension.root}:${resolvedNativeId}`,
-          "--scope", installationScope, "--consent",
-        ];
+      if (manifest.name !== nativeId) {
+        throw new Error(
+          `AGENT_EXTENSION_INVALID: ${agent.manifest} name '${manifest.name ?? ""}' ` +
+            `не совпадает с native ID '${nativeId}'`,
+        );
       }
-    } else if (request.operation === "status") {
-      const output = await runNative(context, extension, ["extensions", "list"]);
-      assertExtensionEnabled(output, resolvedNativeId, request.scope);
-      return output;
-    } else if (request.operation === "remove") {
-      args = ["extensions", "uninstall", resolvedNativeId];
-    } else {
-      args = ["extensions", "disable", resolvedNativeId, "--scope", activationScope];
-    }
-    return runNative(context, extension, args);
-  },
-});
+    },
+
+    async invokeExtension(context, extension, request) {
+      const resolvedNativeId = nativeExtensionId(extension.id, request.ownerId);
+      const activationScope = request.scope ?? WORKSPACE_SCOPE;
+      const installationScope = request.scope ?? context.agent.scope;
+      let args;
+      if (request.operation === "connect") {
+        await this.validateExtension(extension, context.agent, { nativeId: resolvedNativeId });
+        try {
+          return await runNative(context, extension, [
+            "extensions", "enable", resolvedNativeId, "--scope", activationScope,
+          ]);
+        } catch (error) {
+          if (!isMissingExtension(error, resolvedNativeId)) throw error;
+          args = [
+            "extensions", "install", `${extension.root}:${resolvedNativeId}`,
+            "--scope", installationScope, "--consent",
+          ];
+        }
+      } else if (request.operation === "status") {
+        const output = await runNative(context, extension, ["extensions", "list"]);
+        assertExtensionEnabled(output, resolvedNativeId, request.scope, scopeMarkers);
+        return output;
+      } else if (request.operation === "remove") {
+        args = ["extensions", "uninstall", resolvedNativeId];
+      } else {
+        args = ["extensions", "disable", resolvedNativeId, "--scope", activationScope];
+      }
+      return runNative(context, extension, args);
+    },
+  });
+}
+
+/** Native Qwen Extension adapter. */
+const qwenAdapter = createQwenCompatibleAdapter();
 
 export default qwenAdapter;

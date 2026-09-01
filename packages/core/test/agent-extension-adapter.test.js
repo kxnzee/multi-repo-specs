@@ -174,7 +174,10 @@ for (const agentId of ["qwen", "gigacode"]) {
         throw new Error("Extension with name orchestrator-agent does not exist.");
       }
       if (calls.at(-1)[1].join(" ") === "extensions list") {
-        return "✓ orchestrator-agent (1.0.0)\n Enabled (User): true";
+        return agentId === "gigacode"
+          ? "✓ orchestrator-agent (1.0.0)\n Включено (Пользователь): true\n" +
+            " Включено (Рабочее пространство): true"
+          : "✓ orchestrator-agent (1.0.0)\n Enabled (User): true";
       }
       return "done";
     });
@@ -207,6 +210,48 @@ for (const agentId of ["qwen", "gigacode"]) {
     ]);
   });
 }
+
+test("GigaCode localized status still requires the requested scope", async (t) => {
+  const root = await extensionFixture(
+    t,
+    "openspec-gigacode-localized-scope-",
+    "orchestrator-agent",
+  );
+  const fixture = invocationContext(
+    "gigacode",
+    "✓ orchestrator-agent (1.0.0)\n Включено (Рабочее пространство): true",
+  );
+
+  await assert.rejects(
+    agentAdapter.invokeExtension(
+      fixture.context,
+      extension(root, "orchestrator-agent"),
+      { operation: "status", scope: "user" },
+    ),
+    /AGENT_EXTENSION_STATUS_SCOPE_MISSING: orchestrator-agent \(user\)/u,
+  );
+});
+
+test("GigaCode accepts Russian and English user scope markers", async (t) => {
+  const root = await extensionFixture(
+    t,
+    "openspec-gigacode-status-locales-",
+    "orchestrator-agent",
+  );
+  const payload = extension(root, "orchestrator-agent");
+
+  for (const output of [
+    "✓ orchestrator-agent (1.0.0)\n Enabled (User): true",
+    "✓ orchestrator-agent (1.0.0)\n Включено (Пользователь): true",
+  ]) {
+    const fixture = invocationContext("gigacode", output);
+    assert.equal(await agentAdapter.invokeExtension(
+      fixture.context,
+      payload,
+      { operation: "status", scope: "user" },
+    ), output);
+  }
+});
 
 test("Qwen adapter does not replace an enable failure with install", async (t) => {
   const root = await extensionFixture(t, "openspec-qwen-enable-failure-");
