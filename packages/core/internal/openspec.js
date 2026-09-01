@@ -134,8 +134,8 @@ function nextArtifactAction(status, changeId, applyInstructions) {
   });
 }
 
-/** Проверяет базовую JSON response и diagnostic errors OpenSpec. */
-export function parseOpenSpecJson(source, command) {
+/** Проверяет базовую JSON response OpenSpec. */
+function parseOpenSpecDocument(source, command) {
   let value;
   try {
     value = JSON.parse(source);
@@ -149,7 +149,12 @@ export function parseOpenSpecJson(source, command) {
       `OpenSpec Orchestrator не может обработать ответ ${command}: несовместимый базовый формат JSON response`,
     );
   }
-  const errors = [];
+  return value;
+}
+
+/** Собирает и проверяет все структурированные diagnostics OpenSpec. */
+function collectOpenSpecDiagnostics(value, command) {
+  const diagnostics = [];
   const visit = (current) => {
     if (!current || typeof current !== "object") return;
     if (Array.isArray(current)) {
@@ -170,12 +175,20 @@ export function parseOpenSpecJson(source, command) {
                 "несовместимый формат diagnostic в status[]",
             );
           }
-          if (diagnostic.severity === "error") errors.push(diagnostic);
+          diagnostics.push(diagnostic);
         }
       } else visit(item);
     }
   };
   visit(value);
+  return diagnostics;
+}
+
+/** Проверяет базовую JSON response и diagnostic errors OpenSpec. */
+export function parseOpenSpecJson(source, command) {
+  const value = parseOpenSpecDocument(source, command);
+  const errors = collectOpenSpecDiagnostics(value, command)
+    .filter(({ severity }) => severity === "error");
   if (errors.length > 0) {
     const details = errors.map(({ code, message }) => (
       `${code ? `${code}: ` : ""}${message ?? "неизвестная ошибка"}`
@@ -291,14 +304,18 @@ export class RepositoryOpenSpec {
   }
 
   async doctor(args = ["doctor"], onDiagnostic = () => {}) {
-    const output = await this.execute(args, {
+    const jsonArgs = args.includes("--json") ? args : [...args, "--json"];
+    const command = `openspec ${jsonArgs.join(" ")}`;
+    const output = await this.execute(jsonArgs, {
       environment: { NODE_NO_WARNINGS: "1" },
-      onStderr: (message) => {
-        const firstLine = message.split("\n")[0].trim();
-        const severity = firstLine.startsWith("Using OpenSpec root:") ? "info" : "warning";
-        onDiagnostic(message, severity);
-      },
+      onStderr: (message) => onDiagnostic(message, "warning"),
     });
+    const document = parseOpenSpecDocument(output, command);
+    for (const diagnostic of collectOpenSpecDiagnostics(document, command)) {
+      const message = `${diagnostic.code ? `${diagnostic.code}: ` : ""}` +
+        `${diagnostic.message ?? "неизвестная диагностика"}`;
+      onDiagnostic(message, diagnostic.severity === "info" ? "info" : "warning");
+    }
     return output;
   }
 

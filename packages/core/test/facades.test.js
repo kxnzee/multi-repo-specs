@@ -188,6 +188,42 @@ test("OpenSpecService binds openspec execution to Repository checkout", async (t
   });
 });
 
+test("OpenSpec doctor classifies structured diagnostics without localized text", async (t) => {
+  const { checkout } = await checkoutFixture(t);
+  const calls = [];
+  const diagnostics = [];
+  const output = JSON.stringify({
+    root: {
+      path: checkout.root,
+      status: [{ code: "root_selected", severity: "info", message: "Корень выбран" }],
+    },
+    references: [{
+      id: "shared",
+      status: [{ code: "reference_unresolved", severity: "warning", message: "Не найден" }],
+    }],
+    status: [],
+  });
+  const processService = new ProcessService(async (executable, args) => {
+    calls.push([executable, args]);
+    return {
+      failed: false,
+      stderr: "Localized auxiliary stderr",
+      stdout: output,
+    };
+  });
+  const repositoryOpenSpec = new OpenSpecService(processService).forRepository(checkout);
+
+  assert.equal(await repositoryOpenSpec.doctor(["doctor"], (message, severity) => {
+    diagnostics.push([message, severity]);
+  }), output);
+  assert.deepEqual(calls, [["openspec", ["doctor", "--json"]]]);
+  assert.deepEqual(diagnostics, [
+    ["Localized auxiliary stderr", "warning"],
+    ["root_selected: Корень выбран", "info"],
+    ["reference_unresolved: Не найден", "warning"],
+  ]);
+});
+
 test("FileService reads and atomically writes only inside Repository checkout", async (t) => {
   const { root, checkout } = await checkoutFixture(t);
   const service = new FileService().forRepository(checkout);

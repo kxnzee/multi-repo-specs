@@ -22,12 +22,17 @@ function escapePattern(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
-/** Requires the requested Extension to be enabled in the current workspace. */
-function assertExtensionEnabled(output, nativeId, scope, scopeMarkers) {
+/** Находит Extension по стабильному native ID без разбора локализованных полей. */
+function findExtensionEntry(output, nativeId) {
   const plain = output.replace(ANSI_ESCAPE, "");
-  const entry = plain.split(/\n\s*\n/gu).find((block) => (
+  return plain.split(/\n\s*\n/gu).find((block) => (
     new RegExp(`^[✓✗]\\s+${escapePattern(nativeId)}\\s+\\(`, "u").test(block)
   ));
+}
+
+/** Requires the requested Extension to be enabled in the current workspace. */
+function assertExtensionEnabled(output, nativeId, scope, scopeMarkers) {
+  const entry = findExtensionEntry(output, nativeId);
   if (!entry) {
     throw new Error(`AGENT_EXTENSION_STATUS_MISSING: ${nativeId}`);
   }
@@ -39,11 +44,6 @@ function assertExtensionEnabled(output, nativeId, scope, scopeMarkers) {
       throw new Error(`AGENT_EXTENSION_STATUS_SCOPE_MISSING: ${nativeId} (${scope})`);
     }
   }
-}
-
-/** Отличает отсутствие package от прочих native CLI failures. */
-function isMissingExtension(error, nativeId) {
-  return error.message?.includes(`Extension with name ${nativeId} does not exist.`) === true;
 }
 
 /** Создаёт Qwen-compatible adapter с Agent-owned маркерами status scope. */
@@ -72,17 +72,15 @@ export function createQwenCompatibleAdapter({ scopeMarkers = QWEN_SCOPE_MARKERS 
       let args;
       if (request.operation === "connect") {
         await this.validateExtension(extension, context.agent, { nativeId: resolvedNativeId });
-        try {
-          return await runNative(context, extension, [
+        const output = await runNative(context, extension, ["extensions", "list"]);
+        args = findExtensionEntry(output, resolvedNativeId)
+          ? [
             "extensions", "enable", resolvedNativeId, "--scope", activationScope,
-          ]);
-        } catch (error) {
-          if (!isMissingExtension(error, resolvedNativeId)) throw error;
-          args = [
+          ]
+          : [
             "extensions", "install", `${extension.root}:${resolvedNativeId}`,
             "--scope", installationScope, "--consent",
           ];
-        }
       } else if (request.operation === "status") {
         const output = await runNative(context, extension, ["extensions", "list"]);
         assertExtensionEnabled(output, resolvedNativeId, request.scope, scopeMarkers);

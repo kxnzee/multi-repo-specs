@@ -102,14 +102,13 @@ export class ConnectionService {
     await storeOpenSpec.version();
     await storeOpenSpec.registerStore();
     await storeOpenSpec.assertStoreHealthy();
-    const doctorOutput = await storeOpenSpec.doctor(
+    await storeOpenSpec.doctor(
       ["doctor", "--store", metadata.id],
       (message, severity) => onProgress(
         `${severity === "info" ? "Информация" : "Предупреждение"} OpenSpec:\n${message}`,
         severity,
       ),
     );
-    if (doctorOutput) onProgress(doctorOutput, "info");
     await storeOpenSpec.assertContext({
       storeId: metadata.id,
       storeRoot,
@@ -200,13 +199,12 @@ export class ConnectionService {
       !await repositoryGit.isClean([CORE_FILES.openSpecConfig]);
     onProgress("проверка OpenSpec pointer...");
     const repositoryOpenSpec = this.#openspec.forRepository(checkout);
-    const doctorOutput = await repositoryOpenSpec.doctor(["doctor"], (message, severity) => (
+    await repositoryOpenSpec.doctor(["doctor"], (message, severity) => (
       onProgress(
         `${severity === "info" ? "Информация" : "Предупреждение"} OpenSpec:\n${message}`,
         severity,
       )
     ));
-    if (doctorOutput) onProgress(doctorOutput, "info");
     await repositoryOpenSpec.assertContext({ storeId, storeRoot, source: "declared" });
     return new RepositoryConnection({
       id: repository.id,
