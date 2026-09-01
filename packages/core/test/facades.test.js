@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import process from "node:process";
 import test from "node:test";
 
 import {
@@ -53,8 +54,23 @@ test("ProcessService binds execution to Repository checkout and ignores caller c
   assert.equal(calls[0].options.cwd, root);
   assert.equal(calls[0].options.env.TEAM, "payments");
   assert.equal(calls[0].options.env.GIT_TERMINAL_PROMPT, "0");
+  assert.equal(calls[0].options.stdin, "ignore");
   assert.deepEqual(warnings, ["warning"]);
   await assert.rejects(service.forRepository(checkout).run("tool", [], { timeout: 0 }), /Timeout/);
+});
+
+test("ProcessService closes stdin for non-interactive external commands", async (t) => {
+  const { checkout } = await checkoutFixture(t);
+  const output = await new ProcessService().forRepository(checkout).run(
+    process.execPath,
+    [
+      "--eval",
+      "process.stdin.once('end', () => process.stdout.write('stdin closed')); process.stdin.resume();",
+    ],
+    { timeout: 1_000 },
+  );
+
+  assert.equal(output, "stdin closed");
 });
 
 test("ProcessService redacts sensitive values from failed invocation and output", async (t) => {
@@ -166,6 +182,7 @@ test("OpenSpecService binds openspec execution to Repository checkout", async (t
       cwd: root,
       env: { GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0" },
       reject: false,
+      stdin: "ignore",
       timeout: 120_000,
     },
   });

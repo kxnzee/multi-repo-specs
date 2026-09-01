@@ -74,6 +74,23 @@ test("Core and Plugin SDK are independently publishable packages", async () => {
   assert.equal(sdk.dependencies, undefined);
 });
 
+test("all distribution packages require the same Node runtime", async () => {
+  const packagePaths = [
+    "package.json",
+    "packages/core/package.json",
+    "packages/mcp/package.json",
+    "packages/plugin-sdk/package.json",
+    "plugins/change-tracking/package.json",
+    "plugins/codegraph/package.json",
+    "plugins/openspec-graph/package.json",
+  ];
+  const manifests = await Promise.all(packagePaths.map(readManifest));
+
+  for (const [index, manifest] of manifests.entries()) {
+    assert.equal(manifest.engines?.node, ">=22.16.0", packagePaths[index]);
+  }
+});
+
 test("public entrypoint exposes the supported CLI", () => {
   const candidate = spawnSync(process.execPath, ["bin/openspec-orch.js", "--help"], {
     cwd: path.resolve("."),
@@ -91,11 +108,11 @@ test("public entrypoint preserves the Node guard and CLI exit codes", () => {
   const unsupported = spawnSync(process.execPath, [
     "--input-type=module",
     "--eval",
-    `Object.defineProperty(process.versions, "node", { value: "20.18.0" });\n` +
+    `Object.defineProperty(process.versions, "node", { value: "22.15.0" });\n` +
       `await import(${JSON.stringify(pathToFileURL(entrypoint).href)});`,
   ], { cwd: path.resolve("."), encoding: "utf8" });
   assert.equal(unsupported.status, 1);
-  assert.match(unsupported.stderr, /требует Node\.js 20\.19\.0 или новее/);
+  assert.match(unsupported.stderr, /требует Node\.js 22\.16\.0 или новее/);
 
   const invalid = spawnSync(process.execPath, [entrypoint, "assign"], {
     cwd: path.resolve("."),

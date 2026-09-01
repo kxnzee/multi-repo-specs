@@ -2,7 +2,7 @@
 
 ## Runtime
 
-- Node.js: `>=20.19.0`.
+- Node.js: `>=22.16.0`.
 - OpenSpec executable должен быть в `PATH`.
 - Core принимает semantic version OpenSpec; Change Tracking требует
   `>=1.11.0 <2`.

@@ -64,6 +64,7 @@ export class ScopedProcess {
       cwd: this.#cwd,
       env: { ...environment, ...COMMAND_ENV },
       reject: false,
+      stdin: "ignore",
       timeout,
     });
     if (result.failed && !acceptedExitCodes.includes(result.exitCode)) {

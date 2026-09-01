@@ -213,7 +213,9 @@ test("InitializationService creates Store through domain and public facade contr
   const gitignore = await fs.readFile(path.join(root, ".gitignore"), "utf8");
   assert.match(gitignore, /^\.openspec-orch\/plugins\/$/m);
   assert.match(gitignore, /^\.claude\/settings\.local\.json$/m);
-  assert.equal(fake.calls.some((args) => args[0] === "init"), true);
+  const initCall = fake.calls.find((args) => args[0] === "init");
+  assert.ok(initCall);
+  assert.equal(initCall.includes("--force"), true);
   assert.equal(fake.calls.some((args) => args[0] === "store" && args[1] === "setup"), true);
 
   const callCount = fake.calls.length;

@@ -12,6 +12,8 @@ import {
   BundledExtensionProvider,
 } from "@openspec-orch/core";
 
+import { createDirectoryLink } from "../fixtures/filesystem.js";
+
 const SPEC_DRIVEN_EXTENDED_ROOT = fileURLToPath(
   new URL("../../../extensions/spec-driven-extended/", import.meta.url),
 );
@@ -119,11 +121,13 @@ test("BundledExtensionPackage rejects incomplete, extended and symlinked payload
   );
 
   const symlinkRoot = await createExtension(t, "symlinked");
-  const externalManifest = path.join(path.dirname(symlinkRoot), "external-qwen.json");
-  t.after(() => fs.rm(externalManifest, { force: true }));
-  await fs.writeFile(externalManifest, "{}\n");
-  await fs.rm(path.join(symlinkRoot, "qwen-extension.json"));
-  await fs.symlink(externalManifest, path.join(symlinkRoot, "qwen-extension.json"));
+  const externalManifestRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "openspec-external-extension-manifest-"),
+  );
+  t.after(() => fs.rm(externalManifestRoot, { recursive: true, force: true }));
+  await fs.writeFile(path.join(externalManifestRoot, "plugin.json"), "{}\n");
+  await fs.rm(path.join(symlinkRoot, ".claude-plugin"), { recursive: true });
+  await createDirectoryLink(externalManifestRoot, path.join(symlinkRoot, ".claude-plugin"));
   await assert.rejects(
     loadExtension(symlinkRoot),
     /BUNDLED_EXTENSION_INVALID.*symlink/,
