@@ -129,6 +129,53 @@ test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence"
   ]);
 });
 
+test("ProjectSetupService rejects an Orchestrator checkout before CLI or MCP selection", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-project-setup-overlap-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const templateRoot = path.join(root, "templates", "default");
+  await fs.mkdir(templateRoot, { recursive: true });
+  const events = [];
+  const service = new ProjectSetupService({
+    bundledTemplateProvider: Object.freeze({
+      defaultId: "default",
+      catalog: Object.freeze({
+        entries: Object.freeze([{ id: "default", name: "Default Project Template" }]),
+      }),
+      resolve(id) {
+        assert.equal(id, "default");
+        return Object.freeze({ id, root: templateRoot });
+      },
+    }),
+    connectionService: Object.freeze({ async connect() {} }),
+    initializationService: Object.freeze({
+      async initialize() { events.push("initialize"); },
+    }),
+    initSelectionService: Object.freeze({
+      async resolve() { events.push("prompt"); },
+    }),
+    start: root,
+    storeProjectService: Object.freeze({
+      async load() {},
+      async resolve() {},
+    }),
+  });
+
+  await assert.rejects(
+    service.initialize(),
+    (error) => {
+      assert.match(error.message, /INIT_TARGET_INVALID/u);
+      assert.match(error.message, /Не запускайте openspec-orch init для checkout Orchestrator/u);
+      assert.match(error.message, /openspec-orch init <store-path>/u);
+      return true;
+    },
+  );
+  await assert.rejects(
+    service.initializeExplicit({ storeId: "specs", agentId: "qwen", templateId: "default" }),
+    /INIT_TARGET_INVALID/u,
+  );
+  assert.deepEqual(events, []);
+});
+
 test("ProjectSetupService rejects an existing relaxed Project before initialization writes", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-project-setup-relaxed-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));

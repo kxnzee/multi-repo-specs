@@ -10,6 +10,7 @@ import { lstatOrNull } from "./fs.js";
 import { initialization } from "./initialization.js";
 import { initSelections } from "./init-selection.js";
 import { storeProjects } from "./store-project.js";
+import { assertTemplateTargetSeparated } from "./template.js";
 import { hasMethods } from "./value.js";
 
 const DEFAULT_TEMPLATE_ID = "default";
@@ -39,6 +40,16 @@ function resolveTemplateRequest(provider, request) {
   return isLocalTemplateRequest(request)
     ? Object.freeze({ id: undefined, root: request })
     : provider.resolve(request);
+}
+
+/** Собирает известные Template roots, которые нельзя использовать как Store target. */
+function knownTemplateRoots(provider, request) {
+  if (typeof request === "string" && isLocalTemplateRequest(request)) return [request];
+  const ids = new Set([
+    provider.defaultId,
+    ...provider.catalog.entries.map(({ id }) => id),
+  ]);
+  return [...ids].map((id) => provider.resolve(id).root);
 }
 
 /** Converts a ConnectionResult into a stable protocol-neutral value. */
@@ -143,6 +154,10 @@ export class ProjectSetupService {
     if (typeof onSelectionResolved !== "function") {
       throw new Error("PROJECT_SETUP_INVALID: onSelectionResolved должен быть function");
     }
+    assertTemplateTargetSeparated({
+      targetRoot: target,
+      templateRoots: knownTemplateRoots(this.#templates, options.template),
+    });
     const selection = await this.#initSelection.resolve(options);
     if (!selection) return null;
     onSelectionResolved(selection);

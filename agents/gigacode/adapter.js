@@ -1,3 +1,3 @@
-/** @fileoverview GigaCode использует Qwen-compatible native CLI grammar. */
+/** @fileoverview GigaCode использует совместимую с Qwen native CLI grammar. */
 
 export { default } from "../qwen/adapter.js";

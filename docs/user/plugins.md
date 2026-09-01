@@ -96,8 +96,11 @@ git diff -- openspec-orch.yaml
 Если Plugin поставляет Agent Extension, дополнительно проверьте native состояние:
 
 ```bash
-# Qwen и GigaCode: Extension должна быть disabled или отсутствовать
+# Qwen: Extension должна быть disabled или отсутствовать
 qwen extensions list
+
+# GigaCode: Extension должна быть disabled или отсутствовать
+gigacode extensions list
 
 # Claude: Plugin не должен оставаться активным в текущем project scope
 claude plugin list --json
