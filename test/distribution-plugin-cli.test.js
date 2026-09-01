@@ -39,7 +39,7 @@ async function writeFakeQwen(fakeBin) {
     '  ? JSON.parse(fs.readFileSync(installedPath, "utf8")) : [];',
     "fs.appendFileSync(log, `${JSON.stringify({ cwd: process.cwd(), args })}\\n`);",
     'if (args[0] === "extensions" && args[1] === "enable" && !installed.includes(args[2])) {',
-    "  process.stderr.write(`Extension with name ${args[2]} does not exist.\\n`);",
+    "  process.stderr.write(`Расширение ${args[2]} не существует.\\n`);",
     "  process.exit(1);",
     "}",
     'if (args[0] === "extensions" && args[1] === "install") {',
@@ -103,7 +103,7 @@ distributionTest("candidate distribution bootstraps the Agent gateway once in us
   assert.deepEqual(calls, [
     ["--version"],
     ["extensions", "list"],
-    ["extensions", "enable", "orchestrator-agent", "--scope", "user"],
+    ["extensions", "list"],
     [
       "extensions", "install",
       `${await fs.realpath(path.join(
@@ -343,8 +343,6 @@ distributionTest("candidate distribution initializes bundled Plugins and mounts 
     .map((line) => JSON.parse(line))
     .filter(({ args }) => args[1] === "enable");
   assert.deepEqual(enabledExtensions.map(({ cwd }) => cwd), [
-    await fs.realpath(codeRoot),
-    await fs.realpath(storeRoot),
     await fs.realpath(codeRoot),
   ]);
   assert.equal((await execa(

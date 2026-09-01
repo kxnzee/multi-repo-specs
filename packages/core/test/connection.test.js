@@ -135,8 +135,18 @@ function connectExecutor(scenario, { diagnostic } = {}) {
         status: [],
       });
     } else if (args[0] === "doctor") {
-      stdout = "human-doctor-output";
-      if (diagnostic && !args.includes("--store")) stderr = diagnostic;
+      stdout = JSON.stringify({
+        root: {
+          path: options.cwd,
+          source: args.includes("--store") ? "store" : "declared",
+          status: [],
+        },
+        store: null,
+        references: [],
+        status: diagnostic && !args.includes("--store")
+          ? [{ code: "project_warning", severity: "warning", message: diagnostic }]
+          : [],
+      });
     } else if (args[0] === "context") {
       stdout = JSON.stringify({
         root: {
@@ -184,7 +194,7 @@ test("ConnectionService registers Store, clones Repository and creates pointer",
     await fs.readFile(path.join(scenario.workspaceRoot, "src/api/openspec/config.yaml"), "utf8"),
     "store: payments-specs\n",
   );
-  assert.equal(progress.some(({ message }) => message.includes("human-doctor-output")), true);
+  assert.equal(progress.some(({ message }) => message.includes('"references"')), false);
   assert.equal(progress.some(({ message }) => message.includes("project config warning")), true);
   assert.equal(fake.calls.some(({ args }) => args[0] === "store" && args[1] === "register"), true);
 });

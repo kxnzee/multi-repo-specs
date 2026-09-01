@@ -84,13 +84,15 @@ test("GigaCode preflight uses its own native executable", async () => {
 
 test("Qwen adapter installs once and proxies workspace lifecycle", async (t) => {
   const root = await extensionFixture(t);
+  let installed = false;
   const fixture = invocationContext("qwen", (calls) => {
-    if (calls.length === 1) {
-      throw new Error("Extension with name codegraph-agent does not exist.");
+    const operation = calls.at(-1)[1].join(" ");
+    if (operation === "extensions list") {
+      return installed
+        ? "✓ codegraph-agent (1.0.0)\n Enabled (Workspace): true"
+        : "No extensions installed.";
     }
-    if (calls.at(-1)[1].join(" ") === "extensions list") {
-      return "✓ codegraph-agent (1.0.0)\n Enabled (Workspace): true";
-    }
+    if (operation.startsWith("extensions install ")) installed = true;
     return "done";
   });
   const payload = extension(root);
@@ -112,11 +114,12 @@ test("Qwen adapter installs once and proxies workspace lifecycle", async (t) => 
     ownerId: "codegraph",
   });
   assert.deepEqual(fixture.calls, [
-    ["qwen", ["extensions", "enable", "codegraph-agent", "--scope", "workspace"]],
+    ["qwen", ["extensions", "list"]],
     ["qwen", [
       "extensions", "install", `${root}:codegraph-agent`,
       "--scope", "project", "--consent",
     ]],
+    ["qwen", ["extensions", "list"]],
     ["qwen", ["extensions", "enable", "codegraph-agent", "--scope", "workspace"]],
     ["qwen", ["extensions", "list"]],
     ["qwen", ["extensions", "disable", "codegraph-agent", "--scope", "workspace"]],
@@ -128,9 +131,7 @@ test("GigaCode adapter requires its manifest and uses GigaCode CLI", async (t) =
   const root = await extensionFixture(t, "openspec-gigacode-extension-");
   await fs.rm(path.join(root, "qwen-extension.json"));
   const fixture = invocationContext("gigacode", (calls) => {
-    if (calls.length === 1) {
-      throw new Error("Extension with name codegraph-agent does not exist.");
-    }
+    if (calls.at(-1)[1].join(" ") === "extensions list") return "Расширения не установлены.";
     return "installed";
   });
 
@@ -140,7 +141,7 @@ test("GigaCode adapter requires its manifest and uses GigaCode CLI", async (t) =
     { operation: "connect", ownerId: "codegraph" },
   ), "installed");
   assert.deepEqual(fixture.calls, [
-    ["gigacode", ["extensions", "enable", "codegraph-agent", "--scope", "workspace"]],
+    ["gigacode", ["extensions", "list"]],
     ["gigacode", [
       "extensions", "install", `${root}:codegraph-agent`,
       "--scope", "project", "--consent",
@@ -170,11 +171,13 @@ for (const agentId of ["qwen", "gigacode"]) {
       "orchestrator-agent",
     );
     const fixture = invocationContext(agentId, (calls) => {
-      if (calls.length === 1) {
-        throw new Error("Extension with name orchestrator-agent does not exist.");
-      }
       if (calls.at(-1)[1].join(" ") === "extensions list") {
-        return "✓ orchestrator-agent (1.0.0)\n Enabled (User): true";
+        const listCalls = calls.filter(([, args]) => args.join(" ") === "extensions list");
+        if (listCalls.length === 1) return "No extensions installed.";
+        return agentId === "gigacode"
+          ? "✓ orchestrator-agent (1.0.0)\n Включено (Пользователь): true\n" +
+            " Включено (Рабочее пространство): true"
+          : "✓ orchestrator-agent (1.0.0)\n Enabled (User): true";
       }
       return "done";
     });
@@ -197,7 +200,7 @@ for (const agentId of ["qwen", "gigacode"]) {
     );
     const executable = agentId === "gigacode" ? "gigacode" : "qwen";
     assert.deepEqual(fixture.calls, [
-      [executable, ["extensions", "enable", "orchestrator-agent", "--scope", "user"]],
+      [executable, ["extensions", "list"]],
       [executable, [
         "extensions", "install", `${root}:orchestrator-agent`,
         "--scope", "user", "--consent",
@@ -208,9 +211,54 @@ for (const agentId of ["qwen", "gigacode"]) {
   });
 }
 
+test("GigaCode localized status still requires the requested scope", async (t) => {
+  const root = await extensionFixture(
+    t,
+    "openspec-gigacode-localized-scope-",
+    "orchestrator-agent",
+  );
+  const fixture = invocationContext(
+    "gigacode",
+    "✓ orchestrator-agent (1.0.0)\n Включено (Рабочее пространство): true",
+  );
+
+  await assert.rejects(
+    agentAdapter.invokeExtension(
+      fixture.context,
+      extension(root, "orchestrator-agent"),
+      { operation: "status", scope: "user" },
+    ),
+    /AGENT_EXTENSION_STATUS_SCOPE_MISSING: orchestrator-agent \(user\)/u,
+  );
+});
+
+test("GigaCode accepts Russian and English user scope markers", async (t) => {
+  const root = await extensionFixture(
+    t,
+    "openspec-gigacode-status-locales-",
+    "orchestrator-agent",
+  );
+  const payload = extension(root, "orchestrator-agent");
+
+  for (const output of [
+    "✓ orchestrator-agent (1.0.0)\n Enabled (User): true",
+    "✓ orchestrator-agent (1.0.0)\n Включено (Пользователь): true",
+  ]) {
+    const fixture = invocationContext("gigacode", output);
+    assert.equal(await agentAdapter.invokeExtension(
+      fixture.context,
+      payload,
+      { operation: "status", scope: "user" },
+    ), output);
+  }
+});
+
 test("Qwen adapter does not replace an enable failure with install", async (t) => {
   const root = await extensionFixture(t, "openspec-qwen-enable-failure-");
-  const fixture = invocationContext("qwen", () => {
+  const fixture = invocationContext("qwen", (calls) => {
+    if (calls.at(-1)[1].join(" ") === "extensions list") {
+      return "✗ codegraph-agent (1.0.0)\n Enabled (Workspace): false";
+    }
     throw new Error("workspace is not writable");
   });
 
@@ -223,6 +271,7 @@ test("Qwen adapter does not replace an enable failure with install", async (t) =
     /AGENT_EXTENSION_NATIVE_FAILED.*workspace is not writable/u,
   );
   assert.deepEqual(fixture.calls, [
+    ["qwen", ["extensions", "list"]],
     ["qwen", ["extensions", "enable", "codegraph-agent", "--scope", "workspace"]],
   ]);
 });
