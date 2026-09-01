@@ -128,13 +128,16 @@ export class InitSelectionService {
       message: messages.agent,
       choices: catalogChoices(this.#agentCatalog),
     });
+    const extensionChoices = this.#extensionChoices(template);
     const extensionIds = options.extensions === false
       ? []
-      : options.extension ?? await this.#checkbox({
-        message: messages.extensions,
-        theme: REQUIRED_CHECKBOX_THEME,
-        choices: this.#extensionChoices(template),
-      });
+      : options.extension ?? (extensionChoices.some(({ disabled }) => !disabled)
+        ? await this.#checkbox({
+            message: messages.extensions,
+            theme: REQUIRED_CHECKBOX_THEME,
+            choices: extensionChoices,
+          })
+        : []);
     const repositories = options.repo ?? await this.#repositories();
     const noStrict = options.strict === false
       ? true

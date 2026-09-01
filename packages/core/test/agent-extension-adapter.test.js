@@ -75,6 +75,13 @@ test("AgentExtensionAdapter preflights the selected distribution Agent", async (
   assert.deepEqual(fixture.calls, [["qwen", ["--version"]]]);
 });
 
+test("GigaCode preflight uses its own native executable", async () => {
+  const fixture = invocationContext("gigacode", "1.0.0");
+
+  assert.equal(await agentAdapter.preflight(fixture.context), "1.0.0");
+  assert.deepEqual(fixture.calls, [["gigacode", ["--version"]]]);
+});
+
 test("Qwen adapter installs once and proxies workspace lifecycle", async (t) => {
   const root = await extensionFixture(t);
   const fixture = invocationContext("qwen", (calls) => {
@@ -117,7 +124,7 @@ test("Qwen adapter installs once and proxies workspace lifecycle", async (t) => 
   assert.equal(fixture.calls.every(([, args]) => Object.isFrozen(args)), true);
 });
 
-test("GigaCode adapter requires gigacode-extension.json while using Qwen CLI", async (t) => {
+test("GigaCode adapter requires its manifest and uses GigaCode CLI", async (t) => {
   const root = await extensionFixture(t, "openspec-gigacode-extension-");
   await fs.rm(path.join(root, "qwen-extension.json"));
   const fixture = invocationContext("gigacode", (calls) => {
@@ -133,8 +140,8 @@ test("GigaCode adapter requires gigacode-extension.json while using Qwen CLI", a
     { operation: "connect", ownerId: "codegraph" },
   ), "installed");
   assert.deepEqual(fixture.calls, [
-    ["qwen", ["extensions", "enable", "codegraph-agent", "--scope", "workspace"]],
-    ["qwen", [
+    ["gigacode", ["extensions", "enable", "codegraph-agent", "--scope", "workspace"]],
+    ["gigacode", [
       "extensions", "install", `${root}:codegraph-agent`,
       "--scope", "project", "--consent",
     ]],
@@ -188,14 +195,15 @@ for (const agentId of ["qwen", "gigacode"]) {
       payload,
       { operation: "remove", scope: "user" },
     );
+    const executable = agentId === "gigacode" ? "gigacode" : "qwen";
     assert.deepEqual(fixture.calls, [
-      ["qwen", ["extensions", "enable", "orchestrator-agent", "--scope", "user"]],
-      ["qwen", [
+      [executable, ["extensions", "enable", "orchestrator-agent", "--scope", "user"]],
+      [executable, [
         "extensions", "install", `${root}:orchestrator-agent`,
         "--scope", "user", "--consent",
       ]],
-      ["qwen", ["extensions", "list"]],
-      ["qwen", ["extensions", "uninstall", "orchestrator-agent"]],
+      [executable, ["extensions", "list"]],
+      [executable, ["extensions", "uninstall", "orchestrator-agent"]],
     ]);
   });
 }

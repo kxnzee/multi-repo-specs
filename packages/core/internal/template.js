@@ -91,6 +91,39 @@ function templateTargetOverlapError() {
   );
 }
 
+/**
+ * Fail-fast проверка известных Template roots до интерактивного init.
+ * Полный plan повторяет её после realpath, непосредственно перед записью.
+ */
+export function assertTemplateTargetSeparated({ targetRoot, templateRoots = [] } = {}) {
+  if (typeof targetRoot !== "string" || targetRoot.length === 0) {
+    throw new Error("Target root должен быть указан");
+  }
+  if (!Array.isArray(templateRoots) || templateRoots.some((root) => typeof root !== "string")) {
+    throw new Error("Template roots должен быть массивом путей");
+  }
+  const absoluteTargetRoot = path.resolve(targetRoot);
+  for (const requestedTemplateRoot of templateRoots) {
+    const absoluteTemplateRoot = path.resolve(requestedTemplateRoot);
+    const targetInsideTemplate = isContainedPath(
+      absoluteTemplateRoot,
+      absoluteTargetRoot,
+      { allowRoot: true },
+    );
+    const templateInsideTarget = isContainedPath(
+      absoluteTargetRoot,
+      absoluteTemplateRoot,
+      { allowRoot: true },
+    );
+    if (
+      targetInsideTemplate ||
+      (templateInsideTarget && !isInstalledDependencyRoot(absoluteTargetRoot, absoluteTemplateRoot))
+    ) {
+      throw templateTargetOverlapError();
+    }
+  }
+}
+
 /** Reads one validated descriptor after checking the complete Template source tree. */
 async function readTemplateDescriptor(templateRoot, schema) {
   await listSourceFiles(templateRoot, "", "Template root");
@@ -374,14 +407,7 @@ export class ProjectTemplateService {
   async plan({ templateRoot: requestedTemplateRoot, targetRoot: requestedTargetRoot, agent }) {
     const { descriptor, root: templateRoot } = await loadTemplateDefinition(requestedTemplateRoot);
     const targetRoot = await resolveDirectoryRoot(requestedTargetRoot, "Target root");
-    const targetInsideTemplate = isContainedPath(templateRoot, targetRoot, { allowRoot: true });
-    const templateInsideTarget = isContainedPath(targetRoot, templateRoot, { allowRoot: true });
-    if (
-      targetInsideTemplate ||
-      (templateInsideTarget && !isInstalledDependencyRoot(targetRoot, templateRoot))
-    ) {
-      throw templateTargetOverlapError();
-    }
+    assertTemplateTargetSeparated({ targetRoot, templateRoots: [templateRoot] });
     if (!(agent instanceof AgentDefinition)) {
       throw new Error("TEMPLATE_AGENT_INVALID: требуется независимый AgentDefinition");
     }

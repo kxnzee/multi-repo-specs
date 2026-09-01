@@ -8,6 +8,6 @@ openspec:
   instructionsFile: GIGACODE.md
 native:
   adapter: adapter.js
-  executable: qwen
+  executable: gigacode
   scope: project
   manifest: gigacode-extension.json

@@ -571,7 +571,7 @@ test("CandidateCli rejects an unknown Template ID but preserves an explicit loca
   assert.equal(calls[0].templateRoot, "./team-template");
 });
 
-test("CandidateCli interactive init builds the same normalized domain input", async () => {
+test("CandidateCli interactive init skips an Extension prompt with no selectable choices", async () => {
   const calls = [];
   const confirmations = [];
   const agentCatalog = new AgentCatalog([
@@ -628,29 +628,8 @@ test("CandidateCli interactive init builds the same normalized domain input", as
         }
         throw new Error(`unexpected select prompt: ${message}`);
       },
-      checkboxPrompt: async ({ choices, theme }) => {
-        assert.deepEqual(choices.map(({ value, checked, disabled }) => ({
-          value,
-          checked: checked ?? false,
-          disabled: disabled ?? false,
-        })), [
-          {
-            value: "spec-driven-extended",
-            checked: true,
-            disabled: "Требуется Project Template default",
-          },
-          {
-            value: "superpowers",
-            checked: true,
-            disabled: "Требуется Project Template default",
-          },
-        ]);
-        assert.deepEqual(theme.icon, { checked: "[✓]", unchecked: "[ ]" });
-        assert.equal(
-          theme.style.disabledChoice("Superpowers (superpowers) required"),
-          "[✓] Superpowers (superpowers) required",
-        );
-        return ["superpowers"];
+      checkboxPrompt: async () => {
+        throw new Error("checkbox не должен вызываться без selectable Extensions");
       },
       confirmPrompt: async (options) => {
         confirmations.push(options);
@@ -783,6 +762,11 @@ test("init selects Template before Extensions and locks its required Extensions"
         name: "Superpowers",
         source: "bundled:superpowers",
       }),
+      new ExtensionCatalogEntry({
+        id: "team-extension",
+        name: "Team Extension",
+        source: "bundled:team-extension",
+      }),
     ]),
     templateCatalog: new TemplateCatalog([
       new TemplateCatalogEntry({
@@ -806,7 +790,7 @@ test("init selects Template before Extensions and locks its required Extensions"
       if (message === "Выберите Agent") return "qwen";
       throw new Error(`unexpected select prompt: ${message}`);
     },
-    checkboxPrompt: async ({ message, choices }) => {
+    checkboxPrompt: async ({ message, choices, theme }) => {
       events.push(message);
       assert.deepEqual(choices.map(({ value, checked, disabled }) => ({
         value,
@@ -823,8 +807,18 @@ test("init selects Template before Extensions and locks its required Extensions"
           checked: true,
           disabled: "Требуется Project Template default",
         },
+        {
+          value: "team-extension",
+          checked: false,
+          disabled: false,
+        },
       ]);
-      return [];
+      assert.deepEqual(theme.icon, { checked: "[✓]", unchecked: "[ ]" });
+      assert.equal(
+        theme.style.disabledChoice("Superpowers (superpowers) required"),
+        "[✓] Superpowers (superpowers) required",
+      );
+      return ["team-extension"];
     },
     confirmPrompt: async ({ message }) => {
       events.push(message.startsWith("Store:") ? "Итоговое подтверждение" : message);
@@ -844,6 +838,7 @@ test("init selects Template before Extensions and locks its required Extensions"
   assert.deepEqual(selection.extensions, [
     { id: "spec-driven-extended", source: "bundled:spec-driven-extended" },
     { id: "superpowers", source: "bundled:superpowers" },
+    { id: "team-extension", source: "bundled:team-extension" },
   ]);
 });
 

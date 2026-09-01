@@ -19,12 +19,16 @@ openspec-orch --help
 # для --agent claude
 claude --version
 
-# для --agent qwen или --agent gigacode
+# для --agent qwen
 qwen --version
+
+# для --agent gigacode
+gigacode --version
 ```
 
-Текущий adapter GigaCode использует совместимый `qwen` CLI. `connect` выполняет
-проверку выбранного Agent до подключения repositories и Extensions.
+Adapters Qwen и GigaCode используют совместимую грамматику Extensions, но запускают
+собственные CLI: соответственно `qwen` и `gigacode`. `connect` выполняет проверку
+выбранного Agent до подключения repositories и Extensions.
 
 ## 2. Создайте или клонируйте Store
 
