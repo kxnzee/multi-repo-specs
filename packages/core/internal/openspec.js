@@ -427,6 +427,7 @@ export class RepositoryOpenSpec {
         agentAdapter,
         "--profile",
         CORE_SETTINGS.openSpec.init.profile,
+        "--force",
         "--no-animation",
       ], { environment: { XDG_CONFIG_HOME: configRoot } });
     } finally {

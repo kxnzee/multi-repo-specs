@@ -74,6 +74,7 @@ test("PluginScaffoldService creates convention-first commands, repository and na
       assert.equal(manifest.exports, "./index.js");
       assert.deepEqual(manifest.openspecOrchestrator, { apiVersion: 1, plugin: "./index.js" });
       assert.equal(manifest.peerDependencies["@openspec-orch/plugin-sdk"], "^0.1.0");
+      assert.deepEqual(manifest.engines, { node: ">=22.16.0" });
       assert.deepEqual(manifest.files, [
         "index.js",
         "README.md",

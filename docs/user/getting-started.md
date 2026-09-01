@@ -10,7 +10,7 @@ openspec --version
 openspec-orch --help
 ```
 
-Нужен Node.js 20.19.0 или новее. Установка и обновление самого Orchestrator описаны
+Нужен Node.js 22.16.0 или новее. Установка и обновление самого Orchestrator описаны
 [отдельно](installation-and-updates.md).
 
 До `connect` установите CLI выбранного Agent и убедитесь, что он доступен в `PATH`:

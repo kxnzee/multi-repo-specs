@@ -144,7 +144,7 @@ async function scaffoldFiles({ pluginId, name, profile, supports, extension }) {
     peerDependencies: { [CORE_PACKAGES.pluginSdk]: sdkVersion },
     devDependencies: { [CORE_PACKAGES.pluginSdk]: sdkVersion },
     scripts: { test: "node --test" },
-    engines: { node: ">=20.19.0" },
+    engines: { node: ">=22.16.0" },
     license: "UNLICENSED",
   };
   new PluginPackage(manifest);
