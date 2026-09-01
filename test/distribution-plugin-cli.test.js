@@ -344,8 +344,6 @@ distributionTest("candidate distribution initializes bundled Plugins and mounts 
     .filter(({ args }) => args[1] === "enable");
   assert.deepEqual(enabledExtensions.map(({ cwd }) => cwd), [
     await fs.realpath(codeRoot),
-    await fs.realpath(storeRoot),
-    await fs.realpath(codeRoot),
   ]);
   assert.equal((await execa(
     "git",
