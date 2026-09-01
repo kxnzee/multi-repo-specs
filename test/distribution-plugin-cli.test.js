@@ -18,6 +18,9 @@ import { configuration, createProject } from "@openspec-orch/core";
 const CLI_PATH = process.env.OPENSPEC_ORCH_TEST_CLI_PATH ??
   fileURLToPath(new URL("../bin/openspec-orch.js", import.meta.url));
 const MCP_PATH = fileURLToPath(new URL("../bin/openspec-orch-mcp.js", import.meta.url));
+const distributionTest = process.env.OPENSPEC_ORCH_SKIP_DISTRIBUTION_SMOKE === "1"
+  ? test.skip
+  : test;
 
 /** Запускает candidate CLI в изолированном Store. */
 function runCli(cwd, ...args) {
@@ -67,7 +70,7 @@ async function writeFakeQwen(fakeBin) {
   );
 }
 
-test("candidate distribution bootstraps the Agent gateway once in user scope", async (t) => {
+distributionTest("candidate distribution bootstraps the Agent gateway once in user scope", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-agent-bootstrap-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const fakeBin = path.join(root, "bin");
@@ -146,34 +149,43 @@ async function commitAll(root, message) {
   );
 }
 
-test("candidate distribution initializes bundled Plugins and mounts trusted root commands", async (t) => {
-  const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-distribution-"));
+/** Создаёт общий public-distribution fixture с упорядоченным освобождением ресурсов. */
+async function distributionFixture(t, prefix) {
+  const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   const storeRoot = path.join(workspaceRoot, "specs");
   const codeRoot = path.join(workspaceRoot, "src", "frontend");
-  t.after(() => fs.rm(workspaceRoot, { recursive: true, force: true }));
   const originalXdgConfigHome = process.env.XDG_CONFIG_HOME;
   const originalXdgDataHome = process.env.XDG_DATA_HOME;
+  const originalPath = process.env.PATH;
+  const originalNativeLog = process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
+  const resourceCleanups = [];
+  t.after(async () => {
+    try {
+      for (const cleanup of resourceCleanups.reverse()) await cleanup();
+    } finally {
+      if (originalXdgConfigHome === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
+      if (originalXdgDataHome === undefined) delete process.env.XDG_DATA_HOME;
+      else process.env.XDG_DATA_HOME = originalXdgDataHome;
+      process.env.PATH = originalPath;
+      if (originalNativeLog === undefined) delete process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
+      else process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG = originalNativeLog;
+      await fs.rm(workspaceRoot, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 100,
+      });
+    }
+  });
   process.env.XDG_CONFIG_HOME = path.join(workspaceRoot, "xdg-config");
   process.env.XDG_DATA_HOME = path.join(workspaceRoot, "xdg-data");
-  t.after(() => {
-    if (originalXdgConfigHome === undefined) delete process.env.XDG_CONFIG_HOME;
-    else process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
-    if (originalXdgDataHome === undefined) delete process.env.XDG_DATA_HOME;
-    else process.env.XDG_DATA_HOME = originalXdgDataHome;
-  });
   const fakeBin = path.join(workspaceRoot, "bin");
   const nativeLog = path.join(workspaceRoot, "qwen-native.jsonl");
   await fs.mkdir(fakeBin);
   await writeFakeQwen(fakeBin);
-  const originalPath = process.env.PATH;
-  const originalNativeLog = process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
   process.env.PATH = `${fakeBin}${path.delimiter}${originalPath}`;
   process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG = nativeLog;
-  t.after(() => {
-    process.env.PATH = originalPath;
-    if (originalNativeLog === undefined) delete process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;
-    else process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG = originalNativeLog;
-  });
   await fs.mkdir(storeRoot);
   await fs.mkdir(codeRoot, { recursive: true });
   await fs.writeFile(path.join(codeRoot, "index.js"), "export const ready = true;\n");
@@ -229,6 +241,22 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     "openspec",
     ["store", "register", storeRoot, "--id", "specs", "--yes", "--json"],
     { cwd: storeRoot },
+  );
+
+  return Object.freeze({
+    codeRoot,
+    nativeLog,
+    registerCleanup(cleanup) {
+      resourceCleanups.push(cleanup);
+    },
+    storeRoot,
+  });
+}
+
+distributionTest("candidate distribution initializes bundled Plugins and mounts trusted root commands", async (t) => {
+  const { codeRoot, nativeLog, storeRoot } = await distributionFixture(
+    t,
+    "openspec-orch-distribution-cli-",
   );
 
   const graphSeed = path.join(storeRoot, "openspec/graph.yaml");
@@ -425,7 +453,18 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
   );
   assert.deepEqual(withoutGraph.plugins, ["change-tracking"]);
+});
 
+distributionTest("candidate distribution completes Change Tracking through public MCP", async (t) => {
+  const { codeRoot, registerCleanup, storeRoot } = await distributionFixture(
+    t,
+    "openspec-orch-distribution-mcp-",
+  );
+  await runCli(storeRoot, "plugin", "init", "--plugin", "change-tracking");
+  await runCli(
+    storeRoot,
+    "plugin", "connect", "change-tracking", "--repo", "specs", "--repo", "frontend",
+  );
   await execa(
     "openspec",
     ["new", "change", "tracker-smoke", "--schema", "spec-driven"],
@@ -447,8 +486,8 @@ test("candidate distribution initializes bundled Plugins and mounts trusted root
     stderr: "pipe",
   });
   const client = new Client({ name: "tracker-composition-smoke", version: "1.0.0" });
+  registerCleanup(() => client.close());
   await client.connect(transport);
-  t.after(() => client.close());
   const started = await client.callTool({
     name: "start_attempt",
     arguments: { change_id: "tracker-smoke", task_id: "1" },
