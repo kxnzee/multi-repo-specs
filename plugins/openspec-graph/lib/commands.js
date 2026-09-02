@@ -127,10 +127,7 @@ export function registerGraphCommands(
   commands,
   { output = console, progress = createCliProgress() } = {},
 ) {
-  const graph = commands.command("graph")
-    .description("inspect and view the current OpenSpec Store graph");
-
-  graph.command("inspect")
+  commands.command("inspect")
     .description("compile and validate the complete current Store graph")
     .option("--json", "print the full machine-readable report")
     .actionWithContext(async (context, options) => {
@@ -144,7 +141,7 @@ export function registerGraphCommands(
       assertSuccessful(report);
     }, { scope: COMMAND_SCOPE.store });
 
-  graph.command("view")
+  commands.command("view")
     .description("compile the current Store and serve the local read-only graph UI")
     .option("--port <port>", "loopback port; 0 selects a free port", { parser: port })
     .actionWithContext((context, options) => runGraphView(

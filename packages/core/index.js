@@ -68,7 +68,6 @@ export {
   extensionCatalog,
 } from "./internal/extension-catalog.js";
 export { ExtensionDeclaration } from "./internal/extension-declaration.js";
-export { PluginCommandBuilder, PluginCommandMounter, PluginCommandRegistry } from "./internal/plugin-commands.js";
 export { PluginHost, PluginRegistry } from "./internal/plugin-host.js";
 export {
   PluginConnectionResult,
@@ -112,12 +111,10 @@ export async function createCandidateProgram({
   bundledExtensionProvider,
   bundledTemplateProvider,
   bundledProvider,
-  currentRepositoryService,
   loadedPlugins,
   pluginCommandOptions,
   pluginContextFactory,
   pluginManagerService,
-  rootCommands,
   start,
   storeProjectService,
   ...options
@@ -128,11 +125,9 @@ export async function createCandidateProgram({
     bundledTemplateProvider,
     bundledProvider,
     contextFactory: pluginContextFactory,
-    currentRepositoryService,
     loadedPlugins,
     managerService: pluginManagerService,
     pluginCommandOptions,
-    rootCommands,
     start,
     storeProjectService,
   });

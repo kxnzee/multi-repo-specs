@@ -21,9 +21,11 @@ export default definePlugin({
 
 Plugin объявляет хотя бы один contribution:
 
-- `commands` — namespaced CLI grammar;
+- `commands` — declarative grammar за единым `plugin exec`;
 - `repository` — `connect/status` и optional `sync/exec`;
-- `extensions` — Agent Extension с Store или Repository target.
+- `extensions` — Agent Extension с Store или Repository target;
+- `agent` — optional Agent tools и response overlays, реализация которых остаётся
+  внутри owning Plugin.
 
 Commands-only Plugin может не объявлять `supports` и не требует binding.
 Repository Plugin объявляет хотя бы одну role. `repository.exec` нужен только для
@@ -50,6 +52,16 @@ export default definePlugin({
 `{ id, role }`. Native ID равен `<plugin-id>-<extension-id>`; provider manifests
 должны использовать это имя. Extension lifecycle выполняет Orchestrator через
 выбранный Agent adapter.
+
+## Agent contribution
+
+Поле `agent` позволяет Plugin поставлять Agent-facing tools и дополнять общие read
+responses. Distribution обнаруживает contribution через публичный Plugin API; Core,
+MCP transport и общий runtime не знают ID Plugin, tool names или поля overlay.
+`requireBinding: true` требует repository binding перед созданием application.
+
+Tool metadata immutable, а `create`, `execute`, optional `validate` и `enhance`
+выполняются из owning Plugin package. Contribution не расширяет права `PluginContext`.
 
 ## PluginContext
 

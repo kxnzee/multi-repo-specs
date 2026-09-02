@@ -12,8 +12,10 @@ const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/default/", import.m
 const EXTENSION_ROOT = fileURLToPath(new URL("../../extensions/spec-driven-extended/", import.meta.url));
 const GATEWAY_ROOT = fileURLToPath(new URL("../../extensions/orchestrator-agent/", import.meta.url));
 const CORE_ROOT = fileURLToPath(new URL("../../packages/core/internal/", import.meta.url));
+const MCP_ROOT = fileURLToPath(new URL("../../packages/mcp/lib/", import.meta.url));
 const SDK_ROOT = fileURLToPath(new URL("../../packages/plugin-sdk/internal/", import.meta.url));
 const PLUGINS_ROOT = fileURLToPath(new URL("../../plugins/", import.meta.url));
+const MCP_RUNTIME = fileURLToPath(new URL("../../bin/internal/orchestrator-mcp-runtime.js", import.meta.url));
 
 /** Разбирает обязательный YAML frontmatter Markdown artifact. */
 function parseFrontmatter(source, artifact) {
@@ -123,6 +125,10 @@ test("repository evidence delegation keeps one question per subagent invocation"
   assert.match(scout, /Новый или уточнённый вопрос требует нового subagent/u);
   assert.match(scout, /Repository-scoped CodeGraph MCP/u);
   assert.match(scout, /`codegraph_explore`[\s\S]*`projectPath`/u);
+  assert.match(
+    scout,
+    /\.codegraph\/[\s\S]*MCP недоступен[\s\S]*`status: blocked`[\s\S]*не используй[\s\S]*`plugin exec`[\s\S]*`grep`/iu,
+  );
   assert.match(scout, /question_id: <переданный question_id>/u);
   assert.match(scout, /status: answered \| partial \| unanswered \| blocked/u);
   assert.match(scout, /answer: <краткий вывод без paths, symbols и code inventory>/u);
@@ -138,6 +144,15 @@ test("repository evidence delegation keeps one question per subagent invocation"
     Object.keys(contracts[1].repository_evidence),
     ["question_id", "status", "answer", "evidence"],
   );
+
+  const codeGraphInstructions = await fs.readFile(
+    path.join(PLUGINS_ROOT, "codegraph/extension/agent-instructions.md"),
+    "utf8",
+  );
+  assert.match(
+    codeGraphInstructions,
+    /\.codegraph\/[\s\S]*MCP недоступен[\s\S]*сообщи пользователю[\s\S]*`plugin exec`[\s\S]*`grep`/iu,
+  );
 });
 
 test("Agent gateway instructions defer enforceable policy to MCP", async () => {
@@ -146,6 +161,11 @@ test("Agent gateway instructions defer enforceable policy to MCP", async () => {
   assert.match(source, /get_next_action/u);
   assert.match(source, /сообщи пользователю точную\s+причину и рекомендованный способ восстановления/u);
   assert.match(source, /Не повторяй запрос с неизменными\s+входными данными и контекстом/u);
+  assert.match(
+    source,
+    /Store передавай только через `store_id`[\s\S]*`repositories`\s+включай только Code Repositories/u,
+  );
+  assert.match(source, /не добавляй текущий Store в `repositories`/u);
   assert.match(source, /не имитируй его с помощью CLI, Git, файловых инструментов\s+или запуска процессов/u);
   assert.doesNotMatch(source, /receipt|Release|Archive|strict mode|working directory/u);
 });
@@ -189,5 +209,23 @@ test("Core, SDK and unrelated Plugins do not know Change Tracking contracts", as
   ]) {
     const source = await fs.readFile(file, "utf8");
     assert.doesNotMatch(source, forbidden, path.relative(fileURLToPath(new URL("../../", import.meta.url)), file));
+  }
+});
+
+test("OpenSpec Graph integration remains owned by its Plugin", async () => {
+  const forbidden = /openspec-graph|OpenSpecGraph|query_graph|graph_impact/iu;
+  for (const file of [
+    ...await files(CORE_ROOT),
+    ...await files(SDK_ROOT),
+    ...await files(MCP_ROOT),
+    ...await files(GATEWAY_ROOT),
+    MCP_RUNTIME,
+  ]) {
+    const source = await fs.readFile(file, "utf8");
+    assert.doesNotMatch(
+      source,
+      forbidden,
+      path.relative(fileURLToPath(new URL("../../", import.meta.url)), file),
+    );
   }
 });

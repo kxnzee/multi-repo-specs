@@ -58,7 +58,7 @@ Code Repositories.
 - способ проверки каждого нового или изменённого Scenario;
 - межрепозиторные зависимости, порядок выполнения, rollout/rollback и risk triggers.
 
-Если подключён OpenSpec Graph, `openspec-orch graph inspect --json` из Store должен
+Если подключён OpenSpec Graph, `openspec-orch plugin exec openspec-graph inspect --json` из Store должен
 завершаться без errors. Graph подтверждает структуру Store, но не доказывает
 repository ownership, реализацию, runtime dependency или deployment.
 
@@ -174,7 +174,7 @@ evidence и повторите Verify и gates для текущего candidate
 /opsx-archive <change-id>
 ```
 
-При подключённом Graph выполните `openspec-orch graph inspect --json` из Store до и
+При подключённом Graph выполните `openspec-orch plugin exec openspec-graph inspect --json` из Store до и
 после Archive. Agent, Orchestrator, Graph и Change Tracking не выполняют Archive
 автоматически.
 

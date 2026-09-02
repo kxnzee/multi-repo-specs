@@ -11,7 +11,6 @@ import {
   storeProjects,
 } from "@openspec-orch/core";
 import { ChangeTrackingApplication } from "@openspec-orch/plugin-change-tracking/application";
-import { OpenSpecGraphApplication } from "@openspec-orch/plugin-openspec-graph/application";
 import { StoreResourceService } from "@openspec-orch/mcp";
 
 /** Projects current Repository identity without exposing mutable domain objects. */
@@ -52,6 +51,7 @@ function capability(provider, available, reason = null) {
 
 /** Resolves current state for every request so a long-lived Agent never sees stale Project data. */
 export class OrchestratorMcpRuntime {
+  #agentContributions;
   #contexts;
   #currentRepositories;
   #doctor;
@@ -65,6 +65,7 @@ export class OrchestratorMcpRuntime {
   #storeProjects;
 
   constructor({
+    agentContributions = [],
     contextFactory = pluginContexts,
     currentRepositoryService = currentRepositories,
     doctorService,
@@ -92,6 +93,25 @@ export class OrchestratorMcpRuntime {
     ))) {
       throw new Error("MCP_RUNTIME_INVALID: setupService обязателен");
     }
+    if (
+      !Array.isArray(agentContributions) ||
+      agentContributions.some(({ contribution, pluginId } = {}) => (
+        typeof pluginId !== "string" ||
+        !contribution ||
+        typeof contribution.create !== "function" ||
+        typeof contribution.enhance !== "function" ||
+        !Array.isArray(contribution.tools)
+      ))
+    ) {
+      throw new Error("MCP_RUNTIME_INVALID: agentContributions несовместимы");
+    }
+    const toolNames = agentContributions.flatMap(({ contribution }) => (
+      contribution.tools.map(({ name }) => name)
+    ));
+    if (new Set(toolNames).size !== toolNames.length) {
+      throw new Error("MCP_RUNTIME_INVALID: agentContributions содержат повторяющийся tool");
+    }
+    this.#agentContributions = Object.freeze([...agentContributions]);
     this.#contexts = contextFactory;
     this.#currentRepositories = currentRepositoryService;
     this.#doctor = doctorService;
@@ -106,24 +126,22 @@ export class OrchestratorMcpRuntime {
     Object.freeze(this);
   }
 
+  get agentTools() {
+    return Object.freeze(this.#agentContributions.flatMap(({ contribution }) => (
+      contribution.tools.map(({ definition }) => definition)
+    )));
+  }
+
   async getStatus({ change_id: changeId } = {}) {
     const state = await this.#state();
-    const [tracking, graph] = await Promise.all([
-      this.#optionalApplication(
-        state,
-        "change-tracking",
-        false,
-        (context) => new ChangeTrackingApplication(context),
-      ),
-      this.#optionalApplication(
-        state,
-        "openspec-graph",
-        true,
-        (context) => new OpenSpecGraphApplication(context),
-      ),
-    ]);
+    const tracking = await this.#optionalApplication(
+      state,
+      "change-tracking",
+      false,
+      (context) => new ChangeTrackingApplication(context),
+    );
     const openSpec = this.#openSpec.forRepository(state.storeProject.checkout);
-    return Object.freeze({
+    const result = Object.freeze({
       ...projectJson(state.storeProject, state.invocation),
       capabilities: Object.freeze({
         tracking: capability(
@@ -131,15 +149,11 @@ export class OrchestratorMcpRuntime {
           tracking !== null,
           tracking ? null : "Plugin is not initialized or unavailable; inspect Doctor",
         ),
-        graph: capability(
-          "openspec-graph",
-          graph !== null,
-          graph ? null : "Plugin is not connected or unavailable; inspect Doctor",
-        ),
       }),
       openspec: await openSpec.listChanges(),
       tracking: tracking && changeId ? await tracking.getStatus(changeId) : null,
     });
+    return this.#enhance(state, "getStatus", { change_id: changeId }, result);
   }
 
   async getSetupContext() {
@@ -201,21 +215,13 @@ export class OrchestratorMcpRuntime {
     const repositoryOpenSpec = this.#openSpec.forRepository(state.storeProject.checkout);
     const resources = await this.#resourceService(state).list();
     const changePrefix = `openspec/changes/${changeId}/`;
-    const [tracking, graph] = await Promise.all([
-      this.#optionalApplication(
-        state,
-        "change-tracking",
-        false,
-        (context) => new ChangeTrackingApplication(context),
-      ),
-      this.#optionalApplication(
-        state,
-        "openspec-graph",
-        true,
-        (context) => new OpenSpecGraphApplication(context),
-      ),
-    ]);
-    return Object.freeze({
+    const tracking = await this.#optionalApplication(
+      state,
+      "change-tracking",
+      false,
+      (context) => new ChangeTrackingApplication(context),
+    );
+    const result = Object.freeze({
       ...projectJson(state.storeProject, state.invocation),
       change_id: changeId,
       artifact: artifact ?? null,
@@ -225,8 +231,13 @@ export class OrchestratorMcpRuntime {
         : null,
       resources: Object.freeze(resources.filter(({ name }) => name.startsWith(changePrefix))),
       tracking: tracking ? await tracking.getStatus(changeId) : null,
-      graph_impact: graph ? await graph.query("change_impact", changeId) : null,
     });
+    return this.#enhance(
+      state,
+      "getChangeContext",
+      { change_id: changeId, artifact },
+      result,
+    );
   }
 
   async getNextAction({ change_id: changeId } = {}) {
@@ -245,20 +256,7 @@ export class OrchestratorMcpRuntime {
 
   async getAssignmentScope({ change_id: changeId } = {}) {
     const state = await this.#state();
-    const graph = await this.#optionalApplication(
-      state,
-      "openspec-graph",
-      true,
-      (context) => new OpenSpecGraphApplication(context),
-    );
-    const graphImpact = graph && changeId ? await graph.query("change_impact", changeId) : null;
-    const graphRepositoryIds = graphImpact?.repositories.map(({ id }) => (
-      id.replace(/^repository:/u, "")
-    ));
-    const assignedRepositoryIds = graphRepositoryIds === undefined
-      ? null
-      : new Set(graphRepositoryIds);
-    const assignments = await this.#assignmentScopes(state, assignedRepositoryIds);
+    const assignments = await this.#assignmentScopes(state);
     const currentCheckout = state.invocation?.role === "store"
       ? state.storeProject.checkout
       : state.invocation
@@ -270,12 +268,9 @@ export class OrchestratorMcpRuntime {
     const revision = currentCheckout
       ? await this.#git.forRepository(currentCheckout).revision()
       : null;
-    return Object.freeze({
+    const result = Object.freeze({
       ...projectJson(state.storeProject, state.invocation),
-      assigned: graphRepositoryIds === undefined
-        ? null
-        : state.invocation?.role === "code" && graphRepositoryIds.includes(state.invocation.id),
-      graph_impact: graphImpact,
+      assigned: null,
       assignments,
       current_assignment: state.invocation ? Object.freeze({
         repository_id: state.invocation.id,
@@ -284,26 +279,23 @@ export class OrchestratorMcpRuntime {
         revision,
       }) : null,
     });
+    return this.#enhance(state, "getAssignmentScope", { change_id: changeId }, result);
   }
 
   async getDoctorReport() {
     return (await this.#doctor.inspect({ start: this.#start })).toJSON();
   }
 
-  async queryGraph({ query, id } = {}) {
+  async invokeAgentTool(name, args = {}) {
     const state = await this.#state();
-    const graph = await this.#optionalApplication(
-      state,
-      "openspec-graph",
-      true,
-      (context) => new OpenSpecGraphApplication(context),
-    );
-    if (!graph) {
-      throw new Error(
-        "CAPABILITY_UNAVAILABLE: openspec-graph is not connected or unavailable; inspect Doctor",
-      );
-    }
-    return graph.query(query, id);
+    const entry = this.#agentContributions.find(({ contribution }) => (
+      contribution.tools.some((tool) => tool.name === name)
+    ));
+    if (!entry) throw new Error(`MCP_TOOL_NOT_FOUND: ${name}`);
+    const tool = entry.contribution.tools.find(({ name: candidate }) => candidate === name);
+    tool.validate(args);
+    const application = await this.#agentApplication(state, entry);
+    return tool.execute(application, args);
   }
 
   async listResources() {
@@ -314,7 +306,7 @@ export class OrchestratorMcpRuntime {
     return this.#resourceService(await this.#state()).read(uri);
   }
 
-  async #assignmentScopes(state, assignedRepositoryIds) {
+  async #assignmentScopes(state) {
     const repositoryIds = state.storeProject.project.repositories
       .filter(({ role }) => role === "code")
       .map(({ id }) => id);
@@ -332,7 +324,7 @@ export class OrchestratorMcpRuntime {
         : null;
       return Object.freeze({
         repository_id: status.id,
-        assigned: assignedRepositoryIds?.has(status.id) ?? null,
+        assigned: null,
         checkout: status.path,
         revision,
         connected: status.connected,
@@ -340,6 +332,35 @@ export class OrchestratorMcpRuntime {
         state: status.state,
       });
     })));
+  }
+
+  /** Applies every Plugin-owned overlay without knowing its fields or provider semantics. */
+  async #enhance(state, operation, input, result) {
+    let current = result;
+    for (const entry of this.#agentContributions) {
+      const application = await this.#agentApplication(state, entry);
+      const enhanced = await entry.contribution.enhance(Object.freeze({
+        application,
+        input: Object.freeze({ ...input }),
+        operation,
+        result: current,
+      }));
+      if (!enhanced || typeof enhanced !== "object" || Array.isArray(enhanced)) {
+        throw new Error(`MCP_RUNTIME_INVALID: ${entry.pluginId} вернул некорректный overlay`);
+      }
+      current = Object.freeze(enhanced);
+    }
+    return current;
+  }
+
+  /** Resolves one optional Plugin-owned Agent application through the generic lifecycle. */
+  async #agentApplication(state, { contribution, pluginId }) {
+    return this.#optionalApplication(
+      state,
+      pluginId,
+      contribution.requireBinding,
+      (context) => contribution.create(context),
+    );
   }
 
   #resourceService(state) {

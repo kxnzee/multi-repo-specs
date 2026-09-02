@@ -50,25 +50,24 @@ openspec-orch plugin init --plugin <plugin-id>
 openspec-orch plugin connect <plugin-id> --repo <repository-id>
 openspec-orch plugin status --plugin <plugin-id>
 openspec-orch plugin sync <plugin-id> --repo <repository-id>
-openspec-orch plugin exec <plugin-id> --repo <repository-id> -- <command>
+openspec-orch plugin exec --repo <repository-id> <plugin-id> <command>
 openspec-orch plugin disconnect <plugin-id> --repo <repository-id>
 openspec-orch plugin remove <plugin-id>
 ```
 
-`connect`, `status`, `sync`, `exec` и `disconnect` относятся к repository contribution.
-Для commands-only Plugin после `init` используйте его собственную command namespace;
-только доверенные bundled Plugins могут получать явно разрешённые root commands.
-`sync` и `exec` не универсальны: используйте их лишь там, где Plugin явно объявляет
-эти операции.
+`connect`, `status`, `sync` и `disconnect` относятся к repository contribution.
+`plugin exec` — единый интерфейс declarative-команд и native argv для всех Plugins;
+Plugin-specific root commands отсутствуют. `sync` доступен только Plugin, который
+явно объявляет эту операцию.
 
-Без selector `plugin init` показывает каталог в TTY. В non-TTY передайте `--plugin`
-или `--all`; вариант с `--from` принимает ровно один `--plugin` и один source.
-Обычная command namespace внешнего Plugin вызывается как
-`openspec-orch <plugin-id> <command>`.
-
+Без selector `plugin init` показывает каталог в TTY; знак `★` отмечает рекомендуемые
+Plugins, но не выбирает их автоматически. В non-TTY передайте `--plugin` или `--all`;
+вариант с `--from` принимает ровно один `--plugin` и один source.
 Для `connect`, `sync`, `exec` и `disconnect` при работе с несколькими repositories
-повторите `--repo` или используйте `--all`. Без selector эти команды показывают
-выбор в TTY, а в non-TTY требуют явный selector. `status` не поддерживает `--all`:
+повторите `--repo` или используйте `--all`. Единственный candidate выбирается
+автоматически. При нескольких без selector TTY показывает выбор, а non-TTY требует
+явный selector. В `plugin exec` selector ставится перед Plugin ID, после ID все флаги
+принадлежат самому Plugin. `status` не поддерживает `--all`:
 без `--repo` он показывает все bindings, а `--repo` ограничивает результат.
 `disconnect` удаляет binding и отключает Plugin-owned Extension, но не удаляет
 данные Plugin из Repository. `remove` разрешён только без bindings.
@@ -123,8 +122,8 @@ repository data, локальный Plugin storage или созданные Plu
 ```bash
 openspec-orch plugin init --plugin openspec-graph
 openspec-orch plugin connect openspec-graph --repo specs
-openspec-orch graph inspect --json
-openspec-orch graph view --port 0
+openspec-orch plugin exec openspec-graph inspect --json
+openspec-orch plugin exec openspec-graph view --port 0
 ```
 
 Каждый вызов компилирует текущие файлы Store. Graph использует Master/Delta Specs и
@@ -142,9 +141,9 @@ openspec-orch plugin connect change-tracking \
   --repo specs --repo frontend --repo backend
 
 # ручной fallback из чистого Code Repository перед работой над task:
-openspec-orch attempt start <change-id> <task-id>
+openspec-orch plugin exec --repo specs change-tracking attempt start <change-id> <task-id>
 # после commit и стандартной галочки Apply:
-openspec-orch attempt complete <change-id> <task-id>
+openspec-orch plugin exec --repo specs change-tracking attempt complete <change-id> <task-id>
 ```
 
 Binding к Store нужен Store-scoped CLI-командам `attempt`. Bindings к Code Repositories
@@ -194,7 +193,7 @@ openspec-orch plugin init --plugin codegraph
 openspec-orch plugin connect codegraph --repo frontend
 openspec-orch plugin status --plugin codegraph --repo frontend
 openspec-orch plugin sync codegraph --repo frontend
-openspec-orch plugin exec codegraph --repo frontend -- explore "authentication flow"
+openspec-orch plugin exec --repo frontend codegraph explore "authentication flow"
 ```
 
 Каждый binding обслуживает только свой checkout и локальный `.codegraph/`. Индекс

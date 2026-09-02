@@ -9,8 +9,13 @@ import {
   assertPlainObject as assertPlainDefinitionObject,
 } from "./validation.js";
 
-const PLUGIN_KEYS = new Set(["id", "supports", "repository", "extensions", "registerCommands"]);
+const PLUGIN_KEYS = new Set(["agent", "id", "supports", "repository", "extensions", "registerCommands"]);
 const REPOSITORY_KEYS = new Set(["connect", "status", "sync", "exec"]);
+const AGENT_KEYS = new Set(["create", "enhance", "requireBinding", "tools"]);
+const AGENT_TOOL_KEYS = new Set([
+  "annotations", "description", "execute", "inputSchema", "name", "validate",
+]);
+const AGENT_TOOL_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/u;
 
 /** @typedef {"store" | "code"} RepositoryRole */
 
@@ -143,6 +148,7 @@ const REPOSITORY_KEYS = new Set(["connect", "status", "sync", "exec"]);
 /**
  * @typedef {object} PluginDefinition
  * @property {string} id
+ * @property {object} [agent]
  * @property {readonly RepositoryRole[]} [supports]
  * @property {RepositoryContribution} [repository]
  * @property {(context: PluginContext) => readonly (Extension | object)[]} [extensions]
@@ -188,11 +194,66 @@ function extensionContribution(extensions) {
   return extensions;
 }
 
+/** Copies and freezes Agent tool metadata without introducing a separate domain hierarchy. */
+function immutable(value) {
+  if (Array.isArray(value)) return Object.freeze(value.map(immutable));
+  if (!value || typeof value !== "object") return value;
+  return Object.freeze(Object.fromEntries(
+    Object.entries(value).map(([key, nested]) => [key, immutable(nested)]),
+  ));
+}
+
+/** Validates the small data contract used by generic Agent routing. */
+function agentContribution(agent) {
+  if (agent === undefined) return undefined;
+  assertPlainObject(agent, "agent");
+  assertKnownKeys(agent, AGENT_KEYS, "agent");
+  assertCallback(agent.create, "agent.create");
+  if (agent.enhance !== undefined) assertCallback(agent.enhance, "agent.enhance");
+  if (agent.requireBinding !== undefined && typeof agent.requireBinding !== "boolean") {
+    invalid("agent.requireBinding должен быть boolean");
+  }
+  if (!Array.isArray(agent.tools ?? [])) invalid("agent.tools должен быть массивом");
+  const tools = (agent.tools ?? []).map((tool) => {
+    assertPlainObject(tool, "agent tool");
+    assertKnownKeys(tool, AGENT_TOOL_KEYS, "agent tool");
+    if (typeof tool.name !== "string" || !AGENT_TOOL_PATTERN.test(tool.name)) {
+      invalid("agent tool name должен быть lowercase snake_case");
+    }
+    if (typeof tool.description !== "string" || !tool.description.trim()) {
+      invalid(`agent tool ${tool.name} требует description`);
+    }
+    assertCallback(tool.execute, `agent tool ${tool.name}.execute`);
+    if (tool.validate !== undefined) assertCallback(tool.validate, `agent tool ${tool.name}.validate`);
+    return Object.freeze({
+      name: tool.name,
+      definition: Object.freeze({
+        name: tool.name,
+        description: tool.description.trim(),
+        inputSchema: immutable(tool.inputSchema ?? {}),
+        annotations: immutable(tool.annotations ?? {}),
+      }),
+      validate: tool.validate ?? (() => undefined),
+      execute: tool.execute,
+    });
+  });
+  if (new Set(tools.map(({ name }) => name)).size !== tools.length) {
+    invalid("agent.tools содержит повторяющийся name");
+  }
+  return Object.freeze({
+    create: agent.create,
+    enhance: agent.enhance ?? (({ result }) => result),
+    requireBinding: agent.requireBinding ?? false,
+    tools: Object.freeze(tools),
+  });
+}
+
 /** Доменная модель одного проверенного Plugin. */
 export class Plugin {
   #id;
   #supports;
   #repository;
+  #agentContribution;
   #extensionContribution;
   #commandRegistration;
 
@@ -216,6 +277,7 @@ export class Plugin {
 
     const repository = repositoryContribution(definition.repository);
     const extensions = extensionContribution(definition.extensions);
+    const agent = agentContribution(definition.agent);
     if (repository && supports.length === 0) {
       invalid("repository contribution требует хотя бы одну supports role");
     }
@@ -225,13 +287,14 @@ export class Plugin {
     if (definition.registerCommands !== undefined) {
       assertCallback(definition.registerCommands, "registerCommands");
     }
-    if (!repository && !extensions && definition.registerCommands === undefined) {
+    if (!repository && !extensions && !agent && definition.registerCommands === undefined) {
       invalid("Plugin должен объявить хотя бы один contribution");
     }
 
     this.#id = definition.id;
     this.#supports = Object.freeze(supports);
     this.#repository = repository;
+    this.#agentContribution = agent;
     this.#extensionContribution = extensions;
     this.#commandRegistration = definition.registerCommands;
     Object.freeze(this);
@@ -295,15 +358,33 @@ export class Plugin {
       throw new Error("PLUGIN_EXEC_INVALID: args должен быть непустым массивом строк");
     }
     const immutableArgs = Object.freeze([...args]);
-    if (this.#repository?.exec) return this.#repository.exec(context, immutableArgs);
     if (this.#commandRegistration) {
-      return executePluginCommands(this.#commandRegistration, context, immutableArgs);
+      try {
+        const result = executePluginCommands(this.#commandRegistration, context, immutableArgs);
+        return result && typeof result.then === "function" ? result.then(() => undefined) : undefined;
+      } catch (error) {
+        if (error?.code !== "PLUGIN_EXEC_COMMAND_UNKNOWN" || !this.#repository?.exec) {
+          return Promise.reject(error);
+        }
+      }
     }
+    if (this.#repository?.exec) return this.#repository.exec(context, immutableArgs);
     throw new Error(`PLUGIN_EXEC_UNSUPPORTED: ${this.#id} не поддерживает exec`);
   }
 
   hasExtensionContribution() {
     return this.#extensionContribution !== undefined;
+  }
+
+  hasAgentContribution() {
+    return this.#agentContribution !== undefined;
+  }
+
+  agentContribution() {
+    if (!this.#agentContribution) {
+      throw new Error(`PLUGIN_AGENT_UNSUPPORTED: ${this.#id} не предоставляет Agent contribution`);
+    }
+    return this.#agentContribution;
   }
 
   extensions(context) {

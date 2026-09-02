@@ -83,7 +83,7 @@ Plugins не устанавливаются Template и подключаются
 ```bash
 openspec-orch plugin init --plugin openspec-graph
 openspec-orch plugin connect openspec-graph --repo specs
-openspec-orch graph inspect --json
+openspec-orch plugin exec openspec-graph inspect --json
 ```
 
 Подробнее: [Plugins](docs/user/plugins.md).

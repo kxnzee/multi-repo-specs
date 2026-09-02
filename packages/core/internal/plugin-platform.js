@@ -2,24 +2,19 @@
 
 import process from "node:process";
 
-import { COMMAND_SCOPE } from "@openspec-orch/plugin-sdk";
-
 import { isAgentExtensionAdapter } from "./agent-extension-adapter.js";
 import { bundledAgents } from "./bundled-agent.js";
 import { bundledExtensions } from "./bundled-extension.js";
 import { bundledTemplates, isBundledTemplateProvider } from "./bundled-template.js";
 import { BundledPluginProvider } from "./bundled-plugin.js";
 import { CandidateCli } from "./cli.js";
-import { currentRepositories } from "./current-repository.js";
 import { DoctorService } from "./doctor.js";
 import { ExtensionLifecycle } from "./extension-lifecycle.js";
 import { InitializationService } from "./initialization.js";
 import { InitSelectionService } from "./init-selection.js";
 import { PluginApplicationService } from "./plugin-application.js";
 import { pluginCatalog } from "./plugin-catalog.js";
-import { pluginContexts } from "./plugin-context.js";
 import { PluginLifecycleCommands } from "./plugin-cli.js";
-import { PluginCommandMounter } from "./plugin-commands.js";
 import { PluginHost, PluginRegistry } from "./plugin-host.js";
 import { PluginLifecycleService } from "./plugin-lifecycle.js";
 import { PluginManagerService, pluginManagers } from "./plugin-manager.js";
@@ -39,7 +34,6 @@ function isRecoverablePluginResolution(error) {
 /** Собирает Loader output, Host, lifecycle и CLI adapters без знания Plugin IDs. */
 export class PluginPlatform {
   #bundledTemplates;
-  #commands;
   #doctor;
   #extensionLifecycle;
   #initialization;
@@ -56,11 +50,9 @@ export class PluginPlatform {
     bundledExtensionProvider = bundledExtensions,
     bundledTemplateProvider = bundledTemplates,
     catalog,
-    contextFactory = pluginContexts,
-    currentRepositoryService = currentRepositories,
+    contextFactory,
     loadedPlugins = [],
     pluginCommandOptions = {},
-    rootCommands = new Map(),
     start = process.cwd(),
     storeProjectService = storeProjects,
   } = {}) {
@@ -136,48 +128,6 @@ export class PluginPlatform {
         })
       ))),
     });
-    const loadedIds = new Set(registry.list().map(({ id }) => id));
-    const activeRootCommands = new Map(
-      [...rootCommands].filter(([pluginId]) => loadedIds.has(pluginId)),
-    );
-    let invocationPromise;
-    const resolveInvocation = () => {
-      invocationPromise ??= storeProjectService.resolve(start).then(async (storeProject) => ({
-        storeProject,
-        invocation: await currentRepositoryService.resolve({ start, storeProject }),
-      }));
-      return invocationPromise;
-    };
-    this.#commands = new PluginCommandMounter({
-      onError() {
-        // Optional Plugin command failures must not prevent Core and Doctor from starting.
-      },
-      registry,
-      resolveContext: async (pluginId, scope, requireBinding) => {
-        const { storeProject, invocation } = await resolveInvocation();
-        if (scope === COMMAND_SCOPE.current && !invocation) {
-          throw new Error("PLUGIN_COMMAND_CONTEXT_UNAVAILABLE: текущий Repository не определён");
-        }
-        const loadedPlugin = registry.require(pluginId);
-        if (
-          !requireBinding &&
-          scope === COMMAND_SCOPE.store &&
-          !loadedPlugin.plugin.hasRepositoryContribution()
-        ) {
-          return contextFactory.forStoreSetup({ loadedPlugin, storeProject });
-        }
-        const createContext = requireBinding
-          ? contextFactory.forRepository.bind(contextFactory)
-          : contextFactory.forRepositorySetup.bind(contextFactory);
-        return createContext({
-          loadedPlugin,
-          storeProject,
-          repositoryId: scope === COMMAND_SCOPE.store ? storeProject.store.id : invocation.id,
-          invocation,
-        });
-      },
-      rootCommands: activeRootCommands,
-    });
     this.#lifecycleCommands = new PluginLifecycleCommands({
       ...pluginCommandOptions,
       applicationService,
@@ -239,7 +189,6 @@ export class PluginPlatform {
       extensionLifecycle: this.#extensionLifecycle,
       initSelectionService: this.#initSelection,
       initializationService: this.#initialization,
-      pluginCommandMounter: this.#commands,
       pluginExtensionConnector: this.#pluginExtensions,
       pluginLifecycleCommands: this.#lifecycleCommands,
       setupService: this.#setup,

@@ -151,7 +151,9 @@ openspec-orch agent setup --agent qwen
 
 Обязательны только `store_id` и `agent_id`. Если `template_id` не указан,
 используется bundled Template по умолчанию. `repositories` можно не передавать для
-Store без Code Repositories. Локальный путь к Template, произвольный target,
+Store без Code Repositories. В `repositories` перечисляются только Code Repositories:
+текущий центральный Store уже задан через `store_id` и повторно туда не добавляется.
+Локальный путь к Template, произвольный target,
 `--no-strict` и `--workspace` через `initialize_project` не поддерживаются.
 
 После успешной инициализации в той же Agent-сессии можно вызвать `connect_project`
@@ -233,7 +235,7 @@ openspec-orch agent status --agent qwen
 ```bash
 openspec-orch plugin init --plugin openspec-graph
 openspec-orch plugin connect openspec-graph --repo specs
-openspec-orch graph inspect --json
+openspec-orch plugin exec openspec-graph inspect --json
 ```
 
 Остальные варианты описаны в [руководстве Plugins](plugins.md).

@@ -95,7 +95,8 @@ export class PluginLifecycleCommands {
       throw new Error("CLI_COMMAND_CONFLICT: command path 'plugin' уже зарегистрирован");
     }
     const plugin = program.command("plugin")
-      .description("инициализация, подключение и состояние CLI Plugins");
+      .description("инициализация, подключение и состояние CLI Plugins")
+      .enablePositionalOptions();
     plugin.command("register <plugin-id> [path]")
       .description("создать самостоятельный Plugin Package с готовым entrypoint")
       .addOption(new Option("--name <display-name>", "читаемое имя Plugin")
@@ -151,6 +152,7 @@ export class PluginLifecycleCommands {
       }));
     plugin.command("exec <plugin-id> <command> [args...]")
       .description("передать command в один или все связанные Plugin instances")
+      .passThroughOptions()
       .addOption(new Option("--repo <repository-id>", "repository-id")
         .argParser(collectValues))
       .option("--all", "выполнить во всех связанных repositories без prompt")
@@ -216,8 +218,8 @@ export class PluginLifecycleCommands {
       const selectedIds = await this.#checkbox({
         message: "Выберите Plugins",
         theme: CHECKBOX_THEME,
-        choices: this.#catalog.entries.map(({ id, name }) => ({
-          name: `${name} (${id})`,
+        choices: this.#catalog.entries.map(({ id, name, recommended }) => ({
+          name: `${recommended ? "★ " : ""}${name} (${id})`,
           value: id,
         })),
       });
@@ -362,12 +364,13 @@ export class PluginLifecycleCommands {
       throw new Error("PLUGIN_REPOSITORY_SELECTION_INVALID: --all и --repo нельзя использовать вместе");
     }
     if (repositoryIds.length > 0) return Object.freeze([...new Set(repositoryIds)]);
-    if (!all && (!this.#stdin?.isTTY || !this.#stdout?.isTTY)) {
-      throw new Error("Интерактивный выбор требует TTY; используйте --repo или --all");
-    }
     const candidates = await this.#lifecycle.repositoryCandidates({ pluginId, operation });
     if (all || candidates.length === 0) {
       return Object.freeze(candidates.map(({ id }) => id));
+    }
+    if (candidates.length === 1) return Object.freeze([candidates[0].id]);
+    if (!this.#stdin?.isTTY || !this.#stdout?.isTTY) {
+      throw new Error("Интерактивный выбор требует TTY; используйте --repo или --all");
     }
     const messages = {
       connect: `Подключить ${pluginId} к repositories`,
