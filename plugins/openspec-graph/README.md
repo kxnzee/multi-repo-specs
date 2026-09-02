@@ -13,9 +13,9 @@ ownership, реализацию, runtime calls или dependency.
 openspec-orch plugin init --plugin openspec-graph
 openspec-orch plugin connect openspec-graph --repo <store-id>
 
-openspec-orch graph inspect
-openspec-orch graph inspect --json
-openspec-orch graph view --port 0
+openspec-orch plugin exec openspec-graph inspect
+openspec-orch plugin exec openspec-graph inspect --json
+openspec-orch plugin exec openspec-graph view --port 0
 ```
 
 `inspect` печатает report и возвращает ненулевой exit code при errors. `view`

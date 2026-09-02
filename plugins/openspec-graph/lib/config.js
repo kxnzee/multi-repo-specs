@@ -4,7 +4,7 @@ export const OPEN_SPEC_GRAPH_CONFIG = Object.freeze({
   files: Object.freeze({ operationHeadings: "openspec-graph.yaml" }),
   lifecycle: Object.freeze({
     mode: "compile_on_demand",
-    command: "openspec-orch graph inspect",
+    command: "openspec-orch plugin exec openspec-graph inspect",
   }),
   markers: Object.freeze({
     error: "[✗]",

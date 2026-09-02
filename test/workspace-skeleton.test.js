@@ -42,7 +42,7 @@ test("root distribution exposes the candidate entrypoint and required runtime fi
       id: "change-tracking",
       name: "Change Tracking",
       packageName: "@openspec-orch/plugin-change-tracking",
-      rootCommands: ["attempt"],
+      recommended: true,
     },
     {
       id: "codegraph",
@@ -53,7 +53,7 @@ test("root distribution exposes the candidate entrypoint and required runtime fi
       id: "openspec-graph",
       name: "OpenSpec Graph",
       packageName: "@openspec-orch/plugin-openspec-graph",
-      rootCommands: ["graph"],
+      recommended: true,
     },
   ]);
 });

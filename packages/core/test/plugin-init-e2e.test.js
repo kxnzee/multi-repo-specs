@@ -109,7 +109,7 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
     ];
     await (await createProgram()).parseAsync(args);
     const afterInit = await createProgram();
-    assert.equal(afterInit.commands.some((command) => command.name() === "sample"), true);
+    assert.equal(afterInit.commands.some((command) => command.name() === "sample"), false);
     await afterInit.parseAsync([
       "node",
       "openspec-orch",
@@ -133,6 +133,10 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
     await (await createProgram()).parseAsync([
       "node",
       "openspec-orch",
+      "plugin",
+      "exec",
+      "--repo",
+      "frontend",
       "sample",
       "inspect",
     ]);

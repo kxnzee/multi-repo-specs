@@ -45,7 +45,7 @@ openspec-orch plugin init [--plugin <id>] [--from <source>] [--all]
 openspec-orch plugin connect <id> [--repo <id>]... [--all]
 openspec-orch plugin status [--plugin <id>] [--repo <id>] [--json]
 openspec-orch plugin sync <id> [--repo <id>]... [--all]
-openspec-orch plugin exec <id> [--repo <id>]... [--all] -- <command> [args...]
+openspec-orch plugin exec [--repo <id>]... [--all] <id> <command> [args...]
 openspec-orch plugin disconnect <id> [--repo <id>]... [--all]
 openspec-orch plugin remove <id>
 ```
@@ -58,15 +58,15 @@ stderr, machine-readable output — в stdout.
 OpenSpec Graph:
 
 ```text
-openspec-orch graph inspect [--json]
-openspec-orch graph view [--port <port>]
+openspec-orch plugin exec openspec-graph inspect [--json]
+openspec-orch plugin exec openspec-graph view [--port <port>]
 ```
 
 Change Tracking:
 
 ```text
-openspec-orch attempt start <change-id> <task-id>
-openspec-orch attempt complete <change-id> <task-id>
+openspec-orch plugin exec --repo <store-id> change-tracking attempt start <change-id> <task-id>
+openspec-orch plugin exec --repo <store-id> change-tracking attempt complete <change-id> <task-id>
 ```
 
 CLI fallback запускается из Code Repository и требует binding `change-tracking` как к
@@ -114,13 +114,16 @@ Read tools:
 - `get_next_action`;
 - `get_assignment_scope`;
 - `get_doctor_report`;
-- `query_graph`.
+- `query_graph` — Plugin-owned tool, доступный в дистрибутиве и исполняемый только
+  через contribution `openspec-graph`.
 
 Controlled setup tools:
 
 - `initialize_project` — только cwd MCP и strict mode; принимает обязательные
   `store_id`, `agent_id`, опциональный bundled `template_id` и массив
-  `repositories` с полями `repository_id`, `remote`, `default_branch`;
+  `repositories` только для Code Repositories с полями `repository_id`, `remote`,
+  `default_branch`; центральный Store задаётся только через `store_id` и в этот массив
+  не включается;
 - `connect_project` — без workspace и relaxed overrides.
 
 Перед `initialize_project` клиент должен вызвать `get_setup_context` и подтвердить

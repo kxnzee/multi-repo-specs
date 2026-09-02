@@ -229,11 +229,19 @@ test("plugin init uses checkbox catalog selection and requires TTY", async () =>
   const calls = [];
   const prompts = [];
   const captured = outputCollector();
-  const catalog = new PluginCatalog([new PluginCatalogEntry({
-    id: "sample",
-    name: "Sample Plugin",
-    source: PluginSource.parse("@test/plugin-sample@1.0.0"),
-  })]);
+  const catalog = new PluginCatalog([
+    new PluginCatalogEntry({
+      id: "optional",
+      name: "Optional Plugin",
+      source: PluginSource.parse("@test/plugin-optional@1.0.0"),
+    }),
+    new PluginCatalogEntry({
+      id: "sample",
+      name: "Sample Plugin",
+      recommended: true,
+      source: PluginSource.parse("@test/plugin-sample@1.0.0"),
+    }),
+  ]);
   const applicationService = {
     async install(_current, pluginId) {
       calls.push(pluginId);
@@ -265,7 +273,10 @@ test("plugin init uses checkbox catalog selection and requires TTY", async () =>
   assert.deepEqual(prompts, [{
     message: "Выберите Plugins",
     theme: { icon: { checked: "[✓]", unchecked: "[ ]" } },
-    choices: [{ name: "Sample Plugin (sample)", value: "sample" }],
+    choices: [
+      { name: "Optional Plugin (optional)", value: "optional" },
+      { name: "★ Sample Plugin (sample)", value: "sample" },
+    ],
   }]);
   assert.deepEqual(calls, ["sample"]);
 
@@ -494,10 +505,9 @@ test("plugin exec forwards the native argv tail to one connected instance", asyn
     "openspec-orch",
     "plugin",
     "exec",
-    "codegraph",
     "--repo",
     "frontend",
-    "--",
+    "codegraph",
     "status",
     "--json",
   ]);
@@ -539,9 +549,8 @@ test("plugin exec --all forwards the argv tail to all connected instances", asyn
     "openspec-orch",
     "plugin",
     "exec",
-    "codegraph",
     "--all",
-    "--",
+    "codegraph",
     "status",
     "--json",
   ]);
@@ -557,6 +566,48 @@ test("plugin exec --all forwards the argv tail to all connected instances", asyn
     "✓ codegraph → backend — команда выполнена",
     "backend output",
   ]);
+});
+
+test("plugin exec auto-selects the only connected repository without TTY", async () => {
+  const calls = [];
+  const captured = outputCollector();
+  const program = candidate({
+    lifecycleService: {
+      async connectMany() { return []; },
+      async execMany(options) {
+        calls.push(options);
+        return [{ pluginId: "openspec-graph", repositoryId: "specs", output: "{}" }];
+      },
+      async repositoryCandidates(options) {
+        calls.push(["candidates", options]);
+        return [{ id: "specs", role: "store" }];
+      },
+      async statuses() { return []; },
+    },
+    output: captured.output,
+    stdin: { isTTY: false },
+    stdout: { isTTY: false },
+  });
+
+  await program.parseAsync([
+    "node",
+    "openspec-orch",
+    "plugin",
+    "exec",
+    "openspec-graph",
+    "inspect",
+    "--json",
+  ]);
+
+  assert.deepEqual(calls, [
+    ["candidates", { operation: "exec", pluginId: "openspec-graph" }],
+    {
+      args: ["inspect", "--json"],
+      pluginId: "openspec-graph",
+      repositoryIds: ["specs"],
+    },
+  ]);
+  assert.deepEqual(captured.lines, ["{}"]);
 });
 
 test("plugin sync without --repo uses checkbox selection", async () => {
@@ -721,9 +772,9 @@ test("plugin lifecycle bulk commands preserve repeatable --repo and reject ambig
     ...repositories.flatMap((repositoryId) => ["--repo", repositoryId]),
   ]);
   await candidate({ lifecycleService, output: captured.output }).parseAsync([
-    "node", "openspec-orch", "plugin", "exec", "sample",
+    "node", "openspec-orch", "plugin", "exec",
     ...repositories.flatMap((repositoryId) => ["--repo", repositoryId]),
-    "--", "status",
+    "sample", "status",
   ]);
   await candidate({ lifecycleService, output: captured.output }).parseAsync([
     "node", "openspec-orch", "plugin", "disconnect", "sample",

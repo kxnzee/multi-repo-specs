@@ -20,8 +20,8 @@ openspec-orch plugin status --plugin codegraph --repo frontend
 
 ```bash
 openspec-orch plugin sync codegraph --repo frontend
-openspec-orch plugin exec codegraph --repo frontend -- explore "authentication flow"
-openspec-orch plugin exec codegraph --all -- status --json
+openspec-orch plugin exec --repo frontend codegraph explore "authentication flow"
+openspec-orch plugin exec --all codegraph status --json
 ```
 
 Перед индексированием Plugin добавляет `.codegraph/` в локальный

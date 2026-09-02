@@ -253,7 +253,7 @@ async function distributionFixture(t, prefix) {
   });
 }
 
-distributionTest("candidate distribution initializes bundled Plugins and mounts trusted root commands", async (t) => {
+distributionTest("candidate distribution exposes every Plugin through plugin exec", async (t) => {
   const { codeRoot, nativeLog, storeRoot } = await distributionFixture(
     t,
     "openspec-orch-distribution-cli-",
@@ -267,10 +267,17 @@ distributionTest("candidate distribution initializes bundled Plugins and mounts 
   await runCli(storeRoot, "plugin", "connect", "openspec-graph", "--repo", "specs");
   const graphInspection = JSON.parse((await runCli(
     storeRoot,
-    "graph", "inspect", "--json",
+    "plugin", "exec", "openspec-graph", "inspect", "--json",
   )).stdout);
   const { stdout } = await runCli(storeRoot, "--help");
-  const graphHelp = await runCli(storeRoot, "graph", "--help");
+  const graphInspectHelp = await runCli(
+    storeRoot,
+    "plugin", "exec", "openspec-graph", "inspect", "--help",
+  );
+  const graphViewHelp = await runCli(
+    storeRoot,
+    "plugin", "exec", "openspec-graph", "view", "--help",
+  );
   const configured = configuration.parseProject(
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
   );
@@ -289,12 +296,11 @@ distributionTest("candidate distribution initializes bundled Plugins and mounts 
   await assert.rejects(fs.access(
     path.join(storeRoot, ".openspec-orch/plugins/openspec-graph/state.json"),
   ), { code: "ENOENT" });
-  assert.match(graphHelp.stdout, /inspect/);
-  assert.match(graphHelp.stdout, /view/);
-  assert.doesNotMatch(graphHelp.stdout, /\bbuild\b/);
-  assert.doesNotMatch(graphHelp.stdout, /\bstatus\b/);
-  assert.doesNotMatch(graphHelp.stdout, /\bimpact\b/);
-  assert.doesNotMatch(graphHelp.stdout, /check-scope/);
+  assert.match(graphInspectHelp.stdout, /plugin-exec inspect/);
+  assert.match(graphInspectHelp.stdout, /--json/);
+  assert.match(graphViewHelp.stdout, /plugin-exec view/);
+  assert.match(graphViewHelp.stdout, /--port/);
+  assert.doesNotMatch(`${graphInspectHelp.stdout}\n${graphViewHelp.stdout}`, /\bbuild\b|\bstatus\b|\bimpact\b|check-scope/u);
   const qwenSettings = JSON.parse(
     await fs.readFile(path.join(storeRoot, ".qwen/settings.json"), "utf8"),
   );
@@ -309,6 +315,12 @@ distributionTest("candidate distribution initializes bundled Plugins and mounts 
     storeRoot,
     "plugin", "connect", "change-tracking", "--repo", "specs", "--repo", "frontend",
   );
+  const trackingHelp = await runCli(
+    storeRoot,
+    "plugin", "exec", "--repo", "specs", "change-tracking", "attempt", "--help",
+  );
+  assert.match(trackingHelp.stdout, /start <change-id> <task-id>/);
+  assert.match(trackingHelp.stdout, /complete <change-id> <task-id>/);
   await runCli(
     storeRoot,
     "plugin", "connect", "codegraph", "--repo", "specs", "--repo", "frontend",
@@ -401,11 +413,11 @@ distributionTest("candidate distribution initializes bundled Plugins and mounts 
   assert.match(syncAll.stdout, /✓ codegraph → frontend — готов/);
   const execAll = await runCli(
     storeRoot,
-    "plugin", "exec", "codegraph", "--all", "--", "status", "--json",
+    "plugin", "exec", "--all", "codegraph", "status", "--json",
   );
   assert.match(execAll.stdout, /✓ codegraph → specs — команда выполнена/);
   assert.match(execAll.stdout, /✓ codegraph → frontend — команда выполнена/);
-  assert.match(stdout, /\battempt\b/u);
+  assert.doesNotMatch(stdout, /\b(?:attempt|graph)\b/u);
   assert.doesNotMatch(stdout, /\b(?:track|done|status|verify)\b/u);
   assert.doesNotMatch(stdout, /\b(?:assign|record)\b/u);
   assert.doesNotMatch(stdout, /\bmcp\b/);
@@ -451,6 +463,33 @@ distributionTest("candidate distribution initializes bundled Plugins and mounts 
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
   );
   assert.deepEqual(withoutGraph.plugins, ["change-tracking"]);
+});
+
+distributionTest("candidate distribution serves OpenSpec Graph through public MCP only", async (t) => {
+  const { registerCleanup, storeRoot } = await distributionFixture(
+    t,
+    "openspec-orch-distribution-graph-mcp-",
+  );
+  await runCli(storeRoot, "plugin", "init", "--plugin", "openspec-graph");
+  await runCli(storeRoot, "plugin", "connect", "openspec-graph", "--repo", "specs");
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [MCP_PATH],
+    cwd: storeRoot,
+    env: { ...process.env },
+    stderr: "pipe",
+  });
+  const client = new Client({ name: "graph-composition-smoke", version: "1.0.0" });
+  registerCleanup(() => client.close());
+  await client.connect(transport);
+
+  const listed = await client.listTools();
+  assert.equal(listed.tools.some(({ name }) => name === "query_graph"), true);
+  const report = JSON.parse((await client.callTool({
+    name: "query_graph",
+    arguments: { query: "report" },
+  })).content[0].text);
+  assert.equal(report.summary.nodes, 2);
 });
 
 distributionTest("candidate distribution completes Change Tracking through public MCP", async (t) => {

@@ -71,7 +71,7 @@ operational risk; не создавайте его только ради зап�
 Если подключён OpenSpec Graph, запустите проверку из Store:
 
 ```bash
-openspec-orch graph inspect --json
+openspec-orch plugin exec openspec-graph inspect --json
 ```
 
 До Apply подтвердите согласованность всех применимых Planning artifacts, точный
@@ -98,10 +98,10 @@ attempt для выбранного канонического task.
 
 ```bash
 # перед работой над незавершённым task
-openspec-orch attempt start <change-id> <task-id>
+openspec-orch plugin exec --repo specs change-tracking attempt start <change-id> <task-id>
 
 # после нового commit, repository checks и стандартной галочки OpenSpec
-openspec-orch attempt complete <change-id> <task-id>
+openspec-orch plugin exec --repo specs change-tracking attempt complete <change-id> <task-id>
 ```
 
 Для `attempt complete` рабочее дерево также должно быть чистым. Plugin связывает task
@@ -138,7 +138,7 @@ Archive:
 /opsx-archive <change-id>
 ```
 
-Если используется OpenSpec Graph, выполните `openspec-orch graph inspect --json` из
+Если используется OpenSpec Graph, выполните `openspec-orch plugin exec openspec-graph inspect --json` из
 Store до и после Archive. Archive применяет Delta Specs к Master Specs, но не
 выполняется автоматически Agent, Orchestrator или Plugin. Зависимые Changes
 архивируйте в dependency order.

@@ -26,8 +26,8 @@ templates/                       bundled copy-only Project Templates
 одну `PluginPlatform`. CLI и MCP используют эту же Platform и общие application
 services.
 
-Root `package.json` определяет minimum Node.js, default Template, first-party Plugin
-packages и разрешённые для них root commands. Core не импортирует конкретные Plugins;
+Root `package.json` определяет minimum Node.js, default Template и first-party Plugin
+packages. Core не импортирует конкретные Plugins;
 Plugin packages зависят только от `@openspec-orch/plugin-sdk` и загружаются через
 проверенный public contract.
 
@@ -53,12 +53,12 @@ artifact lifecycle; Orchestrator не строит параллельный work
 | Компонент | Ответственность |
 |---|---|
 | Orchestrator Core | Project/Repository model, init/connect, diagnostics, Plugin manager/host, routing и safe infrastructure |
-| Plugin SDK | Immutable Plugin API, command grammar, scoped contracts и contract test kit |
-| Plugin | Собственные commands, repository lifecycle, domain state и опциональные Agent Extensions |
+| Plugin SDK | Immutable Plugin API, command grammar, Agent contributions, scoped contracts и contract test kit |
+| Plugin | Собственные commands, repository lifecycle, domain state, Agent tools и опциональные Agent Extensions |
 | Project Template | Copy-only OpenSpec config, project context, schemas и assets |
 | Standalone Extension | Agent commands, skills, subagents, hooks и MCP manifests |
 | Agent definition/adapter | Provider identity, OpenSpec Agent pack adaptation и native Extension lifecycle |
-| MCP package | Fixed tool/resource allowlist, validation и единственный stdio transport |
+| MCP package | Fixed base tool/resource allowlist, validation, Plugin tool routing и единственный stdio transport |
 | OpenSpec | Store identity, Specs, Changes, schemas, status/instructions, Apply и Archive operations |
 | Команда | Product decisions, implementation, review, checks, deployment, Release и Archive |
 
@@ -144,9 +144,9 @@ Plugin отображается как unavailable.
 разрешён только без bindings и удаляет declaration/runtime, но не tracked repository
 data и не произвольные tool-owned artifacts.
 
-Commands обычно монтируются внутри namespace Plugin. Только first-party Plugins могут
-получить явно разрешённые root commands из distribution config. Commands-only Plugin
-не требует binding; repository lifecycle работает только с поддерживаемыми roles.
+Все Plugin commands выполняются через `plugin exec`; Core не продвигает их в root CLI
+и не содержит исключений для конкретных Plugin IDs. Commands-only Plugin не требует
+binding; repository lifecycle работает только с поддерживаемыми roles.
 
 ## Опциональные Graph и tracking
 
@@ -167,11 +167,13 @@ Change Tracking Extension устанавливается только в под�
 
 `@openspec-orch/mcp` предоставляет только local stdio transport. Runtime собирается
 в public MCP adapter и вызывает те же Core/Plugin application services, что CLI.
+Base tools принадлежат MCP package; optional Agent tools и overlays обнаруживаются
+через универсальный Plugin contribution без импорта конкретных Plugin applications.
 
 Public surface состоит из:
 
-- read tools для status, setup/change context, next action, assignment, Doctor и
-  Graph query;
+- base read tools для status, setup/change context, next action, assignment и Doctor;
+- optional read tools, поставляемые owning Plugins, включая Graph query;
 - controlled setup tools `initialize_project` и `connect_project` только для
   strict fixed-cwd flow;
 - task evidence tools `start_attempt` и `complete_attempt`;

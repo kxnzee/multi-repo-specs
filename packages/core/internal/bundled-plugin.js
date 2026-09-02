@@ -17,12 +17,12 @@ export class BundledPluginPackage {
   #catalogEntry;
   #packageRoot;
 
-  constructor({ id, name, packageName, packageRoot, version } = {}) {
+  constructor({ id, name, packageName, packageRoot, recommended = false, version } = {}) {
     if (typeof packageRoot !== "string" || !path.isAbsolute(packageRoot)) {
       invalid("packageRoot должен быть абсолютным путём");
     }
     const source = PluginSource.bundled({ name: packageName, version });
-    this.#catalogEntry = new PluginCatalogEntry({ id, name, source });
+    this.#catalogEntry = new PluginCatalogEntry({ id, name, recommended, source });
     this.#packageRoot = path.normalize(packageRoot);
     Object.freeze(this);
   }

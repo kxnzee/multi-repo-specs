@@ -101,7 +101,7 @@ test("Package exposes a Store-only Plugin with graph commands and no sync", asyn
   ));
   assert.deepEqual(assertPluginContract({ plugin, packageManifest }), {
     id: "openspec-graph",
-    commands: ["graph"],
+    commands: ["inspect", "view"],
   });
   assert.deepEqual(plugin.supports, ["store"]);
   assert.equal(plugin.canExec(), true);
@@ -586,6 +586,66 @@ test("Structural Change impact query uses affects, changes_in and linked edges o
   ]);
 });
 
+test("Plugin owns its Agent tool, context overlay and unavailable fallback", async () => {
+  const contribution = plugin.agentContribution();
+  const [tool] = contribution.tools;
+  const calls = [];
+  const application = Object.freeze({
+    query(query, id) {
+      calls.push([query, id]);
+      return Promise.resolve({ repositories: [{ id: "repository:web" }] });
+    },
+  });
+
+  assert.equal(contribution.requireBinding, true);
+  assert.equal(tool.definition.name, "query_graph");
+  assert.deepEqual(tool.definition.inputSchema.oneOf, [
+    { properties: { query: { const: "report" } } },
+    {
+      properties: { query: { enum: ["node", "change_impact"] } },
+      required: ["id"],
+    },
+  ]);
+  assert.throws(() => tool.validate({ query: "node" }), /id должен быть непустой строкой/u);
+  assert.deepEqual(await tool.execute(application, { query: "report" }), {
+    repositories: [{ id: "repository:web" }],
+  });
+  assert.throws(() => tool.execute(null, { query: "report" }), /CAPABILITY_UNAVAILABLE/u);
+
+  const status = await contribution.enhance({
+    operation: "getStatus",
+    input: {},
+    result: Object.freeze({ capabilities: Object.freeze({}) }),
+    application: null,
+  });
+  assert.deepEqual(status.capabilities.graph, {
+    provider: "openspec-graph",
+    available: false,
+    reason: "Plugin is not connected or unavailable; inspect Doctor",
+  });
+
+  const assignment = await contribution.enhance({
+    operation: "getAssignmentScope",
+    input: { change_id: "pay" },
+    result: Object.freeze({
+      current_repository: Object.freeze({ repository_id: "web", role: "code" }),
+      assignments: Object.freeze([
+        Object.freeze({ repository_id: "web", assigned: null }),
+        Object.freeze({ repository_id: "worker", assigned: null }),
+      ]),
+    }),
+    application,
+  });
+  assert.equal(assignment.assigned, true);
+  assert.deepEqual(assignment.assignments.map(({ repository_id: id, assigned }) => (
+    [id, assigned]
+  )), [["web", true], ["worker", false]]);
+  assert.deepEqual(calls, [
+    ["report", undefined],
+    ["change_impact", "pay"],
+  ]);
+});
+
 test("Plugin lifecycle is stateless and inspect compiles without storage", async (t) => {
   const output = [];
   t.mock.method(console, "log", (value) => output.push(value));
@@ -622,18 +682,21 @@ test("Plugin lifecycle is stateless and inspect compiles without storage", async
 
   assert.equal(
     await plugin.connect(context),
-    "OpenSpec Graph подключён; граф компилируется командами graph inspect и graph view",
+    "OpenSpec Graph подключён; граф компилируется командами inspect и view",
   );
   assert.deepEqual(await plugin.status(context), {
     state: "ready",
-    details: JSON.stringify({ mode: "compile_on_demand", command: "openspec-orch graph inspect" }),
+    details: JSON.stringify({
+      mode: "compile_on_demand",
+      command: "openspec-orch plugin exec openspec-graph inspect",
+    }),
   });
-  await plugin.exec(context, ["graph", "inspect", "--json"]);
+  await plugin.exec(context, ["inspect", "--json"]);
   assert.deepEqual(JSON.parse(output.at(-1)), report);
   assert.equal(calls[0][0], process.execPath);
   assert.deepEqual(calls[0][1].slice(1, 5), ["compile", ".", "--store-id", "specs"]);
   assert.equal(calls[1][0], "openspec");
-  await assert.rejects(plugin.exec(context, ["graph", "build"]));
+  await assert.rejects(plugin.exec(context, ["build"]));
   assert.throws(() => plugin.sync(context), /PLUGIN_SYNC_UNSUPPORTED/u);
 });
 
@@ -661,7 +724,7 @@ test("Strict OpenSpec validation failure is folded into an invalid report", asyn
   });
 
   await assert.rejects(
-    plugin.exec(context, ["graph", "inspect", "--json"]),
+    plugin.exec(context, ["inspect", "--json"]),
     /OPENSPEC_GRAPH_INSPECTION_FAILED/u,
   );
   const inspected = JSON.parse(output.at(-1));

@@ -56,7 +56,6 @@ function buildConnectHint(storeRoot, storeId) {
 export class CandidateCli {
   #agentGateway;
   #doctor;
-  #pluginCommands;
   #pluginLifecycleCommands;
   #progress;
   #repositoryStatuses;
@@ -70,7 +69,6 @@ export class CandidateCli {
     extensionLifecycle,
     initSelectionService,
     initializationService,
-    pluginCommandMounter,
     pluginExtensionConnector,
     pluginLifecycleCommands,
     progress = createCliProgress(),
@@ -98,10 +96,6 @@ export class CandidateCli {
         "CLI_INVALID: extensionLifecycle должен предоставлять preflight и selected lifecycle",
       );
     }
-    if (pluginCommandMounter && typeof pluginCommandMounter.mount !== "function") {
-      throw new Error("CLI_INVALID: pluginCommandMounter должен предоставлять mount");
-    }
-    this.#pluginCommands = pluginCommandMounter;
     if (pluginExtensionConnector && !hasMethods(
       pluginExtensionConnector,
       ["connectSelected", "disconnectSelected", "statusSelected"],
@@ -137,6 +131,7 @@ export class CandidateCli {
     const program = new Command()
       .name("openspec-orch")
       .description("OpenSpec Orchestrator для multi-repository OpenSpec workflow")
+      .enablePositionalOptions()
       .showHelpAfterError()
       .exitOverride();
     program.command("init [path]")
@@ -175,7 +170,6 @@ export class CandidateCli {
       .addOption(new Option("--repo <repository-id>", "ограничить вывод одним repository-id")
         .argParser(collectValues))
       .action((options) => this.#inspectRepositories(options));
-    this.#pluginCommands?.mount(program);
     return program;
   }
 

@@ -120,9 +120,10 @@ test("definePlugin returns an immutable domain model without running contributio
   assert.deepEqual(calls, [
     ["connect", context],
     ["status", context],
+    ["register"],
     ["exec", context, ["status", "--json"]],
   ]);
-  assert.equal(Object.isFrozen(calls[2][2]), true);
+  assert.equal(Object.isFrozen(calls[3][2]), true);
   assert.equal(plugin.canSync(), false);
   assert.throws(() => plugin.sync(context), /PLUGIN_SYNC_UNSUPPORTED/);
   assert.equal(plugin.canExec(), true);
@@ -177,6 +178,36 @@ test("Plugin exposes immutable Extension contributions as data", () => {
     }),
     /неизвестное поле 'connect'/,
   );
+});
+
+test("Plugin exposes immutable Agent tools and response overlays as data", async () => {
+  const plugin = definePlugin({
+    id: "sample-agent",
+    agent: {
+      requireBinding: true,
+      create: (context) => Object.freeze({ context }),
+      enhance: ({ result }) => Object.freeze({ ...result, optional: true }),
+      tools: [{
+        name: "sample_read",
+        description: "Read sample data.",
+        inputSchema: { type: "object", additionalProperties: false },
+        annotations: { readOnlyHint: true },
+        execute: (application) => application.context.repository.id,
+      }],
+    },
+  });
+  const contribution = plugin.agentContribution();
+
+  assert.equal(plugin.hasAgentContribution(), true);
+  assert.equal(contribution.requireBinding, true);
+  assert.equal(Object.isFrozen(contribution.tools), true);
+  assert.equal(Object.isFrozen(contribution.tools[0].definition.inputSchema), true);
+  const application = contribution.create({ repository: { id: "specs" } });
+  assert.equal(await contribution.tools[0].execute(application, {}), "specs");
+  assert.deepEqual(await contribution.enhance({ result: { state: "ready" } }), {
+    state: "ready",
+    optional: true,
+  });
 });
 
 test("definePlugin rejects invalid definitions without instanceof coupling", () => {
@@ -385,6 +416,8 @@ test("contract validation uses the public Plugin API instead of instanceof", () 
     sync: plugin.sync.bind(plugin),
     canExec: plugin.canExec.bind(plugin),
     exec: plugin.exec.bind(plugin),
+    hasAgentContribution: plugin.hasAgentContribution.bind(plugin),
+    agentContribution: plugin.agentContribution.bind(plugin),
     hasExtensionContribution: plugin.hasExtensionContribution.bind(plugin),
     extensions: plugin.extensions.bind(plugin),
     hasCommandContribution: plugin.hasCommandContribution.bind(plugin),

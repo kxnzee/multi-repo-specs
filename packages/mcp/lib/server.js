@@ -83,7 +83,7 @@ const TOOL_DEFINITIONS = Object.freeze([
   defineTool({
     name: "get_assignment_scope",
     applicationMethod: "getAssignmentScope",
-    description: "Read all Code Repository assignments, checkouts, revisions and Graph impact.",
+    description: "Read all Code Repository assignments, checkouts, revisions and optional overlays.",
     inputSchema: CHANGE_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
@@ -95,36 +95,12 @@ const TOOL_DEFINITIONS = Object.freeze([
     annotations: READ_ONLY_ANNOTATIONS,
   }),
   defineTool({
-    name: "query_graph",
-    applicationMethod: "queryGraph",
-    description: "Compile the Store graph and run a report, node or Change-impact query.",
-    inputSchema: Object.freeze({
-      type: "object",
-      properties: Object.freeze({
-        query: Object.freeze({ type: "string", enum: ["report", "node", "change_impact"] }),
-        id: NON_EMPTY_STRING_SCHEMA,
-      }),
-      required: ["query"],
-      additionalProperties: false,
-      oneOf: Object.freeze([
-        Object.freeze({ properties: Object.freeze({ query: Object.freeze({ const: "report" }) }) }),
-        Object.freeze({
-          properties: Object.freeze({
-            query: Object.freeze({ enum: ["node", "change_impact"] }),
-          }),
-          required: ["id"],
-        }),
-      ]),
-    }),
-    annotations: READ_ONLY_ANNOTATIONS,
-    validate: assertGraphQuery,
-  }),
-  defineTool({
     name: "initialize_project",
     applicationMethod: "initializeProject",
     description: "Idempotently initialize the fixed MCP cwd in strict mode only when it is a " +
       "separate clean central Store Git repository. Never target an Orchestrator, Template, " +
-      "or Code Repository checkout.",
+      "or Code Repository checkout. Pass the central Store only as store_id; repositories " +
+      "contains optional Code Repositories only.",
     inputSchema: Object.freeze({
       type: "object",
       properties: Object.freeze({
@@ -133,6 +109,8 @@ const TOOL_DEFINITIONS = Object.freeze([
         template_id: IDENTIFIER_SCHEMA,
         repositories: Object.freeze({
           type: "array",
+          description: "Optional Code Repositories only. Never include the central Store; " +
+            "it is declared only by store_id.",
           items: Object.freeze({
             type: "object",
             properties: Object.freeze({
@@ -177,9 +155,6 @@ const TOOL_DEFINITIONS = Object.freeze([
 export const ORCHESTRATOR_MCP_TOOLS = Object.freeze(
   TOOL_DEFINITIONS.map(({ tool }) => tool),
 );
-const TOOL_DEFINITION_BY_NAME = new Map(
-  TOOL_DEFINITIONS.map((definition) => [definition.tool.name, definition]),
-);
 const APPLICATION_METHODS = Object.freeze([
   ...TOOL_DEFINITIONS.map(({ applicationMethod }) => applicationMethod),
   "listResources",
@@ -187,8 +162,9 @@ const APPLICATION_METHODS = Object.freeze([
 ]);
 
 /** Separates public MCP metadata from its private application dispatch. */
-function defineTool({ applicationMethod, validate = null, ...tool }) {
+function defineTool({ agentTool = false, applicationMethod, validate = null, ...tool }) {
   return Object.freeze({
+    agentTool,
     applicationMethod,
     validate,
     tool: Object.freeze(tool),
@@ -277,16 +253,17 @@ function assertInitialization(args, inputSchema) {
       throw new Error("MCP_TOOL_INPUT_INVALID: repository contract несовместим");
     }
     assertObjectShape("repository", repository, repositorySchema);
+    if (repository.repository_id === args.store_id) {
+      throw new Error(
+        `STORE_INCLUDED_AS_CODE: Store уже задан через store_id; удалите ` +
+          `${repository.repository_id} из repositories и не меняйте store_id`,
+      );
+    }
     if (ids.has(repository.repository_id)) {
       throw new Error(`MCP_TOOL_INPUT_INVALID: повторяющийся repository_id ${repository.repository_id}`);
     }
     ids.add(repository.repository_id);
   }
-}
-
-/** Validates the conditional Graph query contract. */
-function assertGraphQuery(args) {
-  assertString(args, "id", { required: args.query !== "report" });
 }
 
 /** Validates inputs even when a client ignores the advertised JSON Schema. */
@@ -300,24 +277,45 @@ function assertArguments(definition, args) {
 export function createOrchestratorMcpServer(application) {
   if (
     !application ||
-    APPLICATION_METHODS.some((method) => typeof application[method] !== "function")
+    APPLICATION_METHODS.some((method) => typeof application[method] !== "function") ||
+    typeof application.invokeAgentTool !== "function" ||
+    !Array.isArray(application.agentTools)
   ) {
     throw new Error("MCP_SERVER_INVALID: application contract incomplete");
   }
+  const agentDefinitions = application.agentTools.map((tool) => defineTool({
+    ...tool,
+    agentTool: true,
+  }));
+  const firstWrite = TOOL_DEFINITIONS.findIndex(({ tool }) => !tool.annotations.readOnlyHint);
+  const definitions = Object.freeze([
+    ...TOOL_DEFINITIONS.slice(0, firstWrite),
+    ...agentDefinitions,
+    ...TOOL_DEFINITIONS.slice(firstWrite),
+  ]);
+  const names = definitions.map(({ tool }) => tool.name);
+  if (new Set(names).size !== names.length) {
+    throw new Error("MCP_SERVER_INVALID: повторяющийся tool name");
+  }
+  const tools = Object.freeze(definitions.map(({ tool }) => tool));
+  const definitionByName = new Map(definitions.map((definition) => [definition.tool.name, definition]));
   const server = new Server(
     { name: "openspec-orchestrator", version: "1.0.0" },
     { capabilities: { resources: {}, tools: {} } },
   );
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: ORCHESTRATOR_MCP_TOOLS }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const args = request.params.arguments ?? {};
-    const definition = TOOL_DEFINITION_BY_NAME.get(request.params.name);
+    const definition = definitionByName.get(request.params.name);
     if (!definition) {
       return errorContent(new Error(`MCP_TOOL_NOT_FOUND: ${request.params.name}`));
     }
     try {
       assertArguments(definition, args);
-      return resultContent(await application[definition.applicationMethod](args));
+      const value = definition.agentTool
+        ? await application.invokeAgentTool(definition.tool.name, args)
+        : await application[definition.applicationMethod](args);
+      return resultContent(value);
     } catch (error) {
       return errorContent(error);
     }

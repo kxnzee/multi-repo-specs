@@ -10,9 +10,14 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 import { OrchestratorMcpRuntime } from "../bin/internal/orchestrator-mcp-runtime.js";
+import { openSpecGraphAgentContribution } from "../plugins/openspec-graph/lib/agent.js";
 
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
 const serverPath = path.join(repositoryRoot, "bin", "openspec-orch-mcp.js");
+const graphContributions = Object.freeze([Object.freeze({
+  pluginId: "openspec-graph",
+  contribution: openSpecGraphAgentContribution,
+})]);
 
 test("public MCP executable completes stdio handshake and calls Core Doctor", async (t) => {
   const transport = new StdioClientTransport({
@@ -26,6 +31,14 @@ test("public MCP executable completes stdio handshake and calls Core Doctor", as
   await client.connect(transport);
   const tools = await client.listTools();
   assert.equal(tools.tools.some(({ name }) => name === "get_doctor_report"), true);
+  const graphTool = tools.tools.find(({ name }) => name === "query_graph");
+  assert.deepEqual(graphTool.inputSchema.oneOf, [
+    { properties: { query: { const: "report" } } },
+    {
+      properties: { query: { enum: ["node", "change_impact"] } },
+      required: ["id"],
+    },
+  ]);
   assert.equal(tools.tools.some(({ name }) => name === "record_result_receipt"), false);
   assert.equal(tools.tools.some(({ name }) => name === "start_attempt"), true);
   assert.equal(tools.tools.some(({ name }) => name === "complete_attempt"), true);
@@ -70,6 +83,7 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
   });
   const openSpecCalls = [];
   const runtime = new OrchestratorMcpRuntime({
+    agentContributions: graphContributions,
     start: "/workspace/specs",
     storeProjectService: Object.freeze({
       async resolve() {
@@ -201,6 +215,7 @@ test("runtime does not advertise a bound Graph Plugin whose runtime is unavailab
       : undefined,
   });
   const runtime = new OrchestratorMcpRuntime({
+    agentContributions: graphContributions,
     start: "/workspace/specs",
     storeProjectService: Object.freeze({
       resolve: async () => Object.freeze({
@@ -235,7 +250,7 @@ test("runtime does not advertise a bound Graph Plugin whose runtime is unavailab
     reason: "Plugin is not connected or unavailable; inspect Doctor",
   });
   await assert.rejects(
-    runtime.queryGraph({ query: "report" }),
+    runtime.invokeAgentTool("query_graph", { query: "report" }),
     /not connected or unavailable/u,
   );
 

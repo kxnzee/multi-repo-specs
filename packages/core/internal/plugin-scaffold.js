@@ -212,13 +212,12 @@ const packageManifest = JSON.parse(
 testPluginContract({ plugin, packageManifest });
 `;
   const usage = profile === PLUGIN_SCAFFOLD_PROFILE.commands
-    ? `openspec-orch ${pluginId} inspect`
+    ? `openspec-orch plugin exec ${pluginId} inspect`
     : profile === PLUGIN_SCAFFOLD_PROFILE.repository
       ? `openspec-orch plugin connect ${pluginId} --repo <repository-id>
-openspec-orch ${pluginId} inspect
-openspec-orch plugin exec ${pluginId} --repo <repository-id> -- inspect`
+openspec-orch plugin exec --repo <repository-id> ${pluginId} inspect`
       : `openspec-orch plugin connect ${pluginId} --repo <repository-id>
-openspec-orch plugin exec ${pluginId} --repo <repository-id> -- --help`;
+openspec-orch plugin exec --repo <repository-id> ${pluginId} --help`;
   const readme = `# ${name}
 
 Профиль: \`${profile}\`. Вся логика находится в \`index.js\` и использует только

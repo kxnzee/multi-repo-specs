@@ -27,9 +27,10 @@ Plugin API. Совпадение `instanceof` не требуется.
 
 `definePlugin` требует хотя бы один contribution:
 
-- `commands` — декларативная grammar в namespace Plugin;
+- `commands` — декларативная grammar за единым `plugin exec`;
 - `repository` — `connect/status` и optional `sync/exec`;
-- `extensions` — data-only Agent Extension для Store или Code Repository.
+- `extensions` — data-only Agent Extension для Store или Code Repository;
+- `agent` — Plugin-owned Agent tools и overlays для общего gateway.
 
 ```js
 import { definePlugin } from "@openspec-orch/plugin-sdk";
@@ -47,6 +48,10 @@ export default definePlugin({
 Commands-only Plugin не требует binding. Repository contribution объявляет
 поддерживаемые roles. Native `repository.exec` нужен только для непрозрачного argv
 passthrough; иначе SDK может выполнить зарегистрированную grammar.
+
+Agent contribution обнаруживается distribution без специальных Plugin IDs. Общий
+MCP/runtime валидирует и маршрутизирует immutable tool metadata, но tool handler,
+availability fallback и response overlays остаются в owning Plugin package.
 
 ## PluginContext
 
@@ -75,8 +80,8 @@ Plugin-owned Extension подключается и отключается вме
 ## Selection и output
 
 Для multi-repository lifecycle повторяемый `--repo` выбирает IDs, `--all` —
-все candidates или bindings. Флаги несовместимы. Без selector non-TTY завершается
-ошибкой, TTY показывает выбор.
+все candidates или bindings. Флаги несовместимы. Единственный candidate выбирается
+автоматически; при нескольких TTY показывает выбор, а non-TTY требует selector.
 
 Progress пишется в stderr; structured output остаётся в stdout. Ошибка одного instance
 не считается общим успехом.
@@ -150,9 +155,8 @@ openspec-orch plugin status --plugin dependency-audit --json
 openspec-orch doctor
 ```
 
-Проверьте root command для commands/repository profile либо `plugin exec` для
-repository/native profile. Если есть Agent Extension, перезапустите Agent и проверьте
-его native status. Тестируйте disconnect/remove по пользовательскому
+Проверьте `plugin exec` для любого profile. Если есть Agent Extension, перезапустите
+Agent и проверьте его native status. Тестируйте disconnect/remove по пользовательскому
 [операционному flow](../user/plugins.md#проверяемое-отключение-и-удаление).
 
 ### 4. Зафиксируйте поставку

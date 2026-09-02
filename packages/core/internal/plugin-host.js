@@ -103,6 +103,17 @@ export class PluginHost {
     this.#registry.require(pluginId);
   }
 
+  hasRepositoryContribution(pluginId) {
+    const { plugin } = this.#registry.require(pluginId);
+    const contributes = plugin.hasRepositoryContribution();
+    if (typeof contributes !== "boolean") {
+      throw new Error(
+        `PLUGIN_CONTRACT_INVALID: ${plugin.id}.hasRepositoryContribution должен вернуть boolean`,
+      );
+    }
+    return contributes;
+  }
+
   supportsRepository(pluginId, repository) {
     if (
       !repository ||
@@ -151,7 +162,7 @@ export class PluginHost {
         `PLUGIN_CONTRACT_INVALID: ${plugin.id}.hasRepositoryContribution должен вернуть boolean`,
       );
     }
-    if (!hasRepositoryContribution) {
+    if (!hasRepositoryContribution && operation !== "exec") {
       throw new Error(
         `PLUGIN_REPOSITORY_UNSUPPORTED: ${plugin.id} не предоставляет repository.${operation}`,
       );
@@ -180,6 +191,13 @@ export class PluginHost {
         throw new Error("PLUGIN_EXEC_INVALID: args должен быть непустым массивом строк");
       }
       immutableArgs = Object.freeze([...args]);
+    }
+    if (!hasRepositoryContribution) {
+      if (typeof this.#contexts.forStoreSetup !== "function") {
+        throw new Error("PLUGIN_HOST_INVALID: требуется PluginContextFactory.forStoreSetup");
+      }
+      const context = await this.#contexts.forStoreSetup({ loadedPlugin, storeProject });
+      return plugin.exec(context, immutableArgs);
     }
     const context = operation === "connect"
       ? await this.#contexts.forRepositorySetup({ loadedPlugin, storeProject, repositoryId })

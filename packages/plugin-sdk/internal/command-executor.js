@@ -12,8 +12,8 @@ const CONTEXT_SCOPES = new Set(COMMAND_CONTEXT.scopes);
 const OPTION_NAME_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
 /** Creates one stable execution error. */
-function invalid(message) {
-  throw new Error(`PLUGIN_EXEC_COMMAND_INVALID: ${message}`);
+function invalid(message, code = "PLUGIN_EXEC_COMMAND_INVALID") {
+  throw Object.assign(new Error(`PLUGIN_EXEC_COMMAND_INVALID: ${message}`), { code });
 }
 
 /** Converts a kebab-case long option to its command action property. */
@@ -325,7 +325,7 @@ function printHelp(node, commandPath) {
 function selectCommand(commands, args) {
   const first = args[0];
   let node = commands.get(first);
-  if (!node) invalid(`неизвестная command '${first ?? ""}'`);
+  if (!node) invalid(`неизвестная command '${first ?? ""}'`, "PLUGIN_EXEC_COMMAND_UNKNOWN");
   const path = [first];
   let index = 1;
   while (node.commands.has(args[index])) {
@@ -337,7 +337,7 @@ function selectCommand(commands, args) {
 }
 
 /** Executes argv against the Plugin's own registered command grammar. */
-export async function executePluginCommands(registerCommands, context, args) {
+export function executePluginCommands(registerCommands, context, args) {
   if (typeof registerCommands !== "function") invalid("требуется registerCommands");
   if (!context || typeof context !== "object") invalid("требуется PluginContext");
   if (!Array.isArray(args) || args.length === 0 || args.some((value) => typeof value !== "string")) {
@@ -346,7 +346,9 @@ export async function executePluginCommands(registerCommands, context, args) {
 
   const registry = new ExecutionCommandRegistry(context);
   registerCommands(registry);
-  if (registry.commands.size === 0) invalid("registerCommands не добавил команды");
+  if (registry.commands.size === 0) {
+    invalid("registerCommands не добавил команды", "PLUGIN_EXEC_COMMAND_UNKNOWN");
+  }
   const selected = selectCommand(registry.commands, args);
   if (selected.argv.includes("--help") || selected.argv.includes("-h")) {
     printHelp(selected.node, selected.path);

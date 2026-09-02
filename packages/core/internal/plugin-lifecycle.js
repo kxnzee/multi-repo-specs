@@ -284,6 +284,9 @@ export class PluginLifecycleService {
       )));
     }
     if (operation !== "disconnect") this.#host.assertLoaded(pluginId);
+    if (operation === "exec" && !this.#host.hasRepositoryContribution(pluginId)) {
+      return repositoryCandidates([storeProject.project.storeRepository]);
+    }
     return repositoryCandidates(storeProject.project
       .pluginConnections({ pluginId })
       .map(({ repository }) => repository));
@@ -394,7 +397,12 @@ export class PluginLifecycleService {
 
   async #invokeMany(operation, { args, start, pluginId, repositoryIds }) {
     const storeProject = await this.#storeProjects.find(start);
-    const connections = selectConnections(storeProject.project, pluginId, repositoryIds);
+    const commandOnly = operation === "exec" && !this.#host.hasRepositoryContribution(pluginId);
+    const connections = commandOnly
+      ? storeProject.project.selectRepositories(repositoryIds)
+        .filter((repository) => repository.isStore())
+        .map((repository) => ({ repository }))
+      : selectConnections(storeProject.project, pluginId, repositoryIds);
     return this.#runner.run(
       connections.map(({ repository }) => repository),
       async (repository) => Object.freeze({
