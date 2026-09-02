@@ -13,4 +13,8 @@
 
 # Gigacode settings
 .gigacode/settings*
+
+# Agent runtime caches
+.gigacode/tmp/
+.qwen/tmp/
 nul
