@@ -60,7 +60,11 @@ smoke. Таймаут теста не гарантирует завершени�
 Увеличение concurrency требует проверки изоляции fixtures и окружения.
 
 `npm ci` и `test:pack` требуют доступа к npm registry; Git-source проверки
-используют локальные временные Git repositories. `test:pack` намеренно использует
+используют локальные временные Git repositories. `test:pack` также запускает public CLI/MCP scenarios против установленных tarballs:
+первый init, повторный connect, Doctor, Plugins, Graph и Change Tracking.
+Harness и MCP client находятся в checkout; проверяемые CLI/MCP entrypoints и их
+dependencies — в чистом consumer. Qwen остаётся заглушкой.
+`test:pack` намеренно использует
 отдельный consumer и пустой npm cache, чтобы проверить поставляемые пакеты без
 помощи workspace symlinks. Локальный npm cache проекта эта проверка не удаляет.
 Каждый npm subprocess в packed smoke ограничен двумя минутами. CI запускает
