@@ -218,12 +218,17 @@ final whole-branch review. When you fill a reviewer template:
 
 ## File Handoffs
 
+Invoke helper scripts by their absolute skill path while keeping the working
+directory in the assigned Code Repository. Do not change into the Extension
+installation directory to run Git helpers. Pass the exact accepted plan path.
+
 Everything you paste into a dispatch prompt — and everything a subagent
 prints back — stays resident in your context for the rest of the session
 and is re-read on every later turn. Hand artifacts over as files:
 
 - **Task brief:** before dispatching an implementer, run this skill's
-  `scripts/task-brief PLAN_FILE N` — it extracts the task's full text to a
+  `scripts/task-brief PLAN_FILE N --repo REPOSITORY_ID` for a repository-sectioned
+  plan (omit `--repo` only for a single-repository plan) — it extracts the task's full text to a
   uniquely named file and prints the path. Compose the dispatch so the
   brief stays the single source of requirements. Your dispatch should
   contain: (1) one line on where this task fits in the project; (2) the
@@ -250,18 +255,28 @@ controllers that lost their place have re-dispatched entire completed task
 sequences — the single most expensive failure observed. Track progress in
 a ledger file, not only in todos.
 
-- At skill start, check for a ledger:
-  `cat "$(git rev-parse --show-toplevel)/.superpowers/sdd/progress.md"`. Tasks listed there
-  as complete are DONE — do not re-dispatch them; resume at the first task
-  not marked complete.
-- When a task's review comes back clean, append one line to the ledger in
-  the same message as your other bookkeeping:
-  `Task N: complete (commits <base7>..<head7>, review clean)`.
-- The ledger is your recovery map: the commits it names exist in git even
-  when your context no longer remembers creating them. After compaction,
-  trust the ledger and `git log` over your own recollection.
-- `git clean -fdx` will destroy the ledger (it's git-ignored scratch); if
-  that happens, recover from `git log`.
+- At skill start, run `scripts/sdd-workspace PLAN_FILE` from the assigned Code
+  Repository and use only `<returned-directory>/progress.md`. Without Bash, use
+  `node <skill-directory>/scripts/task-context.cjs workspace PLAN_FILE`.
+- The directory identity includes the exact plan path (and therefore Change), plan
+  contents, checkout and branch. Changing any of these selects a new ledger. Never
+  import the old unscoped `.superpowers/sdd/progress.md` automatically. A detached
+  checkout also includes HEAD; revalidate evidence after HEAD changes.
+- Record the exact repository ID, task number, full base and implementation commit
+  SHAs, review result and verification evidence. Before reusing a completed entry,
+  confirm its repository/task identity, that both commits exist and the implementation
+  commit is an ancestor of current HEAD, and that recorded review and checks apply to
+  this plan. Missing or conflicting evidence requires revalidation, not a silent skip.
+- Append completion only after task review and required checks pass. After compaction,
+  resume using this scoped ledger and verified Git evidence; do not trust task numbers
+  alone. Reverted or subsequently changed implementations require fresh verification.
+- Task briefs and reports use the same plan-scoped workspace. The extractor accepts
+  only one matching task, respects Markdown section boundaries and ignores headings
+  inside fenced code. Missing or ambiguous tasks stop dispatch without overwriting
+  an existing brief. For platforms without Bash, use
+  `node <skill-directory>/scripts/task-context.cjs brief PLAN_FILE N --repo REPOSITORY_ID`.
+- The ledger is ignored scratch, not an acceptance artifact. If removed, recover from
+  the accepted plan and current Git/test evidence instead of assuming completion.
 
 ## Prompt Templates
 

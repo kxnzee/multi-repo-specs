@@ -1,5 +1,6 @@
 ---
-description: Инициализировать, проверить или обновить подтверждённый долговечный project context в openspec/context/.
+description: "[spec-driven-extended] Инициализировать, проверить или обновить долговечный контекст Store."
+argument-hint: "[initialize|audit|update] [--change <change-id>] [--spec <capability-path>] [--domain <domain-path>]"
 ---
 
 # /spec-driven-extended-context

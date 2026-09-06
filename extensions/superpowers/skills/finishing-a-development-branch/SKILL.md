@@ -42,17 +42,22 @@ Stop. Don't proceed to Step 2.
 **Determine workspace state before presenting options:**
 
 ```bash
-GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
-GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
+FINISH_GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
+FINISH_GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
+FINISH_WORKTREE_PATH=$(git rev-parse --show-toplevel)
 ```
+
+Capture these values once, before changing directories. Preserve them through Step 6.
+Also record whether this session explicitly created the worktree; its directory name
+alone does not establish ownership.
 
 This determines which menu to show and how cleanup works:
 
 | State | Menu | Cleanup |
 |-------|------|---------|
-| `GIT_DIR == GIT_COMMON` (normal repo) | Standard 4 options | No worktree to clean up |
-| `GIT_DIR != GIT_COMMON`, named branch | Standard 4 options | Provenance-based (see Step 6) |
-| `GIT_DIR != GIT_COMMON`, detached HEAD | Reduced 3 options (no merge) | No cleanup (externally managed) |
+| `FINISH_GIT_DIR == FINISH_GIT_COMMON` (normal repo) | Standard 4 options | No worktree to clean up |
+| `FINISH_GIT_DIR != FINISH_GIT_COMMON`, named branch | Standard 4 options | Provenance-based (see Step 6) |
+| `FINISH_GIT_DIR != FINISH_GIT_COMMON`, detached HEAD | Reduced 3 options (no merge) | No cleanup (externally managed) |
 
 ### Step 3: Determine Base Branch
 
@@ -160,26 +165,34 @@ git branch -D <feature-branch>
 
 ### Step 6: Cleanup Workspace
 
-**Only runs for Options 1 and 4.** Options 2 and 3 always preserve the worktree.
+**Only runs for Merge or confirmed Discard in a named-branch workspace.** Push/PR
+and Keep always preserve the worktree. All detached-HEAD choices preserve the
+externally managed worktree; do not map their option numbers to this section.
+
+Use the values captured in Step 2. Do not recompute them after `cd "$MAIN_ROOT"`:
+that would classify the main checkout and lose the original worktree.
+
+**If `FINISH_GIT_DIR == FINISH_GIT_COMMON`:** The original workspace was a normal
+checkout; there is no linked worktree to remove. For Discard, first switch to the
+confirmed base branch before deleting the feature branch; stop if checkout would
+lose uncommitted changes.
+
+**If this session explicitly created the linked worktree and the user selected
+Merge or confirmed Discard:** remove the original captured path from the main checkout.
+Do not infer ownership merely from a `.worktrees/` or `worktrees/` directory name.
 
 ```bash
-GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
-GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
-WORKTREE_PATH=$(git rev-parse --show-toplevel)
-```
-
-**If `GIT_DIR == GIT_COMMON`:** Normal repo, no worktree to clean up. Done.
-
-**If worktree path is under `.worktrees/` or `worktrees/`:** Superpowers created this worktree — we own cleanup.
-
-```bash
-MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
 cd "$MAIN_ROOT"
-git worktree remove "$WORKTREE_PATH"
-git worktree prune  # Self-healing: clean up any stale registrations
+git worktree remove "$FINISH_WORKTREE_PATH"
 ```
 
-**Otherwise:** The host environment (harness) owns this workspace. Do NOT remove it. If your platform provides a workspace-exit tool, use it. Otherwise, leave the workspace in place.
+Only after successful removal may the selected branch-deletion step run. If removal
+fails, stop and report the reason; do not force removal or delete the branch.
+
+**Otherwise:** preserve the externally managed workspace. Use a platform workspace-exit
+tool only when authorized; do not delete a branch still checked out in a preserved
+worktree. Report that the branch and worktree remain. Detached HEAD options follow
+their displayed action names, not the numbering of the four-option menu.
 
 ## Quick Reference
 
@@ -202,7 +215,7 @@ git worktree prune  # Self-healing: clean up any stale registrations
 
 **Cleaning up worktree for Option 2**
 - **Problem:** Remove worktree user needs for PR iteration
-- **Fix:** Only cleanup for Options 1 and 4
+- **Fix:** Only clean up after Merge or confirmed Discard in an owned, named-branch worktree.
 
 **Deleting branch before removing worktree**
 - **Problem:** `git branch -d` fails because worktree still references the branch
@@ -214,7 +227,7 @@ git worktree prune  # Self-healing: clean up any stale registrations
 
 **Cleaning up harness-owned worktrees**
 - **Problem:** Removing a worktree the harness created causes phantom state
-- **Fix:** Only clean up worktrees under `.worktrees/` or `worktrees/`
+- **Fix:** Use recorded creation provenance; directory names do not establish ownership.
 
 **No confirmation for discard**
 - **Problem:** Accidentally delete work
@@ -235,7 +248,7 @@ git worktree prune  # Self-healing: clean up any stale registrations
 - Verify tests before offering options
 - Detect environment before presenting menu
 - Present exactly 4 options (or 3 for detached HEAD)
-- Get typed confirmation for Option 4
-- Clean up worktree for Options 1 & 4 only
+- Get typed confirmation for Discard, including the detached-HEAD menu
+- Clean up only an owned, named-branch worktree after Merge or confirmed Discard
 - `cd` to main repo root before worktree removal
-- Run `git worktree prune` after removal
+- Preserve captured workspace identity until cleanup completes

@@ -13,6 +13,8 @@ OpenSpec; Template и standalone Extensions не должны подменять
 
 Bundled Template `default` копирует в Store:
 
+- `STORE.md` — общую точку входа для работы со спецификациями;
+- файл выбранного агента (`CLAUDE.md`, `QWEN.md` или `GIGACODE.md`), направляющий к `STORE.md`;
 - `openspec/config.yaml`;
 - долговечный project context в `openspec/context/`;
 - schemas `spec-driven-extended` и `superspec-multirepo` со всеми templates;
@@ -25,6 +27,13 @@ copy-only файлов Template: Extensions имеют собственный li
 
 Plugins и user-scoped Agent gateway в Template не входят. Их подключают отдельно
 после создания Store.
+
+`STORE.md` относится к центральному Store. Он не содержит инструкции разработки
+Orchestrator и не заменяет schemas или Extensions. Исходники находятся в
+`templates/default/assets/STORE.md` и `assets/agent-instructions.md`.
+Существующий файл агента с другим содержимым блокирует первый init; он не
+перезаписывается. Для уже созданного Store новые файлы переносятся вручную через
+проверяемый Store PR: повторный init не обновляет Template.
 
 ## Выбор Template и Extensions
 
@@ -74,6 +83,41 @@ Change Tracking не участвует в этом решении: он свя�
 Code Repositories. Verify не выполняет Archive, UAT или Release. После `PASS` команда
 публикует Archive через Store PR, затем проводит UAT и принимает отдельное
 Release-решение.
+
+## Команды и skills workflow
+
+Все шесть точек входа Extension имеют метку `[spec-driven-extended]` в описании.
+Квадратные скобки в подсказке аргументов обозначают необязательный ввод; сами скобки
+вводить не нужно. Если обязательных для работы данных нет в диалоге, агент уточнит их.
+
+| Имя | Тип | Аргументы | Результат |
+|---|---|---|---|
+| `spec-driven-extended-intent` | skill | `[описание изменения]` | Intent в диалоге, без записи файлов |
+| `spec-driven-extended-intake` | command | `[change-id]` | Intake и рекомендуемый следующий шаг |
+| `spec-driven-extended-context` | command | `[initialize\|audit\|update]` и selectors | Аудит контекста либо согласованный diff |
+| `spec-driven-extended-meta-planning` | skill | `[change-id] [stage]` | Проверка Planning без записи и принятия Gate |
+| `spec-driven-extended-apply-context` | skill | `[change-id]` | Проверенный scope для штатного Apply |
+| `spec-driven-extended-test-cases` | skill | `[change-id]` | Тест-кейсы по принятым требованиям |
+
+Режимы `stage`: `proposal`, `specs`, `design`, `tasks`, `impact-review`,
+`planning-review`. Последние два — режимы проверки, а не OpenSpec artifact ID.
+Selectors контекста: `--change <change-id>`, повторяемые `--spec <capability-path>`
+и `--domain <domain-path>`.
+
+В Qwen команды вызываются как `/spec-driven-extended-intake`; skills доступны через
+меню skills или прямой вызов по имени в поддерживающих его версиях.
+GigaCode использует Qwen-совместимую поставку; доступность прямого вызова skills
+зависит от версии клиента. В Claude Plugin добавляет namespace, например
+`/spec-driven-extended:spec-driven-extended-intent` и
+`/spec-driven-extended:spec-driven-extended-intake`.
+Подсказка `argument-hint` предназначена для поддерживающих её клиентов;
+точное отображение меню определяется клиентом.
+
+Штатный OpenSpec использует `/opsx-continue`, `/opsx-explore`, `/opsx-apply` в
+Qwen/GigaCode и `/opsx:continue`, `/opsx:explore`, `/opsx:apply` в Claude.
+Это разные варианты вызова одного workflow. Правила регистрации описаны в
+[документации Qwen](https://qwenlm.github.io/qwen-code-docs/en/users/features/skills/)
+и [Claude Plugins](https://code.claude.com/docs/en/plugins).
 
 ## Владение и обновление
 
@@ -137,6 +181,14 @@ Copy engine запрещает:
 - symlinks, специальные файлы и file-directory collisions;
 - регистронезависимые collisions;
 - перезапись существующего файла с отличающимся содержимым.
+
+Необязательное поле descriptor `agentInstructions: assets/agent-instructions.md`
+обозначает один обычный файл внутри Template. Он копируется без преобразований
+в `instructionsFile` выбранного Agent; имена провайдеров не задаются в Template.
+Это отдельное разрешение только для этого файла: обычный `copy` по-прежнему не
+может писать в защищённые Agent paths, skills или команды. Без `agentInstructions`
+файл агента не создаётся Template. Существующее идентичное содержимое сохраняется;
+конфликт или появление файла после preflight останавливает установку без перезаписи.
 
 Merge нескольких Templates, interpolation, conditions, delete rules и автоматическая
 миграция уже созданного Store не поддерживаются. Core сохраняет в

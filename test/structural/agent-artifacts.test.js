@@ -46,6 +46,14 @@ async function files(directory) {
   return result;
 }
 
+/** Checks that menu metadata remains scalar YAML with optional argument hints. */
+function assertMenuMetadata(metadata, artifact) {
+  assert.equal(typeof metadata.description, "string", artifact);
+  assert.match(metadata.description, /^\[spec-driven-extended\] \S/u, artifact);
+  assert.equal(typeof metadata["argument-hint"], "string", artifact);
+  assert.match(metadata["argument-hint"], /^\[[^[\]\n]+\](?: \[[^[\]\n]+\])*$/u, artifact);
+}
+
 test("every skill and command is a self-describing standalone artifact", async () => {
   const skillRoot = path.join(EXTENSION_ROOT, "skills");
   for (const entry of await entries(skillRoot)) {
@@ -54,8 +62,7 @@ test("every skill and command is a self-describing standalone artifact", async (
     const source = await fs.readFile(path.join(EXTENSION_ROOT, relative), "utf8");
     const { metadata } = parseFrontmatter(source, relative);
     assert.equal(metadata.name, entry.name, relative);
-    assert.equal(typeof metadata.description, "string", relative);
-    assert.equal(metadata.description.trim().length > 0, true, relative);
+    assertMenuMetadata(metadata, relative);
   }
 
   const commandRoot = path.join(EXTENSION_ROOT, "commands");
@@ -64,8 +71,7 @@ test("every skill and command is a self-describing standalone artifact", async (
     const relative = `commands/${entry.name}`;
     const source = await fs.readFile(path.join(EXTENSION_ROOT, relative), "utf8");
     const { metadata } = parseFrontmatter(source, relative);
-    assert.equal(typeof metadata.description, "string", relative);
-    assert.equal(metadata.description.trim().length > 0, true, relative);
+    assertMenuMetadata(metadata, relative);
   }
 });
 

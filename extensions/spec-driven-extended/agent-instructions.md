@@ -12,7 +12,32 @@
 - `openspec/context/` не заменяет Requirements и изменяется только через
   `/spec-driven-extended-context`.
 
+## Формат Work Context и имена команд
+
+В ответе `get_change_context` schema и пути находятся в `openspec_status`
+(`schemaName`, `planningHome`, `changeRoot`, `artifactPaths`, `actionContext`).
+Инструкции выбранного artifact находятся в `artifact_instructions` (`instruction`,
+`rules`, `template`); без аргумента `artifact` это поле равно `null`.
+`assignment_scope` возвращается при `include_assignment: true`.
+Не искать эти поля на верхнем уровне и не считать отсутствие дополнительных `rules`
+отсутствием требований schema.
+
+Короткие `/spec-driven-extended-*` в инструкциях обозначают локальное имя команды
+Qwen/GigaCode. В Claude установленный Plugin добавляет namespace
+`spec-driven-extended:`: например,
+`/spec-driven-extended:spec-driven-extended-context`.
+Штатные команды OpenSpec: `/opsx-<действие>` в Qwen/GigaCode и
+`/opsx:<действие>` в Claude. При рекомендации следующего действия использовать
+синтаксис выбранного провайдера и фактически установленную команду.
+
 ## Границы
+
+Ограничения этого раздела на исследование кода и технические детали относятся к
+workflow `spec-driven-extended` и долговечному `openspec/context/`. Для Change
+`superspec-multirepo` допустимое содержимое Design и execution artifacts определяют
+его актуальные schema instructions: `plan.md` может содержать точные пути, команды
+и ожидаемые результаты. Это исключение не относится к Requirements, Scenarios
+или долговечному context.
 
 - Не открывай Code Repository или CodeGraph для Intent, Intake, Proposal,
   Requirements и Scenarios. На Design, Tasks, Apply и при проверке current-state
@@ -46,7 +71,7 @@
 
 ## Подтверждения из Repository
 
-- Единственный project subagent — `spec-driven-extended-repository-evidence-scout`. Используй
+- В workflow `spec-driven-extended` единственный project subagent — `spec-driven-extended-repository-evidence-scout`. Используй
   его только на разрешённой стадии и по его собственному входному/выходному контракту.
 - Один вопрос — один новый subagent: пять вопросов — пять subagents. Scope и revision
   для каждого вызова возьми из `assignment_scope` текущего Work Context; вызывай

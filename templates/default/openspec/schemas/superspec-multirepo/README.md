@@ -18,7 +18,7 @@ brainstorm
 → specs
 → tasks
 → plan
-→ /opsx:apply (implementation action, no artifact)
+→ Apply (implementation action, no artifact)
 → verify
 → archive
 → UAT

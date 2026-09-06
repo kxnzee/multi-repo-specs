@@ -1,6 +1,7 @@
 ---
 name: spec-driven-extended-apply-context
-description: Подготовить нейтральный repository scope для штатного OpenSpec Apply по принятым Planning-артефактам. Не заменяет встроенный openspec-apply-change.
+description: "[spec-driven-extended] Проверить repository scope перед штатным OpenSpec Apply."
+argument-hint: "[change-id]"
 ---
 
 # Контекст Apply
@@ -19,7 +20,8 @@ Repository; Plugin-specific поведение остаётся вне этог�
 1. Переиспользовать актуальный Work Context для того же `change_id` и `artifact: apply`.
    Если его нет или наступила граница свежести, один раз вызвать MCP
    `get_change_context` с `change_id`, `artifact: apply` и `include_assignment: true`.
-   Использовать возвращённые rules, paths, Tasks и вложенный `assignment_scope`; не
+   Instructions и Tasks брать из `artifact_instructions`, paths — из
+   `openspec_status`, repository scope — из вложенного `assignment_scope`; не
    вызывай `get_assignment_scope` повторно, когда эти Repository и revision уже
    получены, и не собирай этот контекст вручную.
 2. Проверить, что Repository Impact использует строгую таблицу
@@ -31,8 +33,9 @@ Repository; Plugin-specific поведение остаётся вне этог�
    напрямую; не создавать фиктивную Delta Spec.
 5. Неизвестный Repository/capability или расхождение принятого implementation scope
    блокирует Apply и не создаёт Repository автоматически.
-6. Сверить полученный assignment с принятым Repository Impact. Если Graph недоступен
-   и `assigned` равен `null`, прочитать Proposal через MCP resource и подтвердить
+6. Сверить полученный assignment с принятым Repository Impact. Если
+   `assignment_scope.assigned` равен `null`, прочитать Proposal через MCP resource
+   и подтвердить
    текущий repository-id по строгой таблице Repository Impact. Не продолжать при
    расхождении или отсутствии подтверждённого scope.
 

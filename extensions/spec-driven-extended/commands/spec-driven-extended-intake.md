@@ -1,8 +1,9 @@
 ---
-description: Провести адаптивный опрос по Change и собрать подтверждённый intake.md с решением о переходе к Explore или Proposal.
+description: "[spec-driven-extended] Собрать Intake выбранного Change и предложить переход к Explore или Proposal."
+argument-hint: "[change-id]"
 ---
 
-# /spec-driven-extended-intake
+# /spec-driven-extended-intake [change-id]
 
 Проведи пользователя по одному адаптивному опроснику и сам собери итоговый
 `intake.md`. Пользователь отвечает на вопросы, но не обязан вручную переносить,
@@ -47,10 +48,14 @@ Brief из `spec-driven-extended-intent` либо явно принятая по
    контекста нет или наступила граница свежести. Сравни `change-id` только по точному
    совпадению. Не ищи Change через fuzzy name или обход файловой системы.
 3. Если Change существует, переиспользуй соответствующий `get_change_context` либо
-   вызови его с `artifact: intake`. Если
-   `schemaName` не `spec-driven-extended`, остановись с `BLOCKER: SCHEMA_MISMATCH`
-   без `intake_result` и `next_action`. Используй фактические `planningHome`, путь
-   результата, template, instruction и rules из ответа. Затем прочитай существующий
+   вызови его без `artifact`, чтобы сначала проверить `openspec_status.schemaName`.
+   Если schema не `spec-driven-extended`, остановись с `BLOCKER: SCHEMA_MISMATCH`
+   без `intake_result` и `next_action`. Только после проверки schema получи инструкции
+   через `get_change_context` с `artifact: intake`, если их ещё нет в Work Context.
+   Не запрашивай Intake у чужой schema. Пути бери из `openspec_status.planningHome`
+   и `openspec_status.artifactPaths`;
+   путь результата, template, instruction и rules — из `artifact_instructions`
+   (`resolvedOutputPath`, `template`, `instruction`, `rules`). Затем прочитай существующий
    содержательный `intake.md`, если он есть, не затирая его template.
 4. Если Change не существует, проверь согласованный Intent в текущем диалоге или явно
    переданных материалах. Если его нет, остановись с `BLOCKER: INTENT_REQUIRED` и
@@ -64,7 +69,7 @@ Brief из `spec-driven-extended-intent` либо явно принятая по
    ```
 
    Не создавай Change до явного выбора идентификатора пользователем. После создания
-   вызови `get_change_context` с `artifact: intake` и проверь `schemaName: spec-driven-extended`.
+   вызови `get_change_context` с `artifact: intake` и проверь `openspec_status.schemaName: spec-driven-extended`.
 
 5. Для нового или существующего Change проверь согласованный Intent в диалоге,
    явно переданных материалах или разделе Intent source существующего Intake. Само
@@ -183,6 +188,13 @@ degraded behavior, автотесты и сквозная проверка. Эт
 в `Exploration`, обнови связанные разделы Intake, пересмотри открытые вопросы и снова
 выбери Planning Route. Не переносить findings автоматически в Proposal, Specs,
 Design или Tasks.
+
+## Команды выбранного провайдера
+
+Ниже `/opsx-continue` и `/opsx-explore` обозначают команды Qwen/GigaCode. В Claude
+используй `/opsx:continue` и `/opsx:explore`, в том числе в `next_action`.
+Саму команду Intake в Claude вызывают как
+`/spec-driven-extended:spec-driven-extended-intake [change-id]`.
 
 ## Завершение
 

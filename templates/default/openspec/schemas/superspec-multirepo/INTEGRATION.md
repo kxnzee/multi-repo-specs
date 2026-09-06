@@ -32,8 +32,9 @@ plan's dependency order.
 
 ## Apply and Verify convergence
 
-1. `/opsx:apply` performs repository work, updates only completed Tasks and returns a
-   concise execution summary without creating a separate receipt artifact.
+1. `/opsx:apply` (Claude) or `/opsx-apply` (Qwen/GigaCode) performs repository work,
+   updates only completed Tasks and returns a concise execution summary without
+   creating a separate receipt artifact.
 2. The next schema artifact invokes `openspec-verify-change`, runs fresh technical
    checks and writes `verify.md` for the current candidate.
 3. Code failure invokes systematic debugging and returns to Apply.
@@ -46,8 +47,9 @@ used by `spec-driven-extended`. Agent reasoning and technical checks prepare evi
 but cannot make the human decision. Superspec Process Compliance is evaluated
 separately and cannot weaken Feature Acceptance.
 
-The standalone `/opsx:verify` surface returns the upstream verification report but
-does not persist a schema artifact. Use the schema artifact flow when the governed
+The standalone `/opsx:verify` (Claude) or `/opsx-verify` (Qwen/GigaCode) surface returns
+the upstream verification report but does not persist a schema artifact.
+Use the schema artifact flow when the governed
 `verify.md` gate must be recorded after implementation.
 
 ## Closeout and Archive

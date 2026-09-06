@@ -1,6 +1,7 @@
 ---
 name: spec-driven-extended-meta-planning
-description: Единая read-only проверка Proposal, Specs, Design, Tasks, impact или полного Planning OpenSpec Change. Использует фактические artifact rules, Store-артефакты и адресные вызовы repository evidence scout по правилу «один вопрос — один subagent»; не изменяет артефакты и не принимает Gate.
+description: "[spec-driven-extended] Проверить Planning выбранного Change без изменения артефактов и принятия Gate."
+argument-hint: "[change-id] [proposal|specs|design|tasks|impact-review|planning-review]"
 ---
 
 # Проверка Planning
@@ -32,11 +33,17 @@ request проверяет один вопрос в одном Repository.
 ## Предварительная проверка
 
 1. Переиспользовать актуальный Work Context для того же `change_id` и текущего
-   `artifact`; при его отсутствии или после границы свежести один раз вызвать MCP
-   `get_change_context`. Использовать возвращённые planningHome, changeRoot,
-   artifactPaths, actionContext и rules.
-2. `rules` из этого ответа — единственный содержательный checklist стадии. Не
-   реконструировать его из документации или памяти сессии.
+   `artifact`; при его отсутствии или после границы свежести вызвать MCP
+   `get_change_context`. Для proposal, specs, design и tasks передавать одноимённый
+   `artifact`. `impact-review` и `planning-review` — режимы проверки, а не artifact ID:
+   сначала получить статус без `artifact`, затем запросить инструкции существующих
+   артефактов, относящихся к проверке. Не передавать эти два режима как `artifact`.
+   Пути и schema брать из `openspec_status`: `planningHome`, `changeRoot`,
+   `artifactPaths`, `actionContext`, `schemaName`.
+2. Checklist стадии составлять из `artifact_instructions.instruction` и применимых
+   `artifact_instructions.rules`, учитывая `template` и зависимости из того же ответа.
+   Отсутствие дополнительных `rules` не отменяет требования schema в `instruction`.
+   Не реконструировать checklist из документации или памяти сессии.
 3. Прочитать только существующие outputs, их зависимости и релевантный Store context.
    Отсутствие ещё не разблокированного следующего артефакта не является finding.
 4. Если существует openspec-orch.yaml, использовать code repository records как

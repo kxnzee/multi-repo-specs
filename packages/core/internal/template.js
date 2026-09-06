@@ -37,6 +37,7 @@ const TEMPLATE_SCHEMA = z.strictObject({
   requires: z.strictObject({
     extensions: REQUIRED_EXTENSIONS_SCHEMA,
   }).optional(),
+  agentInstructions: relativePathSchema(false).optional(),
   copy: z.array(COPY_SCHEMA).min(1),
 });
 const PROTECTED_ROOTS = new Set([
@@ -377,7 +378,7 @@ export class TemplatePlan {
       if (unchangedPreExisting.has(file.targetRelative)) continue;
       const targetStat = await inspectTemplateTarget(this.#targetRoot, file.targetRelative);
       await fs.mkdir(path.dirname(file.target), { recursive: true });
-      await fs.writeFile(file.target, file.contents);
+      await fs.writeFile(file.target, file.contents, file.exclusive ? { flag: "wx" } : undefined);
       await fs.chmod(file.target, file.mode);
       if (!created.has(file.targetRelative) && !updated.has(file.targetRelative)) {
         if (targetStat) updated.add(file.targetRelative);
@@ -427,6 +428,23 @@ export class ProjectTemplateService {
       "copy",
       (targetRelative) => agent.protects(targetRelative),
     );
+    if (descriptor.agentInstructions !== undefined) {
+      const sourceStat = await inspectSourcePath(
+        templateRoot, descriptor.agentInstructions, "agentInstructions",
+      );
+      if (!sourceStat.isFile()) {
+        throw new Error("agentInstructions должен указывать на обычный файл");
+      }
+      const instructions = await planCopyFiles(
+        templateRoot,
+        targetRoot,
+        [{ from: descriptor.agentInstructions, to: agent.instructionsFile }],
+        "agentInstructions",
+        (targetRelative) => targetRelative !== agent.instructionsFile && agent.protects(targetRelative),
+      );
+      files.push(...instructions.map((file) => ({ ...file, exclusive: true })));
+      assertNoPlanCollisions(files);
+    }
     const overlappingTarget = files.find(({ target }) => (
       isContainedPath(templateRoot, target, { allowRoot: true })
     ));

@@ -137,3 +137,17 @@ Bundled Template находится в `templates/<id>/`; directory name сов�
 произвольную OpenSpec version. Изменение такой границы требует отдельного smoke
 с явным указанием проверенной среды. Коммит, публикация ветки и PR выполняются
 по задаче пользователя; merge и deployment остаются отдельными действиями.
+
+## Проверка агентских workflow helpers
+
+`test/agent-workflow-helpers.test.js` проверяет извлечение одной задачи из общего
+плана, отказ без перезаписи brief при неоднозначности, изоляцию progress по плану
+и ветке и сохранение исходного worktree при closeout. Fixtures используют временные
+Git repositories. Helpers принадлежат Superpowers Extension; локальные изменения
+vendored skills перечислены в `extensions/superpowers/NOTICE.md`.
+
+Для multi-repo плана передавайте `--repo <repository-id>` в `task-brief`. Ledger
+использует каталог из `sdd-workspace <plan-file>`; общий старый `progress.md` не
+переносится автоматически. Без Bash доступны эквивалентные команды
+`node <skill-directory>/scripts/task-context.cjs brief ...` и `workspace ...`.
+Запускайте helpers из назначенного Code Repository, передавая точный путь плана.

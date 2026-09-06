@@ -221,7 +221,10 @@ test("InitializationService creates Store through domain and public facade contr
   assert.deepEqual(project.template, { id: "default" });
   assert.deepEqual(project.agent, { id: "claude" });
   assert.deepEqual(project.codeRepositories.map(({ id }) => id), ["frontend"]);
-  assert.equal(await fs.lstat(path.join(root, "CLAUDE.md")).catch((error) => error.code), "ENOENT");
+  assert.match(await fs.readFile(path.join(root, "CLAUDE.md"), "utf8"), /STORE\.md/u);
+  assert.equal(result.created.includes("CLAUDE.md"), true);
+  assert.equal(result.created.includes("STORE.md"), true);
+  assert.equal((await fs.stat(path.join(root, "STORE.md"))).isFile(), true);
   assert.equal((await fs.stat(path.join(root, ".claude/commands/opsx"))).isDirectory(), true);
   assert.equal(
     await fs.readFile(path.join(root, ".claude/commands/opsx/opsx-explore.md"), "utf8"),
@@ -241,6 +244,7 @@ test("InitializationService creates Store through domain and public facade contr
   assert.equal(fake.calls.some((args) => args[0] === "store" && args[1] === "setup"), true);
 
   const callCount = fake.calls.length;
+  await fs.writeFile(path.join(root, "CLAUDE.md"), "Custom Store instructions\n");
   const repeated = await service.initialize({
     target: root,
     storeId: "payments-specs",
@@ -250,6 +254,7 @@ test("InitializationService creates Store through domain and public facade contr
   assert.equal(repeated.alreadyInitialized, true);
   assert.deepEqual(repeated.created, []);
   assert.equal(fake.calls.length, callCount);
+  assert.equal(await fs.readFile(path.join(root, "CLAUDE.md"), "utf8"), "Custom Store instructions\n");
 });
 
 test("InitializationService preserves relaxed mode for an existing v1 Store", async (t) => {

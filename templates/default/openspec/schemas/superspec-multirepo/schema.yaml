@@ -24,6 +24,9 @@ artifacts:
       with trade-offs and obtain explicit user approval. Record the problem,
       constraints, success criteria, agreed approach, decisions and open questions.
       Do not implement or create later artifacts before approval.
+      After approval finish this artifact and return to OpenSpec. Do not follow
+      brainstorming's automatic writing-plans handoff: Proposal, Specs and Tasks
+      must precede Plan. Do not commit Store artifacts from this skill.
     requires: []
 
   - id: proposal
