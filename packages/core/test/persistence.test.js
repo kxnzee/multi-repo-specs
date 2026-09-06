@@ -1,6 +1,8 @@
 /** @fileoverview Проверки атомарных и namespaced persistence APIs нового Core. */
 
 import assert from "node:assert/strict";
+import { fork } from "node:child_process";
+import { once } from "node:events";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -99,6 +101,37 @@ test("PluginStorage writes a strict envelope and exposes only scoped data", asyn
       data: { enabled: true, nested: { count: 1 } },
     },
   );
+});
+
+test("terminated lock owner leaves state intact and requires explicit recovery before restart", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-crash-recovery-"));
+  let child;
+  let closed;
+  t.after(async () => {
+    if (child) { child.kill(); await closed; }
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  const lockPath = path.join(root, "state.lock");
+  const statePath = path.join(root, "state.json");
+  await fs.writeFile(statePath, "before");
+  child = fork(new URL("../fixtures/lock-holder.js", import.meta.url), [lockPath], {
+    execArgv: [], stdio: ["ignore", "ignore", "pipe", "ipc"],
+  });
+  closed = once(child, "close");
+  await Promise.race([
+    once(child, "message").then(([message]) => assert.equal(message, "locked")),
+    closed.then(() => { throw new Error("Lock owner exited before acquiring the lock"); }),
+  ]);
+  child.kill("SIGTERM");
+  await closed;
+  const lock = new FailClosedLock();
+  await assert.rejects(lock.run(lockPath, () => fs.writeFile(statePath, "unsafe")), /STATE_BUSY/);
+  assert.equal(await fs.readFile(statePath, "utf8"), "before");
+  // The owner is confirmed stopped. Remove only its exact empty lock directory.
+  await fs.rmdir(lockPath);
+  await lock.run(lockPath, () => fs.writeFile(statePath, "recovered"));
+  assert.equal(await fs.readFile(statePath, "utf8"), "recovered");
+  assert.equal(await fs.lstat(lockPath).catch((error) => error.code), "ENOENT");
 });
 
 test("PluginStorage isolates namespaces and serializes update under one lock", async (t) => {

@@ -9,6 +9,7 @@ import test from "node:test";
 import { BundledAgentPackage, BundledAgentProvider } from "@openspec-orch/core";
 
 import { createDirectoryLink } from "../fixtures/filesystem.js";
+import { replaceAfterCheck } from "../fixtures/file-race.js";
 
 /** Создаёт минимальный Agent descriptor fixture. */
 async function agentFixture(t, id = "qwen") {
@@ -84,4 +85,13 @@ test("BundledAgentPackage rejects extra fields, identity mismatch and symlink ro
     descriptor.replace("adapter: adapter.js", "adapter: runtime/adapter.js"),
   );
   await assert.rejects(BundledAgentPackage.load(nested), /native\.adapter.*symlink/);
+});
+
+test("BundledAgentPackage rejects descriptor replacement between check and read", async (t) => {
+  const root = await agentFixture(t);
+  const target = path.join(root, "agent.yaml");
+  const before = await fs.readFile(target, "utf8");
+  const replaced = await replaceAfterCheck(t, target, before.replace("name: Qwen Code", "name: Replaced"));
+  await assert.rejects(BundledAgentPackage.load(root), /BUNDLED_AGENT_INVALID/);
+  assert.equal(replaced(), true);
 });

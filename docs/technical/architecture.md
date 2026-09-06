@@ -73,6 +73,29 @@ Standalone Extension не становится частью Core. Plugin package
 доверенный in-process код: SDK сужает context, пути и process API, но не является
 sandbox.
 
+### Проверка и чтение локальных metadata-файлов
+
+Agent `agent.yaml`, Extension `extension.yaml` и npm Extension `package.json`
+читаются через открытый файловый дескриптор. Его тип и `dev`/`ino` сверяются
+с проверенным обычным файлом до чтения; замена pathname другим inode отклоняется.
+На POSIX дополнительно используются `O_NOFOLLOW` и `O_NONBLOCK`, когда доступны.
+На Windows сверка identity действует без предположения о наличии этих флагов.
+
+CodeGraph читает Git `info/exclude` через проверенный read-only handle. Если
+`.codegraph/` уже записан, право записи не требуется. Для добавления строки
+открывается отдельный append handle, который сверяется с тем же inode до записи;
+отсутствующий файл создаётся исключительно через exclusive create. Конкурентное
+появление/замена файла вызывает `CODEGRAPH_GIT_EXCLUDE_UNSAFE`: повторите операцию
+после проверки локального состояния. Git worktrees сохраняют свой metadata path,
+в том числе вне checkout; LF/CRLF и существующее содержимое сохраняются.
+
+Это защита конкретных операций от перенаправления при подмене pathname, не
+filesystem sandbox. Родительские каталоги установки/runtime/Git metadata должны
+оставаться под доверенным управлением. Уже существующие hardlinks и параллельная
+запись в тот же inode не запрещаются. Враждебная подмена всего дерева каталогов,
+транзакционный snapshot нескольких manifests и атомарная загрузка исполняемого
+Agent adapter этим механизмом не обеспечиваются.
+
 ## Project и Repository resolution
 
 `openspec-orch.yaml` в Store — переносимый Project v1 registry. Он содержит один

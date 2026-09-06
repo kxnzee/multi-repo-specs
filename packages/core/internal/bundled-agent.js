@@ -9,6 +9,7 @@ import { parse } from "yaml";
 import { AgentDefinition } from "./agent-definition.js";
 import { AgentExtensionAdapter, isAgentExtensionAdapter } from "./agent-extension-adapter.js";
 import { isContainedPath } from "./path.js";
+import { readRegularFile } from "./fs.js";
 
 /** Завершает проверку bundled Agent стабильной ошибкой. */
 function invalid(message, options) {
@@ -18,14 +19,11 @@ function invalid(message, options) {
 /** Читает и проверяет immutable Agent definition из canonical root. */
 async function loadDefinition(root, expectedId) {
   const descriptorPath = path.join(root, "agent.yaml");
-  const descriptorStat = await fs.lstat(descriptorPath)
-    .catch((cause) => invalid("agent.yaml отсутствует", { cause }));
-  if (!descriptorStat.isFile() || descriptorStat.isSymbolicLink()) {
-    invalid("agent.yaml должен быть обычным файлом без symlink");
-  }
+  const source = await readRegularFile(descriptorPath)
+    .catch((cause) => invalid("agent.yaml отсутствует или небезопасен (symlink/подмена файла)", { cause }));
   let value;
   try {
-    value = parse(await fs.readFile(descriptorPath, "utf8"));
+    value = parse(source);
   } catch (cause) {
     invalid("agent.yaml содержит некорректный YAML", { cause });
   }

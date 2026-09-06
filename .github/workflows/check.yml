@@ -4,7 +4,11 @@ on:
   push:
     branches: [master]
   pull_request:
-    branches: [master]
+    branches: [master, fix/pilot-readiness-audit, ci/free-security-checks]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: check-${{ github.ref }}
@@ -21,13 +25,45 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         node: ["22.16.0"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node }}
-          cache: npm
       - run: npm ci
+      - name: Diagnose Windows file handle identity
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { constants, promises as fs } from 'node:fs';
+          import { readRegularFile } from './packages/core/internal/fs.js';
+          const target = 'agents/qwen/agent.yaml';
+          const describe = (s) => ({ dev: String(s.dev), ino: String(s.ino), mode: String(s.mode), file: s.isFile() });
+          console.log({ O_RDONLY: constants.O_RDONLY, O_NOFOLLOW: constants.O_NOFOLLOW, O_NONBLOCK: constants.O_NONBLOCK });
+          console.log('lstat', describe(await fs.lstat(target, { bigint: true })));
+          const handle = await fs.open(target, constants.O_RDONLY);
+          try { console.log('fstat', describe(await handle.stat({ bigint: true }))); }
+          finally { await handle.close(); }
+          try { await readRegularFile(target); console.log('safe read passed'); }
+          catch (error) { console.error(error); process.exitCode = 1; }
+          NODE
       - run: npm run check:environment
       - run: npm run lint
       - run: npm run test:code
       - run: npm run test:pack
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22.16.0"
+      - run: npm ci
+      - run: npm run test:coverage
