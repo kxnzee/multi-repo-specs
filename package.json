@@ -49,12 +49,13 @@
   "scripts": {
     "test": "npm run test:code",
     "test:code": "node --import ./scripts/verification-environment.js --test --test-concurrency=1 --test-timeout=180000",
-    "test:coverage": "node --import ./scripts/verification-environment.js --experimental-test-coverage --test --test-concurrency=1 --test-timeout=180000",
+    "test:coverage": "node --import ./scripts/verification-environment.js --experimental-test-coverage --test-coverage-include=agents/** --test-coverage-include=bin/** --test-coverage-include=packages/** --test-coverage-include=plugins/** --test-coverage-exclude=**/test/** --test-coverage-exclude=**/fixtures/** --test-coverage-lines=91 --test-coverage-branches=81 --test-coverage-functions=94 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/coverage-gate.js --test-reporter-destination=stdout --test --test-concurrency=1 --test-timeout=180000",
     "test:pack": "node --import ./scripts/verification-environment.js scripts/packed-artifact-smoke.js",
     "check:environment": "node --import ./scripts/verification-environment.js scripts/check-environment.js",
     "lint": "eslint .",
     "check": "npm run check:environment && npm run lint && npm run test:code",
-    "check:all": "npm run check && npm run test:pack"
+    "check:all": "npm run check && npm run test:pack",
+    "check:security": "npm audit --audit-level=high"
   },
   "engines": {
     "node": ">=22.16.0"
