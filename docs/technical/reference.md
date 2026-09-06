@@ -129,12 +129,22 @@ Read tools:
 
 - `get_status` — при переданном `change_id` включает активные и завершённые attempts;
 - `get_setup_context`;
-- `get_change_context`;
+- `get_change_context` — принимает опциональный `include_assignment: true`, чтобы
+  вернуть `assignment_scope` в том же ответе без повторного Project envelope и второй
+  компиляции Graph impact;
 - `get_next_action`;
 - `get_assignment_scope`;
 - `get_doctor_report`;
 - `query_graph` — Plugin-owned tool, доступный в дистрибутиве и исполняемый только
   через contribution `openspec-graph`.
+
+Каждый успешный read-ответ содержит `context_revision`, scoped к имени tool, его
+эффективным аргументам и фактически прочитанному результату. Для проверки свежести
+клиент передаёт это значение как `if_context_revision`. MCP всё равно перечитывает
+текущее состояние; если результат не изменился, он возвращает только
+`{ "unchanged": true, "context_revision": "..." }`. Поэтому revision не является
+TTL-кэшем и не разрешает переиспользовать payload другого tool или другого набора
+аргументов. JSON tool results передаются без форматирующих пробелов.
 
 Controlled setup tools:
 
@@ -164,6 +174,8 @@ files не публикуются.
 подтверждён подключённым OpenSpec Graph, и `null`, когда Graph недоступен. В последнем
 случае Agent подтверждает repository-id по строгой таблице Repository Impact из
 Proposal, доступного как MCP resource; `null` не означает отсутствие назначения.
+Такая же семантика действует для вложенного `assignment_scope`, если
+`get_change_context` вызван с `include_assignment: true`.
 
 MCP не предоставляет verification, Release, Archive, произвольные Git writes,
 Plugin lifecycle, Agent management или network transport.

@@ -1,5 +1,7 @@
 /** @fileoverview Local stdio MCP transport with a fixed governed tool catalog. */
 
+import { createHash } from "node:crypto";
+
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -11,6 +13,7 @@ import {
 
 const IDENTIFIER_PATTERN = "^[a-z0-9]+(?:-[a-z0-9]+)*$";
 const NON_EMPTY_STRING_SCHEMA = Object.freeze({ type: "string", minLength: 1 });
+const IF_CONTEXT_REVISION_SCHEMA = NON_EMPTY_STRING_SCHEMA;
 const IDENTIFIER_SCHEMA = Object.freeze({
   ...NON_EMPTY_STRING_SCHEMA,
   pattern: IDENTIFIER_PATTERN,
@@ -67,6 +70,7 @@ const TOOL_DEFINITIONS = Object.freeze([
       properties: Object.freeze({
         change_id: IDENTIFIER_SCHEMA,
         artifact: IDENTIFIER_SCHEMA,
+        include_assignment: Object.freeze({ type: "boolean" }),
       }),
       required: ["change_id"],
       additionalProperties: false,
@@ -161,20 +165,54 @@ const APPLICATION_METHODS = Object.freeze([
   "readResource",
 ]);
 
+/** Adds one common conditional-read argument without changing domain tool inputs. */
+function readInputSchema(inputSchema) {
+  return Object.freeze({
+    ...inputSchema,
+    properties: Object.freeze({
+      ...(inputSchema.properties ?? {}),
+      if_context_revision: IF_CONTEXT_REVISION_SCHEMA,
+    }),
+  });
+}
+
 /** Separates public MCP metadata from its private application dispatch. */
 function defineTool({ agentTool = false, applicationMethod, validate = null, ...tool }) {
+  const inputSchema = tool.annotations?.readOnlyHint
+    ? readInputSchema(tool.inputSchema)
+    : tool.inputSchema;
   return Object.freeze({
     agentTool,
     applicationMethod,
     validate,
-    tool: Object.freeze(tool),
+    tool: Object.freeze({ ...tool, inputSchema }),
   });
 }
 
-/** Encodes a domain value as one MCP text result. */
-function resultContent(value) {
+/** Produces a tool-and-input-scoped digest of one freshly resolved read result. */
+function contextRevision(name, args, value) {
+  return createHash("sha256").update(JSON.stringify([name, args, value])).digest("hex");
+}
+
+/** Adds a revision to an object result without hiding its existing public fields. */
+function revisedValue(value, revision) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return Object.freeze({ ...value, context_revision: revision });
+  }
+  return Object.freeze({ value, context_revision: revision });
+}
+
+/** Encodes a domain value as one compact MCP text result. */
+function resultContent(value, { args, conditionalRevision, definition } = {}) {
+  let result = value;
+  if (definition?.tool.annotations.readOnlyHint) {
+    const revision = contextRevision(definition.tool.name, args, value);
+    result = conditionalRevision === revision
+      ? Object.freeze({ unchanged: true, context_revision: revision })
+      : revisedValue(value, revision);
+  }
   return Object.freeze({
-    content: Object.freeze([{ type: "text", text: JSON.stringify(value, null, 2) }]),
+    content: Object.freeze([{ type: "text", text: JSON.stringify(result) }]),
   });
 }
 
@@ -221,6 +259,16 @@ function assertDeclaredStrings(name, args, inputSchema) {
   }
 }
 
+/** Validates non-string scalar fields declared by one advertised object schema. */
+function assertDeclaredScalars(name, args, inputSchema) {
+  for (const [field, fieldSchema] of Object.entries(inputSchema.properties ?? {})) {
+    if (args[field] === undefined || fieldSchema.type === "string") continue;
+    if (fieldSchema.type === "boolean" && typeof args[field] !== "boolean") {
+      throw new Error(`MCP_TOOL_INPUT_INVALID: ${name}.${field} должен быть boolean`);
+    }
+  }
+}
+
 /** Validates one object against the fields advertised by its MCP schema. */
 function assertObjectShape(name, args, inputSchema) {
   if (!args || typeof args !== "object" || Array.isArray(args)) {
@@ -230,6 +278,15 @@ function assertObjectShape(name, args, inputSchema) {
   const unknown = Object.keys(args).find((key) => !allowed.has(key));
   if (unknown) throw new Error(`MCP_TOOL_INPUT_INVALID: ${name} не принимает ${unknown}`);
   assertDeclaredStrings(name, args, inputSchema);
+  assertDeclaredScalars(name, args, inputSchema);
+}
+
+/** Removes transport-level conditional-read metadata before application dispatch. */
+function applicationArguments(definition, args) {
+  if (!definition.tool.annotations.readOnlyHint) return args;
+  const applicationArgs = { ...args };
+  delete applicationArgs.if_context_revision;
+  return applicationArgs;
 }
 
 /** Validates the structured strict-init surface. */
@@ -312,10 +369,15 @@ export function createOrchestratorMcpServer(application) {
     }
     try {
       assertArguments(definition, args);
+      const input = applicationArguments(definition, args);
       const value = definition.agentTool
-        ? await application.invokeAgentTool(definition.tool.name, args)
-        : await application[definition.applicationMethod](args);
-      return resultContent(value);
+        ? await application.invokeAgentTool(definition.tool.name, input)
+        : await application[definition.applicationMethod](input);
+      return resultContent(value, {
+        args: input,
+        conditionalRevision: args.if_context_revision,
+        definition,
+      });
     } catch (error) {
       return errorContent(error);
     }

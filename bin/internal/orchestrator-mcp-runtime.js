@@ -204,7 +204,7 @@ export class OrchestratorMcpRuntime {
     return tracking.completeAttempt({ changeId, taskId });
   }
 
-  async getChangeContext({ change_id: changeId, artifact } = {}) {
+  async getChangeContext({ change_id: changeId, artifact, include_assignment: includeAssignment } = {}) {
     const state = await this.#state();
     const repositoryOpenSpec = this.#openSpec.forRepository(state.storeProject.checkout);
     const resources = await this.#resourceService(state).list();
@@ -220,11 +220,14 @@ export class OrchestratorMcpRuntime {
         : null,
       resources: Object.freeze(resources.filter(({ name }) => name.startsWith(changePrefix))),
       tracking: tracking ? await tracking.getStatus(changeId) : null,
+      ...(includeAssignment ? {
+        assignment_scope: await this.#assignmentScope(state),
+      } : {}),
     });
     return this.#enhance(
       state,
       "getChangeContext",
-      { change_id: changeId, artifact },
+      { change_id: changeId, artifact, include_assignment: includeAssignment ?? false },
       result,
     );
   }
@@ -245,6 +248,15 @@ export class OrchestratorMcpRuntime {
 
   async getAssignmentScope({ change_id: changeId } = {}) {
     const state = await this.#state();
+    const result = Object.freeze({
+      ...projectJson(state.storeProject, state.invocation),
+      ...await this.#assignmentScope(state),
+    });
+    return this.#enhance(state, "getAssignmentScope", { change_id: changeId }, result);
+  }
+
+  /** Builds reusable assignment data without repeating the Project envelope. */
+  async #assignmentScope(state) {
     const assignments = await this.#assignmentScopes(state);
     const currentCheckout = state.invocation?.role === "store"
       ? state.storeProject.checkout
@@ -257,8 +269,7 @@ export class OrchestratorMcpRuntime {
     const revision = currentCheckout
       ? await this.#git.forRepository(currentCheckout).revision()
       : null;
-    const result = Object.freeze({
-      ...projectJson(state.storeProject, state.invocation),
+    return Object.freeze({
       assigned: null,
       assignments,
       current_assignment: state.invocation ? Object.freeze({
@@ -268,7 +279,6 @@ export class OrchestratorMcpRuntime {
         revision,
       }) : null,
     });
-    return this.#enhance(state, "getAssignmentScope", { change_id: changeId }, result);
   }
 
   async getDoctorReport() {

@@ -159,6 +159,10 @@ test("Agent gateway instructions defer enforceable policy to MCP", async () => {
   const source = await fs.readFile(path.join(GATEWAY_ROOT, "agent-instructions.md"), "utf8");
   assert.match(source, /get_change_context/u);
   assert.match(source, /get_next_action/u);
+  assert.match(source, /context_revision/u);
+  assert.match(source, /if_context_revision/u);
+  assert.match(source, /границ[а-я]+ свежести/iu);
+  assert.match(source, /не вызывай MCP повторно/iu);
   assert.match(source, /сообщи пользователю точную\s+причину и рекомендованный способ восстановления/u);
   assert.match(source, /Не повторяй запрос с неизменными\s+входными данными и контекстом/u);
   assert.match(
@@ -176,7 +180,19 @@ test("Apply context validates repository scope without Plugin-specific routing",
 
   assert.match(source, /`Repository \| Capabilities`/, relative);
   assert.match(source, /`get_assignment_scope`/u, relative);
+  assert.match(source, /include_assignment: true/u, relative);
+  assert.match(source, /не\s+вызывай `get_assignment_scope` повторно/iu, relative);
   assert.match(source, /Plugin-specific поведение остаётся вне этого skill/iu, relative);
+});
+
+test("Change Tracking reuses the Apply Work Context instead of duplicating MCP reads", async () => {
+  const source = await fs.readFile(
+    path.join(PLUGINS_ROOT, "change-tracking/extension/agent-instructions.md"),
+    "utf8",
+  );
+  assert.match(source, /include_assignment: true/u);
+  assert.match(source, /reuse the current Work Context/iu);
+  assert.doesNotMatch(source, /then resolve the current\s+Repository through `get_assignment_scope`/iu);
 });
 
 test("spec-driven-extended Extension does not route Superspec Changes through another workflow", async () => {

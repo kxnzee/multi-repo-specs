@@ -152,7 +152,11 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
   });
 
   const status = await runtime.getStatus();
-  const context = await runtime.getChangeContext({ change_id: "pay", artifact: "design" });
+  const context = await runtime.getChangeContext({
+    change_id: "pay",
+    artifact: "design",
+    include_assignment: true,
+  });
   const next = await runtime.getNextAction({ change_id: "pay" });
   const assignment = await runtime.getAssignmentScope({ change_id: "pay" });
   const setup = await runtime.getSetupContext();
@@ -163,6 +167,24 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
   assert.equal(status.capabilities.graph.available, false);
   assert.deepEqual(context.openspec_status, { changeName: "pay", schemaName: "spec-driven-extended" });
   assert.deepEqual(context.artifact_instructions, { instruction: "Use exact schema" });
+  assert.deepEqual(context.assignment_scope, {
+    assigned: null,
+    assignments: [{
+      repository_id: "frontend",
+      assigned: null,
+      checkout: "/workspace/src/frontend",
+      revision: "a".repeat(40),
+      connected: true,
+      clean: true,
+      state: "connected",
+    }],
+    current_assignment: {
+      repository_id: "specs",
+      role: "store",
+      path: "/workspace/specs",
+      revision: "a".repeat(40),
+    },
+  });
   assert.deepEqual(next, { action: "prepare_artifact", actor: "agent", artifact: "design" });
   assert.equal(assignment.current_assignment.revision, "a".repeat(40));
   assert.equal(assignment.assigned, null);

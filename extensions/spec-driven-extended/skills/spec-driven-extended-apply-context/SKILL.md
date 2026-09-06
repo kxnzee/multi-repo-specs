@@ -16,9 +16,12 @@ Repository; Plugin-specific поведение остаётся вне этог�
 
 ## Общая предварительная проверка
 
-1. Вызвать MCP `get_change_context` с `change_id` и `artifact: apply`, затем
-   `get_assignment_scope`. Использовать возвращённые rules, paths, Tasks, Repository
-   и revision; не собирать этот контекст вручную.
+1. Переиспользовать актуальный Work Context для того же `change_id` и `artifact: apply`.
+   Если его нет или наступила граница свежести, один раз вызвать MCP
+   `get_change_context` с `change_id`, `artifact: apply` и `include_assignment: true`.
+   Использовать возвращённые rules, paths, Tasks и вложенный `assignment_scope`; не
+   вызывай `get_assignment_scope` повторно, когда эти Repository и revision уже
+   получены, и не собирай этот контекст вручную.
 2. Проверить, что Repository Impact использует строгую таблицу
    `Repository | Capabilities`, все repository-id зарегистрированы, а capability paths
    имеют Delta Specs текущего Change.
@@ -39,7 +42,8 @@ section. Для Store-level координации передать исходн
 ## Навигация и подтверждения
 
 До кода проверить Git root и пользовательский worktree. Repository-id и полный HEAD
-брать из `get_assignment_scope`. Не очищать чужие изменения.
+брать из вложенного `assignment_scope`; отдельный `get_assignment_scope` допустим только
+при отсутствии этих данных или после границы свежести. Не очищать чужие изменения.
 
 CodeGraph разрешён только внутри current repository и только при ready index на той же
 revision. Иначе использовать адресный read/search. Не запускать sync автоматически и не

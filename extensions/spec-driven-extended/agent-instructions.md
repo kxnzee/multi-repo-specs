@@ -7,7 +7,8 @@
   реализуют принятые Changes и владеют локальными implementation details и evidence.
 - `openspec-orch.yaml` — реестр Project. Текущее состояние, artifact rules, следующий
   actor, Repository scope и revision получай через Orchestrator MCP, а нормативные
-  Store artifacts — через его resources. Не восстанавливай их из пересказа.
+  Store artifacts — через его resources. Переиспользуй актуальный Work Context по
+  `context_revision` согласно gateway policy; не восстанавливай его из пересказа.
 - `openspec/context/` не заменяет Requirements и изменяется только через
   `/spec-driven-extended-context`.
 
@@ -15,8 +16,8 @@
 
 - Не открывай Code Repository или CodeGraph для Intent, Intake, Proposal,
   Requirements и Scenarios. На Design, Tasks, Apply и при проверке current-state
-  conflict исследуй только один заранее сформулированный вопрос в scope, который
-  вернул `get_assignment_scope`.
+  conflict исследуй только один заранее сформулированный вопрос в `assignment_scope`
+  текущего Work Context либо в отдельно вызванном `get_assignment_scope`.
 - Не переноси в Store внутренние paths, symbols, модули, библиотеки, локальную
   конфигурацию, build/test commands, code inventory или `path:line`. Код подтверждает
   только constraint, conflict, implementation gap или unknown.
@@ -27,8 +28,9 @@
 
 ## Маршрутизация
 
-- Для любого действия над существующим Change сначала получи его `schemaName` через
-  `get_change_context`. Применяй маршруты, skills и команды `spec-driven-extended-*` только
+- Для любого действия над существующим Change сначала обеспечь актуальный `schemaName`:
+  переиспользуй переданный `get_change_context` либо вызови его один раз. Применяй
+  маршруты, skills и команды `spec-driven-extended-*` только
   к `spec-driven-extended`. Для `superspec-multirepo` следуй artifact DAG и instructions этой
   schema; не добавляй в него spec-driven-extended Intake, meta-planning или Apply preflight.
 - Для нового `spec-driven-extended` Change без принятого Intent начни с
@@ -47,7 +49,9 @@
 - Единственный project subagent — `spec-driven-extended-repository-evidence-scout`. Используй
   его только на разрешённой стадии и по его собственному входному/выходному контракту.
 - Один вопрос — один новый subagent: пять вопросов — пять subagents. Scope и revision
-  для каждого вызова возьми из `get_assignment_scope`.
+  для каждого вызова возьми из `assignment_scope` текущего Work Context; вызывай
+  `get_assignment_scope` отдельно только если этих данных нет или наступила граница
+  свежести.
 - Основной агент сам читает Store context, выполняет Planning review и проверяет
   evidence. Отдельные context/planning subagents не используются.
 

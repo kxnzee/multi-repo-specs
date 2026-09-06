@@ -1,8 +1,10 @@
 ## CodeGraph
 
-- Сначала получи разрешённые Repository, path и revision через Orchestrator MCP
-  `get_assignment_scope`. Используй CodeGraph только внутри этого scope и для одного
-  конкретного current-state вопроса.
+- Сначала возьми разрешённые Repository, path и revision из `assignment_scope`
+  актуального Work Context. Вызывай Orchestrator MCP `get_assignment_scope` только если
+  scope не был передан или наступила граница свежести; не повторяй этот read перед
+  каждым CodeGraph-вопросом. Используй CodeGraph только внутри подтверждённого scope и
+  для одного конкретного current-state вопроса.
 - ЗАПРЕЩЕНО запускать CodeGraph для Intent, Proposal, Requirements, Scenarios,
   продуктового scope или создания требований; его вывод НИКОГДА не меняет intent.
 - Не подтверждён scope, не разрешена стадия или индекс относится к другой revision —

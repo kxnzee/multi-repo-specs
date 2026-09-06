@@ -152,6 +152,19 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   const nonEmptyStringSchema = { type: "string", minLength: 1 };
   assert.deepEqual(schemas.get_status.properties.change_id, identifierSchema);
   assert.deepEqual(schemas.get_change_context.properties.artifact, identifierSchema);
+  assert.deepEqual(schemas.get_change_context.properties.include_assignment, { type: "boolean" });
+  for (const name of [
+    "get_status",
+    "get_setup_context",
+    "get_change_context",
+    "get_next_action",
+    "get_assignment_scope",
+    "get_doctor_report",
+    "optional_read",
+  ]) {
+    assert.deepEqual(schemas[name].properties.if_context_revision, nonEmptyStringSchema, name);
+  }
+  assert.equal(schemas.initialize_project.properties.if_context_revision, undefined);
   assert.deepEqual(schemas.start_attempt.properties, {
     change_id: identifierSchema,
     task_id: nonEmptyStringSchema,
@@ -168,13 +181,28 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   assert.deepEqual(schemas.optional_read.properties.id, nonEmptyStringSchema);
 
   const status = await client.callTool({ name: "get_status", arguments: { change_id: "pay" } });
-  assert.deepEqual(JSON.parse(status.content[0].text), { state: "ready" });
+  const statusValue = JSON.parse(status.content[0].text);
+  assert.equal(statusValue.state, "ready");
+  assert.match(statusValue.context_revision, /^[a-f0-9]{64}$/u);
+  assert.equal(status.content[0].text.includes("\n"), false);
   assert.deepEqual(calls, [["get_status", { change_id: "pay" }]]);
-  const next = await client.callTool({ name: "get_next_action", arguments: { change_id: "pay" } });
-  assert.deepEqual(JSON.parse(next.content[0].text), {
-    action: "apply_change",
-    actor: "agent",
+  const unchangedStatus = await client.callTool({
+    name: "get_status",
+    arguments: { change_id: "pay", if_context_revision: statusValue.context_revision },
   });
+  assert.deepEqual(JSON.parse(unchangedStatus.content[0].text), {
+    unchanged: true,
+    context_revision: statusValue.context_revision,
+  });
+  assert.deepEqual(calls, [
+    ["get_status", { change_id: "pay" }],
+    ["get_status", { change_id: "pay" }],
+  ]);
+  const next = await client.callTool({ name: "get_next_action", arguments: { change_id: "pay" } });
+  const nextValue = JSON.parse(next.content[0].text);
+  assert.equal(nextValue.action, "apply_change");
+  assert.equal(nextValue.actor, "agent");
+  assert.match(nextValue.context_revision, /^[a-f0-9]{64}$/u);
   const initialized = await client.callTool({
     name: "initialize_project",
     arguments: {
@@ -230,6 +258,12 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   });
   assert.equal(invalidArtifact.isError, true);
   assert.match(invalidArtifact.content[0].text, /artifact.*lowercase kebab-case/u);
+  const invalidAssignmentFlag = await client.callTool({
+    name: "get_change_context",
+    arguments: { change_id: "pay", include_assignment: "yes" },
+  });
+  assert.equal(invalidAssignmentFlag.isError, true);
+  assert.match(invalidAssignmentFlag.content[0].text, /include_assignment.*boolean/u);
   const duplicateRepository = await client.callTool({
     name: "initialize_project",
     arguments: {
@@ -263,10 +297,10 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     name: "optional_read",
     arguments: { id: "sample" },
   });
-  assert.deepEqual(JSON.parse(pluginRead.content[0].text), {
-    plugin: "optional_read",
-    id: "sample",
-  });
+  const pluginValue = JSON.parse(pluginRead.content[0].text);
+  assert.equal(pluginValue.plugin, "optional_read");
+  assert.equal(pluginValue.id, "sample");
+  assert.match(pluginValue.context_revision, /^[a-f0-9]{64}$/u);
   assert.deepEqual((await client.listResources()).resources, resources);
   assert.equal((await client.readResource({ uri: resources[0].uri })).contents[0].text, "# Payments");
 });
@@ -309,7 +343,10 @@ test("every advertised MCP tool dispatches to its matching application method", 
 
   for (const [name, method, args] of dispatch) {
     const result = await client.callTool({ name, arguments: args });
-    assert.deepEqual(JSON.parse(result.content[0].text), { method });
+    const value = JSON.parse(result.content[0].text);
+    assert.equal(value.method, method);
+    if (name.startsWith("get_")) assert.match(value.context_revision, /^[a-f0-9]{64}$/u);
+    else assert.equal(value.context_revision, undefined);
   }
   assert.deepEqual(
     calls,

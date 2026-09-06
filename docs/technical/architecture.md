@@ -205,6 +205,13 @@ Resources и tool arguments проверяются fail-closed. MCP намере
 verification, Feature Acceptance, Release, Archive, arbitrary Git writes, Plugin
 lifecycle, Agent management или network transport.
 
+Read tools возвращают scoped `context_revision`. Conditional read с
+`if_context_revision` не доверяет локальному TTL и заново разрешает Project, Repository
+и Plugin state; при совпадении сервер сокращает ответ до `unchanged`. Для Apply
+`get_change_context(include_assignment: true)` собирает Change и assignment одним
+runtime-вызовом, а Graph contribution использует один Change impact и для context, и
+для assignment projection.
+
 ## Safe infrastructure
 
 Plugin получает новый scoped context для каждого invocation:

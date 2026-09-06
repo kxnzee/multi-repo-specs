@@ -246,6 +246,13 @@ assignment scope, doctor и Graph, controlled setup tools `initialize_project` �
 Намеренно отсутствуют verification, Release, Archive, arbitrary Git writes, Plugin
 lifecycle, Agent management и network transport.
 
+Read-ответ включает `context_revision`. Пока Change, artifact, Repository и их state не
+менялись, Agent переиспользует уже полученный Work Context. Когда нужна проверка
+свежести, он передаёт revision как `if_context_revision`; неизменившийся ответ занимает
+только короткий payload `unchanged`. Для Apply Agent запрашивает
+`get_change_context` с `include_assignment: true` и не дублирует его отдельным
+`get_assignment_scope`.
+
 Для первого запуска через MCP откройте Agent из корня заранее подготовленного Store,
 а не из checkout Orchestrator или Code Repository. Проверьте фиксированный `cwd`
 через `get_setup_context`, затем вызовите `initialize_project`. Полный payload,

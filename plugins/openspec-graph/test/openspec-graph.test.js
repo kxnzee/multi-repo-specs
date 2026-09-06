@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { assertPluginContract } from "@openspec-orch/plugin-sdk/testing";
 
 import plugin from "../index.js";
+import { openSpecGraphAgentContribution } from "../lib/agent.js";
 import { compileOpenSpecGraph } from "../lib/builder.js";
 import { runGraphView } from "../lib/commands.js";
 import { archivedChangeId } from "../lib/compiler-input.js";
@@ -24,6 +25,51 @@ const repositories = [
   { id: "web", role: "code" },
 ];
 const storeId = "specs";
+
+test("Agent Change context projects assignment from one Graph impact query", async () => {
+  let queries = 0;
+  const graphImpact = Object.freeze({
+    change_id: "pay",
+    repositories: Object.freeze([
+      Object.freeze({ id: "repository:frontend" }),
+    ]),
+  });
+  const result = Object.freeze({
+    current_repository: Object.freeze({ repository_id: "frontend", role: "code" }),
+    assignment_scope: Object.freeze({
+      assigned: null,
+      assignments: Object.freeze([
+        Object.freeze({ repository_id: "frontend", assigned: null }),
+        Object.freeze({ repository_id: "backend", assigned: null }),
+      ]),
+      current_assignment: Object.freeze({ repository_id: "frontend" }),
+    }),
+  });
+  const enhanced = await openSpecGraphAgentContribution.enhance({
+    application: Object.freeze({
+      async query(query, changeId) {
+        queries += 1;
+        assert.equal(query, "change_impact");
+        assert.equal(changeId, "pay");
+        return graphImpact;
+      },
+    }),
+    input: Object.freeze({ change_id: "pay", include_assignment: true }),
+    operation: "getChangeContext",
+    result,
+  });
+
+  assert.equal(queries, 1);
+  assert.equal(enhanced.graph_impact, graphImpact);
+  assert.equal(enhanced.assignment_scope.assigned, true);
+  assert.deepEqual(enhanced.assignment_scope.assignments.map(({ repository_id, assigned }) => ({
+    repository_id,
+    assigned,
+  })), [
+    { repository_id: "frontend", assigned: true },
+    { repository_id: "backend", assigned: false },
+  ]);
+});
 
 test("archived Change directories require the canonical date prefix", () => {
   assert.equal(archivedChangeId("2026-08-27-jit-100-promote"), "jit-100-promote");

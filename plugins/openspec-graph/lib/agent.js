@@ -35,11 +35,37 @@ function enhanceStatus(result, application) {
   });
 }
 
-/** Adds current Change impact while preserving the base context envelope. */
-async function enhanceChangeContext(result, application, input) {
+/** Projects one already-resolved Graph impact onto generic assignment data. */
+function projectAssignmentScope(result, graphImpact, currentRepository) {
+  const repositoryIds = graphImpact?.repositories.map(({ id }) => id.replace(/^repository:/u, ""));
+  const assignedRepositoryIds = repositoryIds === undefined ? null : new Set(repositoryIds);
   return Object.freeze({
     ...result,
-    graph_impact: application ? await application.query("change_impact", input.change_id) : null,
+    assigned: repositoryIds === undefined
+      ? null
+      : currentRepository?.role === "code" && repositoryIds.includes(
+        currentRepository.repository_id,
+      ),
+    assignments: Object.freeze(result.assignments.map((assignment) => Object.freeze({
+      ...assignment,
+      assigned: assignedRepositoryIds?.has(assignment.repository_id) ?? null,
+    }))),
+  });
+}
+
+/** Adds current Change impact and reuses it for an embedded assignment scope. */
+async function enhanceChangeContext(result, application, input) {
+  const graphImpact = application ? await application.query("change_impact", input.change_id) : null;
+  return Object.freeze({
+    ...result,
+    graph_impact: graphImpact,
+    ...(result.assignment_scope ? {
+      assignment_scope: projectAssignmentScope(
+        result.assignment_scope,
+        graphImpact,
+        result.current_repository,
+      ),
+    } : {}),
   });
 }
 
@@ -48,20 +74,9 @@ async function enhanceAssignmentScope(result, application, input) {
   const graphImpact = application && input.change_id
     ? await application.query("change_impact", input.change_id)
     : null;
-  const repositoryIds = graphImpact?.repositories.map(({ id }) => id.replace(/^repository:/u, ""));
-  const assignedRepositoryIds = repositoryIds === undefined ? null : new Set(repositoryIds);
   return Object.freeze({
-    ...result,
-    assigned: repositoryIds === undefined
-      ? null
-      : result.current_repository?.role === "code" && repositoryIds.includes(
-        result.current_repository.repository_id,
-      ),
+    ...projectAssignmentScope(result, graphImpact, result.current_repository),
     graph_impact: graphImpact,
-    assignments: Object.freeze(result.assignments.map((assignment) => Object.freeze({
-      ...assignment,
-      assigned: assignedRepositoryIds?.has(assignment.repository_id) ?? null,
-    }))),
   });
 }
 
