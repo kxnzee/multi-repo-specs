@@ -4,7 +4,7 @@ on:
   push:
     branches: [master]
   pull_request:
-    branches: [master, fix/pilot-readiness-audit]
+    branches: [master, fix/pilot-readiness-audit, ci/free-security-checks]
   workflow_dispatch:
 
 permissions:

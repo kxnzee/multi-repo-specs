@@ -10,9 +10,11 @@ import { fileURLToPath } from "node:url";
 import {
   BundledExtensionPackage,
   BundledExtensionProvider,
+  NpmExtensionPackage,
 } from "@openspec-orch/core";
 
 import { createDirectoryLink } from "../fixtures/filesystem.js";
+import { replaceAfterCheck } from "../fixtures/file-race.js";
 
 const SPEC_DRIVEN_EXTENDED_ROOT = fileURLToPath(
   new URL("../../../extensions/spec-driven-extended/", import.meta.url),
@@ -132,6 +134,27 @@ test("BundledExtensionPackage rejects incomplete, extended and symlinked payload
     loadExtension(symlinkRoot),
     /BUNDLED_EXTENSION_INVALID.*symlink/,
   );
+});
+
+test("BundledExtensionPackage rejects descriptor replacement between check and read", async (t) => {
+  const root = await createExtension(t);
+  const target = path.join(root, "extension.yaml");
+  const before = await fs.readFile(target, "utf8");
+  const replaced = await replaceAfterCheck(t, target, before.replace("Workflow Extension", "Replaced"));
+  await assert.rejects(loadExtension(root), /BUNDLED_EXTENSION_INVALID/);
+  assert.equal(replaced(), true);
+});
+
+test("NpmExtensionPackage rejects package identity replacement between check and read", async (t) => {
+  const root = await fs.realpath(await createExtension(t));
+  const target = path.join(root, "package.json");
+  const manifest = { name: "@test/original", version: "1.0.0",
+    openspecOrchestrator: { apiVersion: 1, extension: "./extension.yaml" } };
+  await fs.writeFile(target, JSON.stringify(manifest));
+  assert.equal((await NpmExtensionPackage.load(root, { agentIds: AGENT_IDS })).source, "@test/original@1.0.0");
+  const replaced = await replaceAfterCheck(t, target, JSON.stringify({ ...manifest, name: "@test/replaced" }));
+  await assert.rejects(NpmExtensionPackage.load(root, { agentIds: AGENT_IDS }), /BUNDLED_EXTENSION_INVALID/);
+  assert.equal(replaced(), true);
 });
 
 test("Extension payload may declare several simple MCP servers for every Agent", async (t) => {

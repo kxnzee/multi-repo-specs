@@ -1,12 +1,29 @@
 /** @fileoverview Repository-local setup owned by CodeGraph Plugin. */
 
 import { execFile } from "node:child_process";
-import { promises as fs } from "node:fs";
+import { constants, promises as fs } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 
 const executeFile = promisify(execFile);
 const INDEX_EXCLUDE = ".codegraph/";
+const SAFE_OPEN_FLAGS = (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
+
+/** Pins the checked file before any I/O, including on Windows without O_NOFOLLOW. */
+async function openCheckedExclude(target, expected, flags) {
+  let handle;
+  try {
+    handle = await fs.open(target, flags | SAFE_OPEN_FLAGS);
+    const actual = await handle.stat({ bigint: true });
+    if (!actual.isFile() || actual.dev !== expected.dev || actual.ino !== expected.ino) {
+      throw new Error("Git exclude replaced after validation");
+    }
+    return handle;
+  } catch (cause) {
+    if (handle) await handle.close();
+    throw new Error("CODEGRAPH_GIT_EXCLUDE_UNSAFE", { cause });
+  }
+}
 
 /** Represents the Code Repository prepared for a local CodeGraph index. */
 export class CodeGraphRepository {
@@ -30,22 +47,43 @@ export class CodeGraphRepository {
       ? reportedPath
       : path.resolve(root, reportedPath);
 
-    let source = "";
-    try {
-      const stat = await fs.lstat(excludePath);
-      if (!stat.isFile() || stat.isSymbolicLink()) {
-        throw new Error("CODEGRAPH_GIT_EXCLUDE_UNSAFE");
+    const expected = await fs.lstat(excludePath, { bigint: true }).catch((error) => {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    });
+    if (!expected) {
+      await fs.mkdir(path.dirname(excludePath), { recursive: true });
+      // Do not follow a file/link introduced after ENOENT, including dangling links.
+      const handle = await fs.open(excludePath, "wx").catch((cause) => {
+        throw new Error("CODEGRAPH_GIT_EXCLUDE_UNSAFE", { cause });
+      });
+      try {
+        await handle.writeFile(`${INDEX_EXCLUDE}\n`, "utf8");
+      } finally {
+        await handle.close();
       }
-      source = await fs.readFile(excludePath, "utf8");
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
+      return;
+    }
+    if (!expected.isFile() || expected.isSymbolicLink()) {
+      throw new Error("CODEGRAPH_GIT_EXCLUDE_UNSAFE");
+    }
+    const reader = await openCheckedExclude(excludePath, expected, constants.O_RDONLY);
+    let source;
+    try {
+      source = await reader.readFile("utf8");
+    } finally {
+      await reader.close();
     }
     if (source.split(/\r?\n/u).includes(INDEX_EXCLUDE)) return;
 
     const newline = source.includes("\r\n") ? "\r\n" : "\n";
     const separator = source && !source.endsWith("\n") ? newline : "";
-    await fs.mkdir(path.dirname(excludePath), { recursive: true });
-    await fs.appendFile(excludePath, `${separator}${INDEX_EXCLUDE}${newline}`, "utf8");
+    const writer = await openCheckedExclude(excludePath, expected, constants.O_WRONLY | constants.O_APPEND);
+    try {
+      await writer.appendFile(`${separator}${INDEX_EXCLUDE}${newline}`, "utf8");
+    } finally {
+      await writer.close();
+    }
   }
 }
 

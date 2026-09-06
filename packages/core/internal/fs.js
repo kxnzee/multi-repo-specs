@@ -1,7 +1,27 @@
 /** @fileoverview Общие безопасные filesystem helpers Core. */
 
-import { promises as fs } from "node:fs";
+import { constants, promises as fs } from "node:fs";
 import path from "node:path";
+
+/** Reads the checked ordinary file through its verified handle, never by reopening its path. */
+export async function readRegularFile(target) {
+  const expected = await fs.lstat(target, { bigint: true });
+  if (!expected.isFile() || expected.isSymbolicLink()) {
+    throw new Error(`SAFE_PATH_INVALID: ${target} должен быть обычным файлом без symlink`);
+  }
+  // Windows has no O_NOFOLLOW; handle identity is checked there as on POSIX.
+  const flags = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
+  const handle = await fs.open(target, flags);
+  try {
+    const actual = await handle.stat({ bigint: true });
+    if (!actual.isFile() || actual.dev !== expected.dev || actual.ino !== expected.ino) {
+      throw new Error(`SAFE_PATH_INVALID: ${target} заменён после проверки`);
+    }
+    return await handle.readFile("utf8");
+  } finally {
+    await handle.close();
+  }
+}
 
 /** Возвращает lstat либо null только для отсутствующего path. */
 export async function lstatOrNull(target) {

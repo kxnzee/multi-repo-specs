@@ -8,6 +8,7 @@ import { ExtensionDescriptor, ExtensionPackage } from "@openspec-orch/extension-
 
 import { ExtensionCatalog, ExtensionCatalogEntry } from "./extension-catalog.js";
 import { isContainedPath } from "./path.js";
+import { readRegularFile } from "./fs.js";
 
 const PACKAGE_CONSTRUCTION = Symbol("BundledExtensionPackage construction");
 
@@ -35,15 +36,11 @@ function normalizeAgentIds(agentIds) {
 /** Читает и проверяет exact Extension descriptor. */
 async function loadDescriptor(root, manifestKeys) {
   const descriptorPath = path.join(root, "extension.yaml");
-  const descriptorStat = await fs.lstat(descriptorPath).catch((cause) => {
-    invalid("extension.yaml отсутствует", { cause });
-  });
-  if (!descriptorStat.isFile() || descriptorStat.isSymbolicLink()) {
-    invalid("extension.yaml должен быть обычным файлом, а не symlink");
-  }
+  const source = await readRegularFile(descriptorPath)
+    .catch((cause) => invalid("extension.yaml отсутствует или небезопасен (symlink/подмена файла)", { cause }));
   let descriptor;
   try {
-    descriptor = parse(await fs.readFile(descriptorPath, "utf8"));
+    descriptor = parse(source);
   } catch (cause) {
     invalid("extension.yaml содержит некорректный YAML", { cause });
   }
@@ -144,13 +141,11 @@ export class BundledExtensionPackage {
 export class NpmExtensionPackage {
   static async load(root, { agentIds, expectedId } = {}) {
     const manifestPath = path.join(root, "package.json");
-    const stat = await fs.lstat(manifestPath).catch((cause) => {
-      invalid("package.json отсутствует", { cause });
-    });
-    if (!stat.isFile() || stat.isSymbolicLink()) invalid("package.json должен быть обычным файлом");
+    const source = await readRegularFile(manifestPath)
+      .catch((cause) => invalid("package.json отсутствует или небезопасен (symlink/подмена файла)", { cause }));
     let packageContract;
     try {
-      packageContract = new ExtensionPackage(JSON.parse(await fs.readFile(manifestPath, "utf8")));
+      packageContract = new ExtensionPackage(JSON.parse(source));
     } catch (cause) {
       invalid(cause.message, { cause });
     }
