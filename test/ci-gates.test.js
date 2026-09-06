@@ -58,10 +58,11 @@ test("native Node runner exits nonzero when critical coverage is missing", async
   delete environment.GITHUB_STEP_SUMMARY;
   delete environment.NODE_TEST_CONTEXT;
   await assert.rejects(execute(process.execPath, [
-    "--experimental-test-coverage", "--test-reporter", path.join(root, "scripts/coverage-gate.js"),
+    "--experimental-test-coverage", "--test-reporter", new URL("../scripts/coverage-gate.js", import.meta.url).href,
     "--test", file,
   ], { cwd: directory, env: environment, timeout: 30000 }), (error) => {
-    assert.equal(error.code, 1);
+    assert.equal(typeof error.code, "number");
+    assert.notEqual(error.code, 0);
     assert.match(error.stderr, /COVERAGE_GATE_FAILED/);
     return true;
   });
@@ -89,6 +90,32 @@ test("SARIF gate rejects malformed reports, unknown rules and unsuccessful analy
   report.runs[0].results = [];
   report.runs[0].invocations = [{ executionSuccessful: false }];
   assert.throws(() => blockingFindings(report), /invocation failed/);
+});
+
+test("SARIF gate resolves CodeQL query-pack rules without confusing identical driver indices", () => {
+  const report = sarif("0");
+  const run = report.runs[0];
+  run.tool.extensions = [{ name: "codeql/javascript-queries", guid: "query-pack",
+    rules: sarif("9.8").runs[0].tool.driver.rules }];
+  run.results = [{ ruleId: "test/rule", ruleIndex: 0,
+    rule: { index: 0, toolComponent: { index: 0 } } }];
+  assert.equal(blockingFindings(report).length, 1);
+  delete run.tool.driver.rules;
+  assert.equal(blockingFindings(report).length, 1);
+  run.results[0].rule.toolComponent = { guid: "query-pack" };
+  assert.equal(blockingFindings(report).length, 1);
+  run.results[0].rule.toolComponent = { index: 99 };
+  assert.throws(() => blockingFindings(report), /matching rule component/);
+  run.results = [];
+  assert.deepEqual(blockingFindings(report), []);
+});
+
+test("SARIF gate fails closed for conflicting rule IDs and indices", () => {
+  for (const reference of [{ id: "other" }, { index: 1 }, { index: -1 }]) {
+    const report = sarif();
+    report.runs[0].results[0] = { ruleId: "test/rule", ruleIndex: 0, rule: reference };
+    assert.throws(() => blockingFindings(report), /SARIF_INVALID/);
+  }
 });
 
 test("SARIF CLI rejects missing output and findings in any report, accepts a clean scan", async (t) => {

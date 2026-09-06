@@ -189,6 +189,40 @@ test("StorePackageSupply rejects mappings outside dependencies", async (t) => {
   await assert.rejects(supply.sync(), /mapping plugins\/sample не входит в dependencies/);
 });
 
+test("StorePackageSupply rejects malformed JSON without npm calls or rewriting evidence", async (t) => {
+  const { calls, root, supply } = await fixture(t);
+  await supply.install({
+    id: "sample", kind: "plugins", source: "/packages/sample-plugin", validate: async () => true,
+  });
+  const runtimeRoot = path.join(root, ".openspec-orch/packages");
+  for (const name of ["package.json", "package-lock.json"]) {
+    const target = path.join(runtimeRoot, name);
+    const before = await fs.readFile(target, "utf8");
+    await fs.writeFile(target, "{broken");
+    await assert.rejects(supply.sync(), /PACKAGE_SUPPLY_INVALID:.*повреждён/u);
+    assert.equal(await fs.readFile(target, "utf8"), "{broken");
+    assert.deepEqual(calls, [["install", "/packages/sample-plugin"]]);
+    await fs.writeFile(target, before);
+  }
+  assert.equal((await supply.inspect()).state, "ready");
+});
+
+test("StorePackageSupply validates domain keys and credential-bearing sources before mutation", async (t) => {
+  const { calls, root, supply } = await fixture(t);
+  const requests = [
+    { kind: "unknown", id: "sample", source: "valid-source" },
+    { kind: "plugins", id: "../outside", source: "valid-source" },
+    ...[undefined, "", " source ", "source\nnext", "source\0next",
+      "https://user:password@example.test/package", "https://user@example.test/package"]
+      .map((source) => ({ kind: "plugins", id: "sample", source })),
+  ];
+  for (const request of requests) {
+    await assert.rejects(supply.install({ ...request, validate: async () => true }), /PACKAGE_SUPPLY_INVALID/);
+  }
+  assert.deepEqual(calls, []);
+  assert.deepEqual(await fs.readdir(root), []);
+});
+
 test("StorePackageSupply compares dependency maps without relying on key order", async (t) => {
   const { calls, root, supply } = await fixture(t);
   const runtimeRoot = path.join(root, ".openspec-orch/packages");
