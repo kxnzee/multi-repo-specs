@@ -48,6 +48,13 @@ openspec-orch connect
 openspec-orch doctor
 ```
 
+Если Store использует внешние Plugins или Extensions, после checkout восстановите
+их строго из committed lockfile:
+
+```bash
+openspec-orch package sync
+```
+
 Template `default` автоматически добавляет Extensions `spec-driven-extended` и
 `superpowers` и устанавливает две project-local schemas:
 
@@ -91,6 +98,17 @@ openspec-orch plugin exec openspec-graph inspect --json
 ```
 
 Подробнее: [Plugins](docs/user/plugins.md).
+
+Standalone Extension из npm добавляется отдельно:
+
+```bash
+openspec-orch extension init <extension-id> --from <package@version>
+openspec-orch extension connect <extension-id>
+openspec-orch extension status <extension-id>
+```
+
+Версии внешних пакетов хранятся в `.openspec-orch/packages/package.json` и
+`package-lock.json`; `openspec-orch.yaml` хранит только их стабильные ID.
 
 ## Документация
 

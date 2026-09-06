@@ -10,7 +10,9 @@
 | Task implementation map | `openspec/changes/<change-id>/implementation-map.yaml` | да | Change Tracking |
 | Workspace pointer | `.openspec-orch/state.json` | нет | Core |
 | Plugin state | `.openspec-orch/plugins/<id>/state.json` | нет | Plugin |
-| External runtime cache | `.openspec-orch/cache/plugin-runtimes/<id>/` | нет | Plugin manager |
+| Package manifest | `.openspec-orch/packages/package.json` | да | Package supply |
+| Package lock | `.openspec-orch/packages/package-lock.json` | да | npm |
+| External runtime | `.openspec-orch/packages/node_modules/` | нет | npm |
 
 Project содержит один Store Repository, Code Repositories, один Template, один Agent,
 Extensions и Plugin declarations/bindings. Schema Change хранится самим OpenSpec в

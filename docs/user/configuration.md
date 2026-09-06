@@ -11,13 +11,10 @@ template:
 agent:
   id: qwen
 extensions:
-  - id: spec-driven-extended
-    source: bundled:spec-driven-extended
-  - id: superpowers
-    source: bundled:superpowers
+  - spec-driven-extended
+  - superpowers
 plugins:
-  - id: openspec-graph
-    source: "@openspec-orch/plugin-openspec-graph@1.0.0"
+  - openspec-graph
 repositories:
   - id: specs
     roles: [store]
@@ -39,12 +36,8 @@ repositories:
 | `strict` | Режим `connect` по умолчанию; если поле отсутствует, используется `true` |
 | `template.id` | Применённый Project Template |
 | `agent.id` | `claude`, `qwen` или `gigacode` |
-| `extensions` | Упорядоченный массив standalone Extension declarations; по умолчанию пустой |
-| `extensions[].id` | Extension ID в lowercase kebab-case |
-| `extensions[].source` | Только `bundled:<extension-id>` для той же Extension |
-| `plugins` | Массив установленных Plugin declarations; по умолчанию пустой |
-| `plugins[].id` | Plugin ID в lowercase kebab-case |
-| `plugins[].source` | Exact package identity, сохранённая после установки Plugin |
+| `extensions` | Упорядоченный массив standalone Extension ID; по умолчанию пустой |
+| `plugins` | Массив Plugin ID; по умолчанию пустой |
 | `repositories` | Массив Store и Code Repositories |
 | `repositories[].id` | Уникальный Repository ID в lowercase kebab-case |
 | `repositories[].roles` | Ровно одна роль: `[store]` или `[code]` |
@@ -110,8 +103,12 @@ connect использует workspace только в текущем вызов
 | `openspec/changes/<change-id>/implementation-map.yaml` | Завершённые task attempts | да |
 | `.openspec-orch/state.json` | Версия Core state и запомненный workspace | нет |
 | `.openspec-orch/plugins/<plugin-id>/state.json` | Versioned local state конкретного Plugin | нет |
-| `.openspec-orch/cache/plugin-runtimes/<plugin-id>/` | Runtime внешнего Plugin | нет |
+| `.openspec-orch/packages/package.json` | npm-зависимости и соответствие package к Plugin/Extension ID | да |
+| `.openspec-orch/packages/package-lock.json` | Точные версии полного npm dependency graph | да |
+| `.openspec-orch/packages/node_modules/` | Локальный runtime внешних packages | нет |
 | `.openspec-orch/cache/locks/` | Lock-файлы Core и Plugin operations | нет |
 
-Не редактируйте local state вручную. Неизвестная версия `openspec-orch.yaml`, Core
-state или Plugin state завершается ошибкой, а не молча мигрируется.
+После checkout выполните `openspec-orch package sync`: команда использует `npm ci`
+и не меняет committed manifests. Не редактируйте local state вручную. Неизвестная
+версия `openspec-orch.yaml`, Core state или Plugin state завершается ошибкой, а не
+молча мигрируется.

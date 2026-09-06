@@ -1,7 +1,7 @@
 /** @fileoverview Доменная модель Plugin и фабрика публичного API. */
 
 import { executePluginCommands } from "./command-executor.js";
-import { Extension, defineExtension } from "./extension.js";
+import { Extension, defineExtension } from "@openspec-orch/extension-sdk";
 import {
   DEFINITION_ID_PATTERN,
   REPOSITORY_ROLES,

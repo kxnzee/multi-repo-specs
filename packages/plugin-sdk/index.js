@@ -10,7 +10,7 @@ export {
   PLUGIN_PATTERNS,
   REPOSITORY_ROLE,
 } from "./internal/constants.js";
-export { Extension, defineExtension } from "./internal/extension.js";
+export { Extension, defineExtension } from "@openspec-orch/extension-sdk";
 export { Plugin, definePlugin } from "./internal/plugin.js";
 export { PluginPackage } from "./internal/plugin-package.js";
 export { CliProgressRenderer, createCliProgress } from "./internal/progress.js";

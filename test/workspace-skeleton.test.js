@@ -58,9 +58,10 @@ test("root distribution exposes the candidate entrypoint and required runtime fi
   ]);
 });
 
-test("Core and Plugin SDK are independently publishable packages", async () => {
+test("Core, Plugin SDK and Extension SDK are independently publishable packages", async () => {
   const core = await readManifest("packages/core/package.json");
   const sdk = await readManifest("packages/plugin-sdk/package.json");
+  const extensionSdk = await readManifest("packages/extension-sdk/package.json");
 
   assert.deepEqual(core.exports, { ".": "./index.js" });
   assert.deepEqual(sdk.exports, {
@@ -69,15 +70,21 @@ test("Core and Plugin SDK are independently publishable packages", async () => {
   });
   assert.notEqual(core.private, true);
   assert.notEqual(sdk.private, true);
+  assert.notEqual(extensionSdk.private, true);
   assert.deepEqual(core.files, ["index.js", "internal", "templates"]);
   assert.deepEqual(sdk.files, ["README.md", "index.js", "internal", "testing.js"]);
-  assert.equal(sdk.dependencies, undefined);
+  assert.deepEqual(sdk.dependencies, { "@openspec-orch/extension-sdk": "0.1.0" });
+  assert.deepEqual(extensionSdk.exports, {
+    ".": "./index.js",
+    "./testing": "./testing.js",
+  });
 });
 
 test("all distribution packages require the same Node runtime", async () => {
   const packagePaths = [
     "package.json",
     "packages/core/package.json",
+    "packages/extension-sdk/package.json",
     "packages/mcp/package.json",
     "packages/plugin-sdk/package.json",
     "plugins/change-tracking/package.json",
@@ -100,7 +107,17 @@ test("public entrypoint exposes the supported CLI", () => {
   assert.equal(candidate.status, 0, candidate.stderr);
   assert.match(candidate.stdout, /init \[options\] \[path\]/);
   assert.match(candidate.stdout, /doctor \[options\]/);
-  assert.doesNotMatch(candidate.stdout, /^\s+extensions?\b/mu);
+  assert.match(candidate.stdout, /^\s+extension\b/mu);
+  assert.match(candidate.stdout, /^\s+package\b/mu);
+
+  const extension = spawnSync(process.execPath, ["bin/openspec-orch.js", "extension", "--help"], {
+    cwd: path.resolve("."),
+    encoding: "utf8",
+  });
+  assert.equal(extension.status, 0, extension.stderr);
+  for (const command of ["init", "connect", "status", "disconnect", "remove"]) {
+    assert.match(extension.stdout, new RegExp(`^\\s+${command}\\b`, "mu"));
+  }
 });
 
 test("public entrypoint preserves the Node guard and CLI exit codes", () => {

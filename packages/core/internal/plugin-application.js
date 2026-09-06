@@ -210,12 +210,11 @@ export class PluginApplicationService {
         if (
           !installation ||
           installation.id !== pluginId ||
-          !(installation.source instanceof PluginSource) ||
-          typeof installation.declaration !== "string"
+          !(installation.source instanceof PluginSource)
         ) {
           invalid("Plugin Manager вернул несогласованный installation");
         }
-        const initialized = current.project.declarePlugin(pluginId, installation.declaration);
+        const initialized = current.project.declarePlugin(pluginId);
         await this.#writeProject(current);
         result = new PluginApplicationResult({ initialized });
       },

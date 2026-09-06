@@ -19,8 +19,7 @@ agent:
   id: qwen
 extensions: []
 plugins:
-  - id: dependency-audit
-    source: "@test/plugin-dependency-audit@1.0.0"
+  - dependency-audit
 repositories:
   - id: specs
     roles: [store]
@@ -58,16 +57,16 @@ test("configuration serializes Project and verifies its own output", () => {
   assert.doesNotMatch(source, /storeRepository|codeRepositories/);
 });
 
-test("configuration stores the package identity selected by Plugin Manager", () => {
+test("configuration stores only stable IDs while npm owns package identity", () => {
   const project = configuration.parseProject(CURRENT_CONFIG);
 
   assert.deepEqual(project.plugins, ["dependency-audit"]);
-  assert.equal(project.pluginDeclaration("dependency-audit").source, "@test/plugin-dependency-audit@1.0.0");
+  assert.equal(project.pluginDeclaration("dependency-audit").id, "dependency-audit");
   assert.deepEqual(configuration.parseProject(configuration.serializeProject(project)).toConfig(), project.toConfig());
   assert.throws(
     () => configuration.parseProject(CURRENT_CONFIG.replace(
-      `plugins:\n  - id: dependency-audit\n    source: "@test/plugin-dependency-audit@1.0.0"`,
-      "plugins: [dependency-audit]",
+      "plugins:\n  - dependency-audit",
+      "plugins:\n  - id: dependency-audit\n    source: '@test/plugin-dependency-audit@1.0.0'",
     )),
     /CONFIG_INVALID/,
   );
@@ -87,7 +86,7 @@ test("configuration rejects invalid repository and Plugin bindings before domain
   );
   assert.throws(
     () => configuration.parseProject(CURRENT_CONFIG.replace(
-      `plugins:\n  - id: dependency-audit\n    source: "@test/plugin-dependency-audit@1.0.0"\nrepositories:`,
+      "plugins:\n  - dependency-audit\nrepositories:",
       "plugins: []\nrepositories:",
     )),
     /необъявленный plugin-id/,

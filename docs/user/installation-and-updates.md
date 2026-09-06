@@ -97,7 +97,10 @@ openspec-orch agent status --agent qwen
 ```
 
 Plugin-owned Extensions восстанавливаются через `openspec-orch connect` или
-адресный `plugin connect`. Local state и cache не коммитятся в Store.
+адресный `plugin connect`. Для внешних Plugin и standalone Extension сначала
+выполните `openspec-orch package sync`: команда восстанавливает локальный
+`.openspec-orch/packages/node_modules` из committed `package.json` и lockfile.
+Local state и runtime не коммитятся в Store.
 
 ## Rollback и поддержка
 
@@ -108,8 +111,8 @@ Plugin-owned Extensions восстанавливаются через `openspec-
 local state до диагностики: сначала сохраните `doctor --json`, версию Node/OpenSpec,
 commit Orchestrator и точную команду ошибки.
 
-## Планируемая поставка через npm registry
+## Поставка Orchestrator через npm registry
 
 Root distribution и внутренние packages планируется публиковать в npm registry.
-Store получит exact root dependency и lockfile; внутренние версии будут поставляться
-как единый согласованный release.
+Внутренние версии Orchestrator будут поставляться как единый согласованный release.
+Это не связано со Store-local npm-проектом внешних Plugins и Extensions.

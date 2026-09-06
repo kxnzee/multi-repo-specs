@@ -66,7 +66,7 @@ test("BundledExtensionProvider resolves a portable bundled source to its local p
     name: "Workflow Extension",
     source: "bundled:workflow",
   }]);
-  const resolved = provider.resolve({ id: "workflow", source: "bundled:workflow" });
+  const resolved = provider.resolve({ id: "workflow" });
   assert.deepEqual({
     id: resolved.id,
     name: resolved.name,
@@ -90,7 +90,7 @@ test("BundledExtensionProvider resolves a portable bundled source to its local p
   });
   assert.deepEqual(distributionOnly.catalog.entries, []);
   assert.equal(
-    distributionOnly.resolve({ id: "workflow", source: "bundled:workflow" }).id,
+    distributionOnly.resolve({ id: "workflow" }).id,
     "workflow",
   );
   assert.throws(
@@ -100,7 +100,7 @@ test("BundledExtensionProvider resolves a portable bundled source to its local p
     /catalogExcludeIds содержит неизвестный/u,
   );
   assert.throws(
-    () => provider.resolve({ id: "workflow", source: "bundled:other" }),
+    () => provider.resolve({ id: "missing" }),
     /BUNDLED_EXTENSION_INVALID/,
   );
 });

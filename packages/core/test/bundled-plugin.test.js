@@ -37,7 +37,7 @@ test("BundledPluginProvider exposes catalog and loads the validated package in p
   assert.equal(installation.loadedPlugin.id, "sample");
   assert.equal(installation.source.kind, "bundled");
   assert.equal(entry.recommended, true);
-  assert.equal(provider.has("sample", entry.source.declaration), true);
+  assert.equal(provider.has("sample"), true);
 });
 
 test("BundledPluginProvider rejects unknown sources and mismatched package identity", async () => {
@@ -45,7 +45,7 @@ test("BundledPluginProvider rejects unknown sources and mismatched package ident
 
   await assert.rejects(
     provider.install("sample", PluginSource.bundled({ name: "@test/other", version: "1.0.0" })),
-    /не входит в дистрибутив/,
+    /source не совпадает с дистрибутивом/,
   );
   await assert.rejects(
     new BundledPluginProvider([samplePackage({

@@ -93,14 +93,11 @@ test("Project preserves registry and Plugin binding behavior through domain meth
   assert.equal(project.requireRepository("frontend").isCode(), true);
   assert.throws(() => project.requireRepository("missing"), /REPO_UNKNOWN/);
 
-  project.declarePlugin("dependency-audit", "@test/plugin-dependency-audit@1.0.0");
+  project.declarePlugin("dependency-audit");
   project.connectPlugin("dependency-audit", ["frontend", "backend"]);
 
   const expected = projectConfig();
-  expected.plugins = [{
-    id: "dependency-audit",
-    source: "@test/plugin-dependency-audit@1.0.0",
-  }];
+  expected.plugins = ["dependency-audit"];
   expected.repositories[1].plugins = ["dependency-audit"];
   expected.repositories[2].plugins = ["dependency-audit"];
   expected.storeRepository = expected.repositories[0];
@@ -135,22 +132,18 @@ test("Project owns its config and enforces aggregate invariants", () => {
   assert.throws(() => createProject(invalid), /незарегистрированным Plugin/);
 });
 
-test("Project requires Plugin declarations and replaces their exact source", () => {
+test("Project keeps stable Plugin IDs without package versions", () => {
   const project = createProject(projectConfig());
 
-  assert.equal(project.declarePlugin("dependency-audit", "@test/plugin-dependency-audit@1.0.0"), true);
+  assert.equal(project.declarePlugin("dependency-audit"), true);
   assert.equal(project.version, 1);
   assert.deepEqual(project.plugins, ["dependency-audit"]);
-  assert.deepEqual(project.pluginDeclarations[0].toConfig(), {
-    id: "dependency-audit",
-    source: "@test/plugin-dependency-audit@1.0.0",
-  });
-  assert.equal(project.declarePlugin("dependency-audit", "@test/plugin-dependency-audit@1.0.0"), false);
-  assert.equal(project.declarePlugin("dependency-audit", "@test/plugin-dependency-audit@2.0.0"), true);
-  assert.equal(project.pluginDeclaration("dependency-audit").source, "@test/plugin-dependency-audit@2.0.0");
+  assert.deepEqual(project.pluginDeclarations[0].toConfig(), "dependency-audit");
+  assert.equal(project.declarePlugin("dependency-audit"), false);
+  assert.equal(project.pluginDeclaration("dependency-audit").id, "dependency-audit");
   assert.equal(project.removePlugin("dependency-audit"), true);
   assert.throws(
-    () => createProject({ ...projectConfig(), plugins: ["legacy"] }),
+    () => createProject({ ...projectConfig(), plugins: [{ id: "legacy", source: "legacy@1.0.0" }] }),
     /PLUGIN_DECLARATION_INVALID/,
   );
   assert.throws(

@@ -55,9 +55,17 @@ openspec-orch plugin sync <id> [--repo <id>]... [--all]
 openspec-orch plugin exec [--repo <id>]... [--all] <id> <command> [args...]
 openspec-orch plugin disconnect <id> [--repo <id>]... [--all]
 openspec-orch plugin remove <id>
+openspec-orch extension init <id> [--from <source>]
+openspec-orch extension connect <id>
+openspec-orch extension status [<id>] [--json]
+openspec-orch extension disconnect <id>
+openspec-orch extension remove <id>
+openspec-orch package sync
 ```
 
-Фактические Plugin commands появляются после `plugin init`. Progress идёт в
+Фактические Plugin commands появляются после `plugin init`. Standalone Extension
+lifecycle выполняется только через группу `extension`; общий `connect` по-прежнему
+восстанавливает все объявленные Extensions при настройке Project. Progress идёт в
 stderr, machine-readable output — в stdout.
 
 ## First-party commands
@@ -92,10 +100,8 @@ strict: true
 template: {id: default}
 agent: {id: qwen}
 extensions:
-  - id: spec-driven-extended
-    source: bundled:spec-driven-extended
-  - id: superpowers
-    source: bundled:superpowers
+  - spec-driven-extended
+  - superpowers
 plugins: []
 repositories:
   - id: specs

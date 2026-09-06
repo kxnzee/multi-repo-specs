@@ -11,6 +11,7 @@ import {
   configuration,
   createCandidateProgram,
   createProject,
+  PackageSupplyService,
   PluginManagerService,
 } from "@openspec-orch/core";
 
@@ -88,7 +89,9 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
   assert.notEqual(implemented, scaffold);
   await fs.writeFile(entrypointPath, implemented);
   const managerService = new PluginManagerService({
-    npmInstaller: createPluginMaterializer({ sourceRoot }),
+    supplyService: new PackageSupplyService({
+      installer: createPluginMaterializer({ sourceRoot }),
+    }),
   });
   const createProgram = () => createCandidateProgram({
     pluginCommandOptions,
@@ -141,9 +144,10 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
       "inspect",
     ]);
     await (await createProgram()).parseAsync(args);
-    installedSource = configuration.parseProject(
-      await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
-    ).pluginDeclaration("sample").source;
+    installedSource = JSON.parse(await fs.readFile(
+      path.join(storeRoot, ".openspec-orch/packages/package.json"),
+      "utf8",
+    )).dependencies["openspec-orch-plugin-sample"];
     await (await createProgram()).parseAsync([
       "node",
       "openspec-orch",
@@ -178,11 +182,11 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
   );
   assert.deepEqual(project.plugins, []);
   assert.deepEqual(project.requireRepository("frontend").plugins, []);
-  assert.equal(installedSource, "openspec-orch-plugin-sample@1.0.0");
+  assert.equal(installedSource, `file:${sourceRoot}`);
   assert.equal(project.pluginDeclaration("sample"), undefined);
   const runtimeRoot = path.join(
     storeRoot,
-    ".openspec-orch/cache/plugin-runtimes/sample",
+    ".openspec-orch/packages/node_modules/openspec-orch-plugin-sample",
   );
   assert.equal(await fs.lstat(runtimeRoot).catch((error) => error.code), "ENOENT");
   assert.deepEqual(output, [

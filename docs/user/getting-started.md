@@ -177,12 +177,11 @@ openspec store list
 Дальше выполняйте обычный `connect` из следующего раздела. Он регистрирует Store в
 OpenSpec, подключает Code Repositories, восстанавливает standalone Extensions и
 Plugin-owned Extensions для доступных Plugin packages из portable bindings. Bundled
-Plugins доступны из Orchestrator distribution. Runtime внешнего Plugin является
-machine-local и обычным `connect` не устанавливается: сначала установите его exact
-source из `openspec-orch.yaml`, затем повторите `connect`:
+Plugins доступны из Orchestrator distribution. Внешние packages восстанавливаются
+из committed Store lockfile и обычным `connect` не устанавливаются:
 
 ```bash
-openspec-orch plugin init --plugin <plugin-id> --from <exact-source>
+openspec-orch package sync
 openspec-orch connect
 ```
 

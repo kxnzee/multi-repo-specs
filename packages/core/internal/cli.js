@@ -39,6 +39,7 @@ export class CandidateCli {
   #agentGateway;
   #doctor;
   #pluginLifecycleCommands;
+  #packageCommands;
   #progress;
   #setup;
 
@@ -52,6 +53,7 @@ export class CandidateCli {
     initializationService,
     pluginExtensionConnector,
     pluginLifecycleCommands,
+    packageCommands,
     progress = createCliProgress(),
     setupService,
     start = process.cwd(),
@@ -89,6 +91,10 @@ export class CandidateCli {
       throw new Error("CLI_INVALID: pluginLifecycleCommands должен предоставлять mount");
     }
     this.#pluginLifecycleCommands = pluginLifecycleCommands;
+    if (packageCommands && typeof packageCommands.mount !== "function") {
+      throw new Error("CLI_INVALID: packageCommands должен предоставлять mount");
+    }
+    this.#packageCommands = packageCommands;
     if (!hasMethods(progress, ["fail", "run", "start", "succeed", "update", "warn"])) {
       throw new Error("CLI_INVALID: progress должен предоставлять renderer contract");
     }
@@ -146,6 +152,7 @@ export class CandidateCli {
       .description("локально отключить Agent Extensions без изменения Store config")
       .action(() => this.#disconnect());
     if (this.#agentGateway) this.#mountAgentGateway(program);
+    this.#packageCommands?.mount(program);
     this.#pluginLifecycleCommands?.mount(program);
     return program;
   }

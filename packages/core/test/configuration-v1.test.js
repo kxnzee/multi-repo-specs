@@ -12,13 +12,10 @@ template:
 agent:
   id: qwen
 extensions:
-  - id: superpowers
-    source: bundled:superpowers
-  - id: spec-driven-extended
-    source: bundled:spec-driven-extended
+  - superpowers
+  - spec-driven-extended
 plugins:
-  - id: codegraph
-    source: "@openspec-orch/plugin-codegraph@1.0.0"
+  - codegraph
 repositories:
   - id: specs
     roles: [store]
@@ -39,11 +36,11 @@ test("configuration parses and serializes the exact Project v1 assembly", () => 
   assert.deepEqual(project.template, { id: "default" });
   assert.deepEqual(project.agent, { id: "qwen" });
   assert.deepEqual(project.extensionDeclarations.map((entry) => entry.toConfig()), [
-    { id: "superpowers", source: "bundled:superpowers" },
-    { id: "spec-driven-extended", source: "bundled:spec-driven-extended" },
+    "superpowers",
+    "spec-driven-extended",
   ]);
   assert.deepEqual(project.pluginDeclarations.map((entry) => entry.toConfig()), [
-    { id: "codegraph", source: "@openspec-orch/plugin-codegraph@1.0.0" },
+    "codegraph",
   ]);
   assert.equal(Object.isFrozen(project.template), true);
   assert.equal(Object.isFrozen(project.agent), true);
@@ -52,7 +49,7 @@ test("configuration parses and serializes the exact Project v1 assembly", () => 
   assert.match(serialized, /^version: 1$/m);
   assert.match(serialized, /^template:\n {2}id: default$/m);
   assert.match(serialized, /^agent:\n {2}id: qwen$/m);
-  assert.equal(serialized.indexOf("id: superpowers") < serialized.indexOf("id: spec-driven-extended"), true);
+  assert.equal(serialized.indexOf("- superpowers") < serialized.indexOf("- spec-driven-extended"), true);
   assert.deepEqual(configuration.parseProject(serialized).toConfig(), project.toConfig());
 });
 
@@ -67,15 +64,15 @@ test("configuration v1 rejects unsupported versions, legacy fields and duplicate
   );
   assert.throws(
     () => configuration.parseProject(CONFIG_V1.replace(
-      'source: "@openspec-orch/plugin-codegraph@1.0.0"',
-      'source: "@openspec-orch/plugin-codegraph@1.0.0"\n    required: true',
+      "  - codegraph",
+      "  - id: codegraph\n    source: '@openspec-orch/plugin-codegraph@1.0.0'",
     )),
     /CONFIG_INVALID/,
   );
   assert.throws(
     () => configuration.parseProject(CONFIG_V1.replace(
-      "  - id: spec-driven-extended\n    source: bundled:spec-driven-extended",
-      "  - id: superpowers\n    source: bundled:superpowers",
+      "  - spec-driven-extended",
+      "  - superpowers",
     )),
     /повторяющийся extension-id/,
   );

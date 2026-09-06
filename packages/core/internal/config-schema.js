@@ -19,21 +19,13 @@ const REPOSITORY_SCHEMA = z.strictObject({
   ...REPOSITORY_FIELDS,
   plugins: ID_LIST_SCHEMA,
 });
-const PLUGIN_DECLARATION_SCHEMA = z.strictObject({
-  id: ID_SCHEMA,
-  source: z.string().min(1),
-});
-const EXTENSION_DECLARATION_SCHEMA = z.strictObject({
-  id: ID_SCHEMA,
-  source: z.string().min(1),
-});
 const PROJECT_CONFIG_SCHEMA = z.strictObject({
   version: z.literal(CORE_CONTRACT_VERSIONS.project),
   strict: z.boolean().default(true),
   template: IDENTITY_SCHEMA,
   agent: IDENTITY_SCHEMA,
-  extensions: z.array(EXTENSION_DECLARATION_SCHEMA).default([]),
-  plugins: z.array(PLUGIN_DECLARATION_SCHEMA).default([]),
+  extensions: ID_LIST_SCHEMA,
+  plugins: ID_LIST_SCHEMA,
   repositories: z.array(REPOSITORY_SCHEMA).default([]),
 });
 const STORE_METADATA_SCHEMA = z.strictObject({

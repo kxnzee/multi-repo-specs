@@ -4,7 +4,11 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 
-import { ExtensionLifecycle } from "../internal/extension-lifecycle.js";
+import {
+  ExtensionDeclaration,
+  ExtensionLifecycle,
+  ExtensionManagerService,
+} from "@openspec-orch/core";
 
 /** Builds one two-Extension lifecycle while keeping native behavior injectable. */
 function lifecycleFixture(invoke = async (_context, selected, request) => (
@@ -12,8 +16,8 @@ function lifecycleFixture(invoke = async (_context, selected, request) => (
 )) {
   const calls = [];
   const declarations = Object.freeze([
-    Object.freeze({ id: "first", source: "bundled:first" }),
-    Object.freeze({ id: "second", source: "bundled:second" }),
+    new ExtensionDeclaration("first"),
+    new ExtensionDeclaration("second"),
   ]);
   const checkout = Object.freeze({ root: path.resolve("/workspace/specs") });
   const scopedProcess = Object.freeze({ async run() {} });
@@ -21,6 +25,9 @@ function lifecycleFixture(invoke = async (_context, selected, request) => (
     checkout,
     project: Object.freeze({
       agent: Object.freeze({ id: "qwen" }),
+      extensionDeclaration(extensionId) {
+        return declarations.find(({ id }) => id === extensionId);
+      },
       extensionDeclarations: declarations,
     }),
     store: Object.freeze({ id: "specs" }),
@@ -39,14 +46,20 @@ function lifecycleFixture(invoke = async (_context, selected, request) => (
         return invoke(context, extension, request);
       },
     }),
-    bundledProvider: Object.freeze({
-      resolve(declaration) {
-        return Object.freeze({
-          ...declaration,
-          name: declaration.id,
-          root: path.resolve(`/distribution/${declaration.id}`),
-        });
-      },
+    managerService: new ExtensionManagerService({
+      agentIds: ["qwen"],
+      bundledProvider: Object.freeze({
+        has() { return true; },
+        resolve(declaration) {
+          return Object.freeze({
+            id: declaration.id,
+            name: declaration.id,
+            root: path.resolve(`/distribution/${declaration.id}`),
+            source: `bundled:${declaration.id}`,
+          });
+        },
+      }),
+      supplyService: Object.freeze({ forStore() { return {}; } }),
     }),
     processService: Object.freeze({
       forRepository(value) {
@@ -108,4 +121,26 @@ test("ExtensionLifecycle diagnoses every selected Extension after an independent
     },
     { extensionId: "second", targetId: "specs", state: "ready", output: "enabled" },
   ]);
+});
+
+test("ExtensionLifecycle addresses connect, status, disconnect and remove by Extension ID", async () => {
+  const { calls, lifecycle } = lifecycleFixture();
+
+  assert.equal(await lifecycle.connect("first"), "first:connect");
+  assert.deepEqual(calls.map(({ extension, operation }) => [extension, operation]), [
+    [undefined, "preflight"],
+    ["first", "validate"],
+    ["first", "connect"],
+  ]);
+
+  calls.length = 0;
+  assert.deepEqual(await lifecycle.statuses({ extensionId: "second" }), [{
+    extensionId: "second",
+    targetId: "specs",
+    state: "ready",
+    output: "second:status",
+  }]);
+  assert.equal(await lifecycle.disconnect("second"), "second:disconnect");
+  assert.equal(await lifecycle.remove("second"), "second:remove");
+  await assert.rejects(lifecycle.connect("missing"), /EXTENSION_NOT_DECLARED: missing/);
 });

@@ -13,6 +13,7 @@ bin/openspec-orch-mcp.js         public MCP stdio adapter
 bin/internal/distribution.js     shared distribution composition root
 bin/internal/                    protocol-specific runtime adapters
 packages/core/                   generic orchestration and safe infrastructure
+packages/extension-sdk/          public declarative Extension contract
 packages/plugin-sdk/             public Plugin contract
 packages/mcp/                    governed MCP protocol and Store resources
 plugins/                         first-party Plugin packages
@@ -38,6 +39,9 @@ CLI adapter ─┐
              ├→ distribution composition → Core application services
 MCP adapter ─┘                              │
                                             ├→ OpenSpec / Git / filesystem
+                                            ├→ npm package supply → package-lock.json
+                                            │                    ├→ Extension manager → Agent adapter
+                                            │                    └→ Plugin manager → Plugin host
                                             ├→ Agent adapter → native Agent CLI
                                             └→ Plugin host → scoped PluginContext
                                                               ↓
@@ -53,6 +57,7 @@ artifact lifecycle; Orchestrator не строит параллельный work
 | Компонент | Ответственность |
 |---|---|
 | Orchestrator Core | Project/Repository model, init/connect, diagnostics, Plugin manager/host, routing и safe infrastructure |
+| Extension SDK | Standalone package/descriptor contract и общий data-only Extension definition |
 | Plugin SDK | Immutable Plugin API, command grammar, Agent contributions, scoped contracts и contract test kit |
 | Plugin | Собственные commands, repository lifecycle, domain state, Agent tools и опциональные Agent Extensions |
 | Project Template | Copy-only OpenSpec config, project context, schemas и assets |
@@ -127,16 +132,19 @@ health.
 Relaxed mode не клонирует и не pin-ит Git state; явно переданный workspace действует
 только в текущем вызове.
 
-Bundled Plugins загружаются из distribution. Внешний runtime хранится локально в
-Store cache и обычный `connect` не устанавливает его повторно из source. Если
+Bundled Plugins загружаются из distribution. Внешние Plugins и standalone Extensions
+живут в одном npm-проекте `.openspec-orch/packages`: manifest и lockfile переносимы,
+а `node_modules` локален. Обычный `connect` не запускает npm; восстановление выполняет
+явная команда `package sync`. Если
 объявленный Plugin недоступен или повреждён, Core и Doctor продолжают запускаться, а
 Plugin отображается как unavailable.
 
 ## Plugin Platform
 
-`plugin init` разрешает bundled или external source, материализует package при
-необходимости, проверяет manifest, package identity и public API и только после
-успеха публикует exact declaration в Project config.
+`plugin init` разрешает bundled или external source, передаёт внешний dependency npm,
+проверяет manifest, package identity и public API и только после успеха публикует
+стабильный Plugin ID в Project config. Extension Manager использует тот же package
+supply, но проверяет декларативный payload через Extension SDK и не выполняет его код.
 
 `plugin connect`:
 
@@ -146,7 +154,7 @@ Plugin отображается как unavailable.
 4. сохраняет binding только после полного успеха.
 
 `disconnect` сначала отключает Extension, затем удаляет binding. `remove`
-разрешён только без bindings и удаляет declaration/runtime, но не tracked repository
+разрешён только без bindings и удаляет declaration/dependency, но не tracked repository
 data и не произвольные tool-owned artifacts.
 
 Все Plugin commands выполняются через `plugin exec`; Core не продвигает их в root CLI

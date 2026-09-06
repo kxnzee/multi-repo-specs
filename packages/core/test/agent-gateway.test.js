@@ -43,7 +43,8 @@ test("AgentGatewayService owns explicit setup, status and removal without Projec
         source: "bundled:orchestrator-agent",
       });
       return Object.freeze({
-        ...declaration,
+        id: declaration.id,
+        source: declaration.source,
         name: "OpenSpec Orchestrator Agent Gateway",
         root: "/distribution/extensions/orchestrator-agent",
       });

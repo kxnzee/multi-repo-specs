@@ -2,41 +2,23 @@
 
 import { PLUGIN_PATTERNS } from "@openspec-orch/plugin-sdk";
 
-import { hasExactKeys, isPlainObject } from "./value.js";
-
-const FIELDS = Object.freeze(["id", "source"]);
-
 /** Завершает создание стабильной ошибкой Extension declaration. */
 function invalid(message) {
   throw new Error(`EXTENSION_DECLARATION_INVALID: ${message}`);
 }
 
-/** Immutable ID и versionless bundled source одного standalone Extension. */
+/** Immutable standalone Extension ID из Project registry. */
 export class ExtensionDeclaration {
   #id;
-  #source;
 
-  constructor(config = {}) {
-    if (!isPlainObject(config)) invalid("declaration должна быть object");
-    if (!hasExactKeys(config, FIELDS)) {
-      invalid(`разрешены только поля ${FIELDS.join(", ")}`);
-    }
-    const { id, source } = config;
+  constructor(id) {
     if (typeof id !== "string" || !PLUGIN_PATTERNS.id.test(id)) {
       invalid(`некорректный extension-id '${id ?? ""}'`);
     }
-    if (source !== `bundled:${id}`) {
-      invalid(`source для ${id} должен быть bundled:${id}`);
-    }
     this.#id = id;
-    this.#source = source;
     Object.freeze(this);
   }
 
   get id() { return this.#id; }
-  get source() { return this.#source; }
-
-  toConfig() {
-    return Object.freeze({ id: this.#id, source: this.#source });
-  }
+  toConfig() { return this.#id; }
 }

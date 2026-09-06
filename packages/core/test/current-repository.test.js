@@ -30,7 +30,7 @@ async function commandWorkspace(t) {
     template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
-    plugins: [{ id: "sample", source: "@test/sample@1.0.0" }],
+    plugins: ["sample"],
     repositories: [
       {
         id: "specs",

@@ -10,6 +10,8 @@ import { BundledPluginProvider } from "./bundled-plugin.js";
 import { CandidateCli } from "./cli.js";
 import { DoctorService } from "./doctor.js";
 import { ExtensionLifecycle } from "./extension-lifecycle.js";
+import { ExtensionApplicationService } from "./extension-application.js";
+import { ExtensionManagerService } from "./extension-manager.js";
 import { InitializationService } from "./initialization.js";
 import { InitSelectionService } from "./init-selection.js";
 import { PluginApplicationService } from "./plugin-application.js";
@@ -18,16 +20,17 @@ import { PluginLifecycleCommands } from "./plugin-cli.js";
 import { PluginHost, PluginRegistry } from "./plugin-host.js";
 import { PluginLifecycleService } from "./plugin-lifecycle.js";
 import { PluginManagerService, pluginManagers } from "./plugin-manager.js";
+import { PackageCommands } from "./package-cli.js";
 import { ProjectSetupService } from "./project-setup.js";
 import { RepositoryStatusService } from "./repository-status.js";
 import { storeProjects } from "./store-project.js";
 import { hasMethods } from "./value.js";
 
-const RECOVERABLE_PLUGIN_RESOLUTION = /^(?:BUNDLED_PLUGIN_INVALID|PLUGIN_CONTRACT_INVALID|PLUGIN_LOAD_INVALID|PLUGIN_MANAGER_INVALID|PLUGIN_RUNTIME_UNAVAILABLE):/u;
+const RECOVERABLE_PLUGIN_RESOLUTION = /^(?:BUNDLED_PLUGIN_INVALID|PACKAGE_RUNTIME_UNAVAILABLE|PACKAGE_SUPPLY_INVALID|PLUGIN_CONTRACT_INVALID|PLUGIN_LOAD_INVALID|PLUGIN_MANAGER_INVALID|PLUGIN_RUNTIME_UNAVAILABLE):/u;
 
 /** Keeps optional Plugin failures isolated without swallowing unrelated Core defects. */
 function isRecoverablePluginResolution(error) {
-  return error?.code === "PLUGIN_RUNTIME_UNAVAILABLE" ||
+  return ["PACKAGE_RUNTIME_UNAVAILABLE", "PLUGIN_RUNTIME_UNAVAILABLE"].includes(error?.code) ||
     RECOVERABLE_PLUGIN_RESOLUTION.test(error?.message ?? "");
 }
 
@@ -40,6 +43,7 @@ export class PluginPlatform {
   #initSelection;
   #pluginExtensions;
   #lifecycleCommands;
+  #packageCommands;
   #setup;
   #setupCatalog;
 
@@ -86,6 +90,10 @@ export class PluginPlatform {
       start,
     });
     this.#pluginExtensions = lifecycle;
+    const extensionManagers = new ExtensionManagerService({
+      agentIds: bundledAgentProvider.catalog.entries.map(({ id }) => id),
+      bundledProvider: bundledExtensionProvider,
+    });
     this.#initialization = new InitializationService({ agentProvider: bundledAgentProvider });
     this.#initSelection = new InitSelectionService({
       agentCatalog: bundledAgentProvider.catalog,
@@ -95,8 +103,16 @@ export class PluginPlatform {
     });
     this.#extensionLifecycle = new ExtensionLifecycle({
       agentAdapter: resolvedAgentAdapter,
-      bundledProvider: bundledExtensionProvider,
+      managerService: extensionManagers,
       start,
+      storeProjectService,
+    });
+    this.#packageCommands = new PackageCommands({
+      extensionApplication: new ExtensionApplicationService({
+        managerService: extensionManagers,
+        storeProjectService,
+      }),
+      extensionLifecycle: this.#extensionLifecycle,
       storeProjectService,
     });
     this.#doctor = new DoctorService({
@@ -191,6 +207,7 @@ export class PluginPlatform {
       initializationService: this.#initialization,
       pluginExtensionConnector: this.#pluginExtensions,
       pluginLifecycleCommands: this.#lifecycleCommands,
+      packageCommands: this.#packageCommands,
       setupService: this.#setup,
     }).createProgram();
   }

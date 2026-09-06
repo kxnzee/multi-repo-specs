@@ -30,7 +30,7 @@ async function storeFixture(t, { declared = true } = {}) {
     template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
-    plugins: declared ? [{ id: "sample", source: "@test/plugin-sample@1.0.0" }] : [],
+    plugins: declared ? ["sample"] : [],
     repositories: [
       {
         id: "specs",
@@ -292,7 +292,7 @@ test("automatic composition restores declared Plugins through injected services"
   const start = "/virtual/store";
   const loadedPlugin = await samplePlugin(t, []);
   const checkout = Object.freeze({ root: start });
-  const declaration = Object.freeze({ id: "sample", source: "@test/plugin-sample@1.0.0" });
+  const declaration = Object.freeze("sample");
   const calls = [];
   const program = await createCandidateProgram({
     pluginManagerService: {
@@ -368,13 +368,10 @@ test("bundled provider initializes and restores a Plugin without Store runtime",
   const project = configuration.parseProject(
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
   );
-  assert.equal(
-    project.pluginDeclaration("sample").source,
-    "@test/openspec-orch-plugin-sample@1.0.0",
-  );
+  assert.equal(project.pluginDeclaration("sample").id, "sample");
   assert.equal(await fs.lstat(path.join(
     storeRoot,
-    ".openspec-orch/cache/plugin-runtimes",
+    ".openspec-orch/packages",
   )).catch((error) => error.code), "ENOENT");
   assert.deepEqual(output, [
     "✓ sample — инициализирован",
@@ -420,10 +417,10 @@ test("automatic composition keeps Core available for unavailable or corrupted Pl
 
     const runtimeDirectory = path.join(
       storeRoot,
-      ".openspec-orch/cache/plugin-runtimes/sample",
+      ".openspec-orch/packages",
     );
     await fs.mkdir(runtimeDirectory, { recursive: true });
-    await fs.writeFile(path.join(runtimeDirectory, "unexpected"), "corrupted");
+    await fs.writeFile(path.join(runtimeDirectory, "package.json"), "{}\n");
     const corrupted = await createCandidateProgram();
     assert.equal(corrupted.commands.some((command) => command.name() === "plugin"), true);
     assert.equal(corrupted.commands.some((command) => command.name() === "sample"), false);

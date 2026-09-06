@@ -2,6 +2,7 @@
 # or .openspec-orch/ as a whole.
 .openspec-orch/state.json
 .openspec-orch/cache/
+.openspec-orch/packages/node_modules/
 .openspec-orch/logs/
 .openspec-orch/plugins/
 

@@ -31,7 +31,7 @@ async function createStoreFixture(t, { backendConnected = false, connected = fal
     template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
-    plugins: [{ id: "sample", source: "@test/plugin-sample@1.0.0" }],
+    plugins: ["sample"],
     repositories: [
       {
         id: "specs",

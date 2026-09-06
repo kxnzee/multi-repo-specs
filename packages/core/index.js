@@ -30,6 +30,7 @@ export {
 export {
   BundledExtensionPackage,
   BundledExtensionProvider,
+  NpmExtensionPackage,
   bundledExtensions,
 } from "./internal/bundled-extension.js";
 export { CandidateCli } from "./internal/cli.js";
@@ -68,6 +69,9 @@ export {
   extensionCatalog,
 } from "./internal/extension-catalog.js";
 export { ExtensionDeclaration } from "./internal/extension-declaration.js";
+export { ExtensionLifecycle } from "./internal/extension-lifecycle.js";
+export { ExtensionApplicationService } from "./internal/extension-application.js";
+export { ExtensionManagerService, StoreExtensionManager } from "./internal/extension-manager.js";
 export { PluginHost, PluginRegistry } from "./internal/plugin-host.js";
 export {
   PluginConnectionResult,
@@ -82,7 +86,9 @@ export {
   StorePluginManager,
   pluginManagers,
 } from "./internal/plugin-manager.js";
-export { NpmPackageInstaller, NpmPackageInstallResult, npmPackageInstaller } from "./internal/npm-package-installer.js";
+export { NpmPackageInstaller, npmPackageInstaller } from "./internal/npm-package-installer.js";
+export { PackageSupplyService, StorePackageSupply, packageSupplies } from "./internal/package-supply.js";
+export { PackageCommands } from "./internal/package-cli.js";
 export { PluginPlatform } from "./internal/plugin-platform.js";
 export { PluginSource } from "./internal/plugin-source.js";
 export { PluginScaffoldService, pluginScaffolds } from "./internal/plugin-scaffold.js";

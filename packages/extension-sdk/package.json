@@ -1,9 +1,8 @@
 {
-  "name": "@openspec-orch/plugin-sdk",
+  "name": "@openspec-orch/extension-sdk",
   "version": "0.1.0",
   "type": "module",
   "files": [
-    "README.md",
     "index.js",
     "internal",
     "testing.js"
@@ -11,9 +10,6 @@
   "exports": {
     ".": "./index.js",
     "./testing": "./testing.js"
-  },
-  "dependencies": {
-    "@openspec-orch/extension-sdk": "0.1.0"
   },
   "scripts": {
     "test": "node --test --test-concurrency=1"

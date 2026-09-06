@@ -42,7 +42,7 @@ async function contextScenario(t, { backendPlugin = false, storePlugin = false }
     template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
-    plugins: [{ id: "sample", source: "@test/plugin-sample@1.0.0" }],
+    plugins: ["sample"],
     repositories: [
       {
         id: "specs",

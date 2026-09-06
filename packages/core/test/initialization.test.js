@@ -292,7 +292,7 @@ test("custom Template is applied once and its source is not needed for repeated 
     storeId: "payments-specs",
     agentId: "claude",
     templateRoot: customRoot,
-    extensions: [{ id: "superpowers", source: "bundled:superpowers" }],
+    extensions: ["superpowers"],
     repositories: [configurationService.parseRepositoryArgument(
       "frontend=https://example.test/frontend.git#main",
     )],
@@ -302,7 +302,7 @@ test("custom Template is applied once and its source is not needed for repeated 
   );
   assert.deepEqual(project.template, { id: "custom-product" });
   assert.deepEqual(project.extensionDeclarations.map((extension) => extension.toConfig()), [
-    { id: "superpowers", source: "bundled:superpowers" },
+    "superpowers",
   ]);
   assert.equal((await fs.readFile(path.join(root, "openspec/context/product.md"), "utf8")), "# Product\n");
 
@@ -324,7 +324,7 @@ test("custom Template is applied once and its source is not needed for repeated 
     target: root,
     storeId: "payments-specs",
     agentId: "claude",
-    extensions: [{ id: "spec-driven-extended", source: "bundled:spec-driven-extended" }],
+    extensions: ["spec-driven-extended"],
     replaceExtensions: false,
   });
   assert.deepEqual(augmented.updated, ["openspec-orch.yaml"]);
@@ -466,8 +466,8 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
   assert.equal(calls[0].templateId, "default");
   assert.equal(calls[0].templateRoot, TEMPLATE_ROOT);
   assert.deepEqual(calls[0].extensions, [
-    { id: "superpowers", source: "bundled:superpowers" },
-    { id: "company-tools", source: "bundled:company-tools" },
+    "superpowers",
+    "company-tools",
   ]);
   assert.equal(calls[0].replaceExtensions, true);
   assert.equal(calls[0].repositories[0].id, "frontend");
@@ -665,8 +665,8 @@ test("CandidateCli interactive init skips an Extension prompt with no selectable
     templateId: "default",
     templateRoot: TEMPLATE_ROOT,
     extensions: [
-      { id: "spec-driven-extended", source: "bundled:spec-driven-extended" },
-      { id: "superpowers", source: "bundled:superpowers" },
+      "spec-driven-extended",
+      "superpowers",
     ],
     replaceExtensions: true,
     repositories: undefined,
@@ -836,9 +836,9 @@ test("init selects Template before Extensions and locks its required Extensions"
     "Итоговое подтверждение",
   ]);
   assert.deepEqual(selection.extensions, [
-    { id: "spec-driven-extended", source: "bundled:spec-driven-extended" },
-    { id: "superpowers", source: "bundled:superpowers" },
-    { id: "team-extension", source: "bundled:team-extension" },
+    "spec-driven-extended",
+    "superpowers",
+    "team-extension",
   ]);
 });
 
@@ -873,8 +873,8 @@ test("init applies required Extension profiles in flag mode and rejects disablin
     store: "payments-specs",
     agent: "qwen",
   })).extensions, [
-    { id: "spec-driven-extended", source: "bundled:spec-driven-extended" },
-    { id: "superpowers", source: "bundled:superpowers" },
+    "spec-driven-extended",
+    "superpowers",
   ]);
 
   for (const [template, extension] of [

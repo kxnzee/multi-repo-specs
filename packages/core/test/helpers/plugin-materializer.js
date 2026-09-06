@@ -13,6 +13,9 @@ export const SAMPLE_PLUGIN_ROOT = await fs.realpath(fileURLToPath(
 export const PLUGIN_SDK_ROOT = await fs.realpath(fileURLToPath(
   new URL("../../../plugin-sdk/", import.meta.url),
 ));
+export const EXTENSION_SDK_ROOT = await fs.realpath(fileURLToPath(
+  new URL("../../../extension-sdk/", import.meta.url),
+));
 export const PLUGIN_SDK_VERSION = JSON.parse(
   await fs.readFile(path.join(PLUGIN_SDK_ROOT, "package.json")),
 ).version;
@@ -42,8 +45,7 @@ export function createPluginMaterializer({
   sourceRoot = SAMPLE_PLUGIN_ROOT,
   version = "1.0.0",
 } = {}) {
-  return {
-    async install({ runtimeRoot }) {
+  const materialize = async (runtimeRoot) => {
       const manifestPath = path.join(runtimeRoot, "package.json");
       const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
       const pluginManifest = JSON.parse(await fs.readFile(path.join(sourceRoot, "package.json")));
@@ -57,10 +59,17 @@ export function createPluginMaterializer({
         "@openspec-orch",
         "plugin-sdk",
       );
+      const extensionSdkTarget = path.join(
+        runtimeRoot,
+        "node_modules",
+        "@openspec-orch",
+        "extension-sdk",
+      );
       await fs.mkdir(path.dirname(pluginTarget), { recursive: true });
       await fs.mkdir(path.dirname(sdkTarget), { recursive: true });
       await fs.cp(sourceRoot, pluginTarget, { recursive: true });
       await fs.cp(PLUGIN_SDK_ROOT, sdkTarget, { recursive: true });
+      await fs.cp(EXTENSION_SDK_ROOT, extensionSdkTarget, { recursive: true });
       await fs.writeFile(
         path.join(pluginTarget, "package.json"),
         `${JSON.stringify(pluginManifest, null, 2)}\n`,
@@ -74,6 +83,10 @@ export function createPluginMaterializer({
             name: "@openspec-orch/plugin-sdk",
             version: PLUGIN_SDK_VERSION,
           },
+          "node_modules/@openspec-orch/extension-sdk": {
+            name: "@openspec-orch/extension-sdk",
+            version: PLUGIN_SDK_VERSION,
+          },
           [`node_modules/${pluginManifest.name}`]: {
             name: pluginManifest.name,
             version: pluginManifest.version,
@@ -82,6 +95,23 @@ export function createPluginMaterializer({
           },
         },
       }, null, 2)}\n`);
+  };
+  return {
+    async install({ runtimeRoot }) {
+      await materialize(runtimeRoot);
+    },
+    async remove({ packageName, runtimeRoot }) {
+      const manifestPath = path.join(runtimeRoot, "package.json");
+      const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+      delete manifest.dependencies[packageName];
+      await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+      await fs.rm(path.join(runtimeRoot, "node_modules", ...packageName.split("/")), {
+        recursive: true,
+        force: true,
+      });
+    },
+    async sync() {
+      // Tests need only the PackageSupply rollback protocol; materialization is already present.
     },
   };
 }
