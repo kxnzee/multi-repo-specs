@@ -204,39 +204,52 @@ export class StorePackageSupply {
       invalid(`${CORE_SERVICE_PATHS.packageDirectory} должен быть безопасным каталогом`);
     }
     const manifest = await this.#readManifest(runtimeRoot, { optional: true });
-    if (manifest) await this.#assertLockedState(runtimeRoot, manifest);
+    const lockfile = manifest ? await this.#assertLockedState(runtimeRoot, manifest) : null;
     const packageName = manifest?.openspecOrchestrator[kind][id];
     if (!packageName) unavailable(`${kind}/${id}: package не зарегистрирован`);
     if (!Object.hasOwn(manifest.dependencies, packageName)) {
       invalid(`${kind}/${id}: mapping не входит в dependencies`);
     }
+    const locked = this.#lockedPackage(lockfile, packageName);
+    const runtime = await this.#inspectPackageRuntime(runtimeRoot, packageName, locked.version);
+    if (runtime.state !== "ready") {
+      unavailable(
+        `${packageName}: runtime ${runtime.version ?? "отсутствует"} не соответствует ` +
+          `package-lock ${locked.version ?? "без версии"}; выполните openspec-orch package sync`,
+      );
+    }
     return Object.freeze({
       packageName,
-      packageRoot: await this.#requirePackageRoot(runtimeRoot, packageName),
+      packageRoot: runtime.packageRoot,
       runtimeRoot,
-      version: manifest.dependencies[packageName],
+      version: locked.version,
     });
   }
 
-  /** Restores only a missing node_modules tree from the committed npm lock. */
+  /** Restores a missing or stale node_modules tree from the committed npm lock. */
   async ensure() {
     return this.#withLock(async (runtimeRoot, existed) => {
       if (!existed) return false;
       const manifest = await this.#readManifest(runtimeRoot);
-      await this.#assertLockedState(runtimeRoot, manifest);
       if (Object.keys(manifest.dependencies).length === 0) return false;
-      const missing = [];
+      const lockfile = await this.#assertLockedState(runtimeRoot, manifest);
+      const unavailablePackages = [];
       for (const packageName of Object.keys(manifest.dependencies)) {
-        try {
-          await this.#requirePackageRoot(runtimeRoot, packageName);
-        } catch (error) {
-          if (error?.code !== "PACKAGE_RUNTIME_UNAVAILABLE") throw error;
-          missing.push(packageName);
+        const locked = this.#lockedPackage(lockfile, packageName);
+        const runtime = await this.#inspectPackageRuntime(runtimeRoot, packageName, locked.version);
+        if (runtime.state !== "ready") unavailablePackages.push(packageName);
+      }
+      if (unavailablePackages.length === 0) return false;
+      await this.#installer.sync({ runtimeRoot });
+      for (const packageName of unavailablePackages) {
+        const locked = this.#lockedPackage(lockfile, packageName);
+        const runtime = await this.#inspectPackageRuntime(runtimeRoot, packageName, locked.version);
+        if (runtime.state !== "ready") {
+          unavailable(
+            `${packageName}: package sync не восстановил версию ${locked.version ?? "из lockfile"}`,
+          );
         }
       }
-      if (missing.length === 0) return false;
-      await this.#installer.sync({ runtimeRoot });
-      for (const packageName of missing) await this.#requirePackageRoot(runtimeRoot, packageName);
       return true;
     }, { create: false });
   }
@@ -263,15 +276,8 @@ export class StorePackageSupply {
     for (const kind of [...KINDS].sort()) {
       for (const [id, packageName] of Object.entries(manifest.openspecOrchestrator[kind])) {
         const requested = manifest.dependencies[packageName];
-        const locked = lockfile.packages?.[`node_modules/${packageName}`] ??
-          lockfile.dependencies?.[packageName] ?? {};
-        let available = true;
-        try {
-          await this.#requirePackageRoot(runtimeRoot, packageName);
-        } catch (error) {
-          if (error?.code !== "PACKAGE_RUNTIME_UNAVAILABLE") throw error;
-          available = false;
-        }
+        const locked = this.#lockedPackage(lockfile, packageName);
+        const runtime = await this.#inspectPackageRuntime(runtimeRoot, packageName, locked.version);
         const provenance = packageProvenance(requested, locked);
         packages.push(Object.freeze({
           id,
@@ -283,13 +289,18 @@ export class StorePackageSupply {
           integrity: typeof locked.integrity === "string" ? locked.integrity : null,
           provenance,
           mutable: mutableProvenance(provenance),
-          available,
+          available: runtime.state !== "missing",
+          state: runtime.state,
+          runtimeVersion: runtime.version,
         }));
       }
     }
     const available = packages.filter((entry) => entry.available).length;
+    const state = packages.some((entry) => entry.state === "missing")
+      ? "missing"
+      : packages.some((entry) => entry.state === "stale") ? "stale" : "ready";
     return Object.freeze({
-      state: available === packages.length ? "ready" : "missing",
+      state,
       runtimeRoot,
       packages: Object.freeze(packages),
       mutable: packages.filter((entry) => entry.mutable).length,
@@ -402,10 +413,21 @@ export class StorePackageSupply {
     } catch (error) {
       invalid(`package-lock.json повреждён: ${error.message}`, { cause: error });
     }
-    if (!lockfile || typeof lockfile !== "object" || Array.isArray(lockfile)) {
+    if (
+      !lockfile ||
+      typeof lockfile !== "object" ||
+      Array.isArray(lockfile) ||
+      lockfile.lockfileVersion !== 3 ||
+      !lockfile.packages ||
+      typeof lockfile.packages !== "object" ||
+      Array.isArray(lockfile.packages) ||
+      !lockfile.packages[""] ||
+      typeof lockfile.packages[""] !== "object" ||
+      Array.isArray(lockfile.packages[""])
+    ) {
       invalid("package-lock.json имеет несовместимый формат");
     }
-    const lockedDependencies = lockfile.packages?.[""]?.dependencies ?? lockfile.dependencies ?? {};
+    const lockedDependencies = lockfile.packages[""].dependencies ?? {};
     const dependencyEntries = (value) => Object.entries(value).sort(([left], [right]) => (
       left.localeCompare(right)
     ));
@@ -418,6 +440,11 @@ export class StorePackageSupply {
       invalid("package.json и package-lock.json содержат разные dependencies");
     }
     return lockfile;
+  }
+
+  #lockedPackage(lockfile, packageName) {
+    const locked = lockfile?.packages?.[`node_modules/${packageName}`] ?? {};
+    return locked && typeof locked === "object" && !Array.isArray(locked) ? locked : {};
   }
 
   #writeManifest(runtimeRoot, manifest) {
@@ -437,6 +464,44 @@ export class StorePackageSupply {
     const canonicalRuntime = await fs.realpath(runtimeRoot);
     if (!isContainedPath(canonicalRuntime, root)) invalid(`${packageName}: package root вышел из runtime`);
     return root;
+  }
+
+  async #inspectPackageRuntime(runtimeRoot, packageName, lockedVersion) {
+    let packageRoot;
+    try {
+      packageRoot = await this.#requirePackageRoot(runtimeRoot, packageName);
+    } catch (error) {
+      if (error?.code !== "PACKAGE_RUNTIME_UNAVAILABLE") throw error;
+      return Object.freeze({ packageRoot: null, state: "missing", version: null });
+    }
+    const manifestPath = path.join(packageRoot, "package.json");
+    const stat = await lstatOrNull(manifestPath);
+    if (!stat?.isFile() || stat.isSymbolicLink()) {
+      invalid(`${packageName}: package.json отсутствует или небезопасен`);
+    }
+    let manifest;
+    try {
+      manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+    } catch (error) {
+      invalid(`${packageName}: package.json повреждён: ${error.message}`, { cause: error });
+    }
+    if (
+      !manifest ||
+      typeof manifest !== "object" ||
+      Array.isArray(manifest) ||
+      manifest.name !== packageName ||
+      typeof manifest.version !== "string" ||
+      !manifest.version
+    ) {
+      invalid(`${packageName}: package.json не соответствует установленному package`);
+    }
+    return Object.freeze({
+      packageRoot,
+      state: typeof lockedVersion === "string" && manifest.version === lockedVersion
+        ? "ready"
+        : "stale",
+      version: manifest.version,
+    });
   }
 
   async #snapshot(runtimeRoot, existed) {

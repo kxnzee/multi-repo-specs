@@ -70,8 +70,10 @@ openspec-orch package status [--json]
 Фактические Plugin commands появляются после `plugin init`. Standalone Extension
 lifecycle выполняется только через группу `extension`; общий `connect` при необходимости
 сначала восстанавливает зафиксированный npm runtime, затем все объявленные Extensions.
-`update` — единственная операция явной смены package source; `package status` только
-читает lock, provenance и локальный runtime. Progress идёт в stderr,
+Относительный path в `extension init/update --from` разрешается от каталога запуска
+CLI. `update` — единственная операция явной смены package source; `package status`
+только читает lock, provenance и локальный runtime, сверяя установленную версию с
+lockfile. Progress идёт в stderr,
 machine-readable output — в stdout.
 
 ## First-party commands

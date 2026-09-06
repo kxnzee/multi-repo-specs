@@ -67,7 +67,11 @@ export class PackageCommands {
       return;
     }
     for (const entry of report.packages) {
-      const state = entry.available ? entry.provenance : "missing";
+      const state = entry.state === "ready"
+        ? entry.provenance
+        : entry.state === "stale"
+          ? `stale: runtime ${entry.runtimeVersion ?? "unknown"}, lock ${entry.version ?? "unknown"}`
+          : "missing";
       this.#output.log(`  ${entry.kind}/${entry.id}: ${entry.packageName}@${entry.version ?? entry.requested} [${state}]`);
     }
   }

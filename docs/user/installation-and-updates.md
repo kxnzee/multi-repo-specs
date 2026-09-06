@@ -100,8 +100,9 @@ Plugin-owned Extensions восстанавливаются через `openspec-
 адресный `plugin connect`. Для внешних Plugin и standalone Extension общий `connect`
 автоматически восстанавливает локальный `.openspec-orch/packages/node_modules` из
 committed `package.json` и lockfile. `openspec-orch package sync` остаётся явной
-операционной командой, а `package status --json` проверяет lock, runtime и provenance
-без изменений.
+операционной командой, а `package status --json` проверяет lock, provenance, имя и
+версию установленного runtime без изменений. Несовпадение версии получает состояние
+`stale` и устраняется `package sync` или следующим `connect`.
 Local state и runtime не коммитятся в Store.
 
 ## Rollback и поддержка

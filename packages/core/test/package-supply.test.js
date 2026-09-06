@@ -19,16 +19,24 @@ async function fixture(t) {
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-supply-")));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const calls = [];
-  const writeLock = (runtimeRoot, manifest) => fs.writeFile(
+  const writeLock = (runtimeRoot, manifest, version = "1.0.0") => fs.writeFile(
     path.join(runtimeRoot, "package-lock.json"),
-    `${JSON.stringify({ lockfileVersion: 3, packages: {}, dependencies: manifest.dependencies })}\n`,
+    `${JSON.stringify({
+      lockfileVersion: 3,
+      packages: {
+        "": { dependencies: manifest.dependencies },
+        ...(Object.hasOwn(manifest.dependencies, PACKAGE_NAME) ? {
+          [`node_modules/${PACKAGE_NAME}`]: { name: PACKAGE_NAME, version },
+        } : {}),
+      },
+    })}\n`,
   );
-  const materialize = async (runtimeRoot) => {
+  const materialize = async (runtimeRoot, version = "1.0.0") => {
     const packageRoot = path.join(runtimeRoot, "node_modules", "@test", "sample-plugin");
     await fs.mkdir(packageRoot, { recursive: true });
     await fs.writeFile(path.join(packageRoot, "package.json"), JSON.stringify({
       name: PACKAGE_NAME,
-      version: "1.0.0",
+      version,
     }));
   };
   const installer = {
@@ -52,7 +60,9 @@ async function fixture(t) {
     },
     async sync({ runtimeRoot }) {
       calls.push(["sync"]);
-      await materialize(runtimeRoot);
+      const lockfile = JSON.parse(await fs.readFile(path.join(runtimeRoot, "package-lock.json")));
+      const locked = lockfile.packages?.[`node_modules/${PACKAGE_NAME}`];
+      if (locked) await materialize(runtimeRoot, locked.version);
     },
   };
   const checkout = createRepositoryCheckout(createRepository({
@@ -143,7 +153,7 @@ test("StorePackageSupply rejects inconsistent manifest and lock before npm mutat
   const runtimeRoot = path.join(root, ".openspec-orch/packages");
   await fs.writeFile(path.join(runtimeRoot, "package-lock.json"), JSON.stringify({
     lockfileVersion: 3,
-    dependencies: {},
+    packages: { "": { dependencies: {} } },
   }));
 
   await assert.rejects(supply.sync(), /package\.json и package-lock\.json содержат разные dependencies/);
@@ -164,7 +174,7 @@ test("StorePackageSupply rejects mappings outside dependencies", async (t) => {
   }));
   await fs.writeFile(path.join(runtimeRoot, "package-lock.json"), JSON.stringify({
     lockfileVersion: 3,
-    dependencies: {},
+    packages: { "": { dependencies: {} } },
   }));
 
   await assert.rejects(supply.sync(), /mapping plugins\/sample не входит в dependencies/);
@@ -182,11 +192,31 @@ test("StorePackageSupply compares dependency maps without relying on key order",
   }));
   await fs.writeFile(path.join(runtimeRoot, "package-lock.json"), JSON.stringify({
     lockfileVersion: 3,
-    dependencies: { "a-package": "2.0.0", "z-package": "1.0.0" },
+    packages: {
+      "": { dependencies: { "a-package": "2.0.0", "z-package": "1.0.0" } },
+    },
   }));
 
   assert.equal(await supply.sync(), true);
   assert.deepEqual(calls, [["sync"]]);
+});
+
+test("StorePackageSupply rejects legacy dependency-only package locks", async (t) => {
+  const { root, supply } = await fixture(t);
+  const runtimeRoot = path.join(root, ".openspec-orch/packages");
+  await fs.mkdir(runtimeRoot, { recursive: true });
+  await fs.writeFile(path.join(runtimeRoot, "package.json"), JSON.stringify({
+    name: "openspec-orchestrator-packages",
+    private: true,
+    dependencies: {},
+    openspecOrchestrator: { extensions: {}, plugins: {} },
+  }));
+  await fs.writeFile(path.join(runtimeRoot, "package-lock.json"), JSON.stringify({
+    lockfileVersion: 1,
+    dependencies: {},
+  }));
+
+  await assert.rejects(supply.sync(), /package-lock\.json имеет несовместимый формат/u);
 });
 
 test("StorePackageSupply inspects provenance and restores only a missing runtime", async (t) => {
@@ -202,9 +232,16 @@ test("StorePackageSupply inspects provenance and restores only a missing runtime
   assert.equal(ready.state, "ready");
   assert.equal(ready.available, 1);
   assert.equal(ready.mutable, 1);
-  assert.deepEqual(ready.packages.map(({ id, kind, provenance, available }) => ({
-    id, kind, provenance, available,
-  })), [{ id: "sample", kind: "plugins", provenance: "local", available: true }]);
+  assert.deepEqual(ready.packages.map(({ id, kind, provenance, state, version, runtimeVersion }) => ({
+    id, kind, provenance, state, version, runtimeVersion,
+  })), [{
+    id: "sample",
+    kind: "plugins",
+    provenance: "local",
+    state: "ready",
+    version: "1.0.0",
+    runtimeVersion: "1.0.0",
+  }]);
 
   await fs.rm(path.join(root, ".openspec-orch/packages/node_modules"), {
     recursive: true,
@@ -214,6 +251,36 @@ test("StorePackageSupply inspects provenance and restores only a missing runtime
   assert.equal(await supply.ensure(), true);
   assert.equal(await supply.ensure(), false);
   assert.equal((await supply.inspect()).state, "ready");
+  assert.deepEqual(calls.map(([operation]) => operation), ["install", "sync"]);
+});
+
+test("StorePackageSupply rejects and repairs a runtime version stale against package-lock", async (t) => {
+  const { calls, root, supply } = await fixture(t);
+  await supply.install({
+    id: "sample",
+    kind: "plugins",
+    source: "/packages/sample-plugin",
+    validate: async () => true,
+  });
+  const runtimeRoot = path.join(root, ".openspec-orch/packages");
+  const lockPath = path.join(runtimeRoot, "package-lock.json");
+  const lockfile = JSON.parse(await fs.readFile(lockPath, "utf8"));
+  lockfile.packages[`node_modules/${PACKAGE_NAME}`].version = "2.0.0";
+  await fs.writeFile(lockPath, `${JSON.stringify(lockfile)}\n`);
+
+  const stale = await supply.inspect();
+  assert.equal(stale.state, "stale");
+  assert.deepEqual(stale.packages.map(({ state, version, runtimeVersion, available }) => ({
+    state, version, runtimeVersion, available,
+  })), [{ state: "stale", version: "2.0.0", runtimeVersion: "1.0.0", available: true }]);
+  await assert.rejects(
+    supply.resolve("plugins", "sample"),
+    /PACKAGE_RUNTIME_UNAVAILABLE:.*runtime 1\.0\.0.*package-lock 2\.0\.0.*package sync/u,
+  );
+
+  assert.equal(await supply.ensure(), true);
+  assert.equal((await supply.inspect()).state, "ready");
+  assert.equal((await supply.resolve("plugins", "sample")).version, "2.0.0");
   assert.deepEqual(calls.map(([operation]) => operation), ["install", "sync"]);
 });
 

@@ -14,6 +14,8 @@ import {
   configuration,
   createCandidateProgram,
   createProject,
+  PluginPlatform,
+  storeProjects,
 } from "@openspec-orch/core";
 
 import { loadPluginExport, SAMPLE_PLUGIN_ROOT } from "./helpers/plugin-materializer.js";
@@ -215,6 +217,45 @@ test("commands-only Plugin exec uses the Store without a binding or repo selecto
     process.chdir(previousCwd);
   }
   assert.deepEqual(calls, ["hello"]);
+});
+
+test("automatic PluginPlatform composition exposes Agent tools from installed Plugins", async (t) => {
+  const storeRoot = await storeFixture(t);
+  const loadedPlugin = await loadPluginExport(t, definePlugin({
+    id: "sample",
+    agent: {
+      create: () => Object.freeze({}),
+      tools: [{
+        name: "sample_read",
+        description: "Read sample data.",
+        execute: () => "sample",
+      }],
+    },
+  }));
+  const resolutions = [];
+  const platform = await PluginPlatform.create({
+    managerService: {
+      forStore() {
+        return {
+          async resolve(declaration) {
+            resolutions.push(declaration.id);
+            return Object.freeze({ loadedPlugin });
+          },
+        };
+      },
+    },
+    start: storeRoot,
+    storeProjectService: {
+      load: (candidate) => storeProjects.load(candidate),
+      resolve: (candidate) => storeProjects.load(candidate),
+    },
+  });
+
+  assert.deepEqual(resolutions, ["sample"]);
+  assert.deepEqual(platform.agentContributions.map(({ pluginId, contribution }) => ({
+    pluginId,
+    tools: contribution.tools.map(({ name }) => name),
+  })), [{ pluginId: "sample", tools: ["sample_read"] }]);
 });
 
 test("empty composition still exposes Core plugin lifecycle without Plugin-specific branches", async () => {

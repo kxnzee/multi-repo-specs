@@ -2,23 +2,29 @@
 
 import { singleValue } from "@openspec-orch/plugin-sdk";
 import { Command, Option } from "commander";
+import path from "node:path";
+import process from "node:process";
 
 import { formatStatusDetails, formatStatusHeading } from "./status-output.js";
 import { storeProjects } from "./store-project.js";
 
 export class ExtensionCommands {
+  #cwd;
   #extensions;
   #lifecycle;
   #output;
   #storeProjects;
 
   constructor({
+    cwd = process.cwd(),
     extensionApplication,
     extensionLifecycle,
     output = console,
     storeProjectService = storeProjects,
   } = {}) {
     if (
+      typeof cwd !== "string" ||
+      !path.isAbsolute(cwd) ||
       typeof extensionApplication?.install !== "function" ||
       typeof extensionApplication?.remove !== "function" ||
       typeof extensionLifecycle?.connect !== "function" ||
@@ -32,6 +38,7 @@ export class ExtensionCommands {
         "EXTENSION_CLI_INVALID: требуются Extension application/lifecycle и Store Project",
       );
     }
+    this.#cwd = cwd;
     this.#extensions = extensionApplication;
     this.#lifecycle = extensionLifecycle;
     this.#output = output;
@@ -71,7 +78,11 @@ export class ExtensionCommands {
 
   async #install(extensionId, source) {
     const storeProject = await this.#storeProjects.resolve();
-    const result = await this.#extensions.install(storeProject, extensionId, source);
+    const result = await this.#extensions.install(
+      storeProject,
+      extensionId,
+      this.#resolveSource(source),
+    );
     this.#output.log(result.initialized
       ? `✓ ${extensionId} — инициализирован`
       : `✓ ${extensionId} — уже инициализирован`);
@@ -86,7 +97,7 @@ export class ExtensionCommands {
   async #update(extensionId, source) {
     const storeProject = await this.#storeProjects.resolve();
     storeProject.project.requireExtension(extensionId);
-    await this.#extensions.install(storeProject, extensionId, source);
+    await this.#extensions.install(storeProject, extensionId, this.#resolveSource(source));
     this.#output.log(`✓ ${extensionId} — обновлён; выполните openspec-orch connect`);
   }
 
@@ -123,5 +134,9 @@ export class ExtensionCommands {
     this.#output.log(result.removed
       ? `✓ ${extensionId} — удалён`
       : `✓ ${extensionId} — не был инициализирован`);
+  }
+
+  #resolveSource(source) {
+    return source?.startsWith(".") ? path.resolve(this.#cwd, source) : source;
   }
 }

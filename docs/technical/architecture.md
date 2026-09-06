@@ -190,6 +190,8 @@ Change Tracking Extension устанавливается только в под�
 в public MCP adapter и вызывает те же Core/Plugin application services, что CLI.
 Base tools принадлежат MCP package; optional Agent tools и overlays обнаруживаются
 через универсальный Plugin contribution без импорта конкретных Plugin applications.
+При старте adapter объединяет contributions bundled Plugins с contributions внешних
+Plugins, которые загружены из Store package runtime.
 
 Public surface состоит из:
 

@@ -38,6 +38,7 @@ function isRecoverablePluginResolution(error) {
 
 /** Собирает Loader output, Host, lifecycle и CLI adapters без знания Plugin IDs. */
 export class PluginPlatform {
+  #agentContributions;
   #bundledTemplates;
   #doctor;
   #extensionCommands;
@@ -84,6 +85,11 @@ export class PluginPlatform {
       throw new Error("PLUGIN_PLATFORM_INVALID: bundled Agent provider не предоставляет adapter");
     }
     const registry = new PluginRegistry(loadedPlugins);
+    this.#agentContributions = Object.freeze(loadedPlugins.flatMap(({ plugin }) => (
+      typeof plugin.hasAgentContribution === "function" && plugin.hasAgentContribution()
+        ? [Object.freeze({ pluginId: plugin.id, contribution: plugin.agentContribution() })]
+        : []
+    )));
     const host = new PluginHost({
       agentAdapter: resolvedAgentAdapter,
       contextFactory,
@@ -114,6 +120,7 @@ export class PluginPlatform {
       storeProjectService,
     });
     this.#extensionCommands = new ExtensionCommands({
+      cwd: start,
       extensionApplication: new ExtensionApplicationService({
         managerService: extensionManagers,
         storeProjectService,
@@ -224,6 +231,11 @@ export class PluginPlatform {
       packageCommands: this.#packageCommands,
       setupService: this.#setup,
     }).createProgram();
+  }
+
+  /** Returns immutable Agent contributions from the same installed Plugin set as the CLI. */
+  get agentContributions() {
+    return this.#agentContributions;
   }
 
   /** Runs the exact Doctor composition shared by CLI and other protocol adapters. */

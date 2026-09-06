@@ -119,21 +119,26 @@ export async function createDistributionPlatform({ start }) {
     bundledProvider,
     start,
   });
-  const loadAgentContributions = async () => Object.freeze((await Promise.all(
-    bundledPackages.map(async (pluginPackage) => {
-      const installation = await bundledProvider.resolve({
-        id: pluginPackage.id,
-        source: pluginPackage.source.declaration,
-      });
-      const { plugin } = installation.loadedPlugin;
-      return typeof plugin.hasAgentContribution === "function" && plugin.hasAgentContribution()
-        ? Object.freeze({
-          pluginId: plugin.id,
-          contribution: plugin.agentContribution(),
-        })
-        : null;
-    }),
-  )).filter(Boolean));
+  const loadAgentContributions = async () => {
+    const bundledContributions = (await Promise.all(
+      bundledPackages.map(async (pluginPackage) => {
+        const installation = await bundledProvider.resolve({
+          id: pluginPackage.id,
+          source: pluginPackage.source.declaration,
+        });
+        const { plugin } = installation.loadedPlugin;
+        return typeof plugin.hasAgentContribution === "function" && plugin.hasAgentContribution()
+          ? Object.freeze({
+            pluginId: plugin.id,
+            contribution: plugin.agentContribution(),
+          })
+          : null;
+      }),
+    )).filter(Boolean);
+    const contributions = new Map(bundledContributions.map((entry) => [entry.pluginId, entry]));
+    for (const entry of platform.agentContributions) contributions.set(entry.pluginId, entry);
+    return Object.freeze([...contributions.values()]);
+  };
   return Object.freeze({
     agentGatewayService,
     loadAgentContributions,

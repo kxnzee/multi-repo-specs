@@ -219,6 +219,16 @@ function packageDiagnostic(report, strict) {
       details,
     });
   }
+  if (report.state === "stale") {
+    return new DiagnosticResult({
+      id: "packages",
+      subject: "Store packages",
+      outcome: "warning",
+      code: "PACKAGE_RUNTIME_STALE",
+      message: "Установленная версия не совпадает с package-lock; выполните openspec-orch package sync",
+      details,
+    });
+  }
   if (strict && report.mutable > 0) {
     return new DiagnosticResult({
       id: "packages",

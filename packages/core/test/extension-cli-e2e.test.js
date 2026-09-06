@@ -86,6 +86,7 @@ test("extension CLI installs, runs and removes one external npm package", async 
     storeProjectService: projectService,
   });
   const commands = new ExtensionCommands({
+    cwd: root,
     extensionApplication: new ExtensionApplicationService({ managerService }),
     extensionLifecycle: lifecycle,
     output: { log() {} },
@@ -94,8 +95,13 @@ test("extension CLI installs, runs and removes one external npm package", async 
   const program = new Command().exitOverride();
   commands.mount(program);
 
-  await program.parseAsync(["node", "test", "extension", "init", "workflow", "--from", source]);
+  await program.parseAsync([
+    "node", "test", "extension", "init", "workflow", "--from", "./external-extension",
+  ]);
   assert.deepEqual((await storeProjects.load(root)).project.extensions, ["workflow"]);
+  await program.parseAsync([
+    "node", "test", "extension", "update", "workflow", "--from", "./external-extension",
+  ]);
   await program.parseAsync(["node", "test", "extension", "connect", "workflow"]);
   removalFails = true;
   await assert.rejects(

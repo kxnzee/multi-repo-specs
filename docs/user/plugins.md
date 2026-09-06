@@ -54,6 +54,9 @@ openspec-orch extension disconnect <extension-id>
 openspec-orch extension remove <extension-id>
 ```
 
+Локальный относительный path после `--from` вычисляется от каталога, в котором
+запущен `openspec-orch`, одинаково для `extension init` и `extension update`.
+
 `connect` проверяет native Agent CLI и payload перед установкой или включением.
 `status` без ID проверяет все объявленные Extensions и поддерживает `--json`.
 ID встроенной Extension нельзя затенить внешним package через `--from`.

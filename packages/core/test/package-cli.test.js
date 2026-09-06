@@ -32,6 +32,7 @@ test("ExtensionCommands and PackageCommands expose separate public groups", asyn
     available: 0,
   });
   const extensionCommands = new ExtensionCommands({
+    cwd: "/workspace/client",
     extensionApplication: {
       async install(project, id, source) {
         calls.push(["install", project, id, source]);
@@ -70,9 +71,9 @@ test("ExtensionCommands and PackageCommands expose separate public groups", asyn
   extensionCommands.mount(program);
   packageCommands.mount(program);
 
-  await program.parseAsync(["node", "test", "extension", "init", "workflow", "--from", "pkg@1.2.3"]);
+  await program.parseAsync(["node", "test", "extension", "init", "workflow", "--from", "./workflow"]);
   await program.parseAsync(["node", "test", "extension", "connect", "workflow"]);
-  await program.parseAsync(["node", "test", "extension", "update", "workflow", "--from", "pkg@2.0.0"]);
+  await program.parseAsync(["node", "test", "extension", "update", "workflow", "--from", "../workflow-v2"]);
   await program.parseAsync(["node", "test", "extension", "status", "workflow", "--json"]);
   await program.parseAsync(["node", "test", "extension", "disconnect", "workflow"]);
   await program.parseAsync(["node", "test", "extension", "remove", "workflow"]);
@@ -81,10 +82,10 @@ test("ExtensionCommands and PackageCommands expose separate public groups", asyn
   await rollbackRemove();
 
   assert.deepEqual(calls, [
-    ["install", storeProject, "workflow", "pkg@1.2.3"],
+    ["install", storeProject, "workflow", "/workspace/client/workflow"],
     ["connect", "workflow"],
     ["status", "workflow"],
-    ["install", storeProject, "workflow", "pkg@2.0.0"],
+    ["install", storeProject, "workflow", "/workspace/workflow-v2"],
     ["status", "workflow"],
     ["disconnect", "workflow"],
     ["native-remove", "workflow"],

@@ -65,7 +65,6 @@ export class CandidateCli {
     setupService,
     start = process.cwd(),
     storeProjectService,
-    templateRoot,
     version = CORE_VERSION,
   } = {}) {
     if (agentGatewayService && !hasMethods(
@@ -126,7 +125,6 @@ export class CandidateCli {
       pluginExtensionConnector,
       storeProjectService,
       start,
-      templateRoot,
     });
     Object.freeze(this);
   }

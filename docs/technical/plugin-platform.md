@@ -49,9 +49,10 @@ Commands-only Plugin не требует binding. Repository contribution объ
 поддерживаемые roles. Native `repository.exec` нужен только для непрозрачного argv
 passthrough; иначе SDK может выполнить зарегистрированную grammar.
 
-Agent contribution обнаруживается distribution без специальных Plugin IDs. Общий
-MCP/runtime валидирует и маршрутизирует immutable tool metadata, но tool handler,
-availability fallback и response overlays остаются в owning Plugin package.
+Agent contribution обнаруживается distribution без специальных Plugin IDs как у
+bundled, так и у объявленных в Project внешних Plugins. Общий MCP/runtime валидирует
+и маршрутизирует immutable tool metadata, но tool handler, availability fallback и
+response overlays остаются в owning Plugin package.
 
 ## PluginContext
 
@@ -124,8 +125,9 @@ Core добавляет package в единый private npm-проект Store �
 dependencies без lifecycle scripts. npm фиксирует dependency graph в lockfile;
 `openspec-orch.yaml` хранит только Plugin ID. Bundled Plugins загружаются из distribution.
 `plugin update <id> --from <source>` является единственным явным обновлением версии;
-`connect` может лишь восстановить уже зафиксированный lock. `package status` показывает
-resolved version, integrity, provenance и наличие runtime.
+`connect` может лишь восстановить уже зафиксированный lock. `package status` сверяет
+имя и версию установленного package с lockfile и показывает `stale`, если локальный
+runtime отстал; `package sync` восстанавливает и отсутствующий, и устаревший runtime.
 
 Template не управляет Plugins.
 

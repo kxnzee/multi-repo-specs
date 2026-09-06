@@ -33,7 +33,7 @@ test("DoctorService reuses read-only status services and keeps checking after fa
           async inspect() {
             calls.push(["packages"]);
             return {
-              state: "ready",
+              state: "stale",
               runtimeRoot: "/workspace/specs/.openspec-orch/packages",
               packages: [{ id: "sample" }],
               available: 1,
@@ -126,10 +126,10 @@ test("DoctorService reuses read-only status services and keeps checking after fa
 
   assert.equal(report instanceof DiagnosticReport, true);
   assert.equal(report.status, "blocked");
-  assert.deepEqual(report.summary, { pass: 6, warning: 1, error: 3, skipped: 0 });
+  assert.deepEqual(report.summary, { pass: 5, warning: 2, error: 3, skipped: 0 });
   assert.deepEqual(report.checks.map(({ id, outcome }) => ({ id, outcome })), [
     { id: "store", outcome: "pass" },
-    { id: "packages", outcome: "pass" },
+    { id: "packages", outcome: "warning" },
     { id: "openspec", outcome: "pass" },
     { id: "repository:specs", outcome: "pass" },
     { id: "repository:frontend", outcome: "warning" },
@@ -141,6 +141,7 @@ test("DoctorService reuses read-only status services and keeps checking after fa
   ]);
   assert.equal(calls.some(([operation]) => operation === "plugins"), true);
   assert.equal(calls.some(([operation]) => operation === "extensions"), true);
+  assert.equal(report.checks[1].code, "PACKAGE_RUNTIME_STALE");
   assert.deepEqual(
     calls.find(([operation]) => operation === "repositories"),
     ["repositories", { start: "/workspace/specs", repositoryIds: ["specs"] }],

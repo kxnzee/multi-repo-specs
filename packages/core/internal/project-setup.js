@@ -3,7 +3,7 @@
 import path from "node:path";
 import process from "node:process";
 
-import { isBundledTemplateProvider } from "./bundled-template.js";
+import { bundledTemplates, isBundledTemplateProvider } from "./bundled-template.js";
 import { connection } from "./connection.js";
 import { CORE_EXECUTION_MODE, CORE_FILES } from "./constants.js";
 import { lstatOrNull } from "./fs.js";
@@ -13,22 +13,6 @@ import { packageSupplies } from "./package-supply.js";
 import { storeProjects } from "./store-project.js";
 import { assertTemplateTargetSeparated } from "./template.js";
 import { hasMethods } from "./value.js";
-
-const DEFAULT_TEMPLATE_ID = "default";
-
-/** Builds the compatibility provider used by direct CandidateCli tests. */
-function legacyTemplateProvider(templateRoot) {
-  return Object.freeze({
-    defaultId: DEFAULT_TEMPLATE_ID,
-    catalog: Object.freeze({ entries: Object.freeze([]) }),
-    resolve(templateId) {
-      if (templateId === DEFAULT_TEMPLATE_ID && typeof templateRoot === "string") {
-        return Object.freeze({ id: DEFAULT_TEMPLATE_ID, root: templateRoot });
-      }
-      throw new Error(`TEMPLATE_NOT_DISCOVERED: template-id '${templateId ?? ""}' не найден`);
-    },
-  });
-}
 
 /** Distinguishes one explicit local Template path from a bundled Template ID. */
 function isLocalTemplateRequest(request) {
@@ -100,7 +84,7 @@ export class ProjectSetupService {
   #templates;
 
   constructor({
-    bundledTemplateProvider,
+    bundledTemplateProvider = bundledTemplates,
     connectionService = connection,
     extensionLifecycle,
     initializationService = initialization,
@@ -109,10 +93,8 @@ export class ProjectSetupService {
     packageSupplyService = packageSupplies,
     start = process.cwd(),
     storeProjectService = storeProjects,
-    templateRoot,
   } = {}) {
-    const templates = bundledTemplateProvider ?? legacyTemplateProvider(templateRoot);
-    if (!isBundledTemplateProvider(templates)) {
+    if (!isBundledTemplateProvider(bundledTemplateProvider)) {
       throw new Error(
         "PROJECT_SETUP_INVALID: bundled Template provider должен предоставлять defaultId, catalog и resolve",
       );
@@ -152,7 +134,7 @@ export class ProjectSetupService {
     this.#packages = packageSupplyService;
     this.#start = start;
     this.#storeProjects = storeProjectService;
-    this.#templates = templates;
+    this.#templates = bundledTemplateProvider;
     Object.freeze(this);
   }
 

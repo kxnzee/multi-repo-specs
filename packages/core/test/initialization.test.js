@@ -28,6 +28,16 @@ import {
 } from "@openspec-orch/core";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../../templates/default/", import.meta.url));
+const TEST_TEMPLATE_PROVIDER = Object.freeze({
+  defaultId: "default",
+  catalog: Object.freeze({ entries: Object.freeze([]) }),
+  resolve(templateId) {
+    if (templateId !== "default") {
+      throw new Error(`TEMPLATE_NOT_DISCOVERED: template-id '${templateId ?? ""}' не найден`);
+    }
+    return Object.freeze({ id: "default", root: TEMPLATE_ROOT });
+  },
+});
 
 const TEST_AGENTS = new Map([
   ["claude", new AgentDefinition({
@@ -412,8 +422,8 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
     }),
   ]);
   const cli = new CandidateCli({
+    bundledTemplateProvider: TEST_TEMPLATE_PROVIDER,
     initSelectionService: new InitSelectionService({ extensionCatalog: availableExtensions }),
-    templateRoot: TEMPLATE_ROOT,
     initializationService: {
       async initialize(options) {
         calls.push(options);
@@ -598,6 +608,7 @@ test("CandidateCli interactive init skips an Extension prompt with no selectable
     }),
   ]);
   const cli = new CandidateCli({
+    bundledTemplateProvider: TEST_TEMPLATE_PROVIDER,
     initSelectionService: new InitSelectionService({
       agentCatalog,
       extensionCatalog,
@@ -690,6 +701,7 @@ test("CandidateCli starts init progress after interactive selection and closes i
   };
   const successEvents = [];
   const successfulCli = new CandidateCli({
+    bundledTemplateProvider: TEST_TEMPLATE_PROVIDER,
     initSelectionService: {
       async resolve() {
         successEvents.push("selection:complete");
@@ -710,7 +722,6 @@ test("CandidateCli starts init progress after interactive selection and closes i
       },
     },
     progress: recordingProgress(successEvents),
-    templateRoot: TEMPLATE_ROOT,
   });
 
   await successfulCli.createProgram().parseAsync(["node", "openspec-orch", "init", "project"]);
@@ -723,6 +734,7 @@ test("CandidateCli starts init progress after interactive selection and closes i
 
   const failureEvents = [];
   const failingCli = new CandidateCli({
+    bundledTemplateProvider: TEST_TEMPLATE_PROVIDER,
     initSelectionService: { async resolve() { return selection; } },
     initializationService: {
       async initialize() {
@@ -731,7 +743,6 @@ test("CandidateCli starts init progress after interactive selection and closes i
       },
     },
     progress: recordingProgress(failureEvents),
-    templateRoot: TEMPLATE_ROOT,
   });
 
   await assert.rejects(
@@ -893,6 +904,7 @@ test("init applies required Extension profiles in flag mode and rejects disablin
 test("CandidateCli interactive init cancels before mutation and non-TTY requires flags", async () => {
   const calls = [];
   const candidate = (selectionOverrides) => new CandidateCli({
+    bundledTemplateProvider: TEST_TEMPLATE_PROVIDER,
     initSelectionService: new InitSelectionService({
       agentCatalog: new AgentCatalog([
         new AgentCatalogEntry({ id: "qwen", name: "Qwen Code" }),
@@ -900,7 +912,6 @@ test("CandidateCli interactive init cancels before mutation and non-TTY requires
       extensionCatalog: new ExtensionCatalog(),
       ...selectionOverrides,
     }),
-    templateRoot: TEMPLATE_ROOT,
     initializationService: { async initialize(options) { calls.push(options); } },
   }).createProgram();
 
