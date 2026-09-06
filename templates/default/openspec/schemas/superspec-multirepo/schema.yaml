@@ -84,10 +84,14 @@ artifacts:
     description: Coarse implementation and verification work grouped by repository
     template: tasks.md
     instruction: |
-      Read proposal.md, Delta Specs and optional design.md. Create coarse-grained
-      checkbox tasks grouped under headings containing the exact Repository ID that
-      owns the work. Each task states the required result and how it will be checked.
-      Do not introduce behavior outside the accepted Specs.
+      The Analyst reads proposal.md, Delta Specs and optional design.md and creates
+      coarse-grained checkbox tasks grouped under headings containing the exact
+      Repository ID that owns the work. Each task states the required result and how
+      it will be checked. Do not introduce behavior outside the accepted Specs.
+
+      The Developer, Tester and Development Lead review the complete Planning change
+      through the project PR process before Gate 1. Their review does not transfer
+      ownership of Planning artifacts away from the Analyst.
 
       Human Feature Acceptance belongs to the following Verify artifact, not to
       implementation Tasks.
@@ -137,6 +141,10 @@ artifacts:
       PASS, PASS_WITH_WARNINGS or FAIL. Feature Acceptance PASS plus Process
       Compliance PASS or PASS_WITH_WARNINGS completes Verify. Any failure returns to
       the owning artifact or Apply, followed by a fresh Verify.
+
+      Verify does not perform Archive, UAT or Release. Human Feature Acceptance `PASS`
+      and accepted Process Compliance are required before the team archives the Change
+      through a Store PR.
     requires:
       - plan
 

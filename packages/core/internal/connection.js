@@ -182,8 +182,8 @@ export class ConnectionService {
     if (executionMode === CORE_EXECUTION_MODE.strict) {
       await repositoryGit.assertIdentity();
       branch = await repositoryGit.currentBranch();
-      if (branch !== repository.defaultBranch) {
-        throw new Error(`${repository.id}: ожидается ветка ${repository.defaultBranch}`);
+      if (!branch) {
+        throw new Error(`${repository.id}: connect нельзя выполнять в detached HEAD`);
       }
       const changedPaths = await repositoryGit.statusPaths();
       if (changedPaths.some((filePath) => filePath !== CORE_FILES.openSpecConfig)) {

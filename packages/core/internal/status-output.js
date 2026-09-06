@@ -70,6 +70,7 @@ function renderTree(value, prefix = "") {
 
 /** Formats Plugin details, parsing structured JSON only for human presentation. */
 export function formatStatusDetails(details) {
+  if (details && typeof details === "object") return Object.freeze(renderTree(details));
   if (typeof details !== "string" || details.trim().length === 0) return Object.freeze([]);
   let parsed;
   try {
@@ -106,7 +107,7 @@ export function formatDoctorReport(report) {
   for (const check of report.checks) {
     const presentation = DOCTOR_PRESENTATIONS[check.outcome] ?? Object.freeze({ icon: "•" });
     lines.push(`  ${presentation.icon} ${check.subject}`);
-    if (check.outcome === "pass") continue;
+    if (check.outcome === "pass" && !check.id.startsWith("repository:")) continue;
     if (check.code) lines.push(`      Код: ${check.code}`);
     const message = withoutLeadingCode(check.message, check.code);
     for (const details of [message, check.details]) {

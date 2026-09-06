@@ -9,6 +9,20 @@ import { hasMethods } from "./value.js";
 
 const OUTCOMES = new Set(["pass", "warning", "error", "skipped"]);
 
+/** Preserves text details or freezes one flat JSON object for machine-readable reports. */
+function diagnosticDetails(details) {
+  if (typeof details === "string") return details;
+  if (
+    !details || Array.isArray(details) || Object.getPrototypeOf(details) !== Object.prototype ||
+    Object.values(details).some((value) => (
+      value !== null && !["boolean", "number", "string"].includes(typeof value)
+    ))
+  ) {
+    throw new Error("DIAGNOSTIC_RESULT_INVALID: details должен быть строкой или flat JSON object");
+  }
+  return Object.freeze({ ...details });
+}
+
 /** Returns a stable diagnostic code from a domain error or a caller fallback. */
 function diagnosticCode(error, fallback) {
   if (typeof error?.code === "string" && error.code.length > 0) return error.code;
@@ -50,11 +64,18 @@ export class DiagnosticResult {
       typeof id !== "string" || id.length === 0 ||
       typeof subject !== "string" || subject.length === 0 ||
       !OUTCOMES.has(outcome) ||
-      [code, message, details].some((value) => typeof value !== "string")
+      [code, message].some((value) => typeof value !== "string")
     ) {
       throw new Error("DIAGNOSTIC_RESULT_INVALID: некорректный Doctor check");
     }
-    this.#value = Object.freeze({ id, subject, outcome, code, message, details });
+    this.#value = Object.freeze({
+      id,
+      subject,
+      outcome,
+      code,
+      message,
+      details: diagnosticDetails(details),
+    });
     Object.freeze(this);
   }
 
@@ -118,11 +139,20 @@ function skipped(id, subject) {
 /** Maps one read-only RepositoryStatus into Doctor semantics. */
 function repositoryDiagnostic(status) {
   const subject = `Repository ${status.id} [${status.role}]`;
+  const details = Object.fromEntries(Object.entries({
+    state: status.state,
+    path: status.path,
+    branch: status.branch || "detached HEAD",
+    remote: status.remote,
+    remote_matches: status.remoteMatches,
+    clean: status.clean,
+  }).filter(([, value]) => value !== undefined));
   if (status.state === "connected") {
     return new DiagnosticResult({
       id: `repository:${status.id}`,
       subject,
       outcome: status.clean === false ? "warning" : "pass",
+      details,
       ...(status.clean === false ? {
         code: "REPOSITORY_DIRTY",
         message: "Рабочее дерево содержит изменения",
@@ -135,6 +165,7 @@ function repositoryDiagnostic(status) {
     outcome: "error",
     code: `REPOSITORY_${status.state.toUpperCase()}`,
     message: `Repository находится в состоянии ${status.state}`,
+    details,
   });
 }
 
@@ -209,7 +240,7 @@ export class DoctorService {
     Object.freeze(this);
   }
 
-  async inspect({ start = this.#start } = {}) {
+  async inspect({ start = this.#start, repositoryIds = [] } = {}) {
     const checks = [];
     let storeProject;
     try {
@@ -229,7 +260,7 @@ export class DoctorService {
       ["openspec", "OpenSpec", "OPENSPEC_UNAVAILABLE", () => this.#inspectOpenSpec(storeProject)],
       [
         "repositories", "Repositories", "REPOSITORY_STATUS_UNAVAILABLE",
-        () => this.#inspectRepositories(storeProject),
+        () => this.#inspectRepositories(storeProject, repositoryIds),
       ],
       [
         "extensions", "Standalone Extensions", "EXTENSION_STATUS_UNAVAILABLE",
@@ -269,8 +300,8 @@ export class DoctorService {
     })];
   }
 
-  async #inspectRepositories(storeProject) {
-    return (await this.#repositories.inspect({ start: storeProject.root }))
+  async #inspectRepositories(storeProject, repositoryIds) {
+    return (await this.#repositories.inspect({ start: storeProject.root, repositoryIds }))
       .map(repositoryDiagnostic);
   }
 

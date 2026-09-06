@@ -69,24 +69,28 @@ Proposal и Specs являются Store-only стадиями. Код допу�
 Change Tracking и CodeGraph опциональны. Их отсутствие не отменяет OpenSpec scope,
 repository checks и evidence. Подробности: [Plugins](plugins.md).
 
-## Verify, Release и Archive
+## Verify, Archive, UAT и Release
 
 | Ситуация | Действие |
 |---|---|
 | OpenSpec показывает Verify доступным, но Apply candidate ещё не собран | Не считать доступность Verify доказательством реализации; сначала завершить Apply и собрать candidate |
 | Проверка выявила дефект реализации или падающий repository check | Вернуться в Apply, исправить реализацию и заново собрать evidence |
 | Verify выявил drift в Proposal, Specs, Design, Tasks или Plan | Вернуться к artifact, который владеет ошибочным решением, повторно пройти зависимые стадии и Verify |
+| Найден новый Scenario, следующий из принятого Requirement | Дополнить Delta Specs через Planning PR, повторить Gate 1, Apply и Verify |
+| Найдено новое требование вне принятого scope | Передать владельцу продукта решение о расширении текущей Jira Story или создании новых Jira Story и Change |
 | Техническое evidence собрано, но решения человека ещё нет | Оставить Feature Acceptance в `PENDING`; Agent и Plugins не могут установить `PASS` |
 | Человек установил Feature Acceptance `FAIL` | Вернуться к владельцу причины отказа — Planning artifact или Apply — и после исправления провести новый Verify |
 | Для Superspec Feature Acceptance равен `PASS`, а Process Compliance — `PASS` или `PASS_WITH_WARNINGS` | Verify завершён; warning должен остаться явно записанным |
 | Появился новый commit, build или deployment после проверки | Считать прежнее подтверждение устаревшим, обновить evidence и повторить человеческую проверку текущего candidate |
-| Verify завершён | Получить отдельное человеческое Release-решение; Verify сам не выполняет Release или Archive |
-| Фактический Release завершён | Выполнить штатный Archive; при подключённом Graph проверить Store до и после Archive |
+| Verify завершён с Human Gate `PASS` | Выполнить Archive в ветке Store и опубликовать его через PR; Verify сам не выполняет Archive |
+| Story Store PR с Archive слит в Integration branch Store | Закрыть подзадачу аналитика и перевести Jira Story в `Ready to UAT` |
+| UAT завершён успешно | Получить отдельное человеческое Release-решение и выполнить Release по Git Flow |
+| UAT выявил дефект против архивированного Scenario | Создать связанный корректирующий Change и заблокировать Release; Master Specs напрямую не исправлять |
 | Несколько Changes зависят друг от друга | Архивировать их в dependency order, чтобы Delta Specs применялись к ожидаемому состоянию Master Specs |
 | Нужен ранний Sync до реализации зависимого Change | Оформить его отдельным reviewable PR; не считать Sync доказательством реализации или deployment |
 
-Командные gates описаны в [командном потоке](team-flow.md), сокращённый процесс — в
-[потоке одного человека](solo-flow.md).
+Роли, gates, командное и одиночное применение описаны в
+[едином процессе поставки](story-delivery-process.md).
 
 ## Изменение project workflow
 
@@ -103,8 +107,9 @@ repository checks и evidence. Подробности: [Plugins](plugins.md).
   Store; реализация и repository checks принадлежат Code Repositories.
 - Explore и code evidence подтверждают факты, но не принимают продуктовые решения и
   не расширяют scope.
-- Planning, Apply, Verify, Release и Archive — разные границы полномочий; успешное
+- Planning, Apply, Verify, Archive, UAT и Release — разные границы полномочий; успешное
   завершение одной стадии не выполняет следующую автоматически.
 - Graph показывает структуру Store, но не доказывает ownership, реализацию, runtime
   dependency или deployment.
-- Archive не выполняется автоматически Orchestrator, Plugin или Agent.
+- Archive не выполняется автоматически Orchestrator, Plugin или Agent и не разрешает
+  Release без успешного UAT и отдельного решения владельца продукта.

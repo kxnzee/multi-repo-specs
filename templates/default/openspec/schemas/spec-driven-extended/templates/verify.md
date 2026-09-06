@@ -22,7 +22,9 @@ human decision, keep the gate `PENDING`. `PASS` requires every applicable row to
 `PASS` or justified `N/A`. After implementation changes, collect current evidence and
 obtain a new decision.
 
-Feature Acceptance does not authorize Release or Archive.
+Feature Acceptance does not perform Archive, UAT or Release. `PASS` is required
+before the team archives the Change through a Store PR. Archive does not authorize
+Release; UAT and a separate Release decision remain required.
 <!-- FEATURE_ACCEPTANCE_CONTRACT_V1_END -->
 
 ## Process Compliance

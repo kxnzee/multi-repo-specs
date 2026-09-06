@@ -237,6 +237,37 @@ test("ConnectionService is idempotent and remembers explicit nonstandard workspa
   );
 });
 
+test("ConnectionService accepts an existing checkout on any named branch", async (t) => {
+  const scenario = await connectionScenario(t, { pointer: true });
+  const fake = connectExecutor(scenario);
+  const service = connectionFixture(fake.executor);
+
+  await service.connect({ start: scenario.storeRoot });
+  const checkout = path.join(scenario.workspaceRoot, "src/api");
+  await execa("git", ["-C", checkout, "switch", "-c", "team/custom-work"]);
+
+  const result = await service.connect({ start: scenario.storeRoot });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.repositories[0].branch, "team/custom-work");
+  assert.equal(result.repositories[0].cloned, false);
+});
+
+test("ConnectionService rejects detached HEAD before changing a checkout", async (t) => {
+  const scenario = await connectionScenario(t, { pointer: true });
+  const fake = connectExecutor(scenario);
+  const service = connectionFixture(fake.executor);
+
+  await service.connect({ start: scenario.storeRoot });
+  const checkout = path.join(scenario.workspaceRoot, "src/api");
+  await execa("git", ["-C", checkout, "switch", "--detach", "HEAD"]);
+
+  await assert.rejects(
+    service.connect({ start: scenario.storeRoot }),
+    /connect нельзя выполнять в detached HEAD/,
+  );
+});
+
 test("ConnectionService relaxed mode uses local directory and does not persist workspace", async (t) => {
   const scenario = await connectionScenario(t, { strict: false });
   const checkout = path.join(scenario.workspaceRoot, "src/api");

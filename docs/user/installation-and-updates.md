@@ -56,7 +56,7 @@ machine-readable version pin выбранный tag или commit фиксиру
 
 ## Процедура миграции
 
-1. Создайте отдельную ветку Store от актуальной default branch.
+1. Создайте work branch Store от актуальной Integration branch по проектной Git-политике.
 2. Примените только изменения, перечисленные в release notes.
 3. Просмотрите diff как обычное изменение Store.
 4. Проверьте schemas и все Changes:
@@ -68,7 +68,7 @@ machine-readable version pin выбранный tag или commit фиксиру
    openspec-orch doctor
    git diff --check
    ```
-5. Проведите review и merge обычным процессом Store.
+5. Проведите review и merge через PR в Integration branch Store.
 6. После merge обновите локальную копию Store и повторите `connect` и `doctor`.
 
 Custom Store проверяет собственные schema IDs. Не заменяйте несовместимый artifact

@@ -186,7 +186,7 @@ openspec-orch plugin init --plugin <plugin-id> --from <exact-source>
 openspec-orch connect
 ```
 
-После `connect` обязательно проверьте `doctor`, `repository status`, Agent gateway и
+После `connect` обязательно проверьте `doctor`, Agent gateway и
 `plugin status`. Если Store ID уже указывает на другой путь, сначала разрешите конфликт
 локальной регистрации; не изменяйте identity клонированного Store. Если Store клонирован
 не в `<workspace>/<store-id>`, передайте `--workspace` явно, как показано ниже.
@@ -197,12 +197,11 @@ openspec-orch connect
 cd /absolute/path/to/workspace/specs
 openspec-orch connect
 openspec-orch doctor
-openspec-orch repository status
 ```
 
 В strict mode отсутствующие Code Repositories клонируются в `<workspace>/src/`.
-Существующие checkout не обновляются и должны соответствовать configured remote,
-branch и clean-state требованиям.
+Существующие checkout не обновляются и должны иметь configured remote, чистое рабочее
+дерево и именованную текущую ветку; её имя не сравнивается с `default_branch`.
 
 В strict mode для другой раскладки один раз передайте workspace:
 
@@ -248,11 +247,12 @@ openspec new change update-copy --schema spec-driven-extended
 openspec new change redesign-checkout --schema superspec-multirepo
 ```
 
-Дальше используйте [личный](solo-flow.md) или [командный](team-flow.md) процесс.
+Дальше используйте [единый процесс поставки](story-delivery-process.md); он описывает
+как командное, так и одиночное выполнение.
 
 Для нового участника итоговая последовательность выглядит так:
 
 ```text
-проверка Agent CLI → clone Store → connect → doctor → repository status
+проверка Agent CLI → clone Store → connect → doctor
 → agent setup/status → plugin status → перезапуск Agent → работа с Change
 ```

@@ -118,7 +118,12 @@ traversal, symlink, collisions, неполного Agent pack и попытки 
 9. проверяет итоговое состояние Extensions и Plugins.
 
 Существующий checkout не получает `pull`, `checkout`, `reset`, merge или другую
-скрытую Git mutation. Strict mode проверяет remote, default branch и clean state.
+скрытую Git mutation. Strict `connect` проверяет remote identity, clean state,
+полную revision и именованную ветку; последнее нужно только потому, что
+`connect` может создать pointer-файл. Имя ветки и её совпадение с `default_branch`
+не проверяются. Read-only Doctor использует внутренний Repository Status,
+показывает ветку только как информацию и не считает detached HEAD ошибкой Repository
+health.
 Relaxed mode не клонирует и не pin-ит Git state; явно переданный workspace действует
 только в текущем вызове.
 

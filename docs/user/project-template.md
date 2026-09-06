@@ -71,7 +71,9 @@ evidence. Точный следующий шаг всегда определяй
 Обе schemas используют одну Feature Acceptance: Agent собирает evidence, человек
 явно принимает решение `PASS` или `FAIL`, а до решения gate остаётся `PENDING`.
 Change Tracking не участвует в этом решении: он связывает OpenSpec tasks с revisions
-Code Repositories. Verify не выполняет Release или Archive.
+Code Repositories. Verify не выполняет Archive, UAT или Release. После `PASS` команда
+публикует Archive через Store PR, затем проводит UAT и принимает отдельное
+Release-решение.
 
 ## Владение и обновление
 

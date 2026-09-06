@@ -10,7 +10,6 @@ import { configuration } from "./configuration.js";
 import { CORE_EXECUTION_MODE, CORE_FILES } from "./constants.js";
 import { doctor } from "./doctor.js";
 import { ProjectSetupService } from "./project-setup.js";
-import { repositoryStatuses } from "./repository-status.js";
 import { hasMethods } from "./value.js";
 import { formatDoctorReport, formatStatusHeading } from "./status-output.js";
 import { workspace } from "./workspace.js";
@@ -18,23 +17,6 @@ import { workspace } from "./workspace.js";
 /** Собирает повторяемую Commander option. */
 function collectRepositories(value, previous = []) {
   return [...previous, configuration.parseRepositoryArgument(value)];
-}
-
-/** Печатает read-only состояние одного Repository. */
-function printRepositoryStatus(status) {
-  console.log(formatStatusHeading(`${status.id} [${status.role}]`, status.state));
-  if (status.path) console.log(`  Путь: ${status.path}`);
-  if (status.connected) {
-    console.log(
-      `  ${status.branchMatches ? "✓" : "✗"} Ветка: ${status.branch}` +
-        (status.branchMatches ? "" : " — не совпадает с default_branch"),
-    );
-    console.log(
-      `  ${status.remoteMatches ? "✓" : "✗"} Remote: ` +
-        (status.remoteMatches ? "совпадает" : `не совпадает с ${CORE_FILES.orchestratorConfig}`),
-    );
-    console.log(`  ${status.clean ? "✓" : "⚠"} Рабочее дерево: ${status.clean ? "чистое" : "есть изменения"}`);
-  }
 }
 
 /** Печатает список созданных или обновлённых файлов. */
@@ -58,7 +40,6 @@ export class CandidateCli {
   #doctor;
   #pluginLifecycleCommands;
   #progress;
-  #repositoryStatuses;
   #setup;
 
   constructor({
@@ -72,7 +53,6 @@ export class CandidateCli {
     pluginExtensionConnector,
     pluginLifecycleCommands,
     progress = createCliProgress(),
-    repositoryStatusService = repositoryStatuses,
     setupService,
     start = process.cwd(),
     templateRoot,
@@ -113,7 +93,6 @@ export class CandidateCli {
       throw new Error("CLI_INVALID: progress должен предоставлять renderer contract");
     }
     this.#progress = progress;
-    this.#repositoryStatuses = repositoryStatusService;
     this.#setup = setupService ?? new ProjectSetupService({
       bundledTemplateProvider,
       connectionService,
@@ -152,7 +131,12 @@ export class CandidateCli {
     program.command("doctor")
       .description("проверить готовность Store и локального окружения без изменений")
       .option("--json", "вывести машиночитаемый Diagnostic Report")
-      .action((options) => this.#diagnose({ json: Boolean(options.json) }));
+      .addOption(new Option("--repo <repository-id>", "ограничить Repository checks")
+        .argParser(collectValues))
+      .action((options) => this.#diagnose({
+        json: Boolean(options.json),
+        repositoryIds: options.repo ?? [],
+      }));
     program.command("connect")
       .description("подключить рабочую машину и Code Repositories")
       .addOption(new Option("--workspace <path>", "явный workspace").argParser(singleValue))
@@ -163,13 +147,6 @@ export class CandidateCli {
       .action(() => this.#disconnect());
     if (this.#agentGateway) this.#mountAgentGateway(program);
     this.#pluginLifecycleCommands?.mount(program);
-    const repository = program.command("repository")
-      .description("операции только чтения над репозиториями реестра");
-    repository.command("status")
-      .description("показать подключение, чистоту, remote и ветку каждого репозитория")
-      .addOption(new Option("--repo <repository-id>", "ограничить вывод одним repository-id")
-        .argParser(collectValues))
-      .action((options) => this.#inspectRepositories(options));
     return program;
   }
 
@@ -281,8 +258,8 @@ export class CandidateCli {
     this.#printConnection(result, options);
   }
 
-  async #diagnose({ json }) {
-    const report = await this.#doctor.inspect();
+  async #diagnose({ json, repositoryIds }) {
+    const report = await this.#doctor.inspect({ repositoryIds });
     process.exitCode = report.status === "blocked" ? 1 : 0;
     if (json) {
       console.log(JSON.stringify(report, null, 2));
@@ -300,15 +277,6 @@ export class CandidateCli {
       this.#progress.fail("Отключение Agent Extensions: ошибка");
       throw error;
     }
-  }
-
-  async #inspectRepositories(options) {
-    const statuses = await this.#progress.run(
-      "Проверка состояния repositories...",
-      () => this.#repositoryStatuses.inspect({ repositoryIds: options.repo ?? [] }),
-      { success: "Состояние repositories проверено" },
-    );
-    for (const status of statuses) printRepositoryStatus(status);
   }
 
   #renderConnectionProgress(message, status) {

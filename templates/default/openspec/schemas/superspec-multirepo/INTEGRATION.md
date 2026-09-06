@@ -56,5 +56,12 @@ A person explicitly invokes any required branch, review or PR command after Feat
 Acceptance. `superpowers:finishing-a-development-branch` remains available, but the
 schema does not call it or persist a separate closeout receipt.
 
-Archive requires human Feature Acceptance, Superspec Process Compliance and the
-actual Release gate. Verify alone does not authorize deployment, Release or Archive.
+Archive requires human Feature Acceptance and Superspec Process Compliance. It runs
+in a Store subtask branch and reaches the Store Story branch only through review and
+PR. After the final Story Store PR is merged into the Store Integration branch, the Jira Story becomes
+`Ready to UAT`.
+
+Archive does not perform UAT, deployment or Release. Successful UAT and a separate
+human Release gate are required before Git Flow release. A UAT defect against an
+archived Scenario creates a linked corrective Change and blocks Release; Master Specs
+are not edited directly.

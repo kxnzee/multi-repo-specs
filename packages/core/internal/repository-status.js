@@ -12,7 +12,7 @@ import { workspace } from "./workspace.js";
 
 export const REPOSITORY_STATUS_STATE = Object.freeze({
   connected: "connected",
-  diverged: "diverged",
+  identityMismatch: "identity_mismatch",
   missing: "missing",
   notDirectory: "not_a_directory",
   notGitRepository: "not_a_git_repository",
@@ -46,7 +46,6 @@ export class RepositoryStatus {
   get remote() { return this.#value.remote; }
   get remoteMatches() { return this.#value.remoteMatches; }
   get branch() { return this.#value.branch; }
-  get branchMatches() { return this.#value.branchMatches; }
   get clean() { return this.#value.clean; }
 }
 
@@ -125,17 +124,15 @@ export class RepositoryStatusService {
       repositoryGit.isClean(),
     ]);
     const remoteMatches = repository.matchesRemote(remote);
-    const branchMatches = branch === repository.defaultBranch;
     return new RepositoryStatus({
       ...base,
       connected: true,
-      state: remoteMatches && branchMatches
+      state: remoteMatches
         ? REPOSITORY_STATUS_STATE.connected
-        : REPOSITORY_STATUS_STATE.diverged,
+        : REPOSITORY_STATUS_STATE.identityMismatch,
       remote,
       remoteMatches,
       branch,
-      branchMatches,
       clean,
     });
   }

@@ -18,8 +18,11 @@
   `sdd-specs/openspec`.
 - Do not create `openspec/changes` in this implementation repository or other Code
   Repositories. Implement an accepted Change from the Store.
-- Follow [`docs/user/team-flow.md`](docs/user/team-flow.md) for Planning, Repository
-  Impact, Gates, dependent Changes, verification, Release and Archive.
+- Follow [`docs/user/story-delivery-process.md`](docs/user/story-delivery-process.md)
+  for Planning, Repository Impact, Gates, dependent Changes, verification, Release
+  and Archive.
+- Preserve the project-declared Git Flow roles and PR directions for the Store and
+  every Code Repository. Core must not validate project-specific branch names or patterns.
 - Do not modify built-in OpenSpec `openspec-*` skills or `opsx-*` commands in the
   provider-specific directory selected in `openspec-orch.yaml`.
 

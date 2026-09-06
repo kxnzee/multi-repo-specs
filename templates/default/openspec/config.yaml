@@ -19,6 +19,7 @@ context: |
 
 rules:
   proposal:
+    - "Аналитик владеет всеми Planning-артефактами; разработчик, тестировщик и лид разработки ревьюят весь Planning PR до Gate 1."
     - "Сначала зафиксировать WHY и наблюдаемое WHAT, scope, Non-Goals и критерии успеха; implementation details относятся к Design или execution artifacts выбранной schema."
     - "Repository Impact содержит только зарегистрированные Code Repository IDs, где ожидаются изменения, и связывает каждый Repository с точными capability paths."
   specs:
@@ -37,4 +38,5 @@ operations:
       - "Определи schema Change по .openspec.yaml и не смешивай process-specific gates разных schemas."
       - "Требуй human Feature Acceptance PASS в verify.md; Agent evidence не заменяет явное решение человека."
       - "Для superspec-multirepo дополнительно требуй Process Compliance PASS или PASS_WITH_WARNINGS."
-      - "Требуй фактический Release команды; Planning, локальные тесты или Verify сами по себе не разрешают Archive."
+      - "Выполняй Archive до Ready to UAT только в Store subtask branch и публикуй результат через Story Store PR в Integration branch Store; Agent не принимает UAT и Release-решение."
+      - "Если UAT выявил несоответствие архивированному Scenario, требуй связанный корректирующий Change и блокируй Release; Master Specs напрямую не исправляй."

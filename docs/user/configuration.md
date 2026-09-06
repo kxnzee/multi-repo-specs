@@ -49,7 +49,7 @@ repositories:
 | `repositories[].id` | Уникальный Repository ID в lowercase kebab-case |
 | `repositories[].roles` | Ровно одна роль: `[store]` или `[code]` |
 | `repositories[].remote` | Ожидаемый Git `origin` Repository |
-| `repositories[].default_branch` | Ожидаемая ветка Repository |
+| `repositories[].default_branch` | Ветка, которую strict `connect` checkout-ит при clone отсутствующего Repository |
 | `repositories[].plugins` | Уникальные bindings только объявленных Plugins; по умолчанию пустой массив |
 
 Должен существовать ровно один Repository с `roles: [store]`. Остальные используют
@@ -67,13 +67,25 @@ bindings и ссылка на необъявленный Plugin также за�
 существующем checkout. Для существующего checkout он проверяет:
 
 - каталог является корнем Git Repository, а `origin` совпадает с `remote`;
-- текущая ветка совпадает с `default_branch`;
+- `HEAD` находится на любой именованной ветке, чтобы `connect` не менял файлы в detached HEAD;
 - в рабочем дереве нет изменений, кроме `openspec/config.yaml`, который может быть
   изменён при создании OpenSpec pointer;
 - текущий `HEAD` является полной 40-символьной Git revision.
 
 Если новый pointer изменил `openspec/config.yaml`, результат получает статус
 `needs_setup_pr`: это изменение нужно опубликовать обычным Git-процессом Repository.
+
+Текущая ветка выводится Doctor только как информация. Doctor не сравнивает её с
+`default_branch`, не проверяет имя или pattern и не
+считают detached HEAD ошибкой read-only диагностики. Состояние `identity_mismatch`
+означает,
+что фактический `origin` не совпадает с project config.
+
+Git Flow контракт не является частью `openspec-orch.yaml`. Команда заполняет роли
+веток, их имена и patterns, направления PR и protection rules в
+`openspec/context/08-release-process.md`. Соблюдение обеспечивают Git-хостинг, CI
+и review,
+а не Core и не MCP.
 
 Relaxed mode требует заранее подготовленные каталоги
 `<workspace>/src/<repository-id>`, не клонирует их и не проверяет Git identity,

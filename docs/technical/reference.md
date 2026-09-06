@@ -18,17 +18,24 @@ openspec-orch init [path]
   [--repo <id=remote#branch>]...
   [--no-strict]
 
-openspec-orch doctor [--json]
+openspec-orch doctor [--repo <id>]... [--json]
 openspec-orch connect [--workspace <path>] [--no-strict]
 openspec-orch disconnect
 
 openspec-orch agent setup|status|remove --agent <id>
-openspec-orch repository status [--repo <id>]...
 ```
 
 В TTY `init` без полного набора обязательных flags запускает выбор. В non-TTY
 нужны `--store` и `--agent`. `doctor` только читает состояние; только итог
 `blocked` возвращает exit code 1.
+
+`doctor` по умолчанию печатает человекочитаемый отчёт, а с `--json` — тот же
+Diagnostic Report в JSON. Без `--repo` он проверяет все Store и Code Repositories;
+повторяемый `--repo <id>` ограничивает только Repository checks. Отчёт включает путь,
+текущую ветку, `origin`, его совпадение с project config и чистоту рабочего дерева.
+Ветка не сравнивается с `default_branch`, её имя и pattern не валидируются. Даже
+detached HEAD остаётся read-only состоянием `connected`. Другой `origin` даёт
+`identity_mismatch` и блокирует Doctor.
 
 Root `disconnect` отключает локальные Agent Extensions и не меняет portable config.
 

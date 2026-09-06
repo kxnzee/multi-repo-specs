@@ -5,7 +5,7 @@ export const STATUS_PRESENTATIONS = Object.freeze({
   complete: Object.freeze({ icon: "✓", label: "готов" }),
   completed: Object.freeze({ icon: "✓", label: "завершён" }),
   connected: Object.freeze({ icon: "✓", label: "подключён" }),
-  diverged: Object.freeze({ icon: "⚠", label: "параметры не совпадают" }),
+  identity_mismatch: Object.freeze({ icon: "✗", label: "remote не совпадает" }),
   fail: Object.freeze({ icon: "✗", label: "проверка не пройдена" }),
   failed: Object.freeze({ icon: "✗", label: "ошибка" }),
   invalid: Object.freeze({ icon: "✗", label: "некорректное состояние" }),

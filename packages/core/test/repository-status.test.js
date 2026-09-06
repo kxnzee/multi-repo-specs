@@ -1,4 +1,4 @@
-/** @fileoverview Characterization read-only `repository status` нового Core. */
+/** @fileoverview Characterization internal read-only Repository Status service. */
 
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
@@ -9,7 +9,6 @@ import test from "node:test";
 import { execa } from "execa";
 
 import {
-  CandidateCli,
   CoreConfiguration,
   Project,
   Repository,
@@ -92,9 +91,55 @@ test("RepositoryStatusService reports a connected clean registry without mutatio
   for (const status of statuses) {
     assert.equal(status.clean, true);
     assert.equal(status.remoteMatches, true);
-    assert.equal(status.branchMatches, true);
     assert.equal(status.branch, "main");
   }
+});
+
+test("RepositoryStatusService keeps an arbitrary named branch connected", async (t) => {
+  const scenario = await repositoryScenario(t);
+  await execa("git", ["-C", scenario.frontendRoot, "switch", "-c", "team/custom-work"]);
+
+  const [status] = await new RepositoryStatusService().inspect({
+    start: scenario.storeRoot,
+    repositoryIds: ["frontend"],
+  });
+
+  assert.equal(status.state, "connected");
+  assert.equal(status.connected, true);
+  assert.equal(status.remoteMatches, true);
+  assert.equal(status.branch, "team/custom-work");
+});
+
+test("RepositoryStatusService reports an identity mismatch for another origin", async (t) => {
+  const scenario = await repositoryScenario(t);
+  await execa("git", [
+    "-C", scenario.frontendRoot,
+    "remote", "set-url", "origin", "https://example.test/another.git",
+  ]);
+
+  const [status] = await new RepositoryStatusService().inspect({
+    start: scenario.storeRoot,
+    repositoryIds: ["frontend"],
+  });
+
+  assert.equal(status.state, "identity_mismatch");
+  assert.equal(status.connected, true);
+  assert.equal(status.remoteMatches, false);
+});
+
+test("RepositoryStatusService treats detached HEAD as connected read-only state", async (t) => {
+  const scenario = await repositoryScenario(t);
+  await execa("git", ["-C", scenario.frontendRoot, "switch", "--detach", "HEAD"]);
+
+  const [status] = await new RepositoryStatusService().inspect({
+    start: scenario.storeRoot,
+    repositoryIds: ["frontend"],
+  });
+
+  assert.equal(status.state, "connected");
+  assert.equal(status.connected, true);
+  assert.equal(status.remoteMatches, true);
+  assert.equal(status.branch, "");
 });
 
 test("RepositoryStatusService reports missing and dirty checkouts without fixing them", async (t) => {
@@ -132,65 +177,4 @@ test("RepositoryStatusService rejects unknown filters and corrupted Core state",
     service.inspect({ start: scenario.storeRoot, repositoryIds: ["frontend"] }),
     /STATE_CORRUPTED/,
   );
-});
-
-test("CandidateCli preserves repository status filters", async () => {
-  const calls = [];
-  const cli = new CandidateCli({
-    repositoryStatusService: {
-      async inspect(options) {
-        calls.push(options);
-        return [];
-      },
-    },
-  });
-
-  await cli.createProgram().parseAsync([
-    "node",
-    "openspec-orch",
-    "repository",
-    "status",
-    "--repo",
-    "frontend",
-    "--repo",
-    "backend",
-  ]);
-  assert.deepEqual(calls, [{ repositoryIds: ["frontend", "backend"] }]);
-});
-
-test("CandidateCli presents repository status with visual checks", async (t) => {
-  const output = [];
-  t.mock.method(console, "log", (value) => output.push(value));
-  const cli = new CandidateCli({
-    repositoryStatusService: {
-      async inspect() {
-        return [{
-          id: "frontend",
-          role: "code",
-          state: "connected",
-          path: "/workspace/frontend",
-          connected: true,
-          branch: "feature/status-output",
-          branchMatches: false,
-          remoteMatches: true,
-          clean: false,
-        }];
-      },
-    },
-  });
-
-  await cli.createProgram().parseAsync([
-    "node",
-    "openspec-orch",
-    "repository",
-    "status",
-  ]);
-
-  assert.deepEqual(output, [
-    "✓ frontend [code] — подключён",
-    "  Путь: /workspace/frontend",
-    "  ✗ Ветка: feature/status-output — не совпадает с default_branch",
-    "  ✓ Remote: совпадает",
-    "  ⚠ Рабочее дерево: есть изменения",
-  ]);
 });

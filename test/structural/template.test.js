@@ -16,6 +16,7 @@ import { parse, stringify } from "yaml";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/default/", import.meta.url));
 const AGENTS_ROOT = fileURLToPath(new URL("../../agents/", import.meta.url));
+const PROJECT_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
 /** Возвращает POSIX paths всех обычных файлов ниже directory. */
 async function listFiles(directory, relative = "") {
@@ -270,6 +271,46 @@ test("both schemas use one universal human Feature Acceptance", async () => {
   assert.doesNotMatch(contract, /Responsible participant/u);
   assert.doesNotMatch(contract, /commit|artifact|deployment|timestamp|Verified at/iu);
   assert.doesNotMatch(contract, /PASS_WITH_WARNINGS/u);
+});
+
+test("Jira Story delivery policy keeps Planning ownership and closeout order explicit", async () => {
+  const delivery = await fs.readFile(
+    path.join(PROJECT_ROOT, "docs/user/story-delivery-process.md"),
+    "utf8",
+  );
+  const glossary = await fs.readFile(path.join(PROJECT_ROOT, "CONTEXT.md"), "utf8");
+  const qualityGates = await fs.readFile(
+    path.join(TEMPLATE_ROOT, "context/07-quality-gates.md"),
+    "utf8",
+  );
+
+  for (let stage = 1; stage <= 10; stage += 1) {
+    assert.match(delivery, new RegExp(`^## ${stage}\\.`, "mu"), `missing stage ${stage}`);
+  }
+  assert.match(delivery, /Аналитик \| Discovery, все Planning-артефакты/u);
+  assert.match(delivery, /PR ревьюят разработчик, тестировщик и лид разработки/su);
+  assert.match(delivery, /Code PR в Integration branch соответствующего Code\s+Repository/u);
+  assert.match(delivery, /Story Store PR/u);
+  assert.match(delivery, /Git Flow обязателен для центрального Store и всех Code Repositories/u);
+  assert.match(delivery, /Production branch/u);
+  assert.match(delivery, /Integration branch/u);
+  assert.match(delivery, /Конкретные имена и префиксы задаёт команда/u);
+  assert.match(delivery, /Story Store PR из Store Story branch в\s+Integration branch Store/u);
+  assert.ok(delivery.indexOf("## 8. ИФТ") < delivery.indexOf("## 9. Archive"));
+  assert.ok(delivery.indexOf("## 9. Archive") < delivery.indexOf("## 10. UAT"));
+  assert.match(glossary, /\*\*Store Story branch\*\*/u);
+  assert.match(glossary, /\*\*Story Store PR\*\*/u);
+  assert.match(qualityGates, /Archive.*UAT/su);
+  assert.match(
+    await fs.readFile(path.join(TEMPLATE_ROOT, "context/08-release-process.md"), "utf8"),
+    /Store и все Code Repositories должны следовать одной/u,
+  );
+  assert.match(delivery, /^## Применение процесса одним человеком$/mu);
+  for (const removedFlow of ["team-flow.md", "solo-flow.md"]) {
+    await assert.rejects(fs.access(path.join(PROJECT_ROOT, "docs/user", removedFlow)), {
+      code: "ENOENT",
+    });
+  }
 });
 
 test("superspec-multirepo preserves the complete skill-driven lifecycle", async () => {
