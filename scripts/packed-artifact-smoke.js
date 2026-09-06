@@ -11,6 +11,15 @@ const distributionManifest = JSON.parse(
   await fs.readFile(path.join(root, "package.json"), "utf8"),
 );
 const distributionVersion = distributionManifest.version;
+const npmCli = process.env.npm_execpath;
+if (typeof npmCli !== "string" || !path.isAbsolute(npmCli)) {
+  throw new Error("PACKED_SMOKE_NPM_UNAVAILABLE: запустите через npm run test:pack");
+}
+
+/** Invokes the current npm CLI through Node without platform-specific shell wrappers. */
+function runNpm(args, options) {
+  return execFileSync(process.execPath, [npmCli, ...args], options);
+}
 
 /** Resolves every publishable workspace from the root npm workspace declarations. */
 async function publishableRoots() {
@@ -51,8 +60,7 @@ try {
   const imports = [];
   for (const { manifest, packageRoot } of packages) {
     const absoluteRoot = path.resolve(root, packageRoot);
-    const output = execFileSync(
-      "npm",
+    const output = runNpm(
       ["pack", absoluteRoot, "--json", "--pack-destination", artifacts],
       { cwd: root, encoding: "utf8", env: npmEnvironment },
     );
@@ -78,7 +86,7 @@ try {
     type: "module",
     dependencies,
   }, null, 2)}\n`);
-  execFileSync("npm", [
+  runNpm([
     "install",
     "--ignore-scripts",
     "--install-links",
