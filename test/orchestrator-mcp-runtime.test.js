@@ -59,7 +59,15 @@ test("public MCP executable completes stdio handshake and calls Core Doctor", as
 test("public MCP calls an external Agent-only Plugin and still serves Core status", async (t) => {
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-mcp-plugin-")));
   const sourceRoot = path.join(root, "external-agent-plugin");
-  t.after(() => fs.rm(root, { force: true, recursive: true }));
+  const client = new Client({ name: "external-plugin-smoke", version: "1.0.0" });
+  t.after(async () => {
+    // Windows keeps the server's working directory locked until the process exits.
+    try {
+      await client.close();
+    } finally {
+      await fs.rm(root, { force: true, recursive: true, maxRetries: 5, retryDelay: 100 });
+    }
+  });
   await execa("git", ["init", "--initial-branch", "main", root]);
   await fs.mkdir(path.join(root, ".openspec-store"));
   await fs.mkdir(path.join(root, "openspec"));
@@ -127,8 +135,6 @@ export default definePlugin({
     env: { ...process.env },
     stderr: "pipe",
   });
-  const client = new Client({ name: "external-plugin-smoke", version: "1.0.0" });
-  t.after(() => client.close());
   await client.connect(transport);
 
   const tools = await client.listTools();

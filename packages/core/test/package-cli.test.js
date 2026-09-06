@@ -1,6 +1,7 @@
 /** @fileoverview Публичная CLI-грамматика npm package supply. */
 
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 
 import { Command } from "commander";
@@ -32,7 +33,7 @@ test("ExtensionCommands and PackageCommands expose separate public groups", asyn
     available: 0,
   });
   const extensionCommands = new ExtensionCommands({
-    cwd: "/workspace/client",
+    cwd: path.resolve("/workspace/client"),
     extensionApplication: {
       async install(project, id, source) {
         calls.push(["install", project, id, source]);
@@ -82,10 +83,10 @@ test("ExtensionCommands and PackageCommands expose separate public groups", asyn
   await rollbackRemove();
 
   assert.deepEqual(calls, [
-    ["install", storeProject, "workflow", "/workspace/client/workflow"],
+    ["install", storeProject, "workflow", path.resolve("/workspace/client/workflow")],
     ["connect", "workflow"],
     ["status", "workflow"],
-    ["install", storeProject, "workflow", "/workspace/workflow-v2"],
+    ["install", storeProject, "workflow", path.resolve("/workspace/workflow-v2")],
     ["status", "workflow"],
     ["disconnect", "workflow"],
     ["native-remove", "workflow"],
