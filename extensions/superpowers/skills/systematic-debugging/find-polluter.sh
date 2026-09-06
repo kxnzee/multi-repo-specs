@@ -1,63 +1,37 @@
 #!/usr/bin/env bash
-# Bisection script to find which test creates unwanted files/state
-# Usage: ./find-polluter.sh <file_or_dir_to_check> <test_pattern>
-# Example: ./find-polluter.sh '.git' 'src/**/*.test.ts'
-
-set -e
-
+# Sequential scan, not bisection. Run only in an isolated test checkout.
+# Usage: find-polluter.sh <absent-file-or-directory> <test-path-pattern>
+# Pattern is relative to cwd, e.g. 'src/*.test.ts' (find's * crosses /).
+# Exit: 0 all selected tests passed without pollution; 1 polluter; 2 inconclusive.
+set -euo pipefail
 if [ $# -ne 2 ]; then
-  echo "Usage: $0 <file_to_check> <test_pattern>"
-  echo "Example: $0 '.git' 'src/**/*.test.ts'"
-  exit 1
+  echo "usage: find-polluter.sh <absent-path> <test-pattern>" >&2
+  exit 2
 fi
-
-POLLUTION_CHECK="$1"
-TEST_PATTERN="$2"
-
-echo "🔍 Searching for test that creates: $POLLUTION_CHECK"
-echo "Test pattern: $TEST_PATTERN"
-echo ""
-
-# Get list of test files
-TEST_FILES=$(find . -path "$TEST_PATTERN" | sort)
-TOTAL=$(echo "$TEST_FILES" | wc -l | tr -d ' ')
-
-echo "Found $TOTAL test files"
-echo ""
-
-COUNT=0
-for TEST_FILE in $TEST_FILES; do
-  COUNT=$((COUNT + 1))
-
-  # Skip if pollution already exists
-  if [ -e "$POLLUTION_CHECK" ]; then
-    echo "⚠️  Pollution already exists before test $COUNT/$TOTAL"
-    echo "   Skipping: $TEST_FILE"
-    continue
+pollution=$1
+pattern="./${2#./}"
+if [ -e "$pollution" ] || [ -L "$pollution" ]; then
+  echo "inconclusive: pollution path already exists: $pollution" >&2
+  exit 2
+fi
+listing=$(mktemp)
+trap 'rm -f "$listing"' EXIT
+find . -type f -path "$pattern" -print0 > "$listing"
+count=0
+failures=0
+while IFS= read -r -d '' test_file; do
+  count=$((count + 1))
+  printf 'Testing: %s\n' "$test_file"
+  if ! npm test -- "$test_file"; then
+    failures=$((failures + 1))
   fi
-
-  echo "[$COUNT/$TOTAL] Testing: $TEST_FILE"
-
-  # Run the test
-  npm test "$TEST_FILE" > /dev/null 2>&1 || true
-
-  # Check if pollution appeared
-  if [ -e "$POLLUTION_CHECK" ]; then
-    echo ""
-    echo "🎯 FOUND POLLUTER!"
-    echo "   Test: $TEST_FILE"
-    echo "   Created: $POLLUTION_CHECK"
-    echo ""
-    echo "Pollution details:"
-    ls -la "$POLLUTION_CHECK"
-    echo ""
-    echo "To investigate:"
-    echo "  npm test $TEST_FILE    # Run just this test"
-    echo "  cat $TEST_FILE         # Review test code"
+  if [ -e "$pollution" ] || [ -L "$pollution" ]; then
+    printf 'Polluter: %s; created: %s\n' "$test_file" "$pollution"
     exit 1
   fi
-done
-
-echo ""
-echo "✅ No polluter found - all tests clean!"
-exit 0
+done < "$listing"
+if [ "$count" -eq 0 ] || [ "$failures" -ne 0 ]; then
+  echo "inconclusive: $count tests selected, $failures commands failed" >&2
+  exit 2
+fi
+echo "No polluter observed: $count selected test commands passed."

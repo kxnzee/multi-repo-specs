@@ -11,7 +11,15 @@ Load plan, review critically, execute all tasks, report when complete.
 
 **Announce at start:** "I'm using the executing-plans skill to implement this plan."
 
-**Note:** Tell your human partner that Superpowers works much better with access to subagents. The quality of its work will be significantly higher if run on a platform with subagent support (Claude Code, Codex CLI, Codex App, and Copilot CLI all qualify; inspect the current platform's available tools). If subagents are available, use superpowers:subagent-driven-development instead of this skill.
+**Note:** Tell your human partner that Superpowers works much better with access to subagents. The quality of its work will be significantly higher if run on a platform with subagent support (Claude Code, Codex CLI, Codex App, and Copilot CLI all qualify; inspect the current platform's available tools). Use superpowers:subagent-driven-development when subagents are available and authorized and the user has not selected inline execution. Otherwise keep this inline executor.
+
+## OpenSpec Apply mode
+
+When called by OpenSpec Apply, execute only the accepted repository scope and
+return verification evidence to the caller. Do not invoke
+finishing-a-development-branch automatically: publication, merge and Store Git
+remain separate authorized actions. Track micro-steps in local scratch; only
+completed coarse Tasks are checked in the Store by the Apply coordinator.
 
 ## The Process
 
@@ -31,7 +39,8 @@ For each task:
 
 ### Step 3: Complete Development
 
-After all tasks complete and verified:
+For OpenSpec Apply, return the scoped result to the caller. For standalone execution,
+after all tasks complete and verified:
 - Announce: "I'm using the finishing-a-development-branch skill to complete this work."
 - **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
 - Follow that skill to verify tests, present options, execute choice

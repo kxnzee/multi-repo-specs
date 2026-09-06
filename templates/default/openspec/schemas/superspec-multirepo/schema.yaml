@@ -61,7 +61,9 @@ artifacts:
 
       Explain boundaries, contracts, decisions, alternatives and risks. Include a
       Repository Implementation Map using only IDs accepted in Proposal Repository
-      Impact. Code inspection may validate current state or feasibility; cite it as
+      Impact once Proposal exists; before then mark the map provisional and reconcile
+      it with the accepted Proposal before Tasks or Plan. Code inspection may validate
+      current state or feasibility; cite it as
       evidence and do not turn implementation accidents into Requirements.
     requires:
       - brainstorm
@@ -74,7 +76,9 @@ artifacts:
       Create one Delta Spec for every new or modified capability in proposal.md.
       Requirements use SHALL or MUST and every Requirement has at least one level-4
       Scenario with WHEN and THEN. MODIFIED contains the complete resulting
-      Requirement, not a partial diff.
+      Requirement, not a partial diff. Preserve existing Scenario IDs and give new
+      Scenarios a stable change-id suffix. For new capabilities include a Purpose
+      section of at least 50 characters; omit it for existing capabilities.
 
       Specs contain observable behavior, domain rules and public contracts only.
       Do not include repository paths, internal symbols, libraries, storage details

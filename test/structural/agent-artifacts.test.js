@@ -142,6 +142,7 @@ test("repository evidence delegation keeps one question per subagent invocation"
   const contracts = [...scout.matchAll(/~~~yaml\n([\s\S]*?)\n~~~/gu)]
     .map(([, contract]) => parse(contract));
   assert.equal(contracts.length, 2);
+  assert.ok(contracts[0].repository_evidence_request.anchors.length > 0);
   assert.deepEqual(
     Object.keys(contracts[0].repository_evidence_request),
     ["question_id", "question", "repository_id", "checkout_path", "revision", "anchors"],

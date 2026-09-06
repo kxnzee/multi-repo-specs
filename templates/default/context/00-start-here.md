@@ -22,7 +22,7 @@ Verification Contract, но их artifact graph и инженерный проц
   точных `repository-id`, а связи репозиториев и Specs — из принятых Repository
   Impact и Delta Specs. Локальное техническое устройство читайте только в самих Code
   Repositories и их файлах инструкций агента.
-- Не переносите в центральный Store структуру модулей и классов, версии технологий,
+- Не переносите в долговечный `openspec/context/` структуру модулей и классов, версии технологий,
   локальные API/config-параметры, команды build/test/lint, CI и упаковку отдельного
   Code Repository.
 - Для инициализации, аудита и обновления используйте команду `/spec-driven-extended-context`.

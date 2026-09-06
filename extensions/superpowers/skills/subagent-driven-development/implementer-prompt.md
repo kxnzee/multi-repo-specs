@@ -19,6 +19,16 @@ Subagent (general-purpose):
 
     [Scene-setting: where this fits, dependencies, architectural context]
 
+    ## Binding Constraints and Authority
+
+    [GLOBAL_CONSTRAINTS — exact plan/spec constraints applying to this task]
+    Repository: [REPOSITORY_ID]; checkout: [DIRECTORY]; base: [FULL_BASE_SHA].
+    TDD requirement: [REQUIRED_OR_ACCEPTED_EXCEPTION].
+    Commit authority: [AUTHORIZED_SCOPE_OR_NO_COMMIT].
+    Read the checkout instructions. Never commit other agents' or user changes.
+    If commits are not authorized, return verified work and say it is uncommitted;
+    do not report a committed repository result.
+
     ## Before You Begin
 
     If you have questions about:
@@ -35,7 +45,7 @@ Subagent (general-purpose):
     1. Implement exactly what the task specifies
     2. Write tests (following TDD if task says to)
     3. Verify implementation works
-    4. Commit your work
+    4. Commit only if authorized above
     5. Self-review (see below)
     6. Report back
 
@@ -54,7 +64,8 @@ Subagent (general-purpose):
     - Follow the file structure defined in the plan
     - Each file should have one clear responsibility with a well-defined interface
     - If a file you're creating is growing beyond the plan's intent, stop and report
-      it as DONE_WITH_CONCERNS — don't split files on your own without plan guidance
+      it as BLOCKED or NEEDS_CONTEXT if unfinished; use DONE_WITH_CONCERNS only
+      for completed work — don't split files on your own without plan guidance
     - If an existing file you're modifying is already large or tangled, work carefully
       and note it as a concern in your report
     - In existing codebases, follow established patterns. Improve code you're touching

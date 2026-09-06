@@ -40,5 +40,6 @@ Accepted
 
 ## Related context
 
-Связанные context-файлы, Specs, Changes, документы или исходный код.
+Связанные context-файлы, Specs, Changes и принятые нормативные документы.
+Код подтверждает current state, но не заменяет принятое решение и его WHY.
 ```

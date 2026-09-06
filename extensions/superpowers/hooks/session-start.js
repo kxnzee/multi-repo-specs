@@ -7,4 +7,5 @@ const bootstrap = await readFile(
   new URL("../skills/using-superpowers/SKILL.md", import.meta.url),
   "utf8",
 );
-process.stdout.write(bootstrap);
+const instructions = await readFile(new URL("../agent-instructions.md", import.meta.url), "utf8");
+process.stdout.write(`${instructions}\n${bootstrap}`);

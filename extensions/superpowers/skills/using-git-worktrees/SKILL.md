@@ -18,25 +18,24 @@ Ensure work happens in an isolated workspace. Prefer your platform's native work
 **Before creating anything, check if you are already in an isolated workspace.**
 
 ```bash
-GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
-GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
+WORKSPACE_GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
+WORKSPACE_GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
 BRANCH=$(git branch --show-current)
 ```
 
-**Submodule guard:** `GIT_DIR != GIT_COMMON` is also true inside git submodules. Before concluding "already in a worktree," verify you are not in a submodule:
+Submodule status does not determine isolation. Compare the two canonical Git
+directories; a linked worktree of a submodule can also be isolated. Confirm the
+repository identity, assigned scope, branch and clean state before reusing it.
 
-```bash
-# If this returns a path, you're in a submodule, not a worktree — treat as normal repo
-git rev-parse --show-superproject-working-tree 2>/dev/null
-```
-
-**If `GIT_DIR != GIT_COMMON` (and not a submodule):** You are already in a linked worktree. Skip to Step 2 (Project Setup). Do NOT create another worktree.
+**If `WORKSPACE_GIT_DIR != WORKSPACE_GIT_COMMON`:** You are already in a linked worktree. Reuse only if its repository and branch match the task. Otherwise stop and resolve
+the assignment; do not reuse an unrelated branch or create a nested worktree.
+Then skip to Step 2 (Project Setup).
 
 Report with branch state:
 - On a branch: "Already in isolated workspace at `<path>` on branch `<name>`."
 - Detached HEAD: "Already in isolated workspace at `<path>` (detached HEAD, externally managed). Branch creation needed at finish time."
 
-**If `GIT_DIR == GIT_COMMON` (or in a submodule):** You are in a normal repo checkout.
+**If `WORKSPACE_GIT_DIR == WORKSPACE_GIT_COMMON`:** You are in a normal repo checkout.
 
 Has the user already indicated their worktree preference in your instructions? If not, ask for consent before creating a worktree:
 
@@ -80,10 +79,12 @@ Follow this priority order. Explicit user preference always beats observed files
 **MUST verify directory is ignored before creating worktree:**
 
 ```bash
-git check-ignore -q .worktrees 2>/dev/null || git check-ignore -q worktrees 2>/dev/null
+git check-ignore -q -- "$LOCATION/"
 ```
 
-**If NOT ignored:** Add to .gitignore, commit the change, then proceed.
+**If NOT ignored:** add the exact selected directory to the repository-local Git
+exclude file (`git rev-parse --git-path info/exclude`) or use an authorized
+.gitignore change. Re-check the selected path. Do not create an unrelated commit.
 
 **Why critical:** Prevents accidentally committing worktree contents to repository.
 
@@ -91,32 +92,25 @@ git check-ignore -q .worktrees 2>/dev/null || git check-ignore -q worktrees 2>/d
 
 ```bash
 # Determine path based on chosen location
-path="$LOCATION/$BRANCH_NAME"
+WORKTREE_PATH="$LOCATION/$BRANCH_NAME"
 
-git worktree add "$path" -b "$BRANCH_NAME"
-cd "$path"
+git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME"
+cd "$WORKTREE_PATH"
 ```
 
-**Sandbox fallback:** If `git worktree add` fails with a permission error (sandbox denial), tell the user the sandbox blocked worktree creation and you're working in the current directory instead. Then run setup and baseline tests in place.
+**Creation failure:** preserve the current checkout and report the error. Use the
+platform permission mechanism where available. Work in place only if isolation
+is optional under the current schema and the user has authorized that fallback;
+otherwise return a blocker. A sandbox error does not waive required isolation.
 
 ## Step 2: Project Setup
 
-Auto-detect and run appropriate setup:
-
-```bash
-# Node.js
-if [ -f package.json ]; then npm install; fi
-
-# Rust
-if [ -f Cargo.toml ]; then cargo build; fi
-
-# Python
-if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-if [ -f pyproject.toml ]; then poetry install; fi
-
-# Go
-if [ -f go.mod ]; then go mod download; fi
-```
+Read the repository instructions and locked dependency setup first. Reuse a verified
+existing setup. A package filename alone does not identify the package manager.
+For example, use `npm ci` with package-lock.json when the project prescribes npm;
+pyproject.toml does not imply Poetry. Do not run several package managers or modify
+lockfiles as an incidental setup step. Keep installations inside the intended
+workspace/environment.
 
 ## Step 3: Verify Clean Baseline
 
@@ -144,15 +138,15 @@ Ready to implement <feature-name>
 | Situation | Action |
 |-----------|--------|
 | Already in linked worktree | Skip creation (Step 0) |
-| In a submodule | Treat as normal repo (Step 0 guard) |
+| In a submodule | Check Git directories and assigned repository identity |
 | Native worktree tool available | Use it (Step 1a) |
 | No native tool | Git worktree fallback (Step 1b) |
 | `.worktrees/` exists | Use it (verify ignored) |
 | `worktrees/` exists | Use it (verify ignored) |
 | Both exist | Use `.worktrees/` |
 | Neither exists | Check instruction file, then default `.worktrees/` |
-| Directory not ignored | Add to .gitignore + commit |
-| Permission error on create | Sandbox fallback, work in place |
+| Directory not ignored | Ignore the selected path locally, then re-check |
+| Permission error on create | Preserve checkout; resolve required isolation |
 | Tests fail during baseline | Report failures + ask |
 | No package.json/Cargo.toml | Skip dependency install |
 

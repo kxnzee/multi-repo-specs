@@ -21,7 +21,8 @@ repository_evidence_request:
   repository_id: <repository-id>
   checkout_path: <absolute-path>
   revision: <full-commit-sha>
-  anchors: []
+  anchors:
+    - <точный path или symbol внутри переданного checkout>
 ~~~
 
 Все поля обязательны, `anchors` не пуст. Основной агент до вызова проверяет identity,

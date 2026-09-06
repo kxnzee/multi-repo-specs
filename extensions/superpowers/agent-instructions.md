@@ -2,7 +2,12 @@
 
 В этом Extension доступна нативная библиотека навыков Superpowers. До ответа или действия проверь, подходит ли к задаче один из навыков в `skills/`, и используй штатный механизм навыков текущего Agent.
 
-Основная маршрутизация:
+Для OpenSpec Change сначала получи актуальную schema и artifact instructions.
+Они определяют допустимый skill, output path и следующий этап. Готовые принятые
+Intent, Requirements или Plan не требуют повторного brainstorming. Вложенный skill
+возвращает управление OpenSpec и не запускает следующий artifact или branch closeout.
+
+Основная маршрутизация вне governed OpenSpec workflow:
 
 - новая функция или изменение поведения — `brainstorming`, затем `writing-plans`;
 - выполнение готового плана — `executing-plans` или `subagent-driven-development`;

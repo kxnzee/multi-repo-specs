@@ -73,7 +73,7 @@ function main(args) {
   const brief = extractTask(fs.readFileSync(plan, 'utf8'), number, repository);
   const destination = output ?? path.join(workspace(plan), `task-${repository ? repository + '-' : ''}${number}-brief.md`);
   fs.writeFileSync(destination, brief);
-  console.log(`wrote ${destination}`);
+  console.log(destination);
 }
 
 module.exports = { extractTask, workspace };

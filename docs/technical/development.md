@@ -151,3 +151,8 @@ vendored skills перечислены в `extensions/superpowers/NOTICE.md`.
 переносится автоматически. Без Bash доступны эквивалентные команды
 `node <skill-directory>/scripts/task-context.cjs brief ...` и `workspace ...`.
 Запускайте helpers из назначенного Code Repository, передавая точный путь плана.
+
+`test/agent-audit-helpers.test.js` исполняет дополнительные regression cases
+для shipped Bash helpers, review packages, visual events, renderer и bootstrap.
+Для shell cases нужен Bash (на Windows — Git Bash из Git for Windows).
+[Полный аудит](agent-audit.md) содержит инвентарь, исправления и ограничения проверки.

@@ -41,6 +41,8 @@ argument-hint: "[change-id]"
    поля `openspec_status.planningHome`, `openspec_status.changeRoot`,
    `openspec_status.artifactPaths` и `openspec_status.actionContext`, не
    собирать пути вручную.
+   Если `openspec_status.schemaName` не `spec-driven-extended`, вернуть
+   `BLOCKER: SCHEMA_MISMATCH`; использовать маршрут выбранной schema.
 3. Прочитать все существующие файлы из `openspec_status.artifactPaths.<id>.existingOutputPaths`.
    Обычно это proposal, delta specs, design и tasks, но набор определяет активная
    schema. Отметить отсутствующие или пропущенные источники. Если существует

@@ -98,13 +98,16 @@ npm test 2>&1 | grep 'DEBUG git init'
 
 If something appears during tests but you don't know which test:
 
-Use the bisection script `find-polluter.sh` in this directory:
+Use the sequential scan script `find-polluter.sh` in this directory:
 
 ```bash
-./find-polluter.sh '.git' 'src/**/*.test.ts'
+./find-polluter.sh 'unexpected-output' 'src/*.test.ts'
 ```
 
-Runs tests one-by-one, stops at first polluter. See script for usage.
+Run in an isolated checkout with the pollution path initially absent. Verify that
+`npm test -- <file>` runs only that file for this project. The script stops at the
+first polluter; no matches, pre-existing pollution or failed test commands are
+inconclusive (exit 2), not a clean result. It does not test order-dependent pairs.
 
 ## Real Example: Empty projectDir
 

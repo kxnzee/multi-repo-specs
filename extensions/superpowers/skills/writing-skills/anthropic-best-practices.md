@@ -1,5 +1,13 @@
 # Skill authoring best practices
 
+> Vendored reference snapshot from the Superpowers version in NOTICE.md, not a
+> live provider contract. Example paths describe hypothetical skills. For current
+> metadata use https://agentskills.io/specification: name is a lowercase slug
+> matching its directory (1-64 characters), description is 1-1024 characters.
+> Human-readable names with spaces below are display examples, not valid slugs.
+> Runtime/network/tool-name behavior must be checked for the selected provider.
+> Missing required inputs or permission failures must not become fabricated defaults.
+
 > Learn how to write effective Skills that agents can discover and use successfully.
 
 Good Skills are concise, well-structured, and tested with real usage. This guide provides practical authoring decisions to help you write Skills that agents can discover and use effectively.

@@ -61,12 +61,12 @@ This determines which menu to show and how cleanup works:
 
 ### Step 3: Determine Base Branch
 
-```bash
-# Try common base branches
-git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
-```
-
-Or ask: "This branch split from main - is that correct?"
+Resolve the target branch and remote from the accepted project Git Flow or the
+user request. `git merge-base` computes a revision; it does not identify the
+authorized PR target. If the target is unknown, ask before mutation. Record the
+feature branch and full HEAD. Preserve any unrelated dirty/staged changes.
+Use `git worktree list --porcelain` to locate the existing target checkout; do not
+assume the common Git directory lives immediately below the main working tree.
 
 ### Step 4: Present Options
 
@@ -102,13 +102,13 @@ Which option?
 #### Option 1: Merge Locally
 
 ```bash
-# Get main repo root for CWD safety
-MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
+# Use the confirmed checkout path from git worktree list --porcelain
+MAIN_ROOT=<confirmed-main-or-target-checkout>
 cd "$MAIN_ROOT"
 
 # Merge first — verify success before removing anything
 git checkout <base-branch>
-git pull
+git pull --ff-only
 git merge <feature-branch>
 
 # Verify tests on merged result
@@ -129,6 +129,11 @@ git branch -d <feature-branch>
 # Push branch
 git push -u origin <feature-branch>
 ```
+
+After a successful push, create or reuse the PR through the configured hosting
+CLI/API with the confirmed base and head. Return its URL; a push alone does not
+complete this action. If hosting access is unavailable, report the published branch
+and the pending PR explicitly.
 
 **Do NOT clean up worktree** — user needs it alive to iterate on PR feedback.
 
@@ -154,7 +159,7 @@ Wait for exact confirmation.
 
 If confirmed:
 ```bash
-MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
+MAIN_ROOT=<confirmed-main-or-target-checkout>
 cd "$MAIN_ROOT"
 ```
 
@@ -162,6 +167,15 @@ Then: Cleanup worktree (Step 6), then force-delete branch:
 ```bash
 git branch -D <feature-branch>
 ```
+
+### Detached-HEAD actions
+
+Dispatch by the displayed action name, not the standard option number. For
+Push/PR, first create a user-approved branch at the captured HEAD and then follow
+Push and Create PR above. Keep preserves HEAD. Discard requires a concrete list
+of owned changes and explicit confirmation; for an externally managed detached
+workspace, use its authorized platform cleanup flow. Do not guess a branch to
+delete, reset the shared checkout or run named-branch Discard commands.
 
 ### Step 6: Cleanup Workspace
 

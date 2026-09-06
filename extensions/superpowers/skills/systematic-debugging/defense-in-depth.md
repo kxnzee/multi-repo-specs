@@ -53,13 +53,17 @@ function initializeWorkspace(projectDir: string, sessionId: string) {
 **Purpose:** Prevent dangerous operations in specific contexts
 
 ```typescript
+// Imports: realpathSync from node:fs; resolve, relative, sep, isAbsolute
+// from node:path; tmpdir from node:os.
 async function gitInit(directory: string) {
   // In tests, refuse git init outside temp directories
   if (process.env.NODE_ENV === 'test') {
-    const normalized = normalize(resolve(directory));
-    const tmpDir = normalize(resolve(tmpdir()));
+    // Existing directories: resolve symlinks before checking containment.
+    const normalized = realpathSync(resolve(directory));
+    const tmpDir = realpathSync(tmpdir());
+    const child = relative(tmpDir, normalized);
 
-    if (!normalized.startsWith(tmpDir)) {
+    if (!child || child === '..' || child.startsWith('..' + sep) || isAbsolute(child)) {
       throw new Error(
         `Refusing git init outside temp dir during tests: ${directory}`
       );

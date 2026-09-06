@@ -86,15 +86,18 @@ You MUST complete each phase before proceeding to the next.
    THEN investigate that specific component
    ```
 
+   Log only the minimal non-sensitive metadata needed. Never dump environment
+   variables, credentials, tokens or full request/response bodies.
+
    **Example (multi-layer system):**
    ```bash
    # Layer 1: Workflow
    echo "=== Secrets available in workflow: ==="
-   echo "IDENTITY: ${IDENTITY:+SET}${IDENTITY:-UNSET}"
+   if [ -n "${IDENTITY:-}" ]; then echo "IDENTITY: SET"; else echo "IDENTITY: UNSET"; fi
 
    # Layer 2: Build script
    echo "=== Env vars in build script: ==="
-   env | grep IDENTITY || echo "IDENTITY not in environment"
+   if [ -n "${IDENTITY:-}" ]; then echo "IDENTITY: SET"; else echo "IDENTITY: UNSET"; fi
 
    # Layer 3: Signing script
    echo "=== Keychain state: ==="

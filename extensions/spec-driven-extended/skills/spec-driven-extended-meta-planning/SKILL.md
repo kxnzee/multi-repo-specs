@@ -32,6 +32,11 @@ request проверяет один вопрос в одном Repository.
 
 ## Предварительная проверка
 
+0. Определить точный Change из запроса или Work Context; при неоднозначности
+   запросить выбор. Сначала получить `get_change_context` без `artifact` и проверить
+   `openspec_status.schemaName`. Если это не `spec-driven-extended`, вернуть
+   `BLOCKER: SCHEMA_MISMATCH` и не применять этот checklist. Актуальный ответ
+   с уже проверенной schema переиспользовать.
 1. Переиспользовать актуальный Work Context для того же `change_id` и текущего
    `artifact`; при его отсутствии или после границы свежести вызвать MCP
    `get_change_context`. Для proposal, specs, design и tasks передавать одноимённый
@@ -115,10 +120,13 @@ spec-driven-extended-repository-evidence-scout.
 - Общий или межрепозиторный вопрос сначала разложить на независимые
   repository-specific вопросы. Для каждого подготовить собственные question_id,
   полный входной контракт и отдельный результат.
-- Передать question_id, question, один repository-id, checkout, revision и anchors из
-  уже полученного `assignment_scope`. Если его нет, вызвать `get_assignment_scope` один
-  раз для всей декомпозиции и переиспользовать результат. Чистоту worktree проверить до
-  вызова.
+- Взять repository-id, checkout и revision из `assignment_scope.assignments`;
+  `anchors` этот MCP-ответ не содержит. Сформировать непустой список anchors из
+  переданных пользователем точных путей/symbols или уже подтверждённого evidence.
+  Если anchors неизвестны, вернуть unknown и запросить точку входа, не начинать
+  общий обход кода. Добавить собственные question_id и один question.
+  Если scope отсутствует, вызвать `get_assignment_scope` один раз для всей
+  декомпозиции. До вызова проверить connected, полный SHA и чистоту worktree.
 - Для каждого вызова принять только один YAML-объект `repository_evidence` с тем же
   question_id и полями status, answer и evidence. Текст до или после YAML
   считать нарушением контракта и не использовать как evidence.

@@ -42,6 +42,14 @@ digraph when_to_use {
 - Review after each task (spec compliance + code quality), broad review at the end
 - Faster iteration (no human-in-loop between tasks)
 
+## OpenSpec Apply mode
+
+When called by OpenSpec Apply, execute only the accepted repository scope and
+return verification evidence to the caller. Do not invoke
+finishing-a-development-branch automatically: publication, merge and Store Git
+remain separate authorized actions. Track micro-steps in local scratch; only
+completed coarse Tasks are checked in the Store by the Apply coordinator.
+
 ## The Process
 
 ```dot
@@ -237,7 +245,10 @@ and is re-read on every later turn. Hand artifacts over as files:
   from earlier tasks that the brief cannot know; (4) your resolution of
   any ambiguity you noticed in the brief; (5) the report-file path and
   report contract. Exact values (numbers, magic strings, signatures, test
-  cases) appear only in the brief.
+  cases) appear only in the brief. Include a separate required Global Constraints
+  block copied from the plan/spec, plus the repository ID, checkout, full base SHA,
+  TDD requirement and authorized commit scope. The extractor selects task text only;
+  it does not copy these plan-level constraints.
 - **Report file:** name the implementer's report file after the brief
   (brief `…/task-N-brief.md` → report `…/task-N-report.md`) and put it in
   the dispatch prompt. The implementer writes the full report there and

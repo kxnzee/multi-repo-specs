@@ -9,5 +9,5 @@
 <!-- TODO
 question: Какие условия должны сохраняться сразу в нескольких частях проекта?
 owner: unassigned
-expected_source: Contracts, code, tests, maintained requirements, or accepted ADRs
+expected_source: Owner-confirmed contracts, maintained requirements, or accepted ADRs
 -->

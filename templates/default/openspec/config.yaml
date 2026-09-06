@@ -13,9 +13,12 @@ context: |
   стадии или создавать параллельные planning documents.
 
   Intent, Proposal, Requirements и Scenarios формируй без чтения Code Repository.
-  Code разрешено открывать на Design, Tasks и Apply только для проверки заранее
-  сформулированного current-state или feasibility утверждения. Evidence, code
-  inventory, внутренние symbols и path:line не переносятся в центральный Store.
+  Для spec-driven-extended Code разрешено открывать на Design, Tasks и Apply только
+  для проверки заранее сформулированного current-state или feasibility утверждения;
+  внутренние symbols, code inventory и path:line не переносятся в его artifacts.
+  Для superspec-multirepo исследование на Brainstorm, Design, Plan, Apply и Verify
+  следует schema и подтверждённому repository scope; Plan содержит точные пути,
+  команды и ожидаемые результаты. Долговечный openspec/context/ не хранит эти детали.
 
 rules:
   proposal:

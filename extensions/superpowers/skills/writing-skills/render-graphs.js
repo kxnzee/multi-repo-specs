@@ -13,13 +13,14 @@
  * Requires: graphviz (dot) installed on system
  */
 
-const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
+(async () => {
+const fs = await import('node:fs');
+const path = await import('node:path');
+const { execFileSync } = await import('node:child_process');
 
 function extractDotBlocks(markdown) {
   const blocks = [];
-  const regex = /```dot\n([\s\S]*?)```/g;
+  const regex = /```dot\r?\n([\s\S]*?)```/g;
   let match;
 
   while ((match = regex.exec(markdown)) !== null) {
@@ -58,7 +59,7 @@ function combineGraphs(blocks, skillName) {
   }`;
   });
 
-  return `digraph ${skillName}_combined {
+  return `digraph ${JSON.stringify(skillName + "_combined")} {
   rankdir=TB;
   compound=true;
   newrank=true;
@@ -69,7 +70,7 @@ ${bodies.join('\n\n')}
 
 function renderToSvg(dotContent) {
   try {
-    return execSync('dot -Tsvg', {
+    return execFileSync('dot', ['-Tsvg'], {
       input: dotContent,
       encoding: 'utf-8',
       maxBuffer: 10 * 1024 * 1024
@@ -109,7 +110,7 @@ function main() {
 
   // Check if dot is available
   try {
-    execSync('which dot', { encoding: 'utf-8' });
+    execFileSync('dot', ['-V'], { encoding: 'utf-8', stdio: 'pipe' });
   } catch {
     console.error('Error: graphviz (dot) not found. Install with:');
     console.error('  brew install graphviz    # macOS');
@@ -147,6 +148,7 @@ function main() {
       console.log(`  Source: ${skillName}_combined.dot`);
     } else {
       console.error('  Failed to render combined diagram');
+      process.exitCode = 1;
     }
   } else {
     // Render each separately
@@ -158,6 +160,7 @@ function main() {
         console.log(`  Rendered: ${block.name}.svg`);
       } else {
         console.error(`  Failed: ${block.name}`);
+        process.exitCode = 1;
       }
     }
   }
@@ -166,3 +169,4 @@ function main() {
 }
 
 main();
+})().catch(error => { console.error(error.message); process.exitCode = 1; });
