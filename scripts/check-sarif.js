@@ -59,7 +59,11 @@ export function blockingFindings(report) {
       if (!Number.isFinite(severity)) throw new Error("SARIF_INVALID: invalid security severity");
       const level = result.level ?? rule.defaultConfiguration?.level;
       if (severity < 7 && level !== "error") return [];
-      return [`${rule.id}: severity=${severity}, level=${level ?? "warning"}`];
+      const location = result.locations?.[0]?.physicalLocation;
+      const where = location
+        ? `${location.artifactLocation?.uri ?? "unknown"}:${location.region?.startLine ?? "?"}`
+        : "location unavailable";
+      return [`${rule.id}: severity=${severity}, level=${level ?? "warning"}; ${where}`];
     });
   });
 }

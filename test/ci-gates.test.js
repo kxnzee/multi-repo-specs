@@ -73,6 +73,10 @@ test("SARIF gate blocks high, critical and error-level findings but accepts medi
   assert.deepEqual(blockingFindings(sarif("6.9")), []);
   assert.equal(blockingFindings(sarif("0", "error")).length, 1);
   const report = sarif();
+  report.runs[0].results[0].locations = [{ physicalLocation: {
+    artifactLocation: { uri: "packages/core/example.js" }, region: { startLine: 42 },
+  } }];
+  assert.match(blockingFindings(report)[0], /packages\/core\/example\.js:42/);
   report.runs[0].results = [{ ruleIndex: 0 }];
   assert.equal(blockingFindings(report).length, 1);
   report.runs[0].results = [];
