@@ -41,6 +41,8 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
         type: "object",
         properties: Object.freeze({
           id: Object.freeze({ type: "string", minLength: 1 }),
+          count: Object.freeze({ type: "integer", minimum: 1 }),
+          filter: Object.freeze({ type: "object", properties: { enabled: { type: "boolean" } }, required: ["enabled"], additionalProperties: false }),
         }),
         required: Object.freeze(["id"]),
         additionalProperties: false,
@@ -293,6 +295,13 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     storeIncludedAsCode.content[0].text,
     /Store уже задан через store_id.*удалите specs из repositories.*не меняйте store_id/u,
   );
+  for (const extra of [{ count: "2" }, { count: 0 }, { filter: {} }, { filter: { enabled: "yes" } }]) {
+    const before = calls.length;
+    const rejected = await client.callTool({ name: "optional_read", arguments: { id: "sample", ...extra } });
+    assert.equal(rejected.isError, true);
+    assert.match(rejected.content[0].text, /MCP_TOOL_INPUT_INVALID/);
+    assert.equal(calls.length, before);
+  }
   const pluginRead = await client.callTool({
     name: "optional_read",
     arguments: { id: "sample" },
@@ -493,4 +502,6 @@ test("Store resources reject unsafe schema artifact paths", async () => {
     new StoreResourceService({ files, storeId: "specs" }).list(),
     /generates небезопасен/u,
   );
+  content.set("openspec/schemas/unsafe/schema.yaml", "artifacts: [null]\n");
+  await assert.rejects(new StoreResourceService({ files, storeId: "specs" }).list(), /MCP_RESOURCE_SCHEMA_INVALID/);
 });
