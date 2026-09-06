@@ -15,13 +15,36 @@ Archive остаются процессом команды.
 
 Change Tracking дополнительно требует OpenSpec `>=1.11.0 <2`.
 
+## Разработка и работа агента
+
+Для изменения этого репозитория достаточно Node.js и Git. Из чистого checkout:
+
+```bash
+git clone https://github.com/kxnzee/multi-repo-specs.git
+cd multi-repo-specs
+npm ci
+npm run check:environment
+npm run check
+```
+
+OpenSpec 1.11.0 устанавливается локально как dev dependency. Глобальный OpenSpec,
+`npm link` и вход в Agent providers для разработки не нужны. `.nvmrc` фиксирует
+Node 22.16.0 — минимальную версию из CI. Для полной проверки поставки выполните
+`npm run check:all`.
+
+Агент начинает с [AGENTS.md](AGENTS.md); команды для одного теста, карта кода и
+диагностика описаны в [руководстве разработчика](docs/technical/development.md).
+Инструкции в `templates/` и `extensions/` являются поставляемыми assets для
+пользовательских проектов.
+
 ## Установка для пилота
 
 ```bash
-git clone <orchestrator-repository> /absolute/path/to/openspec-orchestrator
+git clone https://github.com/kxnzee/multi-repo-specs.git /absolute/path/to/openspec-orchestrator
 cd /absolute/path/to/openspec-orchestrator
 git checkout <approved-tag-or-commit>
 npm ci
+npm install --global @fission-ai/openspec@1.11.0
 npm link
 openspec-orch --help
 ```
@@ -126,9 +149,9 @@ openspec-orch extension status <extension-id>
 Термины Store, Code Repository, OpenSpec Change и типы процессных PR закреплены в
 [глоссарии проекта](CONTEXT.md).
 
-Полная проверка репозитория:
+Полная проверка репозитория и устанавливаемых пакетов:
 
 ```bash
-npm run check
+npm run check:all
 git diff --check
 ```
