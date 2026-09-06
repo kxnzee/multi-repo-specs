@@ -5,23 +5,27 @@
 До публикации в npm registry Orchestrator устанавливается из отдельного Git
 checkout. Команда должна заранее согласовать immutable tag или commit.
 
-Если в checkout уже есть committed `package-lock.json`, используйте `npm ci`:
-команда установит зависимости точно по lockfile, и предварительный `npm install`
-не нужен. Если lockfile отсутствует, выполните `npm install`, проверьте созданный
-`package-lock.json` и сохраните его в приватном репозитории вместе с изменением
-зависимостей. После этого для повторяемых установок используйте `npm ci`.
+В репозитории хранится `package-lock.json`: `npm ci` устанавливает зафиксированное
+дерево зависимостей, предварительный `npm install` не нужен. Если lockfile отсутствует,
+проверьте выбранный commit и полноту checkout. Новый lockfile создаётся при намеренном
+изменении зависимостей и проходит review вместе с `package.json`.
 
 ```bash
-git clone <orchestrator-repository> /absolute/path/to/openspec-orchestrator
+git clone https://github.com/kxnzee/multi-repo-specs.git /absolute/path/to/openspec-orchestrator
 cd /absolute/path/to/openspec-orchestrator
 git checkout <approved-tag-or-commit>
-if [ -f package-lock.json ]; then npm ci; else npm install; fi
+npm ci
+npm install --global @fission-ai/openspec@1.11.0
 npm link
 openspec-orch --help
 ```
 
 После смены активной версии Node.js выполните `npm link` повторно. Без global link
 CLI можно запускать через `node /absolute/path/to/repo/bin/openspec-orch.js`.
+
+Глобальный OpenSpec нужен для команд из реального Store. Для разработки самого
+Orchestrator root npm-команды используют локальный OpenSpec из devDependencies;
+следуйте [подготовке окружения разработки](../technical/development.md).
 
 Центральный Store определяет принятую версию для команды. До появления
 machine-readable version pin выбранный tag или commit фиксируется в командной
@@ -33,8 +37,7 @@ machine-readable version pin выбранный tag или commit фиксиру
    необходимость обновить Agent payload.
 2. Сохраните текущий tag/commit для rollback.
 3. Переключите checkout на новую принятую identity.
-4. Установите зависимости через `npm ci` при наличии lockfile или через
-   `npm install`, если lockfile ещё не создан. Затем выполните `npm run check` и
+4. Установите зависимости через `npm ci`. Затем выполните `npm run check` и
    `npm link`.
 5. В каждом поддерживаемом Store выполните `openspec-orch doctor`.
 6. Если portable contracts не менялись, работа завершена.

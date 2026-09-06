@@ -44,8 +44,9 @@ Compliance. Schema выбирается отдельно для каждого C
   runtime requirements и version compatibility.
 - [CLI и MCP reference](technical/reference.md) — команды, flags, MCP surface и exit
   behavior.
-- [Разработка](technical/development.md) — структура checkout и обязательные
-  проверки.
+- [Разработка](technical/development.md) — воспроизводимая установка, локальный
+  OpenSpec, команды проверок, структура checkout и диагностика CI.
+- [Инструкции агента](../AGENTS.md) — маршрут работы над этим репозиторием.
 
 ## Источники истины
 

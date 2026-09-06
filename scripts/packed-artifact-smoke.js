@@ -18,7 +18,7 @@ if (typeof npmCli !== "string" || !path.isAbsolute(npmCli)) {
 
 /** Invokes the current npm CLI through Node without platform-specific shell wrappers. */
 function runNpm(args, options) {
-  return execFileSync(process.execPath, [npmCli, ...args], options);
+  return execFileSync(process.execPath, [npmCli, ...args], { timeout: 120000, ...options });
 }
 
 /** Resolves every publishable workspace from the root npm workspace declarations. */
@@ -97,16 +97,16 @@ try {
     "--input-type=module",
     "--eval",
     imports.map((specifier) => `import ${JSON.stringify(specifier)};`).join("\n"),
-  ], { cwd: consumer, stdio: "inherit" });
+  ], { cwd: consumer, stdio: "inherit", timeout: 30000 });
   const version = execFileSync(
     process.execPath,
     [path.join(consumer, "node_modules/openspec-orchestrator/bin/openspec-orch.js"), "--version"],
-    { cwd: consumer, encoding: "utf8" },
+    { cwd: consumer, encoding: "utf8", timeout: 30000 },
   ).trim();
   if (version !== distributionVersion) {
     throw new Error(`PACKED_SMOKE_VERSION_INVALID: ${version}; expected ${distributionVersion}`);
   }
   console.log(`Packed artifact smoke passed for ${packages.length} packages.`);
 } finally {
-  await fs.rm(temporary, { recursive: true, force: true });
+  await fs.rm(temporary, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
