@@ -112,15 +112,16 @@ traversal, symlink, collisions, неполного Agent pack и попытки 
 
 `connect` использует общий `ProjectSetupService`:
 
-1. проверяет native CLI выбранного Agent;
-2. разрешает и валидирует Store и Project;
-3. регистрирует Store и проверяет OpenSpec context;
-4. определяет workspace;
-5. проверяет или в strict mode клонирует Code Repositories;
-6. создаёт и проверяет OpenSpec pointers;
-7. подключает выбранные standalone Extensions;
-8. восстанавливает lifecycle доступных Plugin-owned Extensions;
-9. проверяет итоговое состояние Extensions и Plugins.
+1. разрешает и валидирует Store и Project;
+2. проверяет npm lock и при отсутствующем runtime восстанавливает его через `npm ci`;
+3. проверяет native CLI выбранного Agent;
+4. регистрирует Store и проверяет OpenSpec context;
+5. определяет workspace;
+6. проверяет или в strict mode клонирует Code Repositories;
+7. создаёт и проверяет OpenSpec pointers;
+8. подключает выбранные standalone Extensions;
+9. догружает и восстанавливает lifecycle Plugin-owned Extensions;
+10. проверяет итоговое состояние Extensions и Plugins.
 
 Существующий checkout не получает `pull`, `checkout`, `reset`, merge или другую
 скрытую Git mutation. Strict `connect` проверяет remote identity, clean state,
@@ -134,8 +135,8 @@ Relaxed mode не клонирует и не pin-ит Git state; явно пер
 
 Bundled Plugins загружаются из distribution. Внешние Plugins и standalone Extensions
 живут в одном npm-проекте `.openspec-orch/packages`: manifest и lockfile переносимы,
-а `node_modules` локален. Обычный `connect` не запускает npm; восстановление выполняет
-явная команда `package sync`. Если
+а `node_modules` локален. Обычный `connect` запускает `npm ci` только когда runtime
+отсутствует; `package sync` позволяет сделать это явно. Если
 объявленный Plugin недоступен или повреждён, Core и Doctor продолжают запускаться, а
 Plugin отображается как unavailable.
 
@@ -151,9 +152,16 @@ supply, но проверяет декларативный payload через Ex
 1. создаёт новый Repository-scoped `PluginContext`;
 2. выполняет repository contribution;
 3. подключает Plugin-owned Extension;
-4. сохраняет binding только после полного успеха.
+4. сохраняет binding только после полного успеха. При batch-ошибке Core откатывает
+   уже подключённые Agent Extensions в обратном порядке и не публикует bindings.
 
-`disconnect` сначала отключает Extension, затем удаляет binding. `remove`
+Граница этой гарантии — состояние, которым владеет Core: bindings и Agent Extensions.
+Произвольные side effects стороннего `repository.connect` через `files` или `process`
+не являются транзакционными: Plugin SDK не может безопасно определить, какие внешние
+данные допустимо удалить при компенсации.
+
+`disconnect` сначала отключает Extension, затем удаляет binding; при ошибке Core
+повторно подключает уже отключённые Extensions и сохраняет прежние bindings. `remove`
 разрешён только без bindings и удаляет declaration/dependency, но не tracked repository
 data и не произвольные tool-owned artifacts.
 

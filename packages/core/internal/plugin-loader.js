@@ -11,7 +11,7 @@ import {
   REPOSITORY_ROLE,
 } from "@openspec-orch/plugin-sdk";
 
-import { lstatOrNull } from "./fs.js";
+import { lstatOrNull, requireSafePath } from "./fs.js";
 import { isContainedPath } from "./path.js";
 
 const REPOSITORY_ROLES = new Set(Object.values(REPOSITORY_ROLE));
@@ -50,18 +50,11 @@ function assertPluginExport(plugin) {
 
 /** Проверяет ordinary file/directory chain внутри канонического package root. */
 async function requirePackagePath(packageRoot, relativePath) {
-  let current = packageRoot;
-  const segments = relativePath.split("/");
-  for (const [index, segment] of segments.entries()) {
-    current = path.join(current, segment);
-    const stat = await lstatOrNull(current);
-    if (!stat) invalid(`отсутствует ${relativePath}`);
-    if (stat.isSymbolicLink()) invalid(`${relativePath} содержит symlink`);
-    const final = index === segments.length - 1;
-    if (!final && !stat.isDirectory()) invalid(`${relativePath} проходит через файл`);
-    if (final && !stat.isFile()) invalid(`${relativePath} должен быть обычным файлом`);
+  try {
+    return await requireSafePath(packageRoot, relativePath);
+  } catch (error) {
+    invalid(error.message.replace(/^SAFE_PATH_INVALID:\s*/u, ""), { cause: error });
   }
-  return current;
 }
 
 /** Immutable загруженная связка package contract и Plugin export. */

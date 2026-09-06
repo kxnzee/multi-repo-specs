@@ -15,6 +15,7 @@ export const DISTRIBUTION_CONFIG = Object.freeze({
   plugins: Object.freeze(PACKAGE_MANIFEST.openspecOrchestrator.bundledPlugins.map((plugin) => (
     Object.freeze({ ...plugin })
   ))),
+  version: PACKAGE_MANIFEST.version,
 });
 
 const BUNDLED_ROOTS = Object.freeze({

@@ -82,12 +82,20 @@ export class PluginApplicationService {
   }
 
   /** Выполняет Plugin setup и публикует bindings одной project mutation. */
-  async connectMany(storeProject, pluginId, repositoryIds, operation) {
+  async connectMany(
+    storeProject,
+    pluginId,
+    repositoryIds,
+    operation,
+    rollback = async () => {},
+  ) {
     if (!(storeProject instanceof StoreProject)) invalid("требуется StoreProject");
     if (!Array.isArray(repositoryIds) || repositoryIds.length === 0) {
       invalid("repositoryIds должен быть непустым массивом");
     }
-    if (typeof operation !== "function") invalid("требуется connect operation");
+    if (typeof operation !== "function" || typeof rollback !== "function") {
+      invalid("требуются connect operation и rollback");
+    }
     const selectedIds = [...new Set(repositoryIds)];
     return this.#mutations.run(
       storeProject.root,
@@ -96,18 +104,33 @@ export class PluginApplicationService {
         for (const repositoryId of selectedIds) current.project.requireRepository(repositoryId);
         const changes = [];
         const connectedIds = [];
-        for (const repositoryId of selectedIds) {
-          if (current.project.isPluginConnected(pluginId, repositoryId)) {
-            changes.push(new PluginBindingChange({ changed: false, output: "" }));
-            continue;
+        try {
+          for (const repositoryId of selectedIds) {
+            if (current.project.isPluginConnected(pluginId, repositoryId)) {
+              changes.push(new PluginBindingChange({ changed: false, output: "" }));
+              continue;
+            }
+            const output = await operation(current, repositoryId);
+            connectedIds.push(repositoryId);
+            changes.push(new PluginBindingChange({ changed: true, output }));
           }
-          const output = await operation(current, repositoryId);
-          connectedIds.push(repositoryId);
-          changes.push(new PluginBindingChange({ changed: true, output }));
-        }
-        if (connectedIds.length > 0) {
-          current.project.connectPlugin(pluginId, connectedIds);
-          await this.#writeProject(current);
+          if (connectedIds.length > 0) {
+            current.project.connectPlugin(pluginId, connectedIds);
+            await this.#writeProject(current);
+          }
+        } catch (error) {
+          try {
+            for (const repositoryId of [...connectedIds].reverse()) {
+              await rollback(current, repositoryId);
+            }
+          } catch (cause) {
+            throw new AggregateError(
+              [error, cause],
+              `PLUGIN_CONNECT_ROLLBACK_FAILED: ${pluginId}`,
+              { cause: error },
+            );
+          }
+          throw error;
         }
         return Object.freeze(changes);
       },

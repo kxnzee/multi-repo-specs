@@ -205,6 +205,35 @@ class ExecutionCommandRegistry {
   }
 }
 
+/** Compiles the public builder once for runtime execution and contract inspection. */
+export function compilePluginCommands(registerCommands, context) {
+  if (typeof registerCommands !== "function") invalid("требуется registerCommands");
+  const registry = new ExecutionCommandRegistry(context);
+  registerCommands(registry);
+  return registry.commands;
+}
+
+/** Verifies the exact runtime grammar without invoking any registered action. */
+export function inspectPluginCommands(registerCommands) {
+  try {
+    const commands = compilePluginCommands(registerCommands, undefined);
+    if (commands.size === 0) invalid("registerCommands не добавил команды");
+    const verify = (node, commandPath) => {
+      if (!node.description) invalid(`command '${commandPath}' не имеет description`);
+      if (!node.action && node.commands.size === 0) {
+        invalid(`command '${commandPath}' не имеет action`);
+      }
+      for (const child of node.commands.values()) verify(child, `${commandPath} ${child.name}`);
+    };
+    for (const node of commands.values()) verify(node, node.name);
+    return Object.freeze([...commands.keys()]);
+  } catch (error) {
+    const message = (error instanceof Error ? error.message : String(error))
+      .replace(/^PLUGIN_EXEC_COMMAND_INVALID:\s*/u, "");
+    throw new Error(`PLUGIN_CONTRACT_INVALID: ${message}`, { cause: error });
+  }
+}
+
 /** Resolves a long or short option token for one leaf command. */
 function resolveOption(node, token) {
   const longMatch = token.match(/^--([a-z][a-z0-9-]*)(?:=(.*))?$/u);
@@ -338,18 +367,16 @@ function selectCommand(commands, args) {
 
 /** Executes argv against the Plugin's own registered command grammar. */
 export function executePluginCommands(registerCommands, context, args) {
-  if (typeof registerCommands !== "function") invalid("требуется registerCommands");
   if (!context || typeof context !== "object") invalid("требуется PluginContext");
   if (!Array.isArray(args) || args.length === 0 || args.some((value) => typeof value !== "string")) {
     throw new Error("PLUGIN_EXEC_INVALID: args должен быть непустым массивом строк");
   }
 
-  const registry = new ExecutionCommandRegistry(context);
-  registerCommands(registry);
-  if (registry.commands.size === 0) {
+  const commands = compilePluginCommands(registerCommands, context);
+  if (commands.size === 0) {
     invalid("registerCommands не добавил команды", "PLUGIN_EXEC_COMMAND_UNKNOWN");
   }
-  const selected = selectCommand(registry.commands, args);
+  const selected = selectCommand(commands, args);
   if (selected.argv.includes("--help") || selected.argv.includes("-h")) {
     printHelp(selected.node, selected.path);
     return;

@@ -113,7 +113,7 @@ async function loadPlugin(t, calls, { connect, exec, extensions = false, status 
 
 /** Собирает реальный Host и application service с наблюдаемыми contexts. */
 async function lifecycle(t, calls, options = {}) {
-  const { agentAdapter, ...pluginOptions } = options;
+  const { agentAdapter, initiallyLoaded = true, ...pluginOptions } = options;
   const loadedPlugin = await loadPlugin(t, calls, pluginOptions);
   if (pluginOptions.extensions) await fs.mkdir(path.join(loadedPlugin.root, "extension"));
   const contextCalls = [];
@@ -143,9 +143,24 @@ async function lifecycle(t, calls, options = {}) {
       invokeExtension: agentAdapter.invokeExtension,
     }),
     contextFactory,
-    registry: new PluginRegistry([loadedPlugin]),
+    registry: new PluginRegistry(initiallyLoaded ? [loadedPlugin] : []),
   });
-  return { contextCalls, service: new PluginLifecycleService({ host }) };
+  const managerCalls = [];
+  const managerService = {
+    forStore() {
+      return {
+        async resolve(declaration) {
+          managerCalls.push(declaration.id);
+          return { loadedPlugin };
+        },
+      };
+    },
+  };
+  return {
+    contextCalls,
+    managerCalls,
+    service: new PluginLifecycleService({ host, managerService }),
+  };
 }
 
 test("PluginLifecycleService disconnects Extension before removing binding", async (t) => {
@@ -306,6 +321,18 @@ test("PluginLifecycleService restores every portable Extension contribution with
     { operation: "disconnect", ownerId: "sample" },
   ]);
   assert.equal(await fs.readFile(fixture.configPath, "utf8"), before);
+});
+
+test("PluginLifecycleService reloads a declared Plugin after package runtime restoration", async (t) => {
+  const fixture = await createStoreFixture(t, { connected: true });
+  const calls = [];
+  const { managerCalls, service } = await lifecycle(t, calls, { initiallyLoaded: false });
+
+  const restored = await service.connectSelected({ start: fixture.storeRoot });
+
+  assert.deepEqual(restored, [{ pluginId: "sample", repositoryId: "frontend" }]);
+  assert.deepEqual(managerCalls, ["sample"]);
+  assert.deepEqual(calls.map(([operation]) => operation), ["connect"]);
 });
 
 test("PluginLifecycleService persists binding only after successful connect callback", async (t) => {
@@ -565,6 +592,12 @@ test("batch connect writes no bindings when a later callback fails", async (t) =
   const before = await fs.readFile(fixture.configPath, "utf8");
   const calls = [];
   const { service } = await lifecycle(t, calls, {
+    extensions: true,
+    agentAdapter: {
+      async invokeExtension(context, _extension, request) {
+        calls.push([`agent-${request.operation}`, context]);
+      },
+    },
     connect: async (context) => {
       if (context.repositoryId === "backend") throw new Error("backend setup failed");
       return "configured";
@@ -578,7 +611,45 @@ test("batch connect writes no bindings when a later callback fails", async (t) =
   }), /backend setup failed/);
 
   assert.equal(await fs.readFile(fixture.configPath, "utf8"), before);
-  assert.deepEqual(calls.map(([, context]) => context.repositoryId), ["frontend", "backend"]);
+  assert.deepEqual(calls.map(([operation, context]) => [operation, context.repositoryId]), [
+    ["extensions", "frontend"],
+    ["connect", "frontend"],
+    ["agent-connect", "frontend"],
+    ["extensions", "backend"],
+    ["connect", "backend"],
+    ["extensions", "frontend"],
+    ["agent-disconnect", "frontend"],
+  ]);
+});
+
+test("batch disconnect restores earlier Extensions when a later cleanup fails", async (t) => {
+  const fixture = await createStoreFixture(t, { backendConnected: true, connected: true });
+  const before = await fs.readFile(fixture.configPath, "utf8");
+  const calls = [];
+  const { service } = await lifecycle(t, calls, {
+    extensions: true,
+    agentAdapter: {
+      async invokeExtension(context, _extension, request) {
+        calls.push([`agent-${request.operation}`, context.repositoryId]);
+        if (request.operation === "disconnect" && context.repositoryId === "backend") {
+          throw new Error("backend cleanup failed");
+        }
+      },
+    },
+  });
+
+  await assert.rejects(service.disconnectMany({
+    start: fixture.storeRoot,
+    pluginId: "sample",
+    repositoryIds: ["frontend", "backend"],
+  }), /backend cleanup failed/u);
+
+  assert.equal(await fs.readFile(fixture.configPath, "utf8"), before);
+  assert.deepEqual(calls.filter(([operation]) => operation.startsWith("agent-")), [
+    ["agent-disconnect", "frontend"],
+    ["agent-disconnect", "backend"],
+    ["agent-connect", "frontend"],
+  ]);
 });
 
 test("PluginLifecycleService reports statuses in project order and isolates failures", async (t) => {

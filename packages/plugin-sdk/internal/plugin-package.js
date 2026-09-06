@@ -1,7 +1,13 @@
 /** @fileoverview Доменная модель package.json одного Plugin package. */
 
+import { createRequire } from "node:module";
+
+import { satisfies, validRange } from "semver";
+
 import { PLUGIN_API_VERSION, PLUGIN_PATTERNS } from "./constants.js";
 import { assertPlainObject } from "./validation.js";
+
+const PLUGIN_SDK_VERSION = createRequire(import.meta.url)("../package.json").version;
 
 /** Завершает проверку Package contract стабильной ошибкой. */
 function invalid(message) {
@@ -64,10 +70,15 @@ export class PluginPackage {
     if (resolveRootExport(manifest.exports) !== entrypoint) {
       invalid("package root export должен совпадать с openspecOrchestrator.plugin");
     }
-    const sdkRange = manifest.peerDependencies?.["@openspec-orch/plugin-sdk"] ??
-      manifest.dependencies?.["@openspec-orch/plugin-sdk"];
+    const sdkRange = manifest.peerDependencies?.["@openspec-orch/plugin-sdk"];
     if (typeof sdkRange !== "string" || sdkRange.length === 0) {
-      invalid("Plugin package должен объявить @openspec-orch/plugin-sdk");
+      invalid("Plugin package должен объявить @openspec-orch/plugin-sdk в peerDependencies");
+    }
+    if (!validRange(sdkRange) || !satisfies(PLUGIN_SDK_VERSION, sdkRange, { includePrerelease: true })) {
+      invalid(
+        `Plugin требует несовместимый @openspec-orch/plugin-sdk '${sdkRange}'; ` +
+          `установлена версия ${PLUGIN_SDK_VERSION}`,
+      );
     }
 
     this.#name = manifest.name;

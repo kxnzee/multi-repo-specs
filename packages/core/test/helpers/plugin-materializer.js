@@ -3,6 +3,7 @@
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 import { PluginLoader } from "@openspec-orch/core";
@@ -18,6 +19,11 @@ export const EXTENSION_SDK_ROOT = await fs.realpath(fileURLToPath(
 ));
 export const PLUGIN_SDK_VERSION = JSON.parse(
   await fs.readFile(path.join(PLUGIN_SDK_ROOT, "package.json")),
+).version;
+const require = createRequire(import.meta.url);
+const SEMVER_ROOT = path.dirname(require.resolve("semver/package.json"));
+const SEMVER_VERSION = JSON.parse(
+  await fs.readFile(path.join(SEMVER_ROOT, "package.json")),
 ).version;
 
 /** Loads an observed Plugin export through one real temporary package boundary. */
@@ -65,11 +71,13 @@ export function createPluginMaterializer({
         "@openspec-orch",
         "extension-sdk",
       );
+      const semverTarget = path.join(runtimeRoot, "node_modules", "semver");
       await fs.mkdir(path.dirname(pluginTarget), { recursive: true });
       await fs.mkdir(path.dirname(sdkTarget), { recursive: true });
       await fs.cp(sourceRoot, pluginTarget, { recursive: true });
       await fs.cp(PLUGIN_SDK_ROOT, sdkTarget, { recursive: true });
       await fs.cp(EXTENSION_SDK_ROOT, extensionSdkTarget, { recursive: true });
+      await fs.cp(SEMVER_ROOT, semverTarget, { recursive: true });
       await fs.writeFile(
         path.join(pluginTarget, "package.json"),
         `${JSON.stringify(pluginManifest, null, 2)}\n`,
@@ -86,6 +94,10 @@ export function createPluginMaterializer({
           "node_modules/@openspec-orch/extension-sdk": {
             name: "@openspec-orch/extension-sdk",
             version: PLUGIN_SDK_VERSION,
+          },
+          "node_modules/semver": {
+            name: "semver",
+            version: SEMVER_VERSION,
           },
           [`node_modules/${pluginManifest.name}`]: {
             name: pluginManifest.name,

@@ -93,7 +93,7 @@ export { PluginPlatform } from "./internal/plugin-platform.js";
 export { PluginSource } from "./internal/plugin-source.js";
 export { PluginScaffoldService, pluginScaffolds } from "./internal/plugin-scaffold.js";
 export { PluginStorage, PluginStorageService, pluginStorage } from "./internal/plugin-storage.js";
-export { ProcessService, ScopedProcess, processes } from "./internal/process.js";
+export { ProcessService, ScopedProcess, processes, redactSensitive } from "./internal/process.js";
 export { ProjectSetupService } from "./internal/project-setup.js";
 export { Project, createProject } from "./internal/project.js";
 export { Repository, createRepository } from "./internal/repository.js";

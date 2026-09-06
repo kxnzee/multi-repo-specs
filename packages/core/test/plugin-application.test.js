@@ -147,6 +147,36 @@ test("PluginApplicationService leaves config unchanged when publication fails", 
   assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), originalProject);
 });
 
+test("PluginApplicationService rolls back connect when binding publication fails", async (t) => {
+  const { root, storeProject } = await storeFixture(t);
+  const source = PluginSource.parse(path.join(root, "local-plugin"), { cwd: root });
+  await new PluginApplicationService({
+    managerService: managerFixture([]),
+  }).install(storeProject, "sample", source);
+  const originalProject = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
+  const calls = [];
+  const service = new PluginApplicationService({
+    mutationService: {
+      async run(candidate, operation) {
+        return operation(await storeProjects.load(candidate));
+      },
+      async write() { throw new Error("binding write failed"); },
+    },
+    managerService: managerFixture([]),
+  });
+
+  await assert.rejects(service.connectMany(
+    await storeProjects.load(root),
+    "sample",
+    ["specs"],
+    async (_current, repositoryId) => calls.push(["connect", repositoryId]),
+    async (_current, repositoryId) => calls.push(["rollback", repositoryId]),
+  ), /binding write failed/);
+
+  assert.deepEqual(calls, [["connect", "specs"], ["rollback", "specs"]]);
+  assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), originalProject);
+});
+
 test("PluginApplicationService removes an unbound Plugin and its runtime", async (t) => {
   const { root, storeProject } = await storeFixture(t);
   const calls = [];

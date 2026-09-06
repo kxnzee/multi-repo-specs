@@ -123,6 +123,9 @@ Progress пишется в stderr; structured output остаётся в stdout.
 Core добавляет package в единый private npm-проект Store и устанавливает production
 dependencies без lifecycle scripts. npm фиксирует dependency graph в lockfile;
 `openspec-orch.yaml` хранит только Plugin ID. Bundled Plugins загружаются из distribution.
+`plugin update <id> --from <source>` является единственным явным обновлением версии;
+`connect` может лишь восстановить уже зафиксированный lock. `package status` показывает
+resolved version, integrity, provenance и наличие runtime.
 
 Template не управляет Plugins.
 
@@ -136,7 +139,9 @@ import { testPluginContract } from "@openspec-orch/plugin-sdk/testing";
 testPluginContract({ plugin, packageManifest: manifest });
 ```
 
-Contract test проверяет manifest, public export и contribution shape без импорта Core.
+Contract test проверяет manifest, public export и ту же command grammar, которую
+исполняет runtime, без запуска actions и без импорта Core. Plugin обязан объявить
+совместимый диапазон `@openspec-orch/plugin-sdk` в `peerDependencies`.
 
 ## Полный developer flow
 

@@ -29,17 +29,17 @@ Store и должны проходить обычные diff, review и commit.
 
 Внешние Plugins и standalone Extensions являются зависимостями одного private
 npm-проекта Store. Его `package.json` и `package-lock.json` коммитятся, а
-`node_modules` остаётся локальным. На новой машине восстановите весь граф одной
-командой:
+`node_modules` остаётся локальным. На новой машине обычного `connect` достаточно:
 
 ```bash
-openspec-orch package sync
 openspec-orch connect
 ```
 
-Обычный `connect` восстанавливает lifecycle и Agent Extensions уже объявленных
-bindings, но не запускает npm. Новый внешний Plugin добавляется через `plugin init
---from`; его версия фиксируется npm lockfile, а не Project YAML.
+Если runtime отсутствует, `connect` сначала выполняет эквивалент `npm ci` строго по
+committed lockfile, затем догружает Plugins и восстанавливает Agent Extensions.
+Явные `package sync` и read-only `package status [--json]` остаются доступны для
+диагностики. Новый внешний Plugin добавляется через `plugin init --from`; его версия
+фиксируется npm lockfile, а не Project YAML.
 
 ## Standalone Extensions
 
@@ -48,6 +48,7 @@ Standalone Extension управляется адресно через собст
 ```bash
 openspec-orch extension init <extension-id> --from <package@version>
 openspec-orch extension connect <extension-id>
+openspec-orch extension update <extension-id> --from <package@version>
 openspec-orch extension status <extension-id>
 openspec-orch extension disconnect <extension-id>
 openspec-orch extension remove <extension-id>
@@ -72,6 +73,7 @@ Extensions после checkout.
 cd /absolute/path/to/store
 openspec-orch plugin init --plugin <plugin-id>
 openspec-orch plugin connect <plugin-id> --repo <repository-id>
+openspec-orch plugin update <plugin-id> --from <package@version>
 openspec-orch plugin status --plugin <plugin-id>
 openspec-orch plugin sync <plugin-id> --repo <repository-id>
 openspec-orch plugin exec --repo <repository-id> <plugin-id> <command>
@@ -97,7 +99,8 @@ ID встроенного Plugin нельзя затенить внешним pa
 `disconnect` удаляет binding и отключает Plugin-owned Extension, но не удаляет
 данные Plugin из Repository. `remove` разрешён только без bindings.
 
-`init`, `connect`, `disconnect` и `remove` могут менять `openspec-orch.yaml`.
+`init`, `update`, `connect`, `disconnect` и `remove` могут менять Store package files
+или `openspec-orch.yaml`. `update` всегда явный и не выполняется из обычного `connect`.
 `status` не меняет declaration или bindings и по контракту диагностирует состояние.
 `sync` и `exec` также не меняют declaration или bindings, но могут менять принадлежащее
 Plugin состояние согласно его собственному контракту.

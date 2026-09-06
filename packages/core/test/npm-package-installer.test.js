@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import process from "node:process";
 import test from "node:test";
 
 import {
@@ -98,6 +99,35 @@ test("NpmPackageInstaller rejects invalid input and npm failures", async (t) => 
       runtimeRoot: root,
     }),
     /NPM_PACKAGE_FAILED.*кодом 7.*registry unavailable/s,
+  );
+});
+
+test("NpmPackageInstaller redacts credentials from npm diagnostics", async (t) => {
+  const root = await runtimeFixture(t);
+  const token = "secret-registry-token";
+  const customToken = "custom-registry-secret";
+  const previous = process.env.NPM_TOKEN;
+  process.env.NPM_TOKEN = token;
+  t.after(() => {
+    if (previous === undefined) delete process.env.NPM_TOKEN;
+    else process.env.NPM_TOKEN = previous;
+  });
+  const installer = new NpmPackageInstaller({
+    environment: { PRIVATE_REGISTRY_AUTH_TOKEN: customToken },
+    executor: async () => ({
+      failed: true,
+      exitCode: 1,
+      stderr: `https://user:password@registry.example.test/ _authToken=${token} ${customToken}`,
+    }),
+  });
+
+  await assert.rejects(
+    installer.install({ source: "plugin@1.0.0", runtimeRoot: root }),
+    (error) => {
+      assert.doesNotMatch(error.message, /user|password|secret-registry-token|custom-registry-secret/u);
+      assert.match(error.message, /<redacted>/u);
+      return true;
+    },
   );
 });
 

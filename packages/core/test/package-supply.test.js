@@ -188,3 +188,42 @@ test("StorePackageSupply compares dependency maps without relying on key order",
   assert.equal(await supply.sync(), true);
   assert.deepEqual(calls, [["sync"]]);
 });
+
+test("StorePackageSupply inspects provenance and restores only a missing runtime", async (t) => {
+  const { calls, root, supply } = await fixture(t);
+  await supply.install({
+    id: "sample",
+    kind: "plugins",
+    source: "/packages/sample-plugin",
+    validate: async () => true,
+  });
+
+  const ready = await supply.inspect();
+  assert.equal(ready.state, "ready");
+  assert.equal(ready.available, 1);
+  assert.equal(ready.mutable, 1);
+  assert.deepEqual(ready.packages.map(({ id, kind, provenance, available }) => ({
+    id, kind, provenance, available,
+  })), [{ id: "sample", kind: "plugins", provenance: "local", available: true }]);
+
+  await fs.rm(path.join(root, ".openspec-orch/packages/node_modules"), {
+    recursive: true,
+    force: true,
+  });
+  assert.equal((await supply.inspect()).state, "missing");
+  assert.equal(await supply.ensure(), true);
+  assert.equal(await supply.ensure(), false);
+  assert.equal((await supply.inspect()).state, "ready");
+  assert.deepEqual(calls.map(([operation]) => operation), ["install", "sync"]);
+});
+
+test("StorePackageSupply reports an absent external package project without creating it", async (t) => {
+  const { root, supply } = await fixture(t);
+
+  const report = await supply.inspect();
+
+  assert.equal(report.state, "absent");
+  assert.deepEqual(report.packages, []);
+  assert.equal(await supply.ensure(), false);
+  await assert.rejects(fs.lstat(path.join(root, ".openspec-orch/packages")), { code: "ENOENT" });
+});

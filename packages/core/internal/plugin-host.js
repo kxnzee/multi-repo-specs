@@ -39,6 +39,16 @@ export class PluginRegistry {
     if (!plugin) throw new Error(`PLUGIN_NOT_LOADED: plugin-id '${pluginId}' не загружен`);
     return plugin;
   }
+
+  register(plugin) {
+    if (!(plugin instanceof LoadedPlugin)) {
+      throw new Error("PLUGIN_REGISTRY_INVALID: требуется LoadedPlugin");
+    }
+    const current = this.#plugins.get(plugin.id);
+    if (current) return current === plugin;
+    this.#plugins.set(plugin.id, plugin);
+    return true;
+  }
 }
 
 /**
@@ -99,8 +109,29 @@ export class PluginHost {
     );
   }
 
+  /** Compensates Extension setup before a Plugin binding has been published. */
+  async rollbackConnect({ pluginId, storeProject, repositoryId } = {}) {
+    const loadedPlugin = this.#registry.require(pluginId);
+    if (!this.#hasExtensionContribution(loadedPlugin.plugin)) return;
+    const context = await this.#contexts.forRepositorySetup({
+      loadedPlugin,
+      storeProject,
+      repositoryId,
+    });
+    const extensions = await this.#prepareExtensions(loadedPlugin, context);
+    return this.#invokePreparedExtensions(loadedPlugin, context, extensions, "disconnect");
+  }
+
   assertLoaded(pluginId) {
     this.#registry.require(pluginId);
+  }
+
+  isLoaded(pluginId) {
+    return this.#registry.find(pluginId) !== null;
+  }
+
+  register(loadedPlugin) {
+    return this.#registry.register(loadedPlugin);
   }
 
   hasRepositoryContribution(pluginId) {
@@ -263,8 +294,27 @@ export class PluginHost {
 
   async #invokePreparedExtensions(loadedPlugin, context, extensions, operation) {
     const request = Object.freeze({ operation, ownerId: loadedPlugin.id });
-    for (const resolvedExtension of extensions) {
-      await this.#agentAdapter.invokeExtension(context, resolvedExtension, request);
+    const completed = [];
+    try {
+      for (const resolvedExtension of extensions) {
+        await this.#agentAdapter.invokeExtension(context, resolvedExtension, request);
+        completed.push(resolvedExtension);
+      }
+    } catch (error) {
+      if (operation !== "connect" || completed.length === 0) throw error;
+      const rollback = Object.freeze({ operation: "disconnect", ownerId: loadedPlugin.id });
+      try {
+        for (const resolvedExtension of [...completed].reverse()) {
+          await this.#agentAdapter.invokeExtension(context, resolvedExtension, rollback);
+        }
+      } catch (cause) {
+        throw new AggregateError(
+          [error, cause],
+          `PLUGIN_EXTENSION_ROLLBACK_FAILED: ${loadedPlugin.id}`,
+          { cause: error },
+        );
+      }
+      throw error;
     }
   }
 

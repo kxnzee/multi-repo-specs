@@ -26,6 +26,23 @@ test("DoctorService reuses read-only status services and keeps checking after fa
         return storeProject;
       },
     },
+    packageSupplyService: {
+      forStore(checkout) {
+        assert.equal(checkout, storeProject.checkout);
+        return {
+          async inspect() {
+            calls.push(["packages"]);
+            return {
+              state: "ready",
+              runtimeRoot: "/workspace/specs/.openspec-orch/packages",
+              packages: [{ id: "sample" }],
+              available: 1,
+              mutable: 0,
+            };
+          },
+        };
+      },
+    },
     openSpecService: {
       forRepository(checkout) {
         assert.equal(checkout, storeProject.checkout);
@@ -109,9 +126,10 @@ test("DoctorService reuses read-only status services and keeps checking after fa
 
   assert.equal(report instanceof DiagnosticReport, true);
   assert.equal(report.status, "blocked");
-  assert.deepEqual(report.summary, { pass: 5, warning: 1, error: 3, skipped: 0 });
+  assert.deepEqual(report.summary, { pass: 6, warning: 1, error: 3, skipped: 0 });
   assert.deepEqual(report.checks.map(({ id, outcome }) => ({ id, outcome })), [
     { id: "store", outcome: "pass" },
+    { id: "packages", outcome: "pass" },
     { id: "openspec", outcome: "pass" },
     { id: "repository:specs", outcome: "pass" },
     { id: "repository:frontend", outcome: "warning" },
@@ -127,7 +145,7 @@ test("DoctorService reuses read-only status services and keeps checking after fa
     calls.find(([operation]) => operation === "repositories"),
     ["repositories", { start: "/workspace/specs", repositoryIds: ["specs"] }],
   );
-  assert.deepEqual(report.checks[2].details, {
+  assert.deepEqual(report.checks[3].details, {
     state: "connected",
     path: "/workspace/specs",
     branch: "team/story-work",
@@ -151,9 +169,10 @@ test("DoctorService reports Store failure and marks dependent checks as skipped"
   const report = await service.inspect();
 
   assert.equal(report.status, "blocked");
-  assert.deepEqual(report.summary, { pass: 0, warning: 0, error: 1, skipped: 4 });
+  assert.deepEqual(report.summary, { pass: 0, warning: 0, error: 1, skipped: 5 });
   assert.equal(report.checks[0].code, "STORE_ROOT_NOT_FOUND");
   assert.deepEqual(report.checks.slice(1).map(({ id, outcome }) => ({ id, outcome })), [
+    { id: "packages", outcome: "skipped" },
     { id: "openspec", outcome: "skipped" },
     { id: "repositories", outcome: "skipped" },
     { id: "extensions", outcome: "skipped" },

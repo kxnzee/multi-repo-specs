@@ -56,10 +56,14 @@ export class PackageCommands {
     extension.command("connect <extension-id>")
       .description("установить или включить Extension в выбранном Agent")
       .action((extensionId) => this.#connect(extensionId));
+    extension.command("update <extension-id>")
+      .description("явно обновить внешнюю Extension и npm lock")
+      .requiredOption("--from <source>", "точная npm-версия, tarball, Git commit или path")
+      .action((extensionId, options) => this.#updateExtension(extensionId, options.from));
     extension.command("status [extension-id]")
       .description("проверить состояние одной или всех Extensions")
       .option("--json", "вывести machine-readable JSON")
-      .action((extensionId, options) => this.#status(extensionId, Boolean(options.json)));
+      .action((extensionId, options) => this.#extensionStatus(extensionId, Boolean(options.json)));
     extension.command("disconnect <extension-id>")
       .description("отключить Extension в выбранном Agent")
       .action((extensionId) => this.#disconnect(extensionId));
@@ -71,6 +75,10 @@ export class PackageCommands {
     packages.command("sync")
       .description("восстановить Store packages строго из package-lock.json")
       .action(() => this.#sync());
+    packages.command("status")
+      .description("проверить npm lock, provenance и локальный runtime без изменений")
+      .option("--json", "вывести machine-readable JSON")
+      .action((options) => this.#packageStatus(Boolean(options.json)));
   }
 
   async #install(extensionId, source) {
@@ -84,10 +92,17 @@ export class PackageCommands {
   async #connect(extensionId) {
     await this.#lifecycle.connect(extensionId);
     this.#output.log(`✓ ${extensionId} — подключён`);
-    await this.#status(extensionId, false);
+    await this.#extensionStatus(extensionId, false);
   }
 
-  async #status(extensionId, json) {
+  async #updateExtension(extensionId, source) {
+    const storeProject = await this.#storeProjects.resolve();
+    storeProject.project.requireExtension(extensionId);
+    await this.#extensions.install(storeProject, extensionId, source);
+    this.#output.log(`✓ ${extensionId} — обновлён; выполните openspec-orch connect`);
+  }
+
+  async #extensionStatus(extensionId, json) {
     const statuses = await this.#lifecycle.statuses({ extensionId });
     if (json) {
       this.#output.log(JSON.stringify({ extensions: statuses }, null, 2));
@@ -128,5 +143,27 @@ export class PackageCommands {
     this.#output.log(synchronized
       ? "✓ Store packages восстановлены из package-lock.json"
       : "✓ Внешних Store packages нет");
+  }
+
+  async #packageStatus(json) {
+    const storeProject = await this.#storeProjects.resolve();
+    const report = await this.#supplies.forStore(storeProject.checkout).inspect();
+    if (json) {
+      this.#output.log(JSON.stringify(report, null, 2));
+      return;
+    }
+    const displayState = report.state === "absent"
+      ? "complete"
+      : report.state === "missing" ? "unavailable" : report.state;
+    this.#output.log(formatStatusHeading("Store packages", displayState));
+    this.#output.log(`  Runtime: ${report.runtimeRoot}`);
+    if (report.packages.length === 0) {
+      this.#output.log("  Внешние packages отсутствуют.");
+      return;
+    }
+    for (const entry of report.packages) {
+      const state = entry.available ? entry.provenance : "missing";
+      this.#output.log(`  ${entry.kind}/${entry.id}: ${entry.packageName}@${entry.version ?? entry.requested} [${state}]`);
+    }
   }
 }

@@ -391,8 +391,8 @@ distributionTest("candidate distribution exposes every Plugin through plugin exe
   assert.equal(doctor.status, "degraded");
   assert.equal(doctor.summary.error, 0);
   assert.deepEqual(
-    doctor.checks.slice(0, 2).map(({ id }) => id),
-    ["store", "openspec"],
+    doctor.checks.slice(0, 3).map(({ id }) => id),
+    ["store", "packages", "openspec"],
   );
   const humanDoctor = await runCli(storeRoot, "doctor");
   assert.match(humanDoctor.stdout, /OpenSpec Orchestrator Doctor/);

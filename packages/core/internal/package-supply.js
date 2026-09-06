@@ -7,7 +7,7 @@ import * as z from "zod";
 
 import { atomicWriter } from "./atomic-writer.js";
 import { CORE_PATTERNS, CORE_SERVICE_PATHS } from "./constants.js";
-import { ensureDirectory, lstatOrNull } from "./fs.js";
+import { ensureSafeDirectoryChain, lstatOrNull } from "./fs.js";
 import { locks } from "./lock.js";
 import { npmPackageInstaller } from "./npm-package-installer.js";
 import { isContainedPath } from "./path.js";
@@ -26,6 +26,7 @@ const PACKAGE_MANIFEST_SCHEMA = z.object({
     plugins: PACKAGE_MAP_SCHEMA,
   }).passthrough(),
 }).passthrough();
+const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
 
 /** Завершает operation стабильной ошибкой package supply. */
 function invalid(message, options) {
@@ -110,6 +111,23 @@ function assertManifest(manifest) {
 function packagePath(runtimeRoot, packageName) {
   if (!PACKAGE_NAME.test(packageName)) invalid(`некорректное npm package name '${packageName}'`);
   return path.join(runtimeRoot, "node_modules", ...packageName.split("/"));
+}
+
+/** Classifies the resolved dependency declaration without trying to replace npm resolution. */
+function packageProvenance(requested, locked = {}) {
+  if (requested.startsWith("file:")) return "local";
+  if (/^(?:git\+|git:|github:|gitlab:|bitbucket:)/u.test(requested)) {
+    return /#[0-9a-f]{40}$/iu.test(requested) || /[0-9a-f]{40}$/iu.test(locked.resolved ?? "")
+      ? "git-commit"
+      : "git-mutable";
+  }
+  if (/^https?:/u.test(requested)) return locked.integrity ? "tarball-integrity" : "tarball";
+  return EXACT_VERSION.test(requested) ? "registry-exact" : "registry-mutable";
+}
+
+/** Returns whether one provenance class can resolve differently without changing Store files. */
+function mutableProvenance(value) {
+  return ["git-mutable", "local", "registry-mutable", "tarball"].includes(value);
 }
 
 /** Store-local npm project; npm owns dependency versions and lockfile. */
@@ -200,6 +218,85 @@ export class StorePackageSupply {
     });
   }
 
+  /** Restores only a missing node_modules tree from the committed npm lock. */
+  async ensure() {
+    return this.#withLock(async (runtimeRoot, existed) => {
+      if (!existed) return false;
+      const manifest = await this.#readManifest(runtimeRoot);
+      await this.#assertLockedState(runtimeRoot, manifest);
+      if (Object.keys(manifest.dependencies).length === 0) return false;
+      const missing = [];
+      for (const packageName of Object.keys(manifest.dependencies)) {
+        try {
+          await this.#requirePackageRoot(runtimeRoot, packageName);
+        } catch (error) {
+          if (error?.code !== "PACKAGE_RUNTIME_UNAVAILABLE") throw error;
+          missing.push(packageName);
+        }
+      }
+      if (missing.length === 0) return false;
+      await this.#installer.sync({ runtimeRoot });
+      for (const packageName of missing) await this.#requirePackageRoot(runtimeRoot, packageName);
+      return true;
+    }, { create: false });
+  }
+
+  /** Inspects manifest, lock provenance and materialized packages without changing the Store. */
+  async inspect() {
+    const runtimeRoot = this.#runtimeRoot();
+    const runtimeStat = await lstatOrNull(runtimeRoot);
+    if (!runtimeStat) {
+      return Object.freeze({
+        state: "absent",
+        runtimeRoot,
+        packages: Object.freeze([]),
+        mutable: 0,
+        available: 0,
+      });
+    }
+    if (!runtimeStat.isDirectory() || runtimeStat.isSymbolicLink()) {
+      invalid(`${CORE_SERVICE_PATHS.packageDirectory} должен быть безопасным каталогом`);
+    }
+    const manifest = await this.#readManifest(runtimeRoot);
+    const lockfile = await this.#assertLockedState(runtimeRoot, manifest);
+    const packages = [];
+    for (const kind of [...KINDS].sort()) {
+      for (const [id, packageName] of Object.entries(manifest.openspecOrchestrator[kind])) {
+        const requested = manifest.dependencies[packageName];
+        const locked = lockfile.packages?.[`node_modules/${packageName}`] ??
+          lockfile.dependencies?.[packageName] ?? {};
+        let available = true;
+        try {
+          await this.#requirePackageRoot(runtimeRoot, packageName);
+        } catch (error) {
+          if (error?.code !== "PACKAGE_RUNTIME_UNAVAILABLE") throw error;
+          available = false;
+        }
+        const provenance = packageProvenance(requested, locked);
+        packages.push(Object.freeze({
+          id,
+          kind,
+          packageName,
+          requested,
+          version: typeof locked.version === "string" ? locked.version : null,
+          resolved: typeof locked.resolved === "string" ? locked.resolved : null,
+          integrity: typeof locked.integrity === "string" ? locked.integrity : null,
+          provenance,
+          mutable: mutableProvenance(provenance),
+          available,
+        }));
+      }
+    }
+    const available = packages.filter((entry) => entry.available).length;
+    return Object.freeze({
+      state: available === packages.length ? "ready" : "missing",
+      runtimeRoot,
+      packages: Object.freeze(packages),
+      mutable: packages.filter((entry) => entry.mutable).length,
+      available,
+    });
+  }
+
   async remove(kind, id, publish = async () => {}) {
     assertRequest(kind, id);
     if (typeof publish !== "function") invalid("publish должен быть function");
@@ -261,11 +358,10 @@ export class StorePackageSupply {
 
   async #ensureDirectoryChain(target) {
     const relative = path.relative(this.#checkout.root, target);
-    let current = this.#checkout.root;
-    for (const segment of relative.split(path.sep)) {
-      current = path.join(current, segment);
-      const stat = await ensureDirectory(current, { mode: 0o700 });
-      if (!stat.isDirectory() || stat.isSymbolicLink()) invalid(`${relative} небезопасен`);
+    try {
+      await ensureSafeDirectoryChain(this.#checkout.root, relative, { mode: 0o700 });
+    } catch (error) {
+      invalid(`${relative} небезопасен`, { cause: error });
     }
   }
 
@@ -321,6 +417,7 @@ export class StorePackageSupply {
     ) {
       invalid("package.json и package-lock.json содержат разные dependencies");
     }
+    return lockfile;
   }
 
   #writeManifest(runtimeRoot, manifest) {

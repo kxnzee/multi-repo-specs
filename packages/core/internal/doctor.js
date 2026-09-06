@@ -3,6 +3,7 @@
 import process from "node:process";
 
 import { openspec } from "./openspec.js";
+import { packageSupplies } from "./package-supply.js";
 import { repositoryStatuses } from "./repository-status.js";
 import { storeProjects } from "./store-project.js";
 import { hasMethods } from "./value.js";
@@ -198,10 +199,50 @@ function groupDiagnostic(id, subject, outcome, message) {
   return [new DiagnosticResult({ id, subject, outcome, message })];
 }
 
+/** Maps the read-only npm supply report into one stable Doctor check. */
+function packageDiagnostic(report, strict) {
+  const total = report.packages.length;
+  const details = {
+    state: report.state,
+    packages: total,
+    available: report.available,
+    mutable: report.mutable,
+    runtime: report.runtimeRoot,
+  };
+  if (report.state === "missing") {
+    return new DiagnosticResult({
+      id: "packages",
+      subject: "Store packages",
+      outcome: "error",
+      code: "PACKAGE_RUNTIME_UNAVAILABLE",
+      message: "Выполните openspec-orch package sync",
+      details,
+    });
+  }
+  if (strict && report.mutable > 0) {
+    return new DiagnosticResult({
+      id: "packages",
+      subject: "Store packages",
+      outcome: "warning",
+      code: "PACKAGE_SOURCE_MUTABLE",
+      message: "Strict-поставка должна использовать immutable npm, tarball или Git source",
+      details,
+    });
+  }
+  return new DiagnosticResult({
+    id: "packages",
+    subject: "Store packages",
+    outcome: "pass",
+    message: total === 0 ? "Внешние packages отсутствуют" : "npm lock и runtime согласованы",
+    details,
+  });
+}
+
 /** Aggregates existing read-only services without changing their contracts. */
 export class DoctorService {
   #extensions;
   #openspec;
+  #packages;
   #plugins;
   #repositories;
   #start;
@@ -210,6 +251,7 @@ export class DoctorService {
   constructor({
     extensionStatusService,
     openSpecService = openspec,
+    packageSupplyService = packageSupplies,
     pluginStatusService,
     repositoryStatusService = repositoryStatuses,
     start = process.cwd(),
@@ -224,6 +266,9 @@ export class DoctorService {
     if (!hasMethods(repositoryStatusService, ["inspect"])) {
       throw new Error("DOCTOR_INVALID: требуется RepositoryStatusService");
     }
+    if (!hasMethods(packageSupplyService, ["forStore"])) {
+      throw new Error("DOCTOR_INVALID: package supply должен предоставлять forStore");
+    }
     if (extensionStatusService && !hasMethods(extensionStatusService, ["diagnoseSelected"])) {
       throw new Error("DOCTOR_INVALID: Extension status должен предоставлять diagnoseSelected");
     }
@@ -233,6 +278,7 @@ export class DoctorService {
     if (typeof start !== "string") throw new Error("DOCTOR_INVALID: start должен быть строкой");
     this.#extensions = extensionStatusService;
     this.#openspec = openSpecService;
+    this.#packages = packageSupplyService;
     this.#plugins = pluginStatusService;
     this.#repositories = repositoryStatusService;
     this.#start = start;
@@ -249,6 +295,7 @@ export class DoctorService {
     } catch (error) {
       return new DiagnosticReport([
         failed({ id: "store", subject: "Store", fallback: "STORE_UNAVAILABLE" }, error),
+        skipped("packages", "Store packages"),
         skipped("openspec", "OpenSpec"),
         skipped("repositories", "Repositories"),
         skipped("extensions", "Standalone Extensions"),
@@ -257,6 +304,9 @@ export class DoctorService {
     }
 
     const groups = [
+      ["packages", "Store packages", "PACKAGE_SUPPLY_UNAVAILABLE", () => (
+        this.#inspectPackages(storeProject)
+      )],
       ["openspec", "OpenSpec", "OPENSPEC_UNAVAILABLE", () => this.#inspectOpenSpec(storeProject)],
       [
         "repositories", "Repositories", "REPOSITORY_STATUS_UNAVAILABLE",
@@ -272,6 +322,11 @@ export class DoctorService {
       await appendDiagnostics(checks, { id, subject, fallback }, inspect);
     }
     return new DiagnosticReport(checks);
+  }
+
+  async #inspectPackages(storeProject) {
+    const report = await this.#packages.forStore(storeProject.checkout).inspect();
+    return [packageDiagnostic(report, storeProject.project?.strict === true)];
   }
 
   async #inspectOpenSpec(storeProject) {

@@ -7,19 +7,29 @@ import { Command } from "commander";
 
 import { PackageCommands } from "@openspec-orch/core";
 
-test("PackageCommands exposes the complete Extension lifecycle and lockfile sync", async () => {
+test("PackageCommands exposes Extension lifecycle and npm package status/sync", async () => {
   const calls = [];
   const output = [];
   let rollbackRemove;
   const storeProject = Object.freeze({
     checkout: Object.freeze({}),
-    project: Object.freeze({ extensionDeclaration: () => Object.freeze({ id: "workflow" }) }),
+    project: Object.freeze({
+      extensionDeclaration: () => Object.freeze({ id: "workflow" }),
+      requireExtension: () => Object.freeze({ id: "workflow" }),
+    }),
   });
   const status = Object.freeze({
     extensionId: "workflow",
     targetId: "specs",
     state: "ready",
     output: "enabled",
+  });
+  const packageReport = Object.freeze({
+    state: "ready",
+    runtimeRoot: "/workspace/specs/.openspec-orch/packages",
+    packages: Object.freeze([]),
+    mutable: 0,
+    available: 0,
   });
   const commands = new PackageCommands({
     extensionApplication: {
@@ -45,7 +55,10 @@ test("PackageCommands exposes the complete Extension lifecycle and lockfile sync
     supplyService: {
       forStore(checkout) {
         assert.equal(checkout, storeProject.checkout);
-        return { async sync() { calls.push(["sync"]); return true; } };
+        return {
+          async inspect() { calls.push(["package-status"]); return packageReport; },
+          async sync() { calls.push(["sync"]); return true; },
+        };
       },
     },
   });
@@ -54,21 +67,25 @@ test("PackageCommands exposes the complete Extension lifecycle and lockfile sync
 
   await program.parseAsync(["node", "test", "extension", "init", "workflow", "--from", "pkg@1.2.3"]);
   await program.parseAsync(["node", "test", "extension", "connect", "workflow"]);
+  await program.parseAsync(["node", "test", "extension", "update", "workflow", "--from", "pkg@2.0.0"]);
   await program.parseAsync(["node", "test", "extension", "status", "workflow", "--json"]);
   await program.parseAsync(["node", "test", "extension", "disconnect", "workflow"]);
   await program.parseAsync(["node", "test", "extension", "remove", "workflow"]);
   await program.parseAsync(["node", "test", "package", "sync"]);
+  await program.parseAsync(["node", "test", "package", "status", "--json"]);
   await rollbackRemove();
 
   assert.deepEqual(calls, [
     ["install", storeProject, "workflow", "pkg@1.2.3"],
     ["connect", "workflow"],
     ["status", "workflow"],
+    ["install", storeProject, "workflow", "pkg@2.0.0"],
     ["status", "workflow"],
     ["disconnect", "workflow"],
     ["native-remove", "workflow"],
     ["remove", storeProject, "workflow"],
     ["sync"],
+    ["package-status"],
     ["connect", "workflow"],
   ]);
   assert.deepEqual(output, [
@@ -76,9 +93,11 @@ test("PackageCommands exposes the complete Extension lifecycle and lockfile sync
     "✓ workflow — подключён",
     "✓ workflow → specs — готов",
     "  enabled",
+    "✓ workflow — обновлён; выполните openspec-orch connect",
     `${JSON.stringify({ extensions: [status] }, null, 2)}`,
     "✓ workflow — отключён",
     "✓ workflow — удалён",
     "✓ Store packages восстановлены из package-lock.json",
+    JSON.stringify(packageReport, null, 2),
   ]);
 });

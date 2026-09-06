@@ -7,6 +7,7 @@ import process from "node:process";
 import {
   assertNodeVersion,
   createDistributionPlatform,
+  DISTRIBUTION_CONFIG,
 } from "./internal/distribution.js";
 
 try {
@@ -14,7 +15,10 @@ try {
   const { agentGatewayService, platform } = await createDistributionPlatform({
     start: process.cwd(),
   });
-  const program = platform.createProgram({ agentGatewayService });
+  const program = platform.createProgram({
+    agentGatewayService,
+    version: DISTRIBUTION_CONFIG.version,
+  });
   if (process.argv.length === 2) program.outputHelp();
   else await program.parseAsync(process.argv);
 } catch (error) {

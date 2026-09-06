@@ -272,6 +272,21 @@ test("Package manifest contract replaces plugin.yaml with one ESM entrypoint", (
     () => assertPluginPackageManifest({ ...SAMPLE_MANIFEST, peerDependencies: {} }),
     /должен объявить @openspec-orch\/plugin-sdk/,
   );
+  assert.throws(
+    () => assertPluginPackageManifest({
+      ...SAMPLE_MANIFEST,
+      peerDependencies: { "@openspec-orch/plugin-sdk": ">=2.0.0" },
+    }),
+    /несовместимый @openspec-orch\/plugin-sdk/,
+  );
+  assert.throws(
+    () => assertPluginPackageManifest({
+      ...SAMPLE_MANIFEST,
+      peerDependencies: undefined,
+      dependencies: { "@openspec-orch/plugin-sdk": "0.1.0" },
+    }),
+    /peerDependencies/,
+  );
 });
 
 test("contract test kit validates command registration without running actions", () => {
@@ -305,7 +320,7 @@ test("contract test kit validates command registration without running actions",
       }),
       packageManifest: SAMPLE_MANIFEST,
     }),
-    /повторяющаяся Command/,
+    /повторяется command/,
   );
 });
 
@@ -387,18 +402,18 @@ test("contract test kit rejects invalid nested command actions and option metada
   assert.throws(
     () => contract((commands) => commands.command("bad-option").description("Bad")
       .option("json", "Bad flags").action(() => {})),
-    /неверную option/,
+    /не содержит long flag/,
   );
   assert.throws(
     () => contract((commands) => commands.command("bad-config").description("Bad")
       .option("--state <state>", "State", { choices: [], required: "yes" })
       .action(() => {})),
-    /неверную option/,
+    /неверные choices/,
   );
   assert.throws(
     () => contract((commands) => commands.command("bad-scope").description("Bad")
       .actionWithContext(() => {}, { scope: "project" })),
-    /неверный context scope/,
+    /scope должен быть/,
   );
 });
 

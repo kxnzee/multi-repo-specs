@@ -120,6 +120,10 @@ export class PluginLifecycleCommands {
         pluginIds: options.plugin ?? [],
         sources: options.from ?? [],
       }));
+    plugin.command("update <plugin-id>")
+      .description("явно обновить внешний Plugin и npm lock")
+      .requiredOption("--from <source>", "точная npm-версия, tarball, Git commit или path")
+      .action((pluginId, options) => this.#update(pluginId, options.from));
     plugin.command("connect <plugin-id>")
       .description("связать Plugin с одним или несколькими repositories")
       .addOption(new Option("--repo <repository-id>", "repository-id без prompt")
@@ -245,6 +249,18 @@ export class PluginLifecycleCommands {
         : `✓ ${id} — уже инициализирован`);
     }
     this.#output.log("Далее: openspec-orch plugin connect <plugin-id>");
+  }
+
+  async #update(pluginId, requestedSource) {
+    const storeProject = await this.#storeProjects.find();
+    storeProject.project.requirePlugin(pluginId);
+    const source = PluginSource.parse(requestedSource, { cwd: process.cwd() });
+    await this.#progress.run(
+      `Обновление Plugin ${pluginId}...`,
+      () => this.#applications.install(storeProject, pluginId, source),
+      { success: `Plugin ${pluginId} обновлён и npm lock зафиксирован` },
+    );
+    this.#output.log(`✓ ${pluginId} — обновлён; выполните openspec-orch connect`);
   }
 
   async #connect(pluginId, selection) {

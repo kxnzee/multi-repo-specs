@@ -33,3 +33,4 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run test:code
+      - run: npm run test:pack

@@ -9,6 +9,7 @@ import { CORE_EXECUTION_MODE, CORE_FILES } from "./constants.js";
 import { lstatOrNull } from "./fs.js";
 import { initialization } from "./initialization.js";
 import { initSelections } from "./init-selection.js";
+import { packageSupplies } from "./package-supply.js";
 import { storeProjects } from "./store-project.js";
 import { assertTemplateTargetSeparated } from "./template.js";
 import { hasMethods } from "./value.js";
@@ -93,6 +94,7 @@ export class ProjectSetupService {
   #extensionPreflight;
   #initialization;
   #initSelection;
+  #packages;
   #start;
   #storeProjects;
   #templates;
@@ -104,6 +106,7 @@ export class ProjectSetupService {
     initializationService = initialization,
     initSelectionService = initSelections,
     pluginExtensionConnector,
+    packageSupplyService = packageSupplies,
     start = process.cwd(),
     storeProjectService = storeProjects,
     templateRoot,
@@ -119,6 +122,9 @@ export class ProjectSetupService {
     }
     if (typeof initSelectionService?.resolve !== "function") {
       throw new Error("PROJECT_SETUP_INVALID: initSelectionService должен предоставлять resolve");
+    }
+    if (typeof packageSupplyService?.forStore !== "function") {
+      throw new Error("PROJECT_SETUP_INVALID: packageSupplyService должен предоставлять forStore");
     }
     if (extensionLifecycle && !hasMethods(
       extensionLifecycle,
@@ -143,6 +149,7 @@ export class ProjectSetupService {
     );
     this.#initialization = initializationService;
     this.#initSelection = initSelectionService;
+    this.#packages = packageSupplyService;
     this.#start = start;
     this.#storeProjects = storeProjectService;
     this.#templates = templates;
@@ -211,13 +218,15 @@ export class ProjectSetupService {
   /** Runs the same complete connect sequence for every protocol adapter. */
   async connect({ workspace, noStrict = false, onProgress = () => {}, requireStrict = false } = {}) {
     let start = this.#start;
+    const storeProject = await this.#storeProjects.resolve(this.#start);
     if (requireStrict) {
-      const storeProject = await this.#storeProjects.resolve(this.#start);
       if (!storeProject.project.strict) {
         throw new Error("MCP_SETUP_STRICT_REQUIRED: connect_project недоступен для relaxed Project");
       }
       start = storeProject.root;
     }
+    onProgress("Восстановление Store packages из npm lock...");
+    await this.#packages.forStore(storeProject.checkout).ensure();
     onProgress("Проверка native CLI выбранного Agent...");
     await this.#extensionPreflight?.preflight();
     const result = await this.#connection.connect({

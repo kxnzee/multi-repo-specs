@@ -335,6 +335,22 @@ test("OpenSpecPointerService preserves CRLF and local OpenSpec migration guards"
 test("CandidateCli preserves connect grammar and normalized options", async () => {
   const calls = [];
   const cli = new CandidateCli({
+    packageSupplyService: {
+      forStore(checkout) {
+        assert.equal(checkout, "/workspace/payments-specs");
+        return { async ensure() { calls.push({ packages: "ensure" }); } };
+      },
+    },
+    storeProjectService: {
+      async load() {},
+      async resolve() {
+        return {
+          checkout: "/workspace/payments-specs",
+          project: { strict: false },
+          root: "/workspace/payments-specs",
+        };
+      },
+    },
     extensionLifecycle: {
       async preflight() {
         calls.push({ agent: "preflight" });
@@ -377,15 +393,16 @@ test("CandidateCli preserves connect grammar and normalized options", async () =
     "--no-strict",
   ]);
 
-  assert.equal(calls.length, 6);
-  assert.deepEqual(calls[0], { agent: "preflight" });
-  assert.equal(calls[1].workspace, "/workspace");
-  assert.equal(calls[1].noStrict, true);
-  assert.equal(typeof calls[1].onProgress, "function");
-  assert.deepEqual(calls[2], { extensions: "connect" });
-  assert.deepEqual(calls[3], { pluginExtensions: "connect" });
-  assert.deepEqual(calls[4], { extensions: "status" });
-  assert.deepEqual(calls[5], { pluginExtensions: "status" });
+  assert.equal(calls.length, 7);
+  assert.deepEqual(calls[0], { packages: "ensure" });
+  assert.deepEqual(calls[1], { agent: "preflight" });
+  assert.equal(calls[2].workspace, "/workspace");
+  assert.equal(calls[2].noStrict, true);
+  assert.equal(typeof calls[2].onProgress, "function");
+  assert.deepEqual(calls[3], { extensions: "connect" });
+  assert.deepEqual(calls[4], { pluginExtensions: "connect" });
+  assert.deepEqual(calls[5], { extensions: "status" });
+  assert.deepEqual(calls[6], { pluginExtensions: "status" });
 
   calls.length = 0;
   await cli.createProgram().parseAsync(["node", "openspec-orch", "disconnect"]);

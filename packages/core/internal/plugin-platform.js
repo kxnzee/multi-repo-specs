@@ -21,6 +21,7 @@ import { PluginHost, PluginRegistry } from "./plugin-host.js";
 import { PluginLifecycleService } from "./plugin-lifecycle.js";
 import { PluginManagerService, pluginManagers } from "./plugin-manager.js";
 import { PackageCommands } from "./package-cli.js";
+import { packageSupplies } from "./package-supply.js";
 import { ProjectSetupService } from "./project-setup.js";
 import { RepositoryStatusService } from "./repository-status.js";
 import { storeProjects } from "./store-project.js";
@@ -56,7 +57,9 @@ export class PluginPlatform {
     catalog,
     contextFactory,
     loadedPlugins = [],
+    managerService = pluginManagers,
     pluginCommandOptions = {},
+    packageSupplyService = packageSupplies,
     start = process.cwd(),
     storeProjectService = storeProjects,
   } = {}) {
@@ -87,6 +90,7 @@ export class PluginPlatform {
     const lifecycle = new PluginLifecycleService({
       applicationService,
       host,
+      managerService,
       start,
     });
     this.#pluginExtensions = lifecycle;
@@ -113,11 +117,13 @@ export class PluginPlatform {
         storeProjectService,
       }),
       extensionLifecycle: this.#extensionLifecycle,
+      supplyService: packageSupplyService,
       storeProjectService,
     });
     this.#doctor = new DoctorService({
       extensionStatusService: this.#extensionLifecycle,
       pluginStatusService: lifecycle,
+      packageSupplyService,
       repositoryStatusService: new RepositoryStatusService({ storeProjectService }),
       start,
       storeProjectService,
@@ -128,6 +134,7 @@ export class PluginPlatform {
       initializationService: this.#initialization,
       initSelectionService: this.#initSelection,
       pluginExtensionConnector: this.#pluginExtensions,
+      packageSupplyService,
       start,
       storeProjectService,
     });
@@ -191,6 +198,7 @@ export class PluginPlatform {
       applicationService,
       catalog,
       loadedPlugins: resolved,
+      managerService: resolvedManagerService,
       pluginCommandOptions,
       start,
       storeProjectService,

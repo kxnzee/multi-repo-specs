@@ -151,6 +151,42 @@ test("plugin init preserves --plugin/--from grammar and delegates to application
   ]);
 });
 
+test("plugin update is explicit and preserves the existing project declaration", async () => {
+  const calls = [];
+  const captured = outputCollector();
+  const storeProject = Object.freeze({
+    root: "/store",
+    project: Object.freeze({ requirePlugin(id) { assert.equal(id, "sample"); } }),
+  });
+  const program = candidate({
+    applicationService: {
+      async install(current, pluginId, source) {
+        calls.push({ current, pluginId, source });
+        return { initialized: false };
+      },
+      async remove() {},
+    },
+    lifecycleService: {
+      async connectMany() { return []; },
+      async statuses() { return []; },
+    },
+    output: captured.output,
+    storeProjectService: { async find() { return storeProject; } },
+  });
+
+  await program.parseAsync([
+    "node", "openspec-orch", "plugin", "update", "sample", "--from", "@test/sample@2.0.0",
+  ]);
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].current, storeProject);
+  assert.equal(calls[0].pluginId, "sample");
+  assert.equal(calls[0].source.installSpec, "@test/sample@2.0.0");
+  assert.deepEqual(captured.lines, [
+    "✓ sample — обновлён; выполните openspec-orch connect",
+  ]);
+});
+
 test("plugin init rejects ambiguous custom source selection before Store lookup", async () => {
   let finds = 0;
   const program = candidate({

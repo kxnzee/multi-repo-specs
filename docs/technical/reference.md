@@ -11,6 +11,7 @@
 ## Core CLI
 
 ```text
+openspec-orch --version
 openspec-orch init [path]
   --store <id> --agent <id>
   [--template <id-or-path>]
@@ -49,6 +50,7 @@ openspec-orch plugin register <id> [path]
   [--extension]
 
 openspec-orch plugin init [--plugin <id>] [--from <source>] [--all]
+openspec-orch plugin update <id> --from <source>
 openspec-orch plugin connect <id> [--repo <id>]... [--all]
 openspec-orch plugin status [--plugin <id>] [--repo <id>] [--json]
 openspec-orch plugin sync <id> [--repo <id>]... [--all]
@@ -56,17 +58,21 @@ openspec-orch plugin exec [--repo <id>]... [--all] <id> <command> [args...]
 openspec-orch plugin disconnect <id> [--repo <id>]... [--all]
 openspec-orch plugin remove <id>
 openspec-orch extension init <id> [--from <source>]
+openspec-orch extension update <id> --from <source>
 openspec-orch extension connect <id>
 openspec-orch extension status [<id>] [--json]
 openspec-orch extension disconnect <id>
 openspec-orch extension remove <id>
 openspec-orch package sync
+openspec-orch package status [--json]
 ```
 
 Фактические Plugin commands появляются после `plugin init`. Standalone Extension
-lifecycle выполняется только через группу `extension`; общий `connect` по-прежнему
-восстанавливает все объявленные Extensions при настройке Project. Progress идёт в
-stderr, machine-readable output — в stdout.
+lifecycle выполняется только через группу `extension`; общий `connect` при необходимости
+сначала восстанавливает зафиксированный npm runtime, затем все объявленные Extensions.
+`update` — единственная операция явной смены package source; `package status` только
+читает lock, provenance и локальный runtime. Progress идёт в stderr,
+machine-readable output — в stdout.
 
 ## First-party commands
 

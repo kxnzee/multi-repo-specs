@@ -10,7 +10,6 @@ import {
   repositoryStatuses,
   storeProjects,
 } from "@openspec-orch/core";
-import { ChangeTrackingApplication } from "@openspec-orch/plugin-change-tracking/application";
 import { StoreResourceService } from "@openspec-orch/mcp";
 
 /** Projects current Repository identity without exposing mutable domain objects. */
@@ -134,12 +133,7 @@ export class OrchestratorMcpRuntime {
 
   async getStatus({ change_id: changeId } = {}) {
     const state = await this.#state();
-    const tracking = await this.#optionalApplication(
-      state,
-      "change-tracking",
-      false,
-      (context) => new ChangeTrackingApplication(context),
-    );
+    const tracking = await this.#optionalAgentApplication(state, "change-tracking");
     const openSpec = this.#openSpec.forRepository(state.storeProject.checkout);
     const result = Object.freeze({
       ...projectJson(state.storeProject, state.invocation),
@@ -215,12 +209,7 @@ export class OrchestratorMcpRuntime {
     const repositoryOpenSpec = this.#openSpec.forRepository(state.storeProject.checkout);
     const resources = await this.#resourceService(state).list();
     const changePrefix = `openspec/changes/${changeId}/`;
-    const tracking = await this.#optionalApplication(
-      state,
-      "change-tracking",
-      false,
-      (context) => new ChangeTrackingApplication(context),
-    );
+    const tracking = await this.#optionalAgentApplication(state, "change-tracking");
     const result = Object.freeze({
       ...projectJson(state.storeProject, state.invocation),
       change_id: changeId,
@@ -363,6 +352,11 @@ export class OrchestratorMcpRuntime {
     );
   }
 
+  async #optionalAgentApplication(state, pluginId) {
+    const entry = this.#agentContributions.find((candidate) => candidate.pluginId === pluginId);
+    return entry ? this.#agentApplication(state, entry) : null;
+  }
+
   #resourceService(state) {
     return new StoreResourceService({
       files: this.#files.forRepository(state.storeProject.checkout),
@@ -396,12 +390,7 @@ export class OrchestratorMcpRuntime {
   }
 
   async #trackingApplication(state) {
-    const tracking = await this.#optionalApplication(
-      state,
-      "change-tracking",
-      false,
-      (context) => new ChangeTrackingApplication(context),
-    );
+    const tracking = await this.#optionalAgentApplication(state, "change-tracking");
     if (!tracking) {
       throw new Error(
         "CAPABILITY_UNAVAILABLE: change-tracking is not initialized; inspect Doctor",

@@ -97,9 +97,11 @@ openspec-orch agent status --agent qwen
 ```
 
 Plugin-owned Extensions восстанавливаются через `openspec-orch connect` или
-адресный `plugin connect`. Для внешних Plugin и standalone Extension сначала
-выполните `openspec-orch package sync`: команда восстанавливает локальный
-`.openspec-orch/packages/node_modules` из committed `package.json` и lockfile.
+адресный `plugin connect`. Для внешних Plugin и standalone Extension общий `connect`
+автоматически восстанавливает локальный `.openspec-orch/packages/node_modules` из
+committed `package.json` и lockfile. `openspec-orch package sync` остаётся явной
+операционной командой, а `package status --json` проверяет lock, runtime и provenance
+без изменений.
 Local state и runtime не коммитятся в Store.
 
 ## Rollback и поддержка

@@ -2,6 +2,7 @@
 
 import path from "node:path";
 import process from "node:process";
+import { createRequire } from "node:module";
 
 import { collectValues, createCliProgress, singleValue } from "@openspec-orch/plugin-sdk";
 import { Command, Option } from "commander";
@@ -13,6 +14,8 @@ import { ProjectSetupService } from "./project-setup.js";
 import { hasMethods } from "./value.js";
 import { formatDoctorReport, formatStatusHeading } from "./status-output.js";
 import { workspace } from "./workspace.js";
+
+const CORE_VERSION = createRequire(import.meta.url)("../package.json").version;
 
 /** Собирает повторяемую Commander option. */
 function collectRepositories(value, previous = []) {
@@ -42,6 +45,7 @@ export class CandidateCli {
   #packageCommands;
   #progress;
   #setup;
+  #version;
 
   constructor({
     agentGatewayService,
@@ -54,10 +58,13 @@ export class CandidateCli {
     pluginExtensionConnector,
     pluginLifecycleCommands,
     packageCommands,
+    packageSupplyService,
     progress = createCliProgress(),
     setupService,
     start = process.cwd(),
+    storeProjectService,
     templateRoot,
+    version = CORE_VERSION,
   } = {}) {
     if (agentGatewayService && !hasMethods(
       agentGatewayService,
@@ -99,13 +106,19 @@ export class CandidateCli {
       throw new Error("CLI_INVALID: progress должен предоставлять renderer contract");
     }
     this.#progress = progress;
+    if (typeof version !== "string" || version.length === 0) {
+      throw new Error("CLI_INVALID: version должен быть непустой строкой");
+    }
+    this.#version = version;
     this.#setup = setupService ?? new ProjectSetupService({
       bundledTemplateProvider,
       connectionService,
       extensionLifecycle,
       initializationService,
       initSelectionService,
+      packageSupplyService,
       pluginExtensionConnector,
+      storeProjectService,
       start,
       templateRoot,
     });
@@ -115,6 +128,7 @@ export class CandidateCli {
   createProgram() {
     const program = new Command()
       .name("openspec-orch")
+      .version(this.#version)
       .description("OpenSpec Orchestrator для multi-repository OpenSpec workflow")
       .enablePositionalOptions()
       .showHelpAfterError()

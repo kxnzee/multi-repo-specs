@@ -108,7 +108,9 @@ connect использует workspace только в текущем вызов
 | `.openspec-orch/packages/node_modules/` | Локальный runtime внешних packages | нет |
 | `.openspec-orch/cache/locks/` | Lock-файлы Core и Plugin operations | нет |
 
-После checkout выполните `openspec-orch package sync`: команда использует `npm ci`
-и не меняет committed manifests. Не редактируйте local state вручную. Неизвестная
+После checkout `openspec-orch connect` при необходимости использует `npm ci` и не
+меняет committed manifests. То же восстановление можно вызвать явно командой
+`openspec-orch package sync`; `package status` остаётся read-only. Не редактируйте
+local state вручную. Неизвестная
 версия `openspec-orch.yaml`, Core state или Plugin state завершается ошибкой, а не
 молча мигрируется.
