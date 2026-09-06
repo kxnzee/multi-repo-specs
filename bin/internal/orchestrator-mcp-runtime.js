@@ -384,9 +384,12 @@ export class OrchestratorMcpRuntime {
     if (requireBinding && !this.#isConnected(state, pluginId)) return null;
     try {
       const installation = await state.manager.resolve(declaration);
+      const setupContext = installation.loadedPlugin.plugin.hasRepositoryContribution()
+        ? this.#contexts.forRepositorySetup.bind(this.#contexts)
+        : this.#contexts.forStoreSetup.bind(this.#contexts);
       const context = await (requireBinding
         ? this.#contexts.forRepository.bind(this.#contexts)
-        : this.#contexts.forRepositorySetup.bind(this.#contexts))({
+        : setupContext)({
         loadedPlugin: installation.loadedPlugin,
         storeProject: state.storeProject,
         repositoryId: state.storeProject.store.id,

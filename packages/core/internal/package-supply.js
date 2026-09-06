@@ -1,5 +1,6 @@
 /** @fileoverview Общий npm-backed package store для Plugins и Extensions. */
 
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
@@ -13,6 +14,7 @@ import { npmPackageInstaller } from "./npm-package-installer.js";
 import { isContainedPath } from "./path.js";
 
 const KINDS = new Set(["extensions", "plugins"]);
+const RUNTIME_LOCK_MARKER = ".openspec-orch-lock.sha256";
 const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u;
 const PACKAGE_MAP_SCHEMA = z.record(
   z.string().regex(CORE_PATTERNS.id),
@@ -173,6 +175,7 @@ export class StorePackageSupply {
         const before = current ?? await this.#readOrCreateManifest(runtimeRoot);
         const previousPackage = before.openspecOrchestrator[kind][id];
         const dependenciesBefore = new Set(Object.keys(before.dependencies));
+        await this.#invalidateRuntime(runtimeRoot);
         await this.#installer.install({ runtimeRoot, source });
         const installed = await this.#readManifest(runtimeRoot);
         const added = Object.keys(installed.dependencies)
@@ -187,6 +190,8 @@ export class StorePackageSupply {
         const value = await validate(await this.#requirePackageRoot(runtimeRoot, packageName));
         installed.openspecOrchestrator[kind][id] = packageName;
         await this.#writeManifest(runtimeRoot, installed);
+        const lockfile = await this.#assertLockedState(runtimeRoot, installed);
+        await this.#markRuntime(runtimeRoot, installed, lockfile);
         await publish(value);
         return value;
       } catch (error) {
@@ -218,6 +223,12 @@ export class StorePackageSupply {
           `package-lock ${locked.version ?? "без версии"}; выполните openspec-orch package sync`,
       );
     }
+    if (!await this.#matchesRuntimeLock(runtimeRoot, lockfile)) {
+      unavailable(
+        `${packageName}: runtime не подтверждён для текущего полного package-lock; ` +
+          "выполните openspec-orch package sync",
+      );
+    }
     return Object.freeze({
       packageName,
       packageRoot: runtime.packageRoot,
@@ -239,17 +250,10 @@ export class StorePackageSupply {
         const runtime = await this.#inspectPackageRuntime(runtimeRoot, packageName, locked.version);
         if (runtime.state !== "ready") unavailablePackages.push(packageName);
       }
-      if (unavailablePackages.length === 0) return false;
-      await this.#installer.sync({ runtimeRoot });
-      for (const packageName of unavailablePackages) {
-        const locked = this.#lockedPackage(lockfile, packageName);
-        const runtime = await this.#inspectPackageRuntime(runtimeRoot, packageName, locked.version);
-        if (runtime.state !== "ready") {
-          unavailable(
-            `${packageName}: package sync не восстановил версию ${locked.version ?? "из lockfile"}`,
-          );
-        }
+      if (unavailablePackages.length === 0 && await this.#matchesRuntimeLock(runtimeRoot, lockfile)) {
+        return false;
       }
+      await this.#synchronize(runtimeRoot, manifest, lockfile);
       return true;
     }, { create: false });
   }
@@ -272,6 +276,7 @@ export class StorePackageSupply {
     }
     const manifest = await this.#readManifest(runtimeRoot);
     const lockfile = await this.#assertLockedState(runtimeRoot, manifest);
+    const matchesLock = await this.#matchesRuntimeLock(runtimeRoot, lockfile);
     const packages = [];
     for (const kind of [...KINDS].sort()) {
       for (const [id, packageName] of Object.entries(manifest.openspecOrchestrator[kind])) {
@@ -290,7 +295,7 @@ export class StorePackageSupply {
           provenance,
           mutable: mutableProvenance(provenance),
           available: runtime.state !== "missing",
-          state: runtime.state,
+          state: runtime.state === "ready" && !matchesLock ? "stale" : runtime.state,
           runtimeVersion: runtime.version,
         }));
       }
@@ -330,10 +335,17 @@ export class StorePackageSupply {
           Object.values(manifest.openspecOrchestrator[currentKind]).includes(packageName)
         ));
         await this.#writeManifest(runtimeRoot, manifest);
-        if (!stillUsed) await this.#installer.remove({ packageName, runtimeRoot });
+        if (!stillUsed) {
+          await this.#invalidateRuntime(runtimeRoot);
+          await this.#installer.remove({ packageName, runtimeRoot });
+        }
         const updated = await this.#readManifest(runtimeRoot);
         updated.openspecOrchestrator = manifest.openspecOrchestrator;
         await this.#writeManifest(runtimeRoot, updated);
+        if (!stillUsed) {
+          const lockfile = await this.#assertLockedState(runtimeRoot, updated);
+          await this.#markRuntime(runtimeRoot, updated, lockfile);
+        }
         await publish();
         return true;
       } catch (error) {
@@ -346,8 +358,8 @@ export class StorePackageSupply {
     return this.#withLock(async (runtimeRoot, existed) => {
       if (!existed) return false;
       const manifest = await this.#readManifest(runtimeRoot);
-      await this.#assertLockedState(runtimeRoot, manifest);
-      await this.#installer.sync({ runtimeRoot });
+      const lockfile = await this.#assertLockedState(runtimeRoot, manifest);
+      await this.#synchronize(runtimeRoot, manifest, lockfile);
       return true;
     }, { create: false });
   }
@@ -447,6 +459,55 @@ export class StorePackageSupply {
     return locked && typeof locked === "object" && !Array.isArray(locked) ? locked : {};
   }
 
+  #lockFingerprint(lockfile) {
+    return createHash("sha256").update(JSON.stringify(lockfile)).digest("hex");
+  }
+
+  async #runtimeMarker(runtimeRoot) {
+    const modules = path.join(runtimeRoot, "node_modules");
+    const stat = await lstatOrNull(modules);
+    if (!stat) return null;
+    if (!stat.isDirectory() || stat.isSymbolicLink()) invalid("node_modules небезопасен");
+    return path.join(modules, RUNTIME_LOCK_MARKER);
+  }
+
+  async #matchesRuntimeLock(runtimeRoot, lockfile) {
+    const marker = await this.#runtimeMarker(runtimeRoot);
+    if (!marker) return false;
+    const stat = await lstatOrNull(marker);
+    if (!stat) return false;
+    if (!stat.isFile() || stat.isSymbolicLink()) invalid("runtime lock marker небезопасен");
+    return (await fs.readFile(marker, "utf8")).trim() === this.#lockFingerprint(lockfile);
+  }
+
+  async #invalidateRuntime(runtimeRoot) {
+    const marker = await this.#runtimeMarker(runtimeRoot);
+    if (marker) await fs.rm(marker, { force: true });
+  }
+
+  /** Records the full lock only after npm and direct package validation succeed. */
+  async #markRuntime(runtimeRoot, manifest, lockfile) {
+    for (const packageName of Object.keys(manifest.dependencies)) {
+      const locked = this.#lockedPackage(lockfile, packageName);
+      const runtime = await this.#inspectPackageRuntime(runtimeRoot, packageName, locked.version);
+      if (runtime.state !== "ready") {
+        unavailable(`${packageName}: npm не восстановил версию ${locked.version ?? "из lockfile"}`);
+      }
+    }
+    await this.#ensureDirectoryChain(path.join(runtimeRoot, "node_modules"));
+    await this.#writer.write(
+      path.join(runtimeRoot, "node_modules", RUNTIME_LOCK_MARKER),
+      `${this.#lockFingerprint(lockfile)}\n`,
+      { mode: 0o600 },
+    );
+  }
+
+  async #synchronize(runtimeRoot, manifest, lockfile) {
+    await this.#invalidateRuntime(runtimeRoot);
+    await this.#installer.sync({ runtimeRoot });
+    await this.#markRuntime(runtimeRoot, manifest, lockfile);
+  }
+
   #writeManifest(runtimeRoot, manifest) {
     return this.#writer.write(
       path.join(runtimeRoot, "package.json"),
@@ -524,6 +585,7 @@ export class StorePackageSupply {
       await fs.rm(runtimeRoot, { force: true, recursive: true });
       return;
     }
+    await this.#invalidateRuntime(runtimeRoot);
     const restore = async (name, contents) => {
       const target = path.join(runtimeRoot, name);
       if (contents === null) await fs.rm(target, { force: true });
@@ -531,8 +593,13 @@ export class StorePackageSupply {
     };
     await restore("package.json", snapshot.manifest);
     await restore("package-lock.json", snapshot.lockfile);
-    if (snapshot.lockfile) await this.#installer.sync({ runtimeRoot });
-    else await fs.rm(path.join(runtimeRoot, "node_modules"), { force: true, recursive: true });
+    if (snapshot.lockfile) {
+      const manifest = await this.#readManifest(runtimeRoot);
+      const lockfile = await this.#assertLockedState(runtimeRoot, manifest);
+      await this.#synchronize(runtimeRoot, manifest, lockfile);
+    } else {
+      await fs.rm(path.join(runtimeRoot, "node_modules"), { force: true, recursive: true });
+    }
   }
 
   async #rollback(runtimeRoot, snapshot, error) {

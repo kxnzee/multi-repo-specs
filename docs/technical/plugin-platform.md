@@ -53,6 +53,9 @@ Agent contribution обнаруживается distribution без специа
 bundled, так и у объявленных в Project внешних Plugins. Общий MCP/runtime валидирует
 и маршрутизирует immutable tool metadata, но tool handler, availability fallback и
 response overlays остаются в owning Plugin package.
+Agent-only Plugin без Repository contribution получает Store-scoped context с
+исходным `invocation`, не требуя поддержки role `store`. Для Repository contribution
+сохраняется проверка поддерживаемой role, а `requireBinding` требует Store binding.
 
 ## PluginContext
 
@@ -126,8 +129,13 @@ dependencies без lifecycle scripts. npm фиксирует dependency graph �
 `openspec-orch.yaml` хранит только Plugin ID. Bundled Plugins загружаются из distribution.
 `plugin update <id> --from <source>` является единственным явным обновлением версии;
 `connect` может лишь восстановить уже зафиксированный lock. `package status` сверяет
-имя и версию установленного package с lockfile и показывает `stale`, если локальный
-runtime отстал; `package sync` восстанавливает и отсутствующий, и устаревший runtime.
+имя и версию установленного package, а также SHA-256 полного lockfile с отметкой
+успешной установки в `node_modules/.openspec-orch-lock.sha256`. Изменение Git commit,
+integrity или транзитивной зависимости обнаруживается даже при прежней версии
+прямого package. При несовпадении или отсутствии отметки runtime получает `stale`;
+`package sync` восстанавливает и отсутствующий, и устаревший runtime. Отметка
+удаляется перед npm mutation и записывается только после успешной установки и
+проверки packages; неуспешный sync не делает runtime готовым.
 
 Template не управляет Plugins.
 

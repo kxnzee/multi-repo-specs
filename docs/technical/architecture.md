@@ -136,7 +136,8 @@ Relaxed mode не клонирует и не pin-ит Git state; явно пер
 Bundled Plugins загружаются из distribution. Внешние Plugins и standalone Extensions
 живут в одном npm-проекте `.openspec-orch/packages`: manifest и lockfile переносимы,
 а `node_modules` локален. Обычный `connect` запускает `npm ci` только когда runtime
-отсутствует; `package sync` позволяет сделать это явно. Если
+отсутствует или не соответствует полному committed lockfile; `package sync`
+позволяет сделать это явно. Если
 объявленный Plugin недоступен или повреждён, Core и Doctor продолжают запускаться, а
 Plugin отображается как unavailable.
 

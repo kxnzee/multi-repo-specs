@@ -285,11 +285,12 @@ export class PluginContextFactory {
     });
   }
 
-  async forStoreSetup({ loadedPlugin, storeProject } = {}) {
+  async forStoreSetup({ loadedPlugin, storeProject, invocation } = {}) {
     return this.#create({
       loadedPlugin,
       storeProject,
       repositoryId: storeProject?.store?.id,
+      invocation,
       requireBinding: false,
       requireSupport: false,
     });

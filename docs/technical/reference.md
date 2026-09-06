@@ -72,8 +72,8 @@ lifecycle выполняется только через группу `extension
 сначала восстанавливает зафиксированный npm runtime, затем все объявленные Extensions.
 Относительный path в `extension init/update --from` разрешается от каталога запуска
 CLI. `update` — единственная операция явной смены package source; `package status`
-только читает lock, provenance и локальный runtime, сверяя установленную версию с
-lockfile. Progress идёт в stderr,
+только читает lock, provenance и локальный runtime, сверяя установленную версию и
+отметку полного lockfile последней успешной установки. Progress идёт в stderr,
 machine-readable output — в stdout.
 
 ## First-party commands

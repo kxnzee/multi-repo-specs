@@ -117,6 +117,11 @@ export function createPluginMaterializer({
       const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
       delete manifest.dependencies[packageName];
       await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+      const lockPath = path.join(runtimeRoot, "package-lock.json");
+      const lockfile = JSON.parse(await fs.readFile(lockPath, "utf8"));
+      lockfile.packages[""].dependencies = manifest.dependencies;
+      delete lockfile.packages[`node_modules/${packageName}`];
+      await fs.writeFile(lockPath, `${JSON.stringify(lockfile, null, 2)}\n`);
       await fs.rm(path.join(runtimeRoot, "node_modules", ...packageName.split("/")), {
         recursive: true,
         force: true,

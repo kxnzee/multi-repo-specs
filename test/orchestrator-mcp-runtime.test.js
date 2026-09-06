@@ -10,7 +10,10 @@ import { fileURLToPath } from "node:url";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { configuration, createProject } from "@openspec-orch/core";
+import { execa } from "execa";
+import {
+  configuration, createProject, createRepository, createRepositoryCheckout, PackageSupplyService,
+} from "@openspec-orch/core";
 
 import { OrchestratorMcpRuntime } from "../bin/internal/orchestrator-mcp-runtime.js";
 import { openSpecGraphAgentContribution } from "../plugins/openspec-graph/lib/agent.js";
@@ -53,15 +56,14 @@ test("public MCP executable completes stdio handshake and calls Core Doctor", as
   assert.equal(report.checks[0].id, "store");
 });
 
-test("public MCP exposes Agent tools contributed by an installed external Plugin", async (t) => {
+test("public MCP calls an external Agent-only Plugin and still serves Core status", async (t) => {
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-mcp-plugin-")));
   const sourceRoot = path.join(root, "external-agent-plugin");
-  const runtimeRoot = path.join(root, ".openspec-orch/packages");
   t.after(() => fs.rm(root, { force: true, recursive: true }));
+  await execa("git", ["init", "--initial-branch", "main", root]);
   await fs.mkdir(path.join(root, ".openspec-store"));
   await fs.mkdir(path.join(root, "openspec"));
   await fs.mkdir(sourceRoot);
-  await fs.mkdir(runtimeRoot, { recursive: true });
   await fs.writeFile(
     path.join(root, ".openspec-store/store.yaml"),
     "version: 1\nid: specs\nremote: https://example.test/specs.git\n",
@@ -95,34 +97,34 @@ import { definePlugin } from "@openspec-orch/plugin-sdk";
 export default definePlugin({
   id: "external-agent",
   agent: {
-    create: () => Object.freeze({}),
+    create: (context) => Object.freeze({
+      repository: context.repository,
+      invocation: context.invocation,
+    }),
     tools: [{
       name: "external_probe",
       description: "Read external Plugin state.",
       inputSchema: { type: "object", additionalProperties: false },
       annotations: { readOnlyHint: true },
-      execute: () => ({ source: "external" }),
+      execute: (application) => ({ source: "external", ...application }),
     }],
   },
 });
 `);
-  await fs.writeFile(path.join(runtimeRoot, "package.json"), `${JSON.stringify({
-    name: "openspec-orchestrator-packages",
-    private: true,
-    dependencies: {},
-    openspecOrchestrator: { extensions: {}, plugins: {} },
-  }, null, 2)}\n`);
-  await createPluginMaterializer({ sourceRoot }).install({ runtimeRoot });
-  const runtimeManifestPath = path.join(runtimeRoot, "package.json");
-  const runtimeManifest = JSON.parse(await fs.readFile(runtimeManifestPath, "utf8"));
-  runtimeManifest.openspecOrchestrator.plugins["external-agent"] =
-    "@test/openspec-orch-plugin-external-agent";
-  await fs.writeFile(runtimeManifestPath, `${JSON.stringify(runtimeManifest, null, 2)}\n`);
+  const checkout = createRepositoryCheckout(createRepository({
+    id: "specs", role: "store", remote: "https://example.test/specs.git",
+    defaultBranch: "main", plugins: [],
+  }), root);
+  await new PackageSupplyService({ installer: createPluginMaterializer({ sourceRoot }) })
+    .forStore(checkout).install({
+      id: "external-agent", kind: "plugins", source: sourceRoot, validate: async () => true,
+    });
 
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [serverPath],
     cwd: root,
+    env: { ...process.env },
     stderr: "pipe",
   });
   const client = new Client({ name: "external-plugin-smoke", version: "1.0.0" });
@@ -131,6 +133,15 @@ export default definePlugin({
 
   const tools = await client.listTools();
   assert.equal(tools.tools.some(({ name }) => name === "external_probe"), true);
+  const response = await client.callTool({ name: "external_probe", arguments: {} });
+  assert.notEqual(response.isError, true, JSON.stringify(response.content));
+  const result = JSON.parse(response.content[0].text);
+  assert.equal(result.source, "external");
+  assert.deepEqual(result.repository, { id: "specs", role: "store" });
+  assert.equal(result.invocation.id, "specs");
+  const status = await client.callTool({ name: "get_status", arguments: {} });
+  assert.notEqual(status.isError, true, JSON.stringify(status.content));
+  assert.equal(JSON.parse(status.content[0].text).store_id, "specs");
 });
 
 test("runtime rereads Project state and exposes OpenSpec context without optional Plugins", async () => {
