@@ -3,6 +3,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import * as z from "zod";
+
 import { atomicWriter } from "./atomic-writer.js";
 import { CORE_PATTERNS, CORE_SERVICE_PATHS } from "./constants.js";
 import { ensureDirectory, lstatOrNull } from "./fs.js";
@@ -12,6 +14,18 @@ import { isContainedPath } from "./path.js";
 
 const KINDS = new Set(["extensions", "plugins"]);
 const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u;
+const PACKAGE_MAP_SCHEMA = z.record(
+  z.string().regex(CORE_PATTERNS.id),
+  z.string().regex(PACKAGE_NAME),
+);
+const PACKAGE_MANIFEST_SCHEMA = z.object({
+  private: z.literal(true),
+  dependencies: z.record(z.string().regex(PACKAGE_NAME), z.string().min(1)).default({}),
+  openspecOrchestrator: z.object({
+    extensions: PACKAGE_MAP_SCHEMA,
+    plugins: PACKAGE_MAP_SCHEMA,
+  }).passthrough(),
+}).passthrough();
 
 /** Завершает operation стабильной ошибкой package supply. */
 function invalid(message, options) {
@@ -77,57 +91,25 @@ function emptyManifest() {
 
 /** Проверяет принадлежащую Orchestrator часть package.json. */
 function assertManifest(manifest) {
-  const metadata = manifest?.openspecOrchestrator;
-  if (
-    !manifest ||
-    typeof manifest !== "object" ||
-    Array.isArray(manifest) ||
-    manifest.private !== true ||
-    (manifest.dependencies !== undefined && (
-      !manifest.dependencies ||
-      typeof manifest.dependencies !== "object" ||
-      Array.isArray(manifest.dependencies)
-    )) ||
-    !metadata ||
-    typeof metadata !== "object" ||
-    Array.isArray(metadata)
-  ) {
+  const parsed = PACKAGE_MANIFEST_SCHEMA.safeParse(manifest);
+  if (!parsed.success) {
     invalid("package.json имеет несовместимый формат");
   }
-  manifest.dependencies ??= {};
+  const checked = parsed.data;
   for (const kind of KINDS) {
-    if (!metadata[kind] || typeof metadata[kind] !== "object" || Array.isArray(metadata[kind])) {
-      invalid(`package.json не содержит openspecOrchestrator.${kind}`);
-    }
-    for (const [id, packageName] of Object.entries(metadata[kind])) {
-      if (!CORE_PATTERNS.id.test(id) || !PACKAGE_NAME.test(packageName)) {
-        invalid(`package.json содержит некорректный mapping ${kind}/${id}`);
-      }
-      if (!Object.hasOwn(manifest.dependencies, packageName)) {
+    for (const [id, packageName] of Object.entries(checked.openspecOrchestrator[kind])) {
+      if (!Object.hasOwn(checked.dependencies, packageName)) {
         invalid(`package.json mapping ${kind}/${id} не входит в dependencies`);
       }
     }
   }
-  if (Object.entries(manifest.dependencies).some(([name, version]) => (
-    !PACKAGE_NAME.test(name) || typeof version !== "string" || !version
-  ))) {
-    invalid("package.json содержит некорректные dependencies");
-  }
-  return manifest;
+  return checked;
 }
 
 /** Возвращает стандартный node_modules path package. */
 function packagePath(runtimeRoot, packageName) {
   if (!PACKAGE_NAME.test(packageName)) invalid(`некорректное npm package name '${packageName}'`);
-  const segments = packageName.startsWith("@") ? packageName.split("/") : [packageName];
-  if (
-    segments.length < 1 ||
-    segments.length > 2 ||
-    segments.some((segment) => !segment || segment === "@" || segment.includes("\\"))
-  ) {
-    invalid(`некорректное npm package name '${packageName}'`);
-  }
-  return path.join(runtimeRoot, "node_modules", ...segments);
+  return path.join(runtimeRoot, "node_modules", ...packageName.split("/"));
 }
 
 /** Store-local npm project; npm owns dependency versions and lockfile. */

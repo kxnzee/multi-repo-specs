@@ -100,3 +100,24 @@ test("NpmPackageInstaller rejects invalid input and npm failures", async (t) => 
     /NPM_PACKAGE_FAILED.*кодом 7.*registry unavailable/s,
   );
 });
+
+test("NpmPackageInstaller restores the lock with the install-links mode used at install", async (t) => {
+  const root = await runtimeFixture(t);
+  const calls = [];
+  await new NpmPackageInstaller({
+    executor: async (_command, args) => {
+      calls.push(args);
+      return { failed: false, stderr: "", stdout: "" };
+    },
+  }).sync({ runtimeRoot: root });
+
+  assert.deepEqual(calls, [[
+    "ci",
+    "--prefix", root,
+    "--omit=dev",
+    "--ignore-scripts",
+    "--no-audit",
+    "--no-fund",
+    "--install-links",
+  ]]);
+});

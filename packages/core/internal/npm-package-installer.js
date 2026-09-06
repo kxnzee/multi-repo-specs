@@ -58,7 +58,7 @@ export class NpmPackageInstaller {
   }
 
   sync({ runtimeRoot } = {}) {
-    return this.#run(runtimeRoot, ["ci"]);
+    return this.#run(runtimeRoot, ["ci", "--install-links"]);
   }
 
   async #run(runtimeRoot, command) {

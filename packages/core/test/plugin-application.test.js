@@ -126,10 +126,11 @@ test("PluginApplicationService leaves config unchanged when publication fails", 
   const { root, storeProject } = await storeFixture(t);
   const originalProject = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
   const service = new PluginApplicationService({
-    fileService: {
-      forRepository() {
-        return { async write() { throw new Error("config write failed"); } };
+    mutationService: {
+      async run(candidate, operation) {
+        return operation(await storeProjects.load(candidate));
       },
+      async write() { throw new Error("config write failed"); },
     },
     managerService: managerFixture([]),
   });
@@ -173,10 +174,11 @@ test("PluginApplicationService keeps declaration when removal publication fails"
     managerService: managerFixture([]),
   }).install(storeProject, "sample", source);
   const service = new PluginApplicationService({
-    fileService: {
-      forRepository() {
-        return { async write() { throw new Error("config write failed"); } };
+    mutationService: {
+      async run(candidate, operation) {
+        return operation(await storeProjects.load(candidate));
       },
+      async write() { throw new Error("config write failed"); },
     },
     managerService: managerFixture([]),
   });
