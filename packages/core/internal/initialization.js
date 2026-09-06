@@ -173,7 +173,7 @@ export class InitializationService {
         ? extensions
         : [
             ...extensions,
-            ...current.filter(({ id }) => !extensions.some((entry) => entry.id === id)),
+            ...current.filter((id) => !extensions.includes(id)),
           ];
       currentProject = new Project({ ...project.toConfig(), extensions: requestedExtensions });
       const requested = currentProject.extensionDeclarations.map((entry) => entry.toConfig());

@@ -12,6 +12,10 @@
     ".": "./index.js",
     "./testing": "./testing.js"
   },
+  "dependencies": {
+    "@openspec-orch/extension-sdk": "0.1.0",
+    "semver": "7.8.5"
+  },
   "scripts": {
     "test": "node --test --test-concurrency=1"
   },

@@ -43,11 +43,17 @@ Core не интерпретирует требования, не реализу
 → создать или клонировать Store
 → при необходимости установить внешние Plugins
 → connect
-→ doctor и repository status
+→ doctor
 → при необходимости настроить Agent gateway и Plugin bindings
 → выбрать schema и вести Change штатным OpenSpec workflow
-→ пройти человеческий Verify, принять Release-решение и выполнить Archive
+→ пройти ИФТ и человеческий Verify
+→ выполнить Archive и передать Jira Story на UAT
+→ после UAT принять Release-решение и выполнить Release по Git Flow
 ```
+
+Store и все Code Repositories используют одну проектную Git Flow конвенцию.
+Команда задаёт в контексте имена Production, Integration, work, Release и Hotfix
+branches; Orchestrator эти имена не валидирует.
 
 Template `default` предоставляет короткую schema `spec-driven-extended` и полную
 `superspec-multirepo`. Schema выбирается отдельно для каждого Change.
@@ -62,4 +68,5 @@ Template `default` предоставляет короткую schema `spec-driv
 - Agent gateway предоставляет governed MCP, но не заменяет CLI и человеческие gates.
 
 Начните с [установки](installation-and-updates.md) и
-[создания проекта](getting-started.md).
+[создания проекта](getting-started.md). Полный путь Jira Story описан в
+[едином процессе поставки](story-delivery-process.md).

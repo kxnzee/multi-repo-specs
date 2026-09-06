@@ -65,11 +65,20 @@ export class AgentExtensionAdapter {
     }));
   }
 
-  /** Проверяет payload относительно manifests всех Agent текущей поставки. */
-  async validateExtension(extension, { ownerId } = {}) {
+  /** Проверяет payload для одного Agent или всей текущей поставки. */
+  async validateExtension(extension, { agentId, ownerId } = {}) {
     this.#assertExtension(extension);
     const nativeId = ownerId === undefined ? extension.id : `${ownerId}-${extension.id}`;
-    for (const { adapter, definition } of this.#providers.values()) {
+    const providers = agentId === undefined
+      ? this.#providers.values()
+      : [this.#providers.get(agentId)];
+    if (agentId !== undefined && !this.#providers.has(agentId)) {
+      invalid(`Agent '${agentId}' не входит в distribution`);
+    }
+    for (const { adapter, definition } of providers) {
+      if (extension.manifests && !Object.hasOwn(extension.manifests, definition.id)) {
+        invalid(`${extension.id}: Agent '${definition.id}' не поддерживается`);
+      }
       await adapter.validateExtension(extension, definition, { nativeId });
     }
   }

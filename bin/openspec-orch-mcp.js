@@ -15,8 +15,9 @@ import { OrchestratorMcpRuntime } from "./internal/orchestrator-mcp-runtime.js";
 try {
   assertNodeVersion(process.versions.node);
   const start = process.cwd();
-  const { managerService, platform } = await createDistributionPlatform({ start });
+  const { loadAgentContributions, managerService, platform } = await createDistributionPlatform({ start });
   const runtime = new OrchestratorMcpRuntime({
+    agentContributions: await loadAgentContributions(),
     doctorService: Object.freeze({
       inspect: (options) => platform.inspectDoctor(options),
     }),

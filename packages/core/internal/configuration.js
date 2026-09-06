@@ -86,11 +86,11 @@ function assertProjectContract(extensions, plugins, repositories) {
         "ровно одну запись roles: [store]",
     );
   }
-  const pluginIds = plugins.map(({ id }) => id);
+  const pluginIds = plugins;
   if (new Set(pluginIds).size !== pluginIds.length) {
     throw new Error("CONFIG_INVALID: plugins содержит повторяющийся plugin-id");
   }
-  const extensionIds = extensions.map(({ id }) => id);
+  const extensionIds = extensions;
   if (new Set(extensionIds).size !== extensionIds.length) {
     throw new Error("CONFIG_INVALID: extensions содержит повторяющийся extension-id");
   }

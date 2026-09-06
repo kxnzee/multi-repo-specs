@@ -20,8 +20,10 @@ brainstorm
 → plan
 → /opsx:apply (implementation action, no artifact)
 → verify
-→ Release gate
 → archive
+→ UAT
+→ Release gate
+→ Release
 ```
 
 Apply and Verify form a convergence loop without a separate Apply receipt. Apply
@@ -46,7 +48,8 @@ Apply produces no separate receipt artifact.
 - Technical evidence cannot complete the Human gate.
 - A person explicitly invokes any required branch, review or PR command or
   `superpowers:finishing-a-development-branch`; the schema stores no closeout receipt.
-- Release remains a team gate and is required before Archive.
+- Archive requires accepted Verify and Process Compliance and is published through a
+  Store PR before UAT. UAT and the Release gate remain team-owned steps after Archive.
 
 See `INTEGRATION.md` for operational handoffs and failure routes. Upstream attribution
 and the adaptation baseline are recorded in `NOTICE.md`.

@@ -33,6 +33,11 @@ checkout, полный SHA и чистоту worktree. При нарушении
 - Если в переданном checkout есть `.codegraph/` и Repository-scoped CodeGraph MCP
   доступен, сначала используй `codegraph_explore` с абсолютным `checkout_path` как
   `projectPath`. Не инициализируй и не синхронизируй индекс из subagent.
+- Если `.codegraph/` существует, но CodeGraph MCP недоступен, не исследуй Repository:
+  верни `status: blocked`, объясни проблему доставки MCP в `answer` и оставь
+  `evidence: []`. Не используй `plugin exec`, `grep`, `rg`, `find` или другой поиск.
+- Обычный поиск разрешён только при отсутствующем `.codegraph/` либо после ответа
+  `codegraph_explore`, что индекс stale или unavailable; явно укажи fallback в `answer`.
 - Не выполнять root glob, общий обзор Repository и поиск ради полноты. Остановиться,
   как только evidence достаточно для прямого ответа.
 - Не открывать другой checkout, не проектировать решение, не создавать Requirements

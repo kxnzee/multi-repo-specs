@@ -446,3 +446,18 @@ test("AgentExtensionAdapter validates all manifests and preserves native diagnos
     /поддерживаемая operation/u,
   );
 });
+
+test("AgentExtensionAdapter validates only the selected Agent for standalone payload", async (t) => {
+  const root = await extensionFixture(t);
+  await fs.rm(path.join(root, "gigacode-extension.json"));
+  const payload = Object.freeze({
+    ...extension(root),
+    manifests: Object.freeze({ qwen: "qwen-extension.json" }),
+  });
+
+  await agentAdapter.validateExtension(payload, { agentId: "qwen", ownerId: "codegraph" });
+  await assert.rejects(
+    agentAdapter.validateExtension(payload, { agentId: "gigacode", ownerId: "codegraph" }),
+    /Agent 'gigacode' не поддерживается/,
+  );
+});

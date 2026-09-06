@@ -11,7 +11,7 @@ const RUNTIME_METHODS = Object.freeze([
   "getNextAction",
   "getAssignmentScope",
   "getDoctorReport",
-  "queryGraph",
+  "invokeAgentTool",
   "listResources",
   "readResource",
 ]);
@@ -21,7 +21,11 @@ export class OrchestratorMcpApplication {
   #runtime;
 
   constructor({ runtime } = {}) {
-    if (!runtime || RUNTIME_METHODS.some((method) => typeof runtime[method] !== "function")) {
+    if (
+      !runtime ||
+      RUNTIME_METHODS.some((method) => typeof runtime[method] !== "function") ||
+      !Array.isArray(runtime.agentTools)
+    ) {
       throw new Error("MCP_APPLICATION_INVALID: runtime contract incomplete");
     }
     this.#runtime = runtime;
@@ -38,7 +42,8 @@ export class OrchestratorMcpApplication {
   getNextAction(input = {}) { return this.#runtime.getNextAction(input); }
   getAssignmentScope(input = {}) { return this.#runtime.getAssignmentScope(input); }
   getDoctorReport(input = {}) { return this.#runtime.getDoctorReport(input); }
-  queryGraph(input = {}) { return this.#runtime.queryGraph(input); }
+  get agentTools() { return this.#runtime.agentTools; }
+  invokeAgentTool(name, input = {}) { return this.#runtime.invokeAgentTool(name, input); }
   listResources() { return this.#runtime.listResources(); }
   readResource(uri) { return this.#runtime.readResource(uri); }
 }

@@ -31,8 +31,10 @@ request проверяет один вопрос в одном Repository.
 
 ## Предварительная проверка
 
-1. Вызвать MCP `get_change_context` с `change_id` и текущим `artifact`. Использовать
-   возвращённые planningHome, changeRoot, artifactPaths, actionContext и rules.
+1. Переиспользовать актуальный Work Context для того же `change_id` и текущего
+   `artifact`; при его отсутствии или после границы свежести один раз вызвать MCP
+   `get_change_context`. Использовать возвращённые planningHome, changeRoot,
+   artifactPaths, actionContext и rules.
 2. `rules` из этого ответа — единственный содержательный checklist стадии. Не
    реконструировать его из документации или памяти сессии.
 3. Прочитать только существующие outputs, их зависимости и релевантный Store context.
@@ -106,8 +108,10 @@ spec-driven-extended-repository-evidence-scout.
 - Общий или межрепозиторный вопрос сначала разложить на независимые
   repository-specific вопросы. Для каждого подготовить собственные question_id,
   полный входной контракт и отдельный результат.
-- Передать question_id, question, один repository-id, checkout, revision и anchors
-  из `get_assignment_scope`. Чистоту worktree проверить до вызова.
+- Передать question_id, question, один repository-id, checkout, revision и anchors из
+  уже полученного `assignment_scope`. Если его нет, вызвать `get_assignment_scope` один
+  раз для всей декомпозиции и переиспользовать результат. Чистоту worktree проверить до
+  вызова.
 - Для каждого вызова принять только один YAML-объект `repository_evidence` с тем же
   question_id и полями status, answer и evidence. Текст до или после YAML
   считать нарушением контракта и не использовать как evidence.

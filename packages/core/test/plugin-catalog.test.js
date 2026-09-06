@@ -28,6 +28,28 @@ test("PluginCatalog keeps stable order and selects only known Plugins", () => {
   assert.throws(() => catalog.require("missing"), /PLUGIN_NOT_DISCOVERED/);
 });
 
+test("PluginCatalog exposes an optional recommendation marker", () => {
+  const optional = entry("optional");
+  const recommended = new PluginCatalogEntry({
+    id: "recommended",
+    name: "Recommended",
+    recommended: true,
+    source: PluginSource.parse("@test/plugin-recommended@1.0.0"),
+  });
+
+  assert.equal(optional.recommended, false);
+  assert.equal(recommended.recommended, true);
+  assert.throws(
+    () => new PluginCatalogEntry({
+      id: "invalid",
+      name: "Invalid",
+      recommended: "yes",
+      source: PluginSource.parse("@test/plugin-invalid@1.0.0"),
+    }),
+    /recommended.*boolean/,
+  );
+});
+
 test("PluginCatalog rejects invalid and duplicate entries", () => {
   assert.throws(() => new PluginCatalog([entry("sample"), entry("sample")]), /повторяющийся/);
   assert.throws(() => new PluginCatalog([{}]), /PluginCatalogEntry/);

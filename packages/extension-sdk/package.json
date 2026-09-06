@@ -1,0 +1,20 @@
+{
+  "name": "@openspec-orch/extension-sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "files": [
+    "index.js",
+    "internal",
+    "testing.js"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./testing": "./testing.js"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1"
+  },
+  "engines": {
+    "node": ">=22.16.0"
+  }
+}

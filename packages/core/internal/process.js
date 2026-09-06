@@ -11,7 +11,7 @@ const COMMAND_ENV = Object.freeze({
 });
 
 /** Скрывает чувствительные значения в диагностике внешней команды. */
-function redact(value, sensitiveValues) {
+export function redactSensitive(value, sensitiveValues = []) {
   let result = value;
   for (const sensitive of sensitiveValues) {
     if (sensitive) result = result.split(sensitive).join("<repository-url>");
@@ -68,8 +68,8 @@ export class ScopedProcess {
       timeout,
     });
     if (result.failed && !acceptedExitCodes.includes(result.exitCode)) {
-      const invocation = redact(`${executable} ${args.join(" ")}`, sensitiveValues);
-      const details = redact(
+      const invocation = redactSensitive(`${executable} ${args.join(" ")}`, sensitiveValues);
+      const details = redactSensitive(
         [result.stderr, result.stdout].filter(Boolean).join("\n").trim(),
         sensitiveValues,
       );
@@ -81,10 +81,10 @@ export class ScopedProcess {
             ? `не запущена: ${result.originalMessage ?? result.shortMessage}`
             : "завершилась с ошибкой";
       throw new Error(
-        `${invocation} ${redact(reason, sensitiveValues)}${details ? `:\n${details}` : ""}`,
+        `${invocation} ${redactSensitive(reason, sensitiveValues)}${details ? `:\n${details}` : ""}`,
       );
     }
-    const warning = redact(result.stderr.trim(), sensitiveValues);
+    const warning = redactSensitive(result.stderr.trim(), sensitiveValues);
     if (warning) onStderr(warning);
     return result.stdout;
   }

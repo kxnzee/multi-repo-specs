@@ -24,8 +24,7 @@ Repository через OpenSpec pointer. Соблюдайте scope конкре�
 | Настроить Project v1, repositories, Extensions, Plugins и local state | [Конфигурация](user/configuration.md) |
 | Выбрать schema, понять artifacts или подготовить Custom Template | [Project Template](user/project-template.md) |
 | Подключить Agent gateway, OpenSpec Graph, Change Tracking, CodeGraph или внешний Plugin | [Plugins](user/plugins.md) |
-| Провести Change одному | [Поток одного человека](user/solo-flow.md) |
-| Разделить роли, gates и multi-repository работу в команде | [Командный поток](user/team-flow.md) |
+| Провести Jira Story от требования до UAT и Release | [Единый процесс поставки](user/story-delivery-process.md) |
 | Выбрать действие в пограничной ситуации | [Сценарии работы с Change](user/change-scenarios.md) |
 
 Template `default` предоставляет две schemas: `spec-driven-extended` с Intent и

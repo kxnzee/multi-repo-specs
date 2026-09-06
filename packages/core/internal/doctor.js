@@ -3,11 +3,26 @@
 import process from "node:process";
 
 import { openspec } from "./openspec.js";
+import { packageSupplies } from "./package-supply.js";
 import { repositoryStatuses } from "./repository-status.js";
 import { storeProjects } from "./store-project.js";
 import { hasMethods } from "./value.js";
 
 const OUTCOMES = new Set(["pass", "warning", "error", "skipped"]);
+
+/** Preserves text details or freezes one flat JSON object for machine-readable reports. */
+function diagnosticDetails(details) {
+  if (typeof details === "string") return details;
+  if (
+    !details || Array.isArray(details) || Object.getPrototypeOf(details) !== Object.prototype ||
+    Object.values(details).some((value) => (
+      value !== null && !["boolean", "number", "string"].includes(typeof value)
+    ))
+  ) {
+    throw new Error("DIAGNOSTIC_RESULT_INVALID: details должен быть строкой или flat JSON object");
+  }
+  return Object.freeze({ ...details });
+}
 
 /** Returns a stable diagnostic code from a domain error or a caller fallback. */
 function diagnosticCode(error, fallback) {
@@ -50,11 +65,18 @@ export class DiagnosticResult {
       typeof id !== "string" || id.length === 0 ||
       typeof subject !== "string" || subject.length === 0 ||
       !OUTCOMES.has(outcome) ||
-      [code, message, details].some((value) => typeof value !== "string")
+      [code, message].some((value) => typeof value !== "string")
     ) {
       throw new Error("DIAGNOSTIC_RESULT_INVALID: некорректный Doctor check");
     }
-    this.#value = Object.freeze({ id, subject, outcome, code, message, details });
+    this.#value = Object.freeze({
+      id,
+      subject,
+      outcome,
+      code,
+      message,
+      details: diagnosticDetails(details),
+    });
     Object.freeze(this);
   }
 
@@ -118,11 +140,20 @@ function skipped(id, subject) {
 /** Maps one read-only RepositoryStatus into Doctor semantics. */
 function repositoryDiagnostic(status) {
   const subject = `Repository ${status.id} [${status.role}]`;
+  const details = Object.fromEntries(Object.entries({
+    state: status.state,
+    path: status.path,
+    branch: status.branch || "detached HEAD",
+    remote: status.remote,
+    remote_matches: status.remoteMatches,
+    clean: status.clean,
+  }).filter(([, value]) => value !== undefined));
   if (status.state === "connected") {
     return new DiagnosticResult({
       id: `repository:${status.id}`,
       subject,
       outcome: status.clean === false ? "warning" : "pass",
+      details,
       ...(status.clean === false ? {
         code: "REPOSITORY_DIRTY",
         message: "Рабочее дерево содержит изменения",
@@ -135,6 +166,7 @@ function repositoryDiagnostic(status) {
     outcome: "error",
     code: `REPOSITORY_${status.state.toUpperCase()}`,
     message: `Repository находится в состоянии ${status.state}`,
+    details,
   });
 }
 
@@ -167,10 +199,60 @@ function groupDiagnostic(id, subject, outcome, message) {
   return [new DiagnosticResult({ id, subject, outcome, message })];
 }
 
+/** Maps the read-only npm supply report into one stable Doctor check. */
+function packageDiagnostic(report, strict) {
+  const total = report.packages.length;
+  const details = {
+    state: report.state,
+    packages: total,
+    available: report.available,
+    mutable: report.mutable,
+    runtime: report.runtimeRoot,
+  };
+  if (report.state === "missing") {
+    return new DiagnosticResult({
+      id: "packages",
+      subject: "Store packages",
+      outcome: "error",
+      code: "PACKAGE_RUNTIME_UNAVAILABLE",
+      message: "Выполните openspec-orch package sync",
+      details,
+    });
+  }
+  if (report.state === "stale") {
+    return new DiagnosticResult({
+      id: "packages",
+      subject: "Store packages",
+      outcome: "warning",
+      code: "PACKAGE_RUNTIME_STALE",
+      message: "Установленная версия не совпадает с package-lock; выполните openspec-orch package sync",
+      details,
+    });
+  }
+  if (strict && report.mutable > 0) {
+    return new DiagnosticResult({
+      id: "packages",
+      subject: "Store packages",
+      outcome: "warning",
+      code: "PACKAGE_SOURCE_MUTABLE",
+      message: "Strict-поставка должна использовать immutable npm, tarball или Git source",
+      details,
+    });
+  }
+  return new DiagnosticResult({
+    id: "packages",
+    subject: "Store packages",
+    outcome: "pass",
+    message: total === 0 ? "Внешние packages отсутствуют" : "npm lock и runtime согласованы",
+    details,
+  });
+}
+
 /** Aggregates existing read-only services without changing their contracts. */
 export class DoctorService {
   #extensions;
   #openspec;
+  #packages;
   #plugins;
   #repositories;
   #start;
@@ -179,6 +261,7 @@ export class DoctorService {
   constructor({
     extensionStatusService,
     openSpecService = openspec,
+    packageSupplyService = packageSupplies,
     pluginStatusService,
     repositoryStatusService = repositoryStatuses,
     start = process.cwd(),
@@ -193,6 +276,9 @@ export class DoctorService {
     if (!hasMethods(repositoryStatusService, ["inspect"])) {
       throw new Error("DOCTOR_INVALID: требуется RepositoryStatusService");
     }
+    if (!hasMethods(packageSupplyService, ["forStore"])) {
+      throw new Error("DOCTOR_INVALID: package supply должен предоставлять forStore");
+    }
     if (extensionStatusService && !hasMethods(extensionStatusService, ["diagnoseSelected"])) {
       throw new Error("DOCTOR_INVALID: Extension status должен предоставлять diagnoseSelected");
     }
@@ -202,6 +288,7 @@ export class DoctorService {
     if (typeof start !== "string") throw new Error("DOCTOR_INVALID: start должен быть строкой");
     this.#extensions = extensionStatusService;
     this.#openspec = openSpecService;
+    this.#packages = packageSupplyService;
     this.#plugins = pluginStatusService;
     this.#repositories = repositoryStatusService;
     this.#start = start;
@@ -209,7 +296,7 @@ export class DoctorService {
     Object.freeze(this);
   }
 
-  async inspect({ start = this.#start } = {}) {
+  async inspect({ start = this.#start, repositoryIds = [] } = {}) {
     const checks = [];
     let storeProject;
     try {
@@ -218,6 +305,7 @@ export class DoctorService {
     } catch (error) {
       return new DiagnosticReport([
         failed({ id: "store", subject: "Store", fallback: "STORE_UNAVAILABLE" }, error),
+        skipped("packages", "Store packages"),
         skipped("openspec", "OpenSpec"),
         skipped("repositories", "Repositories"),
         skipped("extensions", "Standalone Extensions"),
@@ -226,10 +314,13 @@ export class DoctorService {
     }
 
     const groups = [
+      ["packages", "Store packages", "PACKAGE_SUPPLY_UNAVAILABLE", () => (
+        this.#inspectPackages(storeProject)
+      )],
       ["openspec", "OpenSpec", "OPENSPEC_UNAVAILABLE", () => this.#inspectOpenSpec(storeProject)],
       [
         "repositories", "Repositories", "REPOSITORY_STATUS_UNAVAILABLE",
-        () => this.#inspectRepositories(storeProject),
+        () => this.#inspectRepositories(storeProject, repositoryIds),
       ],
       [
         "extensions", "Standalone Extensions", "EXTENSION_STATUS_UNAVAILABLE",
@@ -241,6 +332,11 @@ export class DoctorService {
       await appendDiagnostics(checks, { id, subject, fallback }, inspect);
     }
     return new DiagnosticReport(checks);
+  }
+
+  async #inspectPackages(storeProject) {
+    const report = await this.#packages.forStore(storeProject.checkout).inspect();
+    return [packageDiagnostic(report, storeProject.project?.strict === true)];
   }
 
   async #inspectOpenSpec(storeProject) {
@@ -269,8 +365,8 @@ export class DoctorService {
     })];
   }
 
-  async #inspectRepositories(storeProject) {
-    return (await this.#repositories.inspect({ start: storeProject.root }))
+  async #inspectRepositories(storeProject, repositoryIds) {
+    return (await this.#repositories.inspect({ start: storeProject.root, repositoryIds }))
       .map(repositoryDiagnostic);
   }
 

@@ -5,32 +5,22 @@ import test from "node:test";
 
 import { ExtensionDeclaration } from "@openspec-orch/core";
 
-test("ExtensionDeclaration keeps only ID and matching bundled source", () => {
-  const declaration = new ExtensionDeclaration({
-    id: "spec-driven-extended",
-    source: "bundled:spec-driven-extended",
-  });
+test("ExtensionDeclaration keeps only a stable ID", () => {
+  const declaration = new ExtensionDeclaration("spec-driven-extended");
 
   assert.equal(declaration.id, "spec-driven-extended");
-  assert.equal(declaration.source, "bundled:spec-driven-extended");
-  assert.deepEqual(declaration.toConfig(), {
-    id: "spec-driven-extended",
-    source: "bundled:spec-driven-extended",
-  });
+  assert.deepEqual(declaration.toConfig(), "spec-driven-extended");
   assert.equal(Object.isFrozen(declaration), true);
   assert.equal(Object.isFrozen(declaration.toConfig()), true);
 });
 
-test("ExtensionDeclaration rejects version, revision and mismatched identity", () => {
+test("ExtensionDeclaration rejects object declarations and invalid IDs", () => {
   assert.throws(
-    () => new ExtensionDeclaration({ id: "spec-driven-extended", source: "bundled:superpowers" }),
+    () => new ExtensionDeclaration({ id: "spec-driven-extended", source: "bundled:spec-driven-extended" }),
     /EXTENSION_DECLARATION_INVALID/,
   );
   assert.throws(
-    () => new ExtensionDeclaration({
-      id: "spec-driven-extended",
-      source: "bundled:spec-driven-extended@1.0.0",
-    }),
+    () => new ExtensionDeclaration("SpecDrivenExtended"),
     /EXTENSION_DECLARATION_INVALID/,
   );
   assert.throws(

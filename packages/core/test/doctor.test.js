@@ -26,6 +26,23 @@ test("DoctorService reuses read-only status services and keeps checking after fa
         return storeProject;
       },
     },
+    packageSupplyService: {
+      forStore(checkout) {
+        assert.equal(checkout, storeProject.checkout);
+        return {
+          async inspect() {
+            calls.push(["packages"]);
+            return {
+              state: "stale",
+              runtimeRoot: "/workspace/specs/.openspec-orch/packages",
+              packages: [{ id: "sample" }],
+              available: 1,
+              mutable: 0,
+            };
+          },
+        };
+      },
+    },
     openSpecService: {
       forRepository(checkout) {
         assert.equal(checkout, storeProject.checkout);
@@ -55,7 +72,16 @@ test("DoctorService reuses read-only status services and keeps checking after fa
       async inspect(options) {
         calls.push(["repositories", options]);
         return [
-          { id: "specs", role: "store", state: "connected", clean: true },
+          {
+            id: "specs",
+            role: "store",
+            state: "connected",
+            path: "/workspace/specs",
+            branch: "team/story-work",
+            remote: "https://example.test/specs.git",
+            remoteMatches: true,
+            clean: true,
+          },
           { id: "frontend", role: "code", state: "connected", clean: false },
           { id: "backend", role: "code", state: "missing", clean: undefined },
         ];
@@ -96,13 +122,14 @@ test("DoctorService reuses read-only status services and keeps checking after fa
     },
   });
 
-  const report = await service.inspect();
+  const report = await service.inspect({ repositoryIds: ["specs"] });
 
   assert.equal(report instanceof DiagnosticReport, true);
   assert.equal(report.status, "blocked");
-  assert.deepEqual(report.summary, { pass: 5, warning: 1, error: 3, skipped: 0 });
+  assert.deepEqual(report.summary, { pass: 5, warning: 2, error: 3, skipped: 0 });
   assert.deepEqual(report.checks.map(({ id, outcome }) => ({ id, outcome })), [
     { id: "store", outcome: "pass" },
+    { id: "packages", outcome: "warning" },
     { id: "openspec", outcome: "pass" },
     { id: "repository:specs", outcome: "pass" },
     { id: "repository:frontend", outcome: "warning" },
@@ -114,6 +141,19 @@ test("DoctorService reuses read-only status services and keeps checking after fa
   ]);
   assert.equal(calls.some(([operation]) => operation === "plugins"), true);
   assert.equal(calls.some(([operation]) => operation === "extensions"), true);
+  assert.equal(report.checks[1].code, "PACKAGE_RUNTIME_STALE");
+  assert.deepEqual(
+    calls.find(([operation]) => operation === "repositories"),
+    ["repositories", { start: "/workspace/specs", repositoryIds: ["specs"] }],
+  );
+  assert.deepEqual(report.checks[3].details, {
+    state: "connected",
+    path: "/workspace/specs",
+    branch: "team/story-work",
+    remote: "https://example.test/specs.git",
+    remote_matches: true,
+    clean: true,
+  });
 });
 
 test("DoctorService reports Store failure and marks dependent checks as skipped", async () => {
@@ -130,9 +170,10 @@ test("DoctorService reports Store failure and marks dependent checks as skipped"
   const report = await service.inspect();
 
   assert.equal(report.status, "blocked");
-  assert.deepEqual(report.summary, { pass: 0, warning: 0, error: 1, skipped: 4 });
+  assert.deepEqual(report.summary, { pass: 0, warning: 0, error: 1, skipped: 5 });
   assert.equal(report.checks[0].code, "STORE_ROOT_NOT_FOUND");
   assert.deepEqual(report.checks.slice(1).map(({ id, outcome }) => ({ id, outcome })), [
+    { id: "packages", outcome: "skipped" },
     { id: "openspec", outcome: "skipped" },
     { id: "repositories", outcome: "skipped" },
     { id: "extensions", outcome: "skipped" },
@@ -151,8 +192,21 @@ test("DiagnosticReport cannot be ready while a check is skipped", () => {
 });
 
 test("CandidateCli doctor renders human and JSON output from the same report", async (t) => {
+  const calls = [];
   const report = new DiagnosticReport([
     new DiagnosticResult({ id: "store", subject: "Store", outcome: "pass" }),
+    new DiagnosticResult({
+      id: "repository:frontend",
+      subject: "Repository frontend [code]",
+      outcome: "pass",
+      details: {
+        state: "connected",
+        path: "/workspace/frontend",
+        branch: "team/custom-work",
+        remote_matches: true,
+        clean: true,
+      },
+    }),
     new DiagnosticResult({
       id: "plugin:sample:frontend",
       subject: "Plugin sample → frontend",
@@ -165,7 +219,14 @@ test("CandidateCli doctor renders human and JSON output from the same report", a
   t.mock.method(console, "log", (value) => output.push(value));
   const previousExitCode = process.exitCode;
   t.after(() => { process.exitCode = previousExitCode; });
-  const cli = new CandidateCli({ doctorService: { inspect: async () => report } });
+  const cli = new CandidateCli({
+    doctorService: {
+      async inspect(options) {
+        calls.push(options);
+        return report;
+      },
+    },
+  });
 
   await cli.createProgram().parseAsync(["node", "openspec-orch", "doctor"]);
   assert.deepEqual(output, [
@@ -176,13 +237,19 @@ test("CandidateCli doctor renders human and JSON output from the same report", a
       "✗ Есть блокирующие ошибки",
       "",
       "Результат",
-      "  ✓ Успешно          1",
+      "  ✓ Успешно          2",
       "  ⚠ Предупреждения   0",
       "  ✗ Ошибки           1",
       "  • Пропущено        0",
       "",
       "Проверки",
       "  ✓ Store",
+      "  ✓ Repository frontend [code]",
+      "      ├─ state: connected",
+      "      ├─ path: /workspace/frontend",
+      "      ├─ branch: team/custom-work",
+      "      ├─ remote matches: да",
+      "      └─ clean: да",
       "  ✗ Plugin sample → frontend",
       "      Код: PLUGIN_UNAVAILABLE",
       "      runtime missing",
@@ -193,10 +260,22 @@ test("CandidateCli doctor renders human and JSON output from the same report", a
     ].join("\n"),
   ]);
   assert.equal(process.exitCode, 1);
+  assert.deepEqual(calls, [{ repositoryIds: [] }]);
+
+  output.length = 0;
+  process.exitCode = undefined;
+  await cli.createProgram().parseAsync([
+    "node", "openspec-orch", "doctor",
+    "--repo", "frontend",
+    "--repo", "backend",
+  ]);
+  assert.match(output[0], /Repository frontend \[code\][\s\S]*branch: team\/custom-work/u);
+  assert.deepEqual(calls.at(-1), { repositoryIds: ["frontend", "backend"] });
 
   output.length = 0;
   process.exitCode = undefined;
   await cli.createProgram().parseAsync(["node", "openspec-orch", "doctor", "--json"]);
   assert.deepEqual(JSON.parse(output[0]), report.toJSON());
   assert.equal(process.exitCode, 1);
+  assert.equal(cli.createProgram().commands.some((command) => command.name() === "repository"), false);
 });

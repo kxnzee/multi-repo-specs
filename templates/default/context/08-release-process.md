@@ -1,8 +1,34 @@
 # Release process
 
-Релиз должен продвигать тот же artifact, который прошёл Gate 3. Его identity задаётся
-точными commits и ссылкой на artifact в действующем процессе команды. Замена commit,
-build или image после проверки создаёт нового кандидата и требует повторной проверки.
+## Проектный Git Flow контракт
+
+Store и все Code Repositories должны следовать одной заполненной ниже
+конвенции. Имена и patterns выбирает команда; Orchestrator их не валидирует.
+
+| Роль | Имя или pattern в этом проекте | Источник | Цель PR |
+|---|---|---|---|
+| Production branch | TODO | — | — |
+| Integration branch | TODO | Production branch | — |
+| Code work branch | TODO | Integration branch | Integration branch |
+| Store Story branch | TODO | Integration branch Store | Integration branch Store |
+| Store subtask branch | TODO | Store Story branch | Store Story branch |
+| Release branch | TODO | Integration branch | Production branch, затем Integration branch |
+| Hotfix branch | TODO | Production branch | Production branch, затем Integration branch |
+
+<!-- TODO
+question: Какие имена и patterns веток, branch protection, обязательные checks, approvals, merge strategy, теги и обратные слияния приняты для всех repositories?
+owner: unassigned
+expected_source: Git hosting settings, repository policy, release runbooks, or maintainer confirmation
+-->
+
+Store Story branch принимает только PR подзадач. Финальный Story Store PR после
+Verify и Archive направляется в Integration branch Store. SDD определяет
+содержание и evidence, Git Flow — ветки и продвижение изменений.
+
+Релиз должен продвигать тот же artifact, который прошёл UAT и Gate 3. Его identity
+задаётся точными commits и ссылкой на artifact в действующем процессе команды. Замена
+commit, build или image после проверки создаёт нового кандидата и требует повторной
+проверки.
 
 Центральный контекст хранит общую политику продвижения и отката. Конкретные команды,
 конфигурация, метрики и процедура поставки компонента принадлежат его Code Repository.
@@ -31,12 +57,12 @@ owner: unassigned
 expected_source: Monitoring, runbooks, incidents, or maintainer confirmation
 -->
 
-## Archive и Confluence
+## Archive, UAT и Confluence
 
 - Archive разрешён только после завершения всех реализаций и обязательной ручной
-  проверки.
+  проверки Scenarios на ИФТ, успешного Verify и Human Gate `PASS`.
 - Штатный OpenSpec Archive остаётся владельцем применения Delta Specs к Master Specs
-  и перемещения Change.
+  и перемещения Change. Archive выполняется до UAT и Release через PR в Store.
 - До изменения Master Specs требуется сверка Repository Impact, Design, Tasks и Delta
   Specs. Принятый `skip_specs` не требует фиктивной Delta Spec.
 - После Archive при наличии долговечного
@@ -54,6 +80,11 @@ expected_source: Monitoring, runbooks, incidents, or maintainer confirmation
 - При расхождении источником истины остаётся архивная Git revision OpenSpec Store.
 - Сбой обязательной по project policy публикации не изменяет OpenSpec, но Archive
   handoff остаётся незавершённым до успешного повтора.
+- После слияния Story Store PR в Integration branch Store Jira Story переводится в
+  `Ready to UAT`. Успешный UAT и отдельное решение владельца продукта образуют
+  Gate 3 и разрешают Release.
+- Дефект UAT против архивированного Scenario требует связанного корректирующего
+  Change; прямое исправление Master Specs запрещено, Release блокируется.
 
 <!-- TODO
 question: Какой Confluence space, parent page и сервисный credential используются для публикации?

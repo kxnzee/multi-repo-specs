@@ -94,14 +94,11 @@ test("PluginApplicationService publishes config only after installation", async 
   assert.equal(result.initialized, true);
   const current = await storeProjects.load(root);
   assert.equal(current.project.version, 1);
-  assert.equal(
-    current.project.pluginDeclaration("sample").source,
-    "@test/plugin-sample@1.0.0",
-  );
+  assert.equal(current.project.pluginDeclaration("sample").id, "sample");
   assert.equal(calls.length, 1);
   const projectSource = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
   assert.match(projectSource, /version: 1/);
-  assert.match(projectSource, /id: sample\n\s+source: "@test\/plugin-sample@1.0.0"/);
+  assert.match(projectSource, /plugins:\n\s+- sample/);
 });
 
 test("PluginApplicationService rejects an inconsistent installation before config publication", async (t) => {
@@ -129,10 +126,11 @@ test("PluginApplicationService leaves config unchanged when publication fails", 
   const { root, storeProject } = await storeFixture(t);
   const originalProject = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
   const service = new PluginApplicationService({
-    fileService: {
-      forRepository() {
-        return { async write() { throw new Error("config write failed"); } };
+    mutationService: {
+      async run(candidate, operation) {
+        return operation(await storeProjects.load(candidate));
       },
+      async write() { throw new Error("config write failed"); },
     },
     managerService: managerFixture([]),
   });
@@ -146,6 +144,36 @@ test("PluginApplicationService leaves config unchanged when publication fails", 
     /config write failed/,
   );
 
+  assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), originalProject);
+});
+
+test("PluginApplicationService rolls back connect when binding publication fails", async (t) => {
+  const { root, storeProject } = await storeFixture(t);
+  const source = PluginSource.parse(path.join(root, "local-plugin"), { cwd: root });
+  await new PluginApplicationService({
+    managerService: managerFixture([]),
+  }).install(storeProject, "sample", source);
+  const originalProject = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
+  const calls = [];
+  const service = new PluginApplicationService({
+    mutationService: {
+      async run(candidate, operation) {
+        return operation(await storeProjects.load(candidate));
+      },
+      async write() { throw new Error("binding write failed"); },
+    },
+    managerService: managerFixture([]),
+  });
+
+  await assert.rejects(service.connectMany(
+    await storeProjects.load(root),
+    "sample",
+    ["specs"],
+    async (_current, repositoryId) => calls.push(["connect", repositoryId]),
+    async (_current, repositoryId) => calls.push(["rollback", repositoryId]),
+  ), /binding write failed/);
+
+  assert.deepEqual(calls, [["connect", "specs"], ["rollback", "specs"]]);
   assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), originalProject);
 });
 
@@ -176,10 +204,11 @@ test("PluginApplicationService keeps declaration when removal publication fails"
     managerService: managerFixture([]),
   }).install(storeProject, "sample", source);
   const service = new PluginApplicationService({
-    fileService: {
-      forRepository() {
-        return { async write() { throw new Error("config write failed"); } };
+    mutationService: {
+      async run(candidate, operation) {
+        return operation(await storeProjects.load(candidate));
       },
+      async write() { throw new Error("config write failed"); },
     },
     managerService: managerFixture([]),
   });

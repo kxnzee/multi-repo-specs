@@ -42,7 +42,7 @@ async function contextScenario(t, { backendPlugin = false, storePlugin = false }
     template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
-    plugins: [{ id: "sample", source: "@test/plugin-sample@1.0.0" }],
+    plugins: ["sample"],
     repositories: [
       {
         id: "specs",
@@ -185,10 +185,14 @@ test("PluginContextFactory creates Store context for Store-scoped setup", async 
   const context = await factory.forStoreSetup({
     loadedPlugin: scenario.loadedPlugin,
     storeProject: scenario.storeProject,
+    invocation: { id: "frontend", role: "code", path: scenario.frontendRoot },
   });
 
   assert.deepEqual(context.repository, { id: "specs", role: "store" });
   assert.equal(context.agent.id, "qwen");
+  assert.deepEqual(context.invocation, {
+    id: "frontend", role: "code", path: scenario.frontendRoot,
+  });
 });
 
 test("PluginContextFactory rejects bindings before resolving an unavailable checkout", async (t) => {

@@ -4,6 +4,7 @@ import path from "node:path";
 import { promises as fs } from "node:fs";
 
 import { pluginContexts } from "./plugin-context.js";
+import { rollbackOrRethrow } from "./compensation.js";
 import { LoadedPlugin } from "./plugin-loader.js";
 import { isContainedPath } from "./path.js";
 import { hasMethods } from "./value.js";
@@ -38,6 +39,16 @@ export class PluginRegistry {
     const plugin = this.#plugins.get(pluginId);
     if (!plugin) throw new Error(`PLUGIN_NOT_LOADED: plugin-id '${pluginId}' не загружен`);
     return plugin;
+  }
+
+  register(plugin) {
+    if (!(plugin instanceof LoadedPlugin)) {
+      throw new Error("PLUGIN_REGISTRY_INVALID: требуется LoadedPlugin");
+    }
+    const current = this.#plugins.get(plugin.id);
+    if (current) return current === plugin;
+    this.#plugins.set(plugin.id, plugin);
+    return true;
   }
 }
 
@@ -99,8 +110,40 @@ export class PluginHost {
     );
   }
 
+  /** Compensates Extension setup before a Plugin binding has been published. */
+  async rollbackConnect({ pluginId, storeProject, repositoryId } = {}) {
+    const loadedPlugin = this.#registry.require(pluginId);
+    if (!this.#hasExtensionContribution(loadedPlugin.plugin)) return;
+    const context = await this.#contexts.forRepositorySetup({
+      loadedPlugin,
+      storeProject,
+      repositoryId,
+    });
+    const extensions = await this.#prepareExtensions(loadedPlugin, context);
+    return this.#invokePreparedExtensions(loadedPlugin, context, extensions, "disconnect");
+  }
+
   assertLoaded(pluginId) {
     this.#registry.require(pluginId);
+  }
+
+  isLoaded(pluginId) {
+    return this.#registry.find(pluginId) !== null;
+  }
+
+  register(loadedPlugin) {
+    return this.#registry.register(loadedPlugin);
+  }
+
+  hasRepositoryContribution(pluginId) {
+    const { plugin } = this.#registry.require(pluginId);
+    const contributes = plugin.hasRepositoryContribution();
+    if (typeof contributes !== "boolean") {
+      throw new Error(
+        `PLUGIN_CONTRACT_INVALID: ${plugin.id}.hasRepositoryContribution должен вернуть boolean`,
+      );
+    }
+    return contributes;
   }
 
   supportsRepository(pluginId, repository) {
@@ -151,7 +194,7 @@ export class PluginHost {
         `PLUGIN_CONTRACT_INVALID: ${plugin.id}.hasRepositoryContribution должен вернуть boolean`,
       );
     }
-    if (!hasRepositoryContribution) {
+    if (!hasRepositoryContribution && operation !== "exec") {
       throw new Error(
         `PLUGIN_REPOSITORY_UNSUPPORTED: ${plugin.id} не предоставляет repository.${operation}`,
       );
@@ -180,6 +223,13 @@ export class PluginHost {
         throw new Error("PLUGIN_EXEC_INVALID: args должен быть непустым массивом строк");
       }
       immutableArgs = Object.freeze([...args]);
+    }
+    if (!hasRepositoryContribution) {
+      if (typeof this.#contexts.forStoreSetup !== "function") {
+        throw new Error("PLUGIN_HOST_INVALID: требуется PluginContextFactory.forStoreSetup");
+      }
+      const context = await this.#contexts.forStoreSetup({ loadedPlugin, storeProject });
+      return plugin.exec(context, immutableArgs);
     }
     const context = operation === "connect"
       ? await this.#contexts.forRepositorySetup({ loadedPlugin, storeProject, repositoryId })
@@ -245,8 +295,21 @@ export class PluginHost {
 
   async #invokePreparedExtensions(loadedPlugin, context, extensions, operation) {
     const request = Object.freeze({ operation, ownerId: loadedPlugin.id });
-    for (const resolvedExtension of extensions) {
-      await this.#agentAdapter.invokeExtension(context, resolvedExtension, request);
+    const completed = [];
+    try {
+      for (const resolvedExtension of extensions) {
+        await this.#agentAdapter.invokeExtension(context, resolvedExtension, request);
+        completed.push(resolvedExtension);
+      }
+    } catch (error) {
+      if (operation !== "connect" || completed.length === 0) throw error;
+      const rollback = Object.freeze({ operation: "disconnect", ownerId: loadedPlugin.id });
+      await rollbackOrRethrow(
+        error,
+        completed,
+        (extension) => this.#agentAdapter.invokeExtension(context, extension, rollback),
+        `PLUGIN_EXTENSION_ROLLBACK_FAILED: ${loadedPlugin.id}`,
+      );
     }
   }
 

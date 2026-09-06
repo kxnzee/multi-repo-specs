@@ -2,6 +2,7 @@
 
 import path from "node:path";
 import process from "node:process";
+import { createRequire } from "node:module";
 
 import { collectValues, createCliProgress, singleValue } from "@openspec-orch/plugin-sdk";
 import { Command, Option } from "commander";
@@ -10,31 +11,15 @@ import { configuration } from "./configuration.js";
 import { CORE_EXECUTION_MODE, CORE_FILES } from "./constants.js";
 import { doctor } from "./doctor.js";
 import { ProjectSetupService } from "./project-setup.js";
-import { repositoryStatuses } from "./repository-status.js";
 import { hasMethods } from "./value.js";
 import { formatDoctorReport, formatStatusHeading } from "./status-output.js";
 import { workspace } from "./workspace.js";
 
+const CORE_VERSION = createRequire(import.meta.url)("../package.json").version;
+
 /** Собирает повторяемую Commander option. */
 function collectRepositories(value, previous = []) {
   return [...previous, configuration.parseRepositoryArgument(value)];
-}
-
-/** Печатает read-only состояние одного Repository. */
-function printRepositoryStatus(status) {
-  console.log(formatStatusHeading(`${status.id} [${status.role}]`, status.state));
-  if (status.path) console.log(`  Путь: ${status.path}`);
-  if (status.connected) {
-    console.log(
-      `  ${status.branchMatches ? "✓" : "✗"} Ветка: ${status.branch}` +
-        (status.branchMatches ? "" : " — не совпадает с default_branch"),
-    );
-    console.log(
-      `  ${status.remoteMatches ? "✓" : "✗"} Remote: ` +
-        (status.remoteMatches ? "совпадает" : `не совпадает с ${CORE_FILES.orchestratorConfig}`),
-    );
-    console.log(`  ${status.clean ? "✓" : "⚠"} Рабочее дерево: ${status.clean ? "чистое" : "есть изменения"}`);
-  }
 }
 
 /** Печатает список созданных или обновлённых файлов. */
@@ -56,28 +41,31 @@ function buildConnectHint(storeRoot, storeId) {
 export class CandidateCli {
   #agentGateway;
   #doctor;
-  #pluginCommands;
+  #extensionCommands;
   #pluginLifecycleCommands;
+  #packageCommands;
   #progress;
-  #repositoryStatuses;
   #setup;
+  #version;
 
   constructor({
     agentGatewayService,
     bundledTemplateProvider,
     connectionService,
     doctorService = doctor,
+    extensionCommands,
     extensionLifecycle,
     initSelectionService,
     initializationService,
-    pluginCommandMounter,
     pluginExtensionConnector,
     pluginLifecycleCommands,
+    packageCommands,
+    packageSupplyService,
     progress = createCliProgress(),
-    repositoryStatusService = repositoryStatuses,
     setupService,
     start = process.cwd(),
-    templateRoot,
+    storeProjectService,
+    version = CORE_VERSION,
   } = {}) {
     if (agentGatewayService && !hasMethods(
       agentGatewayService,
@@ -90,6 +78,10 @@ export class CandidateCli {
       throw new Error("CLI_INVALID: doctorService должен предоставлять inspect");
     }
     this.#doctor = doctorService;
+    if (extensionCommands && typeof extensionCommands.mount !== "function") {
+      throw new Error("CLI_INVALID: extensionCommands должен предоставлять mount");
+    }
+    this.#extensionCommands = extensionCommands;
     if (extensionLifecycle && !hasMethods(
       extensionLifecycle,
       ["connectSelected", "disconnectSelected", "preflight", "statusSelected"],
@@ -98,10 +90,6 @@ export class CandidateCli {
         "CLI_INVALID: extensionLifecycle должен предоставлять preflight и selected lifecycle",
       );
     }
-    if (pluginCommandMounter && typeof pluginCommandMounter.mount !== "function") {
-      throw new Error("CLI_INVALID: pluginCommandMounter должен предоставлять mount");
-    }
-    this.#pluginCommands = pluginCommandMounter;
     if (pluginExtensionConnector && !hasMethods(
       pluginExtensionConnector,
       ["connectSelected", "disconnectSelected", "statusSelected"],
@@ -115,20 +103,28 @@ export class CandidateCli {
       throw new Error("CLI_INVALID: pluginLifecycleCommands должен предоставлять mount");
     }
     this.#pluginLifecycleCommands = pluginLifecycleCommands;
+    if (packageCommands && typeof packageCommands.mount !== "function") {
+      throw new Error("CLI_INVALID: packageCommands должен предоставлять mount");
+    }
+    this.#packageCommands = packageCommands;
     if (!hasMethods(progress, ["fail", "run", "start", "succeed", "update", "warn"])) {
       throw new Error("CLI_INVALID: progress должен предоставлять renderer contract");
     }
     this.#progress = progress;
-    this.#repositoryStatuses = repositoryStatusService;
+    if (typeof version !== "string" || version.length === 0) {
+      throw new Error("CLI_INVALID: version должен быть непустой строкой");
+    }
+    this.#version = version;
     this.#setup = setupService ?? new ProjectSetupService({
       bundledTemplateProvider,
       connectionService,
       extensionLifecycle,
       initializationService,
       initSelectionService,
+      packageSupplyService,
       pluginExtensionConnector,
+      storeProjectService,
       start,
-      templateRoot,
     });
     Object.freeze(this);
   }
@@ -136,7 +132,9 @@ export class CandidateCli {
   createProgram() {
     const program = new Command()
       .name("openspec-orch")
+      .version(this.#version)
       .description("OpenSpec Orchestrator для multi-repository OpenSpec workflow")
+      .enablePositionalOptions()
       .showHelpAfterError()
       .exitOverride();
     program.command("init [path]")
@@ -157,7 +155,12 @@ export class CandidateCli {
     program.command("doctor")
       .description("проверить готовность Store и локального окружения без изменений")
       .option("--json", "вывести машиночитаемый Diagnostic Report")
-      .action((options) => this.#diagnose({ json: Boolean(options.json) }));
+      .addOption(new Option("--repo <repository-id>", "ограничить Repository checks")
+        .argParser(collectValues))
+      .action((options) => this.#diagnose({
+        json: Boolean(options.json),
+        repositoryIds: options.repo ?? [],
+      }));
     program.command("connect")
       .description("подключить рабочую машину и Code Repositories")
       .addOption(new Option("--workspace <path>", "явный workspace").argParser(singleValue))
@@ -167,15 +170,9 @@ export class CandidateCli {
       .description("локально отключить Agent Extensions без изменения Store config")
       .action(() => this.#disconnect());
     if (this.#agentGateway) this.#mountAgentGateway(program);
+    this.#extensionCommands?.mount(program);
+    this.#packageCommands?.mount(program);
     this.#pluginLifecycleCommands?.mount(program);
-    const repository = program.command("repository")
-      .description("операции только чтения над репозиториями реестра");
-    repository.command("status")
-      .description("показать подключение, чистоту, remote и ветку каждого репозитория")
-      .addOption(new Option("--repo <repository-id>", "ограничить вывод одним repository-id")
-        .argParser(collectValues))
-      .action((options) => this.#inspectRepositories(options));
-    this.#pluginCommands?.mount(program);
     return program;
   }
 
@@ -287,8 +284,8 @@ export class CandidateCli {
     this.#printConnection(result, options);
   }
 
-  async #diagnose({ json }) {
-    const report = await this.#doctor.inspect();
+  async #diagnose({ json, repositoryIds }) {
+    const report = await this.#doctor.inspect({ repositoryIds });
     process.exitCode = report.status === "blocked" ? 1 : 0;
     if (json) {
       console.log(JSON.stringify(report, null, 2));
@@ -306,15 +303,6 @@ export class CandidateCli {
       this.#progress.fail("Отключение Agent Extensions: ошибка");
       throw error;
     }
-  }
-
-  async #inspectRepositories(options) {
-    const statuses = await this.#progress.run(
-      "Проверка состояния repositories...",
-      () => this.#repositoryStatuses.inspect({ repositoryIds: options.repo ?? [] }),
-      { success: "Состояние repositories проверено" },
-    );
-    for (const status of statuses) printRepositoryStatus(status);
   }
 
   #renderConnectionProgress(message, status) {

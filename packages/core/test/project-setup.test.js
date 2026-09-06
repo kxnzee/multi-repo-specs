@@ -80,6 +80,11 @@ test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence"
       },
     }),
     pluginExtensionConnector: pluginExtension,
+    packageSupplyService: Object.freeze({
+      forStore() {
+        return Object.freeze({ async ensure() { calls.push("packages:ensure"); } });
+      },
+    }),
     start: root,
     storeProjectService: Object.freeze({
       async load() { throw new Error("load не ожидается для нового Project"); },
@@ -120,6 +125,7 @@ test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence"
   const connected = await service.connect({ requireStrict: true });
   assert.equal(connected.status, "ready");
   assert.deepEqual(calls, [
+    "packages:ensure",
     "extension:preflight",
     "core:connect",
     "extension:connect",
@@ -228,6 +234,9 @@ test("ProjectSetupService connects a strict Project from its resolved Code Repos
     initializationService: Object.freeze({ async initialize() { return {}; } }),
     initSelectionService: Object.freeze({ async resolve() { return {}; } }),
     start: codeRoot,
+    packageSupplyService: Object.freeze({
+      forStore() { return Object.freeze({ async ensure() {} }); },
+    }),
     storeProjectService: Object.freeze({
       async load() { throw new Error("load не ожидается"); },
       async resolve(start) {

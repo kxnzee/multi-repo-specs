@@ -1,4 +1,4 @@
-/** @fileoverview Проверки единого facade установки и загрузки Plugin package. */
+/** @fileoverview Проверки тонкого Plugin adapter над npm package supply. */
 
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
@@ -11,18 +11,12 @@ import {
   createRepository,
   createRepositoryCheckout,
   PluginInstallation,
-  PluginLoader,
   PluginManagerService,
   PluginSource,
   StorePluginManager,
 } from "@openspec-orch/core";
 
-import {
-  createPluginMaterializer,
-  PLUGIN_SDK_VERSION,
-  SAMPLE_PLUGIN_ROOT,
-} from "./helpers/plugin-materializer.js";
-import { createDirectoryLink } from "../fixtures/filesystem.js";
+import { SAMPLE_PLUGIN_ROOT } from "./helpers/plugin-materializer.js";
 
 /** Создаёт изолированный Store checkout. */
 async function storeFixture(t) {
@@ -38,13 +32,41 @@ async function storeFixture(t) {
   return { root, checkout: createRepositoryCheckout(repository, root) };
 }
 
-test("PluginManager installs and restores one deterministic runtime per Plugin", async (t) => {
-  const { root, checkout } = await storeFixture(t);
-  const source = PluginSource.parse(SAMPLE_PLUGIN_ROOT, { cwd: root });
-  const manager = new PluginManagerService({
-    npmInstaller: createPluginMaterializer(),
-  }).forStore(checkout);
+/** Возвращает наблюдаемый package supply без npm процесса. */
+function supplyFixture(calls) {
+  return {
+    forStore() {
+      return {
+        async install(options) {
+          calls.push({ operation: "install", ...options });
+          const value = await options.validate(SAMPLE_PLUGIN_ROOT);
+          await options.publish(value);
+          return value;
+        },
+        async resolve(kind, id) {
+          calls.push({ operation: "resolve", kind, id });
+          return {
+            packageName: "@test/openspec-orch-plugin-sample",
+            packageRoot: SAMPLE_PLUGIN_ROOT,
+            runtimeRoot: path.dirname(SAMPLE_PLUGIN_ROOT),
+            version: "1.0.0",
+          };
+        },
+        async remove(kind, id, publish) {
+          calls.push({ operation: "remove", kind, id });
+          await publish();
+          return true;
+        },
+      };
+    },
+  };
+}
 
+test("PluginManager validates packages supplied by the shared npm project", async (t) => {
+  const { root, checkout } = await storeFixture(t);
+  const calls = [];
+  const manager = new PluginManagerService({ supplyService: supplyFixture(calls) }).forStore(checkout);
+  const source = PluginSource.parse(SAMPLE_PLUGIN_ROOT, { cwd: root });
   const installed = await manager.install("sample", source);
   const project = createProject({
     version: 1,
@@ -52,108 +74,51 @@ test("PluginManager installs and restores one deterministic runtime per Plugin",
     template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
-    plugins: [{ id: "sample", source: installed.declaration }],
-    repositories: [{
-      id: "specs",
-      role: "store",
-      remote: "https://example.test/specs.git",
-      defaultBranch: "main",
-      plugins: [],
-    }],
+    plugins: ["sample"],
+    repositories: [{ ...checkout.repository.toConfig(), plugins: [] }],
   });
   const restored = await manager.resolve(project.pluginDeclaration("sample"));
 
   assert.equal(manager instanceof StorePluginManager, true);
   assert.equal(installed instanceof PluginInstallation, true);
-  assert.equal(installed.declaration, "@test/openspec-orch-plugin-sample@1.0.0");
+  assert.equal(installed.id, "sample");
   assert.equal(restored.loadedPlugin.id, "sample");
-  assert.equal(restored.runtimeRoot, path.join(
-    root,
-    ".openspec-orch/cache/plugin-runtimes/sample",
-  ));
-  assert.deepEqual(
-    JSON.parse(await fs.readFile(path.join(restored.runtimeRoot, "package.json"))).dependencies,
-    {
-      "@openspec-orch/plugin-sdk": PLUGIN_SDK_VERSION,
-      "@test/openspec-orch-plugin-sample": `file:${SAMPLE_PLUGIN_ROOT}`,
+  assert.equal(restored.runtimeRoot, SAMPLE_PLUGIN_ROOT);
+  assert.deepEqual(calls.map(({ operation }) => operation), ["install", "resolve"]);
+});
+
+test("PluginManager delegates external removal to the shared supply", async (t) => {
+  const { checkout } = await storeFixture(t);
+  const calls = [];
+  const manager = new PluginManagerService({ supplyService: supplyFixture(calls) }).forStore(checkout);
+  let published = false;
+
+  assert.equal(await manager.remove("sample", async () => { published = true; }), true);
+  assert.equal(published, true);
+  assert.deepEqual(calls.map(({ operation, kind, id }) => ({ operation, kind, id })), [{
+    operation: "remove",
+    kind: "plugins",
+    id: "sample",
+  }]);
+});
+
+test("PluginManager does not shadow a bundled Plugin with an external package", async (t) => {
+  const { root, checkout } = await storeFixture(t);
+  const manager = new PluginManagerService({
+    bundledProvider: {
+      has(pluginId) { return pluginId === "sample"; },
+      async install() {},
+      async resolve() {},
     },
+    supplyService: supplyFixture([]),
+  }).forStore(checkout);
+
+  await assert.rejects(
+    manager.install("sample", PluginSource.parse(SAMPLE_PLUGIN_ROOT, { cwd: root })),
+    /встроенный Plugin нельзя заменить через --from/,
   );
-  assert.deepEqual(
-    (await fs.readdir(path.dirname(restored.runtimeRoot))).filter((name) => name.startsWith(".install-")),
-    [],
-  );
+});
+
+test("PluginInstallation remains manager-owned", () => {
   assert.throws(() => new PluginInstallation(), /используйте Plugin Manager/);
-});
-
-test("PluginManager preserves the previous runtime when replacement validation or publication fails", async (t) => {
-  const { root, checkout } = await storeFixture(t);
-  const source = PluginSource.parse(SAMPLE_PLUGIN_ROOT, { cwd: root });
-  const current = new PluginManagerService({
-    npmInstaller: createPluginMaterializer(),
-  }).forStore(checkout);
-  const previous = await current.install("sample", source);
-  const marker = path.join(previous.runtimeRoot, "preserved.txt");
-  await fs.writeFile(marker, "original");
-  const invalid = new PluginManagerService({
-    loader: new PluginLoader(async () => ({ default: Object.freeze({}) })),
-    npmInstaller: createPluginMaterializer({ version: "2.0.0" }),
-  }).forStore(checkout);
-
-  await assert.rejects(invalid.install("sample", source), /Plugin export id|не предоставляет метод/);
-
-  assert.equal(await fs.readFile(marker, "utf8"), "original");
-  assert.deepEqual(await fs.readdir(path.dirname(previous.runtimeRoot)), ["sample"]);
-
-  await assert.rejects(
-    current.install("sample", source, async () => { throw new Error("publish failed"); }),
-    /publish failed/,
-  );
-  assert.equal(await fs.readFile(marker, "utf8"), "original");
-  assert.deepEqual(await fs.readdir(path.dirname(previous.runtimeRoot)), ["sample"]);
-});
-
-test("PluginManager removes one runtime idempotently", async (t) => {
-  const { root, checkout } = await storeFixture(t);
-  const manager = new PluginManagerService({
-    npmInstaller: createPluginMaterializer(),
-  }).forStore(checkout);
-  await manager.install("sample", PluginSource.parse(SAMPLE_PLUGIN_ROOT, { cwd: root }));
-
-  await assert.rejects(
-    manager.remove("sample", async () => { throw new Error("publish failed"); }),
-    /publish failed/,
-  );
-  assert.equal(await fs.lstat(path.join(
-    root,
-    ".openspec-orch/cache/plugin-runtimes/sample",
-  )).then((stat) => stat.isDirectory()), true);
-  assert.deepEqual(
-    (await fs.readdir(path.join(root, ".openspec-orch/cache/plugin-runtimes")))
-      .filter((name) => name.includes(".removing-")),
-    [],
-  );
-
-  assert.equal(await manager.remove("sample"), true);
-  assert.equal(await manager.remove("sample"), false);
-});
-
-test("PluginManager fails closed for a busy lock and unsafe runtime directory", async (t) => {
-  const { root, checkout } = await storeFixture(t);
-  const source = PluginSource.parse(SAMPLE_PLUGIN_ROOT, { cwd: root });
-  let installs = 0;
-  const manager = new PluginManagerService({
-    npmInstaller: { async install() { installs += 1; } },
-  }).forStore(checkout);
-  const lockPath = path.join(root, ".openspec-orch/cache/locks/plugin-installer.lock");
-  await fs.mkdir(lockPath, { recursive: true });
-
-  await assert.rejects(manager.install("sample", source), /PLUGIN_INSTALL_BUSY/);
-  assert.equal(installs, 0);
-
-  await fs.rmdir(lockPath);
-  const outside = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-runtime-outside-"));
-  t.after(() => fs.rm(outside, { recursive: true, force: true }));
-  await createDirectoryLink(outside, path.join(root, ".openspec-orch/cache/plugin-runtimes"));
-  await assert.rejects(manager.install("sample", source), /небезопасный directory segment/);
-  assert.equal(installs, 0);
 });

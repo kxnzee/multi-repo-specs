@@ -151,7 +151,9 @@ openspec-orch agent setup --agent qwen
 
 Обязательны только `store_id` и `agent_id`. Если `template_id` не указан,
 используется bundled Template по умолчанию. `repositories` можно не передавать для
-Store без Code Repositories. Локальный путь к Template, произвольный target,
+Store без Code Repositories. В `repositories` перечисляются только Code Repositories:
+текущий центральный Store уже задан через `store_id` и повторно туда не добавляется.
+Локальный путь к Template, произвольный target,
 `--no-strict` и `--workspace` через `initialize_project` не поддерживаются.
 
 После успешной инициализации в той же Agent-сессии можно вызвать `connect_project`
@@ -175,16 +177,15 @@ openspec store list
 Дальше выполняйте обычный `connect` из следующего раздела. Он регистрирует Store в
 OpenSpec, подключает Code Repositories, восстанавливает standalone Extensions и
 Plugin-owned Extensions для доступных Plugin packages из portable bindings. Bundled
-Plugins доступны из Orchestrator distribution. Runtime внешнего Plugin является
-machine-local и обычным `connect` не устанавливается: сначала установите его exact
-source из `openspec-orch.yaml`, затем повторите `connect`:
+Plugins доступны из Orchestrator distribution. Внешние packages восстанавливаются
+из committed Store lockfile и обычным `connect` не устанавливаются:
 
 ```bash
-openspec-orch plugin init --plugin <plugin-id> --from <exact-source>
+openspec-orch package sync
 openspec-orch connect
 ```
 
-После `connect` обязательно проверьте `doctor`, `repository status`, Agent gateway и
+После `connect` обязательно проверьте `doctor`, Agent gateway и
 `plugin status`. Если Store ID уже указывает на другой путь, сначала разрешите конфликт
 локальной регистрации; не изменяйте identity клонированного Store. Если Store клонирован
 не в `<workspace>/<store-id>`, передайте `--workspace` явно, как показано ниже.
@@ -195,12 +196,11 @@ openspec-orch connect
 cd /absolute/path/to/workspace/specs
 openspec-orch connect
 openspec-orch doctor
-openspec-orch repository status
 ```
 
 В strict mode отсутствующие Code Repositories клонируются в `<workspace>/src/`.
-Существующие checkout не обновляются и должны соответствовать configured remote,
-branch и clean-state требованиям.
+Существующие checkout не обновляются и должны иметь configured remote, чистое рабочее
+дерево и именованную текущую ветку; её имя не сравнивается с `default_branch`.
 
 В strict mode для другой раскладки один раз передайте workspace:
 
@@ -233,7 +233,7 @@ openspec-orch agent status --agent qwen
 ```bash
 openspec-orch plugin init --plugin openspec-graph
 openspec-orch plugin connect openspec-graph --repo specs
-openspec-orch graph inspect --json
+openspec-orch plugin exec openspec-graph inspect --json
 ```
 
 Остальные варианты описаны в [руководстве Plugins](plugins.md).
@@ -246,11 +246,12 @@ openspec new change update-copy --schema spec-driven-extended
 openspec new change redesign-checkout --schema superspec-multirepo
 ```
 
-Дальше используйте [личный](solo-flow.md) или [командный](team-flow.md) процесс.
+Дальше используйте [единый процесс поставки](story-delivery-process.md); он описывает
+как командное, так и одиночное выполнение.
 
 Для нового участника итоговая последовательность выглядит так:
 
 ```text
-проверка Agent CLI → clone Store → connect → doctor → repository status
+проверка Agent CLI → clone Store → connect → doctor
 → agent setup/status → plugin status → перезапуск Agent → работа с Change
 ```

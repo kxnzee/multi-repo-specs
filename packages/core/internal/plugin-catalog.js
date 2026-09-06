@@ -13,9 +13,10 @@ function invalid(message) {
 export class PluginCatalogEntry {
   #id;
   #name;
+  #recommended;
   #source;
 
-  constructor({ id, name, source } = {}) {
+  constructor({ id, name, recommended = false, source } = {}) {
     if (typeof id !== "string" || !PLUGIN_PATTERNS.id.test(id)) {
       invalid(`некорректный plugin-id '${id ?? ""}'`);
     }
@@ -25,14 +26,19 @@ export class PluginCatalogEntry {
     if (!(source instanceof PluginSource)) {
       invalid(`source для ${id} должен быть PluginSource`);
     }
+    if (typeof recommended !== "boolean") {
+      invalid(`recommended для ${id} должен быть boolean`);
+    }
     this.#id = id;
     this.#name = name.trim();
+    this.#recommended = recommended;
     this.#source = source;
     Object.freeze(this);
   }
 
   get id() { return this.#id; }
   get name() { return this.#name; }
+  get recommended() { return this.#recommended; }
   get source() { return this.#source; }
 }
 

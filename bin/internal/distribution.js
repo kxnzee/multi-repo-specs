@@ -13,13 +13,9 @@ const MINIMUM_NODE_PARTS = Object.freeze(MINIMUM_NODE_VERSION.split(".").map(Num
 export const DISTRIBUTION_CONFIG = Object.freeze({
   defaultTemplateId: PACKAGE_MANIFEST.openspecOrchestrator.defaultTemplateId,
   plugins: Object.freeze(PACKAGE_MANIFEST.openspecOrchestrator.bundledPlugins.map((plugin) => (
-    Object.freeze({
-      ...plugin,
-      rootCommands: plugin.rootCommands === undefined
-        ? undefined
-        : Object.freeze([...plugin.rootCommands]),
-    })
+    Object.freeze({ ...plugin })
   ))),
+  version: PACKAGE_MANIFEST.version,
 });
 
 const BUNDLED_ROOTS = Object.freeze({
@@ -74,7 +70,7 @@ export async function createDistributionPlatform({ start }) {
   const pluginPackages = await Promise.all(
     DISTRIBUTION_CONFIG.plugins.map(({ packageName }) => resolvePluginPackage(packageName)),
   );
-  const bundledProvider = new core.BundledPluginProvider(DISTRIBUTION_CONFIG.plugins.map(
+  const bundledPackages = DISTRIBUTION_CONFIG.plugins.map(
     (definition, index) => {
       const resolved = pluginPackages[index];
       return new core.BundledPluginPackage({
@@ -82,10 +78,12 @@ export async function createDistributionPlatform({ start }) {
         name: definition.name,
         packageName: resolved.manifest.name,
         packageRoot: resolved.root,
+        recommended: definition.recommended,
         version: resolved.manifest.version,
       });
     },
-  ));
+  );
+  const bundledProvider = new core.BundledPluginProvider(bundledPackages);
   const bundledAgentProvider = await resolveBundledDirectories({
     label: "Agent",
     load: (root, name) => core.BundledAgentPackage.load(root, { expectedId: name }),
@@ -119,13 +117,31 @@ export async function createDistributionPlatform({ start }) {
     bundledExtensionProvider,
     bundledTemplateProvider,
     bundledProvider,
-    rootCommands: new Map(DISTRIBUTION_CONFIG.plugins
-      .filter(({ rootCommands }) => rootCommands !== undefined)
-      .map(({ id, rootCommands }) => [id, rootCommands])),
     start,
   });
+  const loadAgentContributions = async () => {
+    const bundledContributions = (await Promise.all(
+      bundledPackages.map(async (pluginPackage) => {
+        const installation = await bundledProvider.resolve({
+          id: pluginPackage.id,
+          source: pluginPackage.source.declaration,
+        });
+        const { plugin } = installation.loadedPlugin;
+        return typeof plugin.hasAgentContribution === "function" && plugin.hasAgentContribution()
+          ? Object.freeze({
+            pluginId: plugin.id,
+            contribution: plugin.agentContribution(),
+          })
+          : null;
+      }),
+    )).filter(Boolean);
+    const contributions = new Map(bundledContributions.map((entry) => [entry.pluginId, entry]));
+    for (const entry of platform.agentContributions) contributions.set(entry.pluginId, entry);
+    return Object.freeze([...contributions.values()]);
+  };
   return Object.freeze({
     agentGatewayService,
+    loadAgentContributions,
     managerService: new core.PluginManagerService({ bundledProvider }),
     platform,
   });

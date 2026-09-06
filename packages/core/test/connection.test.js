@@ -237,6 +237,37 @@ test("ConnectionService is idempotent and remembers explicit nonstandard workspa
   );
 });
 
+test("ConnectionService accepts an existing checkout on any named branch", async (t) => {
+  const scenario = await connectionScenario(t, { pointer: true });
+  const fake = connectExecutor(scenario);
+  const service = connectionFixture(fake.executor);
+
+  await service.connect({ start: scenario.storeRoot });
+  const checkout = path.join(scenario.workspaceRoot, "src/api");
+  await execa("git", ["-C", checkout, "switch", "-c", "team/custom-work"]);
+
+  const result = await service.connect({ start: scenario.storeRoot });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.repositories[0].branch, "team/custom-work");
+  assert.equal(result.repositories[0].cloned, false);
+});
+
+test("ConnectionService rejects detached HEAD before changing a checkout", async (t) => {
+  const scenario = await connectionScenario(t, { pointer: true });
+  const fake = connectExecutor(scenario);
+  const service = connectionFixture(fake.executor);
+
+  await service.connect({ start: scenario.storeRoot });
+  const checkout = path.join(scenario.workspaceRoot, "src/api");
+  await execa("git", ["-C", checkout, "switch", "--detach", "HEAD"]);
+
+  await assert.rejects(
+    service.connect({ start: scenario.storeRoot }),
+    /connect нельзя выполнять в detached HEAD/,
+  );
+});
+
 test("ConnectionService relaxed mode uses local directory and does not persist workspace", async (t) => {
   const scenario = await connectionScenario(t, { strict: false });
   const checkout = path.join(scenario.workspaceRoot, "src/api");
@@ -304,6 +335,22 @@ test("OpenSpecPointerService preserves CRLF and local OpenSpec migration guards"
 test("CandidateCli preserves connect grammar and normalized options", async () => {
   const calls = [];
   const cli = new CandidateCli({
+    packageSupplyService: {
+      forStore(checkout) {
+        assert.equal(checkout, "/workspace/payments-specs");
+        return { async ensure() { calls.push({ packages: "ensure" }); } };
+      },
+    },
+    storeProjectService: {
+      async load() {},
+      async resolve() {
+        return {
+          checkout: "/workspace/payments-specs",
+          project: { strict: false },
+          root: "/workspace/payments-specs",
+        };
+      },
+    },
     extensionLifecycle: {
       async preflight() {
         calls.push({ agent: "preflight" });
@@ -346,15 +393,16 @@ test("CandidateCli preserves connect grammar and normalized options", async () =
     "--no-strict",
   ]);
 
-  assert.equal(calls.length, 6);
-  assert.deepEqual(calls[0], { agent: "preflight" });
-  assert.equal(calls[1].workspace, "/workspace");
-  assert.equal(calls[1].noStrict, true);
-  assert.equal(typeof calls[1].onProgress, "function");
-  assert.deepEqual(calls[2], { extensions: "connect" });
-  assert.deepEqual(calls[3], { pluginExtensions: "connect" });
-  assert.deepEqual(calls[4], { extensions: "status" });
-  assert.deepEqual(calls[5], { pluginExtensions: "status" });
+  assert.equal(calls.length, 7);
+  assert.deepEqual(calls[0], { packages: "ensure" });
+  assert.deepEqual(calls[1], { agent: "preflight" });
+  assert.equal(calls[2].workspace, "/workspace");
+  assert.equal(calls[2].noStrict, true);
+  assert.equal(typeof calls[2].onProgress, "function");
+  assert.deepEqual(calls[3], { extensions: "connect" });
+  assert.deepEqual(calls[4], { pluginExtensions: "connect" });
+  assert.deepEqual(calls[5], { extensions: "status" });
+  assert.deepEqual(calls[6], { pluginExtensions: "status" });
 
   calls.length = 0;
   await cli.createProgram().parseAsync(["node", "openspec-orch", "disconnect"]);

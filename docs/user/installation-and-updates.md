@@ -56,7 +56,7 @@ machine-readable version pin выбранный tag или commit фиксиру
 
 ## Процедура миграции
 
-1. Создайте отдельную ветку Store от актуальной default branch.
+1. Создайте work branch Store от актуальной Integration branch по проектной Git-политике.
 2. Примените только изменения, перечисленные в release notes.
 3. Просмотрите diff как обычное изменение Store.
 4. Проверьте schemas и все Changes:
@@ -68,7 +68,7 @@ machine-readable version pin выбранный tag или commit фиксиру
    openspec-orch doctor
    git diff --check
    ```
-5. Проведите review и merge обычным процессом Store.
+5. Проведите review и merge через PR в Integration branch Store.
 6. После merge обновите локальную копию Store и повторите `connect` и `doctor`.
 
 Custom Store проверяет собственные schema IDs. Не заменяйте несовместимый artifact
@@ -97,7 +97,16 @@ openspec-orch agent status --agent qwen
 ```
 
 Plugin-owned Extensions восстанавливаются через `openspec-orch connect` или
-адресный `plugin connect`. Local state и cache не коммитятся в Store.
+адресный `plugin connect`. Для внешних Plugin и standalone Extension общий `connect`
+автоматически восстанавливает локальный `.openspec-orch/packages/node_modules` из
+committed `package.json` и lockfile. `openspec-orch package sync` остаётся явной
+операционной командой, а `package status --json` проверяет lock, provenance, имя и
+версию установленного runtime без изменений. Проверяется также соответствие полному
+lockfile последней успешной установки: новая Git revision или транзитивная зависимость
+обнаруживается даже без изменения версии Plugin. Несовпадение либо отсутствие
+локальной отметки установки получает `stale` и устраняется `package sync` или
+следующим `connect`.
+Local state и runtime не коммитятся в Store.
 
 ## Rollback и поддержка
 
@@ -108,8 +117,8 @@ Plugin-owned Extensions восстанавливаются через `openspec-
 local state до диагностики: сначала сохраните `doctor --json`, версию Node/OpenSpec,
 commit Orchestrator и точную команду ошибки.
 
-## Планируемая поставка через npm registry
+## Поставка Orchestrator через npm registry
 
 Root distribution и внутренние packages планируется публиковать в npm registry.
-Store получит exact root dependency и lockfile; внутренние версии будут поставляться
-как единый согласованный release.
+Внутренние версии Orchestrator будут поставляться как единый согласованный release.
+Это не связано со Store-local npm-проектом внешних Plugins и Extensions.

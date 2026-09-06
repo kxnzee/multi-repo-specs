@@ -23,24 +23,52 @@ Repository binding. Repository contribution начинает работать п
 | `codegraph` | Store или Code Repository | Управляет локальным CodeGraph index и Agent Extension |
 
 Bundled Plugins поставляются вместе с выбранной версией Orchestrator. `plugin init`
-проверяет package и добавляет его exact identity в `openspec-orch.yaml`, а
+проверяет package и добавляет его стабильный ID в `openspec-orch.yaml`, а
 `plugin connect` добавляет binding в запись Repository. Эти изменения относятся к
 Store и должны проходить обычные diff, review и commit.
 
-Внешний Plugin материализуется в локальный cache Store, который не попадает в Git.
-На новой машине до обычного `connect` установите отсутствующий runtime из принятого
-source:
+Внешние Plugins и standalone Extensions являются зависимостями одного private
+npm-проекта Store. Его `package.json` и `package-lock.json` коммитятся, а
+`node_modules` остаётся локальным. На новой машине обычного `connect` достаточно:
 
 ```bash
-openspec-orch plugin init \
-  --plugin <plugin-id> \
-  --from <exact-source>
 openspec-orch connect
 ```
 
-Обычный `connect` восстанавливает lifecycle и Agent Extensions уже объявленных
-bindings, но не скачивает отсутствующий внешний package. Если runtime недоступен,
-сначала повторите `plugin init` с source, который даёт принятую package identity.
+Если runtime отсутствует, `connect` сначала выполняет эквивалент `npm ci` строго по
+committed lockfile, затем догружает Plugins и восстанавливает Agent Extensions.
+Явные `package sync` и read-only `package status [--json]` остаются доступны для
+диагностики. Новый внешний Plugin добавляется через `plugin init --from`; его версия
+фиксируется npm lockfile, а не Project YAML.
+
+## Standalone Extensions
+
+Standalone Extension управляется адресно через собственную группу CLI:
+
+```bash
+openspec-orch extension init <extension-id> --from <package@version>
+openspec-orch extension connect <extension-id>
+openspec-orch extension update <extension-id> --from <package@version>
+openspec-orch extension status <extension-id>
+openspec-orch extension disconnect <extension-id>
+openspec-orch extension remove <extension-id>
+```
+
+Локальный относительный path после `--from` вычисляется от каталога, в котором
+запущен `openspec-orch`, одинаково для `extension init` и `extension update`.
+
+`connect` проверяет native Agent CLI и payload перед установкой или включением.
+`status` без ID проверяет все объявленные Extensions и поддерживает `--json`.
+ID встроенной Extension нельзя затенить внешним package через `--from`.
+`disconnect` временно отключает Extension в Agent, не меняя Store. `remove` сначала
+удаляет Extension из native Agent и только после успеха удаляет её ID и внешнюю
+npm-зависимость из Store. Если локальный `node_modules` отсутствует, `remove` сначала
+восстанавливает его из committed lockfile. Если удалить нужно сразу, отдельный
+`disconnect` не нужен. Если публикация Store после native removal завершается ошибкой,
+Orchestrator откатывает npm state и повторно подключает Extension; ошибка компенсации
+возвращается вместе с исходной причиной.
+Общий `openspec-orch connect` остаётся способом восстановить все объявленные
+Extensions после checkout.
 
 ## Общий lifecycle
 
@@ -48,32 +76,34 @@ bindings, но не скачивает отсутствующий внешний
 cd /absolute/path/to/store
 openspec-orch plugin init --plugin <plugin-id>
 openspec-orch plugin connect <plugin-id> --repo <repository-id>
+openspec-orch plugin update <plugin-id> --from <package@version>
 openspec-orch plugin status --plugin <plugin-id>
 openspec-orch plugin sync <plugin-id> --repo <repository-id>
-openspec-orch plugin exec <plugin-id> --repo <repository-id> -- <command>
+openspec-orch plugin exec --repo <repository-id> <plugin-id> <command>
 openspec-orch plugin disconnect <plugin-id> --repo <repository-id>
 openspec-orch plugin remove <plugin-id>
 ```
 
-`connect`, `status`, `sync`, `exec` и `disconnect` относятся к repository contribution.
-Для commands-only Plugin после `init` используйте его собственную command namespace;
-только доверенные bundled Plugins могут получать явно разрешённые root commands.
-`sync` и `exec` не универсальны: используйте их лишь там, где Plugin явно объявляет
-эти операции.
+`connect`, `status`, `sync` и `disconnect` относятся к repository contribution.
+`plugin exec` — единый интерфейс declarative-команд и native argv для всех Plugins;
+Plugin-specific root commands отсутствуют. `sync` доступен только Plugin, который
+явно объявляет эту операцию.
 
-Без selector `plugin init` показывает каталог в TTY. В non-TTY передайте `--plugin`
-или `--all`; вариант с `--from` принимает ровно один `--plugin` и один source.
-Обычная command namespace внешнего Plugin вызывается как
-`openspec-orch <plugin-id> <command>`.
-
+Без selector `plugin init` показывает каталог в TTY; знак `★` отмечает рекомендуемые
+Plugins, но не выбирает их автоматически. В non-TTY передайте `--plugin` или `--all`;
+вариант с `--from` принимает ровно один `--plugin` и один source.
+ID встроенного Plugin нельзя затенить внешним package через `--from`.
 Для `connect`, `sync`, `exec` и `disconnect` при работе с несколькими repositories
-повторите `--repo` или используйте `--all`. Без selector эти команды показывают
-выбор в TTY, а в non-TTY требуют явный selector. `status` не поддерживает `--all`:
+повторите `--repo` или используйте `--all`. Единственный candidate выбирается
+автоматически. При нескольких без selector TTY показывает выбор, а non-TTY требует
+явный selector. В `plugin exec` selector ставится перед Plugin ID, после ID все флаги
+принадлежат самому Plugin. `status` не поддерживает `--all`:
 без `--repo` он показывает все bindings, а `--repo` ограничивает результат.
 `disconnect` удаляет binding и отключает Plugin-owned Extension, но не удаляет
 данные Plugin из Repository. `remove` разрешён только без bindings.
 
-`init`, `connect`, `disconnect` и `remove` могут менять `openspec-orch.yaml`.
+`init`, `update`, `connect`, `disconnect` и `remove` могут менять Store package files
+или `openspec-orch.yaml`. `update` всегда явный и не выполняется из обычного `connect`.
 `status` не меняет declaration или bindings и по контракту диагностирует состояние.
 `sync` и `exec` также не меняют declaration или bindings, но могут менять принадлежащее
 Plugin состояние согласно его собственному контракту.
@@ -108,8 +138,8 @@ claude plugin list --json
 
 `disconnect` сначала отключает Plugin-owned Extension и затем удаляет portable binding.
 Для Qwen/GigaCode payload может остаться установленным, но disabled; Claude adapter
-удаляет local Plugin и marketplace текущего scope. `remove` удаляет declaration и
-Store-local runtime внешнего Plugin. Ни одна из этих команд не удаляет tracked
+удаляет local Plugin и marketplace текущего scope. `remove` удаляет ID и npm
+dependency внешнего Plugin. Ни одна из этих команд не удаляет tracked
 repository data, локальный Plugin storage или созданные Plugin данные вроде
 `.codegraph/`: их миграция и очистка относятся к контракту конкретного Plugin.
 
@@ -123,8 +153,8 @@ repository data, локальный Plugin storage или созданные Plu
 ```bash
 openspec-orch plugin init --plugin openspec-graph
 openspec-orch plugin connect openspec-graph --repo specs
-openspec-orch graph inspect --json
-openspec-orch graph view --port 0
+openspec-orch plugin exec openspec-graph inspect --json
+openspec-orch plugin exec openspec-graph view --port 0
 ```
 
 Каждый вызов компилирует текущие файлы Store. Graph использует Master/Delta Specs и
@@ -142,9 +172,9 @@ openspec-orch plugin connect change-tracking \
   --repo specs --repo frontend --repo backend
 
 # ручной fallback из чистого Code Repository перед работой над task:
-openspec-orch attempt start <change-id> <task-id>
+openspec-orch plugin exec --repo specs change-tracking attempt start <change-id> <task-id>
 # после commit и стандартной галочки Apply:
-openspec-orch attempt complete <change-id> <task-id>
+openspec-orch plugin exec --repo specs change-tracking attempt complete <change-id> <task-id>
 ```
 
 Binding к Store нужен Store-scoped CLI-командам `attempt`. Bindings к Code Repositories
@@ -194,7 +224,7 @@ openspec-orch plugin init --plugin codegraph
 openspec-orch plugin connect codegraph --repo frontend
 openspec-orch plugin status --plugin codegraph --repo frontend
 openspec-orch plugin sync codegraph --repo frontend
-openspec-orch plugin exec codegraph --repo frontend -- explore "authentication flow"
+openspec-orch plugin exec --repo frontend codegraph explore "authentication flow"
 ```
 
 Каждый binding обслуживает только свой checkout и локальный `.codegraph/`. Индекс
@@ -218,6 +248,13 @@ assignment scope, doctor и Graph, controlled setup tools `initialize_project` �
 `connect_project`, а также `start_attempt` и `complete_attempt` для task evidence.
 Намеренно отсутствуют verification, Release, Archive, arbitrary Git writes, Plugin
 lifecycle, Agent management и network transport.
+
+Read-ответ включает `context_revision`. Пока Change, artifact, Repository и их state не
+менялись, Agent переиспользует уже полученный Work Context. Когда нужна проверка
+свежести, он передаёт revision как `if_context_revision`; неизменившийся ответ занимает
+только короткий payload `unchanged`. Для Apply Agent запрашивает
+`get_change_context` с `include_assignment: true` и не дублирует его отдельным
+`get_assignment_scope`.
 
 Для первого запуска через MCP откройте Agent из корня заранее подготовленного Store,
 а не из checkout Orchestrator или Code Repository. Проверьте фиксированный `cwd`

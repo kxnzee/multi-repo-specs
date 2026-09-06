@@ -34,13 +34,34 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     mimeType: "text/markdown",
   }];
   const application = Object.freeze({
+    agentTools: Object.freeze([Object.freeze({
+      name: "optional_read",
+      description: "Read one optional Plugin capability.",
+      inputSchema: Object.freeze({
+        type: "object",
+        properties: Object.freeze({
+          id: Object.freeze({ type: "string", minLength: 1 }),
+        }),
+        required: Object.freeze(["id"]),
+        additionalProperties: false,
+      }),
+      annotations: Object.freeze({
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      }),
+    })]),
     getStatus(args) { calls.push(["get_status", args]); return { state: "ready" }; },
     getSetupContext() { return { strict_only: true }; },
     getChangeContext() { return { change_id: "pay" }; },
     getNextAction() { return { action: "apply_change", actor: "agent" }; },
     getAssignmentScope() { return { assigned: true }; },
     getDoctorReport() { return { status: "ready" }; },
-    queryGraph() { return { nodes: 1 }; },
+    invokeAgentTool(name, args) {
+      calls.push([name, args]);
+      return { plugin: name, id: args.id };
+    },
     initializeProject(args) {
       if (args.store_id === "orchestrator") {
         throw new Error(
@@ -69,7 +90,7 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
 
   const listed = await client.listTools();
   assert.deepEqual(
-    listed.tools.map(({ name }) => name),
+    listed.tools.map(({ name }) => name).filter((name) => name !== "optional_read"),
     ORCHESTRATOR_MCP_TOOLS.map(({ name }) => name),
   );
   assert.deepEqual(listed.tools.map(({ name }) => name), [
@@ -79,7 +100,7 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     "get_next_action",
     "get_assignment_scope",
     "get_doctor_report",
-    "query_graph",
+    "optional_read",
     "initialize_project",
     "connect_project",
     "start_attempt",
@@ -114,6 +135,11 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     listed.tools.find(({ name }) => name === "initialize_project").description,
     /Never target an Orchestrator, Template, or Code Repository checkout/u,
   );
+  assert.match(
+    listed.tools.find(({ name }) => name === "initialize_project")
+      .inputSchema.properties.repositories.description,
+    /Code Repositories only.*Never include the central Store/u,
+  );
 
   const schemas = Object.fromEntries(listed.tools.map(({ name, inputSchema }) => (
     [name, inputSchema]
@@ -126,6 +152,19 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   const nonEmptyStringSchema = { type: "string", minLength: 1 };
   assert.deepEqual(schemas.get_status.properties.change_id, identifierSchema);
   assert.deepEqual(schemas.get_change_context.properties.artifact, identifierSchema);
+  assert.deepEqual(schemas.get_change_context.properties.include_assignment, { type: "boolean" });
+  for (const name of [
+    "get_status",
+    "get_setup_context",
+    "get_change_context",
+    "get_next_action",
+    "get_assignment_scope",
+    "get_doctor_report",
+    "optional_read",
+  ]) {
+    assert.deepEqual(schemas[name].properties.if_context_revision, nonEmptyStringSchema, name);
+  }
+  assert.equal(schemas.initialize_project.properties.if_context_revision, undefined);
   assert.deepEqual(schemas.start_attempt.properties, {
     change_id: identifierSchema,
     task_id: nonEmptyStringSchema,
@@ -139,23 +178,31 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
       default_branch: nonEmptyStringSchema,
     },
   );
-  assert.deepEqual(schemas.query_graph.oneOf, [
-    { properties: { query: { const: "report" } } },
-    {
-      properties: { query: { enum: ["node", "change_impact"] } },
-      required: ["id"],
-    },
-  ]);
-  assert.deepEqual(schemas.query_graph.properties.id, nonEmptyStringSchema);
+  assert.deepEqual(schemas.optional_read.properties.id, nonEmptyStringSchema);
 
   const status = await client.callTool({ name: "get_status", arguments: { change_id: "pay" } });
-  assert.deepEqual(JSON.parse(status.content[0].text), { state: "ready" });
+  const statusValue = JSON.parse(status.content[0].text);
+  assert.equal(statusValue.state, "ready");
+  assert.match(statusValue.context_revision, /^[a-f0-9]{64}$/u);
+  assert.equal(status.content[0].text.includes("\n"), false);
   assert.deepEqual(calls, [["get_status", { change_id: "pay" }]]);
-  const next = await client.callTool({ name: "get_next_action", arguments: { change_id: "pay" } });
-  assert.deepEqual(JSON.parse(next.content[0].text), {
-    action: "apply_change",
-    actor: "agent",
+  const unchangedStatus = await client.callTool({
+    name: "get_status",
+    arguments: { change_id: "pay", if_context_revision: statusValue.context_revision },
   });
+  assert.deepEqual(JSON.parse(unchangedStatus.content[0].text), {
+    unchanged: true,
+    context_revision: statusValue.context_revision,
+  });
+  assert.deepEqual(calls, [
+    ["get_status", { change_id: "pay" }],
+    ["get_status", { change_id: "pay" }],
+  ]);
+  const next = await client.callTool({ name: "get_next_action", arguments: { change_id: "pay" } });
+  const nextValue = JSON.parse(next.content[0].text);
+  assert.equal(nextValue.action, "apply_change");
+  assert.equal(nextValue.actor, "agent");
+  assert.match(nextValue.context_revision, /^[a-f0-9]{64}$/u);
   const initialized = await client.callTool({
     name: "initialize_project",
     arguments: {
@@ -211,6 +258,12 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   });
   assert.equal(invalidArtifact.isError, true);
   assert.match(invalidArtifact.content[0].text, /artifact.*lowercase kebab-case/u);
+  const invalidAssignmentFlag = await client.callTool({
+    name: "get_change_context",
+    arguments: { change_id: "pay", include_assignment: "yes" },
+  });
+  assert.equal(invalidAssignmentFlag.isError, true);
+  assert.match(invalidAssignmentFlag.content[0].text, /include_assignment.*boolean/u);
   const duplicateRepository = await client.callTool({
     name: "initialize_project",
     arguments: {
@@ -224,12 +277,30 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   });
   assert.equal(duplicateRepository.isError, true);
   assert.match(duplicateRepository.content[0].text, /повторяющийся repository_id frontend/u);
-  const graphWithoutId = await client.callTool({
-    name: "query_graph",
-    arguments: { query: "node" },
+  const storeIncludedAsCode = await client.callTool({
+    name: "initialize_project",
+    arguments: {
+      store_id: "specs",
+      agent_id: "qwen",
+      repositories: [
+        { repository_id: "specs", remote: "ssh://specs", default_branch: "main" },
+      ],
+    },
   });
-  assert.equal(graphWithoutId.isError, true);
-  assert.match(graphWithoutId.content[0].text, /id должен быть непустой строкой/u);
+  assert.equal(storeIncludedAsCode.isError, true);
+  assert.match(storeIncludedAsCode.content[0].text, /STORE_INCLUDED_AS_CODE/u);
+  assert.match(
+    storeIncludedAsCode.content[0].text,
+    /Store уже задан через store_id.*удалите specs из repositories.*не меняйте store_id/u,
+  );
+  const pluginRead = await client.callTool({
+    name: "optional_read",
+    arguments: { id: "sample" },
+  });
+  const pluginValue = JSON.parse(pluginRead.content[0].text);
+  assert.equal(pluginValue.plugin, "optional_read");
+  assert.equal(pluginValue.id, "sample");
+  assert.match(pluginValue.context_revision, /^[a-f0-9]{64}$/u);
   assert.deepEqual((await client.listResources()).resources, resources);
   assert.equal((await client.readResource({ uri: resources[0].uri })).contents[0].text, "# Payments");
 });
@@ -242,7 +313,6 @@ test("every advertised MCP tool dispatches to its matching application method", 
     ["get_next_action", "getNextAction", {}],
     ["get_assignment_scope", "getAssignmentScope", {}],
     ["get_doctor_report", "getDoctorReport", {}],
-    ["query_graph", "queryGraph", { query: "report" }],
     ["initialize_project", "initializeProject", { store_id: "specs", agent_id: "qwen" }],
     ["connect_project", "connectProject", {}],
     ["start_attempt", "startAttempt", { change_id: "pay", task_id: "1" }],
@@ -250,6 +320,8 @@ test("every advertised MCP tool dispatches to its matching application method", 
   ];
   const calls = [];
   const application = {
+    agentTools: [],
+    invokeAgentTool() {},
     listResources() { return []; },
     readResource() { return null; },
   };
@@ -271,7 +343,10 @@ test("every advertised MCP tool dispatches to its matching application method", 
 
   for (const [name, method, args] of dispatch) {
     const result = await client.callTool({ name, arguments: args });
-    assert.deepEqual(JSON.parse(result.content[0].text), { method });
+    const value = JSON.parse(result.content[0].text);
+    assert.equal(value.method, method);
+    if (name.startsWith("get_")) assert.match(value.context_revision, /^[a-f0-9]{64}$/u);
+    else assert.equal(value.context_revision, undefined);
   }
   assert.deepEqual(
     calls,

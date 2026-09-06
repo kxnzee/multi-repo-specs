@@ -169,9 +169,7 @@ export class InitSelectionService {
   }) {
     const requiredExtensionIds = this.#requiredExtensionIds(template);
     const selectedExtensionIds = [...new Set([...requiredExtensionIds, ...extensionIds])];
-    const extensions = this.#extensionCatalog
-      .select(selectedExtensionIds)
-      .map(({ id, source }) => ({ id, source }));
+    const extensions = this.#extensionCatalog.select(selectedExtensionIds).map(({ id }) => id);
     return Object.freeze({
       storeId,
       agentId,
@@ -210,7 +208,7 @@ export class InitSelectionService {
       `Store: ${selection.storeId}`,
       `Template: ${templateId}`,
       `Agent: ${selection.agentId}`,
-      `Extensions: ${selection.extensions.map(({ id }) => id).join(", ") || "нет"}`,
+      `Extensions: ${selection.extensions.join(", ") || "нет"}`,
       `Code Repositories: ${selection.repositories.map(({ id }) => id).join(", ") || "нет"}`,
       `Mode: ${selection.noStrict ? CORE_EXECUTION_MODE.relaxed : CORE_EXECUTION_MODE.strict}`,
     ].join("; ");

@@ -13,7 +13,7 @@
         "id": "change-tracking",
         "name": "Change Tracking",
         "packageName": "@openspec-orch/plugin-change-tracking",
-        "rootCommands": ["attempt"]
+        "recommended": true
       },
       {
         "id": "codegraph",
@@ -24,7 +24,7 @@
         "id": "openspec-graph",
         "name": "OpenSpec Graph",
         "packageName": "@openspec-orch/plugin-openspec-graph",
-        "rootCommands": ["graph"]
+        "recommended": true
       }
     ]
   },
@@ -50,6 +50,7 @@
     "test": "npm run test:code",
     "test:code": "node --test --test-concurrency=1",
     "test:coverage": "node --experimental-test-coverage --test --test-concurrency=1",
+    "test:pack": "node scripts/packed-artifact-smoke.js",
     "lint": "eslint .",
     "check": "npm run lint && npm run test:code"
   },

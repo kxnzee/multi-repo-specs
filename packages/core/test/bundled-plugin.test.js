@@ -25,7 +25,7 @@ function samplePackage(overrides = {}) {
 }
 
 test("BundledPluginProvider exposes catalog and loads the validated package in place", async () => {
-  const provider = new BundledPluginProvider([samplePackage()]);
+  const provider = new BundledPluginProvider([samplePackage({ recommended: true })]);
   const [entry] = provider.catalog.entries;
 
   const installation = await provider.install(entry.id, entry.source);
@@ -36,7 +36,8 @@ test("BundledPluginProvider exposes catalog and loads the validated package in p
   assert.equal(installation.loadedPlugin.root, SAMPLE_PLUGIN_ROOT);
   assert.equal(installation.loadedPlugin.id, "sample");
   assert.equal(installation.source.kind, "bundled");
-  assert.equal(provider.has("sample", entry.source.declaration), true);
+  assert.equal(entry.recommended, true);
+  assert.equal(provider.has("sample"), true);
 });
 
 test("BundledPluginProvider rejects unknown sources and mismatched package identity", async () => {
@@ -44,7 +45,7 @@ test("BundledPluginProvider rejects unknown sources and mismatched package ident
 
   await assert.rejects(
     provider.install("sample", PluginSource.bundled({ name: "@test/other", version: "1.0.0" })),
-    /не входит в дистрибутив/,
+    /source не совпадает с дистрибутивом/,
   );
   await assert.rejects(
     new BundledPluginProvider([samplePackage({

@@ -29,6 +29,11 @@ openspec-orch --help
 Пилот использует Git tag или commit как идентификатор версии. Обновление и миграция
 Store описаны в [руководстве по установке и обновлению](docs/user/installation-and-updates.md).
 
+Версия формата `openspec-orch.yaml` не изменяется без явной инструкции владельца
+Store. В частности, обновление Orchestrator не является разрешением повышать поле
+`version` или автоматически мигрировать конфигурацию: при несовместимости нужно
+остановиться и отдельно согласовать целевую версию и миграцию.
+
 ## Быстрый старт
 
 ```bash
@@ -41,7 +46,13 @@ openspec-orch init /absolute/path/to/workspace/specs \
 cd /absolute/path/to/workspace/specs
 openspec-orch connect
 openspec-orch doctor
-openspec-orch repository status
+```
+
+Если Store использует внешние Plugins или Extensions, после checkout восстановите
+их строго из committed lockfile:
+
+```bash
+openspec-orch package sync
 ```
 
 Template `default` автоматически добавляет Extensions `spec-driven-extended` и
@@ -83,10 +94,21 @@ Plugins не устанавливаются Template и подключаются
 ```bash
 openspec-orch plugin init --plugin openspec-graph
 openspec-orch plugin connect openspec-graph --repo specs
-openspec-orch graph inspect --json
+openspec-orch plugin exec openspec-graph inspect --json
 ```
 
 Подробнее: [Plugins](docs/user/plugins.md).
+
+Standalone Extension из npm добавляется отдельно:
+
+```bash
+openspec-orch extension init <extension-id> --from <package@version>
+openspec-orch extension connect <extension-id>
+openspec-orch extension status <extension-id>
+```
+
+Версии внешних пакетов хранятся в `.openspec-orch/packages/package.json` и
+`package-lock.json`; `openspec-orch.yaml` хранит только их стабильные ID.
 
 ## Документация
 
@@ -95,11 +117,14 @@ openspec-orch graph inspect --json
 - [создание проекта и onboarding существующего Store](docs/user/getting-started.md);
 - [конфигурация](docs/user/configuration.md) и [Project Template](docs/user/project-template.md);
 - [Plugins: эксплуатация, отключение и удаление](docs/user/plugins.md);
-- [личный](docs/user/solo-flow.md) и [командный](docs/user/team-flow.md) Change flow;
+- [единый процесс работы над Jira Story](docs/user/story-delivery-process.md);
 - [архитектура](docs/technical/architecture.md), [CLI/MCP reference](docs/technical/reference.md)
   и [модель данных](docs/technical/data-model.md);
 - [разработка Plugin](docs/technical/plugin-platform.md) и
   [разработка Orchestrator](docs/technical/development.md).
+
+Термины Store, Code Repository, OpenSpec Change и типы процессных PR закреплены в
+[глоссарии проекта](CONTEXT.md).
 
 Полная проверка репозитория:
 

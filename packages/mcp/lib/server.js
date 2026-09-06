@@ -1,5 +1,7 @@
 /** @fileoverview Local stdio MCP transport with a fixed governed tool catalog. */
 
+import { createHash } from "node:crypto";
+
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -11,6 +13,7 @@ import {
 
 const IDENTIFIER_PATTERN = "^[a-z0-9]+(?:-[a-z0-9]+)*$";
 const NON_EMPTY_STRING_SCHEMA = Object.freeze({ type: "string", minLength: 1 });
+const IF_CONTEXT_REVISION_SCHEMA = NON_EMPTY_STRING_SCHEMA;
 const IDENTIFIER_SCHEMA = Object.freeze({
   ...NON_EMPTY_STRING_SCHEMA,
   pattern: IDENTIFIER_PATTERN,
@@ -67,6 +70,7 @@ const TOOL_DEFINITIONS = Object.freeze([
       properties: Object.freeze({
         change_id: IDENTIFIER_SCHEMA,
         artifact: IDENTIFIER_SCHEMA,
+        include_assignment: Object.freeze({ type: "boolean" }),
       }),
       required: ["change_id"],
       additionalProperties: false,
@@ -83,7 +87,7 @@ const TOOL_DEFINITIONS = Object.freeze([
   defineTool({
     name: "get_assignment_scope",
     applicationMethod: "getAssignmentScope",
-    description: "Read all Code Repository assignments, checkouts, revisions and Graph impact.",
+    description: "Read all Code Repository assignments, checkouts, revisions and optional overlays.",
     inputSchema: CHANGE_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
@@ -95,36 +99,12 @@ const TOOL_DEFINITIONS = Object.freeze([
     annotations: READ_ONLY_ANNOTATIONS,
   }),
   defineTool({
-    name: "query_graph",
-    applicationMethod: "queryGraph",
-    description: "Compile the Store graph and run a report, node or Change-impact query.",
-    inputSchema: Object.freeze({
-      type: "object",
-      properties: Object.freeze({
-        query: Object.freeze({ type: "string", enum: ["report", "node", "change_impact"] }),
-        id: NON_EMPTY_STRING_SCHEMA,
-      }),
-      required: ["query"],
-      additionalProperties: false,
-      oneOf: Object.freeze([
-        Object.freeze({ properties: Object.freeze({ query: Object.freeze({ const: "report" }) }) }),
-        Object.freeze({
-          properties: Object.freeze({
-            query: Object.freeze({ enum: ["node", "change_impact"] }),
-          }),
-          required: ["id"],
-        }),
-      ]),
-    }),
-    annotations: READ_ONLY_ANNOTATIONS,
-    validate: assertGraphQuery,
-  }),
-  defineTool({
     name: "initialize_project",
     applicationMethod: "initializeProject",
     description: "Idempotently initialize the fixed MCP cwd in strict mode only when it is a " +
       "separate clean central Store Git repository. Never target an Orchestrator, Template, " +
-      "or Code Repository checkout.",
+      "or Code Repository checkout. Pass the central Store only as store_id; repositories " +
+      "contains optional Code Repositories only.",
     inputSchema: Object.freeze({
       type: "object",
       properties: Object.freeze({
@@ -133,6 +113,8 @@ const TOOL_DEFINITIONS = Object.freeze([
         template_id: IDENTIFIER_SCHEMA,
         repositories: Object.freeze({
           type: "array",
+          description: "Optional Code Repositories only. Never include the central Store; " +
+            "it is declared only by store_id.",
           items: Object.freeze({
             type: "object",
             properties: Object.freeze({
@@ -177,28 +159,60 @@ const TOOL_DEFINITIONS = Object.freeze([
 export const ORCHESTRATOR_MCP_TOOLS = Object.freeze(
   TOOL_DEFINITIONS.map(({ tool }) => tool),
 );
-const TOOL_DEFINITION_BY_NAME = new Map(
-  TOOL_DEFINITIONS.map((definition) => [definition.tool.name, definition]),
-);
 const APPLICATION_METHODS = Object.freeze([
   ...TOOL_DEFINITIONS.map(({ applicationMethod }) => applicationMethod),
   "listResources",
   "readResource",
 ]);
 
-/** Separates public MCP metadata from its private application dispatch. */
-function defineTool({ applicationMethod, validate = null, ...tool }) {
+/** Adds one common conditional-read argument without changing domain tool inputs. */
+function readInputSchema(inputSchema) {
   return Object.freeze({
-    applicationMethod,
-    validate,
-    tool: Object.freeze(tool),
+    ...inputSchema,
+    properties: Object.freeze({
+      ...(inputSchema.properties ?? {}),
+      if_context_revision: IF_CONTEXT_REVISION_SCHEMA,
+    }),
   });
 }
 
-/** Encodes a domain value as one MCP text result. */
-function resultContent(value) {
+/** Separates public MCP metadata from its private application dispatch. */
+function defineTool({ agentTool = false, applicationMethod, validate = null, ...tool }) {
+  const inputSchema = tool.annotations?.readOnlyHint
+    ? readInputSchema(tool.inputSchema)
+    : tool.inputSchema;
   return Object.freeze({
-    content: Object.freeze([{ type: "text", text: JSON.stringify(value, null, 2) }]),
+    agentTool,
+    applicationMethod,
+    validate,
+    tool: Object.freeze({ ...tool, inputSchema }),
+  });
+}
+
+/** Produces a tool-and-input-scoped digest of one freshly resolved read result. */
+function contextRevision(name, args, value) {
+  return createHash("sha256").update(JSON.stringify([name, args, value])).digest("hex");
+}
+
+/** Adds a revision to an object result without hiding its existing public fields. */
+function revisedValue(value, revision) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return Object.freeze({ ...value, context_revision: revision });
+  }
+  return Object.freeze({ value, context_revision: revision });
+}
+
+/** Encodes a domain value as one compact MCP text result. */
+function resultContent(value, { args, conditionalRevision, definition } = {}) {
+  let result = value;
+  if (definition?.tool.annotations.readOnlyHint) {
+    const revision = contextRevision(definition.tool.name, args, value);
+    result = conditionalRevision === revision
+      ? Object.freeze({ unchanged: true, context_revision: revision })
+      : revisedValue(value, revision);
+  }
+  return Object.freeze({
+    content: Object.freeze([{ type: "text", text: JSON.stringify(result) }]),
   });
 }
 
@@ -245,6 +259,16 @@ function assertDeclaredStrings(name, args, inputSchema) {
   }
 }
 
+/** Validates non-string scalar fields declared by one advertised object schema. */
+function assertDeclaredScalars(name, args, inputSchema) {
+  for (const [field, fieldSchema] of Object.entries(inputSchema.properties ?? {})) {
+    if (args[field] === undefined || fieldSchema.type === "string") continue;
+    if (fieldSchema.type === "boolean" && typeof args[field] !== "boolean") {
+      throw new Error(`MCP_TOOL_INPUT_INVALID: ${name}.${field} должен быть boolean`);
+    }
+  }
+}
+
 /** Validates one object against the fields advertised by its MCP schema. */
 function assertObjectShape(name, args, inputSchema) {
   if (!args || typeof args !== "object" || Array.isArray(args)) {
@@ -254,6 +278,15 @@ function assertObjectShape(name, args, inputSchema) {
   const unknown = Object.keys(args).find((key) => !allowed.has(key));
   if (unknown) throw new Error(`MCP_TOOL_INPUT_INVALID: ${name} не принимает ${unknown}`);
   assertDeclaredStrings(name, args, inputSchema);
+  assertDeclaredScalars(name, args, inputSchema);
+}
+
+/** Removes transport-level conditional-read metadata before application dispatch. */
+function applicationArguments(definition, args) {
+  if (!definition.tool.annotations.readOnlyHint) return args;
+  const applicationArgs = { ...args };
+  delete applicationArgs.if_context_revision;
+  return applicationArgs;
 }
 
 /** Validates the structured strict-init surface. */
@@ -277,16 +310,17 @@ function assertInitialization(args, inputSchema) {
       throw new Error("MCP_TOOL_INPUT_INVALID: repository contract несовместим");
     }
     assertObjectShape("repository", repository, repositorySchema);
+    if (repository.repository_id === args.store_id) {
+      throw new Error(
+        `STORE_INCLUDED_AS_CODE: Store уже задан через store_id; удалите ` +
+          `${repository.repository_id} из repositories и не меняйте store_id`,
+      );
+    }
     if (ids.has(repository.repository_id)) {
       throw new Error(`MCP_TOOL_INPUT_INVALID: повторяющийся repository_id ${repository.repository_id}`);
     }
     ids.add(repository.repository_id);
   }
-}
-
-/** Validates the conditional Graph query contract. */
-function assertGraphQuery(args) {
-  assertString(args, "id", { required: args.query !== "report" });
 }
 
 /** Validates inputs even when a client ignores the advertised JSON Schema. */
@@ -300,24 +334,50 @@ function assertArguments(definition, args) {
 export function createOrchestratorMcpServer(application) {
   if (
     !application ||
-    APPLICATION_METHODS.some((method) => typeof application[method] !== "function")
+    APPLICATION_METHODS.some((method) => typeof application[method] !== "function") ||
+    typeof application.invokeAgentTool !== "function" ||
+    !Array.isArray(application.agentTools)
   ) {
     throw new Error("MCP_SERVER_INVALID: application contract incomplete");
   }
+  const agentDefinitions = application.agentTools.map((tool) => defineTool({
+    ...tool,
+    agentTool: true,
+  }));
+  const firstWrite = TOOL_DEFINITIONS.findIndex(({ tool }) => !tool.annotations.readOnlyHint);
+  const definitions = Object.freeze([
+    ...TOOL_DEFINITIONS.slice(0, firstWrite),
+    ...agentDefinitions,
+    ...TOOL_DEFINITIONS.slice(firstWrite),
+  ]);
+  const names = definitions.map(({ tool }) => tool.name);
+  if (new Set(names).size !== names.length) {
+    throw new Error("MCP_SERVER_INVALID: повторяющийся tool name");
+  }
+  const tools = Object.freeze(definitions.map(({ tool }) => tool));
+  const definitionByName = new Map(definitions.map((definition) => [definition.tool.name, definition]));
   const server = new Server(
     { name: "openspec-orchestrator", version: "1.0.0" },
     { capabilities: { resources: {}, tools: {} } },
   );
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: ORCHESTRATOR_MCP_TOOLS }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const args = request.params.arguments ?? {};
-    const definition = TOOL_DEFINITION_BY_NAME.get(request.params.name);
+    const definition = definitionByName.get(request.params.name);
     if (!definition) {
       return errorContent(new Error(`MCP_TOOL_NOT_FOUND: ${request.params.name}`));
     }
     try {
       assertArguments(definition, args);
-      return resultContent(await application[definition.applicationMethod](args));
+      const input = applicationArguments(definition, args);
+      const value = definition.agentTool
+        ? await application.invokeAgentTool(definition.tool.name, input)
+        : await application[definition.applicationMethod](input);
+      return resultContent(value, {
+        args: input,
+        conditionalRevision: args.if_context_revision,
+        definition,
+      });
     } catch (error) {
       return errorContent(error);
     }

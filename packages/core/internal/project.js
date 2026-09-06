@@ -134,16 +134,33 @@ export class Project {
     return pluginId;
   }
 
-  declarePlugin(pluginId, source) {
+  declarePlugin(pluginId) {
     const current = this.pluginDeclaration(pluginId);
-    const declaration = new PluginDeclaration({ id: pluginId, source });
+    const declaration = new PluginDeclaration(pluginId);
     const next = [
       ...this.#plugins.filter(({ id }) => id !== pluginId),
       declaration,
     ].sort((left, right) => left.id.localeCompare(right.id));
-    const changed = current?.source !== source;
+    const changed = !current;
     this.#plugins = Object.freeze(next);
     return changed;
+  }
+
+  declareExtension(extensionId) {
+    const current = this.extensionDeclaration(extensionId);
+    const declaration = new ExtensionDeclaration(extensionId);
+    this.#extensions = Object.freeze([
+      ...this.#extensions.filter(({ id }) => id !== extensionId),
+      declaration,
+    ].sort((left, right) => left.id.localeCompare(right.id)));
+    return !current;
+  }
+
+  removeExtension(extensionId) {
+    const declaration = this.extensionDeclaration(extensionId);
+    if (!declaration) return false;
+    this.#extensions = Object.freeze(this.#extensions.filter(({ id }) => id !== extensionId));
+    return true;
   }
 
   isPluginConnected(pluginId, repositoryId) {

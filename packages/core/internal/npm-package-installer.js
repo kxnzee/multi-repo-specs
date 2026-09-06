@@ -1,12 +1,12 @@
-/** @fileoverview Безопасная npm execution boundary для materialization Plugin package. */
+/** @fileoverview Единственная execution boundary для npm package operations. */
 
-import { promises as fs } from "node:fs";
 import path from "node:path";
+import process from "node:process";
 
 import { execa } from "execa";
 
 import { CORE_SETTINGS } from "./settings.js";
-import { PluginSource } from "./plugin-source.js";
+import { redactSensitive } from "./process.js";
 
 const NPM_ENV = Object.freeze({
   GIT_TERMINAL_PROMPT: "0",
@@ -15,59 +15,28 @@ const NPM_ENV = Object.freeze({
   NPM_CONFIG_IGNORE_SCRIPTS: "true",
 });
 
-/** Завершает операцию стабильной ошибкой npm installer. */
-function invalid(message, options) {
-  throw new Error(`PLUGIN_INSTALL_INVALID: ${message}`, options);
+/** Hides common npm credentials even when a registry echoes its request URL. */
+function sanitize(value, sensitiveValues = []) {
+  const withoutAuth = value.replace(
+    /((?:https?:\/\/))[^\s/@]+@/giu,
+    "$1<redacted>@",
+  );
+  return redactSensitive(withoutAuth, [
+    process.env.NODE_AUTH_TOKEN,
+    process.env.NPM_TOKEN,
+    ...sensitiveValues,
+  ]).replace(/(_authToken\s*=\s*)[^\s]+/giu, "$1<redacted>");
 }
 
-/** Проверяет и канонизирует заранее созданный временный runtime. */
-async function resolveRuntimeRoot(runtimeRoot) {
-  if (typeof runtimeRoot !== "string" || !path.isAbsolute(runtimeRoot)) {
-    invalid("runtimeRoot должен быть абсолютным путём");
-  }
-  let stat;
-  try {
-    stat = await fs.lstat(runtimeRoot);
-  } catch (error) {
-    if (error.code === "ENOENT") invalid("runtimeRoot не существует", { cause: error });
-    throw error;
-  }
-  if (!stat.isDirectory() || stat.isSymbolicLink()) {
-    invalid("runtimeRoot должен быть обычным каталогом");
-  }
-  return fs.realpath(runtimeRoot);
+/** Завершает operation стабильной ошибкой npm boundary. */
+function invalid(message) {
+  throw new Error(`NPM_PACKAGE_INVALID: ${message}`);
 }
 
-/** Результат одного успешного npm materialization. */
-export class NpmPackageInstallResult {
-  #runtimeRoot;
-  #source;
-  #stdout;
-
-  constructor({ runtimeRoot, source, stdout }) {
-    if (
-      typeof runtimeRoot !== "string" ||
-      !path.isAbsolute(runtimeRoot) ||
-      !(source instanceof PluginSource) ||
-      typeof stdout !== "string"
-    ) {
-      invalid("результат npm install некорректен");
-    }
-    this.#runtimeRoot = runtimeRoot;
-    this.#source = source;
-    this.#stdout = stdout;
-    Object.freeze(this);
-  }
-
-  get runtimeRoot() { return this.#runtimeRoot; }
-  get source() { return this.#source; }
-  get stdout() { return this.#stdout; }
-}
-
-/** Выполняет только npm install; temp runtime и activation принадлежат Plugin Manager. */
+/** Запускает npm без shell, lifecycle scripts и интерактивных prompt. */
 export class NpmPackageInstaller {
-  #executor;
   #environment;
+  #executor;
   #timeout;
 
   constructor({
@@ -85,58 +54,74 @@ export class NpmPackageInstaller {
       invalid("environment должен содержать только строковые значения");
     }
     if (!Number.isFinite(timeout) || timeout <= 0) invalid("timeout должен быть положительным");
-    this.#executor = executor;
     this.#environment = Object.freeze({ ...environment });
+    this.#executor = executor;
     this.#timeout = timeout;
     Object.freeze(this);
   }
 
-  /** Materialize один installable source в существующий временный runtime. */
-  async install({ source, runtimeRoot } = {}) {
-    if (!(source instanceof PluginSource) || !source.installable) {
-      invalid("требуется installable PluginSource");
+  install({ runtimeRoot, source } = {}) {
+    if (typeof source !== "string" || !source) invalid("source должен быть непустой строкой");
+    return this.#run(runtimeRoot, ["install", "--save-exact", "--install-links", "--", source]);
+  }
+
+  remove({ packageName, runtimeRoot } = {}) {
+    if (typeof packageName !== "string" || !packageName) {
+      invalid("packageName должен быть непустой строкой");
     }
-    const root = await resolveRuntimeRoot(runtimeRoot);
+    return this.#run(runtimeRoot, ["uninstall", "--", packageName]);
+  }
+
+  sync({ runtimeRoot } = {}) {
+    return this.#run(runtimeRoot, ["ci", "--install-links"]);
+  }
+
+  async #run(runtimeRoot, command) {
+    if (typeof runtimeRoot !== "string" || !path.isAbsolute(runtimeRoot)) {
+      invalid("runtimeRoot должен быть абсолютным путём");
+    }
     const args = [
-      "install",
-      "--prefix", root,
-      "--save-exact",
+      command[0],
+      "--prefix", runtimeRoot,
       "--omit=dev",
       "--ignore-scripts",
       "--no-audit",
       "--no-fund",
-      "--install-links",
+      ...command.slice(1),
     ];
-    args.push("--", source.installSpec);
     let result;
+    const sensitiveValues = Object.entries(this.#environment)
+      .filter(([key]) => /(?:auth|password|secret|token)/iu.test(key))
+      .map(([, value]) => value);
     try {
       result = await this.#executor("npm", args, {
-        cwd: root,
+        cwd: runtimeRoot,
         env: { ...this.#environment, ...NPM_ENV },
         reject: false,
         shell: false,
         stdin: "ignore",
         timeout: this.#timeout,
       });
-    } catch (error) {
-      throw new Error(`PLUGIN_INSTALL_FAILED: npm не запущен: ${error.message}`, { cause: error });
+    } catch (cause) {
+      throw new Error(
+        `NPM_PACKAGE_FAILED: npm не запущен: ${sanitize(cause.message, sensitiveValues)}`,
+        { cause },
+      );
     }
     if (result.failed) {
-      const details = [result.stderr, result.stdout].filter(Boolean).join("\n").trim();
+      const details = sanitize(
+        [result.stderr, result.stdout].filter(Boolean).join("\n").trim(),
+        sensitiveValues,
+      );
       const reason = result.timedOut
         ? `превышен timeout ${this.#timeout} мс`
         : result.signal
           ? `процесс завершён сигналом ${result.signal}`
           : `npm завершился с кодом ${result.exitCode ?? "unknown"}`;
-      throw new Error(`PLUGIN_INSTALL_FAILED: ${reason}${details ? `:\n${details}` : ""}`);
+      throw new Error(`NPM_PACKAGE_FAILED: ${reason}${details ? `:\n${details}` : ""}`);
     }
-    return new NpmPackageInstallResult({
-      runtimeRoot: root,
-      source,
-      stdout: result.stdout ?? "",
-    });
+    return result.stdout ?? "";
   }
 }
 
-/** Общая npm execution boundary нового Core. */
 export const npmPackageInstaller = Object.freeze(new NpmPackageInstaller());

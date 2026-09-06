@@ -13,6 +13,7 @@ bin/openspec-orch-mcp.js         public MCP stdio adapter
 bin/internal/distribution.js     shared distribution composition root
 bin/internal/                    protocol-specific runtime adapters
 packages/core/                   generic orchestration and safe infrastructure
+packages/extension-sdk/          public declarative Extension contract
 packages/plugin-sdk/             public Plugin contract
 packages/mcp/                    governed MCP protocol and Store resources
 plugins/                         first-party Plugin packages
@@ -26,8 +27,8 @@ templates/                       bundled copy-only Project Templates
 одну `PluginPlatform`. CLI и MCP используют эту же Platform и общие application
 services.
 
-Root `package.json` определяет minimum Node.js, default Template, first-party Plugin
-packages и разрешённые для них root commands. Core не импортирует конкретные Plugins;
+Root `package.json` определяет minimum Node.js, default Template и first-party Plugin
+packages. Core не импортирует конкретные Plugins;
 Plugin packages зависят только от `@openspec-orch/plugin-sdk` и загружаются через
 проверенный public contract.
 
@@ -38,6 +39,9 @@ CLI adapter ─┐
              ├→ distribution composition → Core application services
 MCP adapter ─┘                              │
                                             ├→ OpenSpec / Git / filesystem
+                                            ├→ npm package supply → package-lock.json
+                                            │                    ├→ Extension manager → Agent adapter
+                                            │                    └→ Plugin manager → Plugin host
                                             ├→ Agent adapter → native Agent CLI
                                             └→ Plugin host → scoped PluginContext
                                                               ↓
@@ -53,12 +57,13 @@ artifact lifecycle; Orchestrator не строит параллельный work
 | Компонент | Ответственность |
 |---|---|
 | Orchestrator Core | Project/Repository model, init/connect, diagnostics, Plugin manager/host, routing и safe infrastructure |
-| Plugin SDK | Immutable Plugin API, command grammar, scoped contracts и contract test kit |
-| Plugin | Собственные commands, repository lifecycle, domain state и опциональные Agent Extensions |
+| Extension SDK | Standalone package/descriptor contract и общий data-only Extension definition |
+| Plugin SDK | Immutable Plugin API, command grammar, Agent contributions, scoped contracts и contract test kit |
+| Plugin | Собственные commands, repository lifecycle, domain state, Agent tools и опциональные Agent Extensions |
 | Project Template | Copy-only OpenSpec config, project context, schemas и assets |
 | Standalone Extension | Agent commands, skills, subagents, hooks и MCP manifests |
 | Agent definition/adapter | Provider identity, OpenSpec Agent pack adaptation и native Extension lifecycle |
-| MCP package | Fixed tool/resource allowlist, validation и единственный stdio transport |
+| MCP package | Fixed base tool/resource allowlist, validation, Plugin tool routing и единственный stdio transport |
 | OpenSpec | Store identity, Specs, Changes, schemas, status/instructions, Apply и Archive operations |
 | Команда | Product decisions, implementation, review, checks, deployment, Release и Archive |
 
@@ -107,46 +112,63 @@ traversal, symlink, collisions, неполного Agent pack и попытки 
 
 `connect` использует общий `ProjectSetupService`:
 
-1. проверяет native CLI выбранного Agent;
-2. разрешает и валидирует Store и Project;
-3. регистрирует Store и проверяет OpenSpec context;
-4. определяет workspace;
-5. проверяет или в strict mode клонирует Code Repositories;
-6. создаёт и проверяет OpenSpec pointers;
-7. подключает выбранные standalone Extensions;
-8. восстанавливает lifecycle доступных Plugin-owned Extensions;
-9. проверяет итоговое состояние Extensions и Plugins.
+1. разрешает и валидирует Store и Project;
+2. проверяет npm lock и при отсутствующем runtime восстанавливает его через `npm ci`;
+3. проверяет native CLI выбранного Agent;
+4. регистрирует Store и проверяет OpenSpec context;
+5. определяет workspace;
+6. проверяет или в strict mode клонирует Code Repositories;
+7. создаёт и проверяет OpenSpec pointers;
+8. подключает выбранные standalone Extensions;
+9. догружает и восстанавливает lifecycle Plugin-owned Extensions;
+10. проверяет итоговое состояние Extensions и Plugins.
 
 Существующий checkout не получает `pull`, `checkout`, `reset`, merge или другую
-скрытую Git mutation. Strict mode проверяет remote, default branch и clean state.
+скрытую Git mutation. Strict `connect` проверяет remote identity, clean state,
+полную revision и именованную ветку; последнее нужно только потому, что
+`connect` может создать pointer-файл. Имя ветки и её совпадение с `default_branch`
+не проверяются. Read-only Doctor использует внутренний Repository Status,
+показывает ветку только как информацию и не считает detached HEAD ошибкой Repository
+health.
 Relaxed mode не клонирует и не pin-ит Git state; явно переданный workspace действует
 только в текущем вызове.
 
-Bundled Plugins загружаются из distribution. Внешний runtime хранится локально в
-Store cache и обычный `connect` не устанавливает его повторно из source. Если
+Bundled Plugins загружаются из distribution. Внешние Plugins и standalone Extensions
+живут в одном npm-проекте `.openspec-orch/packages`: manifest и lockfile переносимы,
+а `node_modules` локален. Обычный `connect` запускает `npm ci` только когда runtime
+отсутствует или не соответствует полному committed lockfile; `package sync`
+позволяет сделать это явно. Если
 объявленный Plugin недоступен или повреждён, Core и Doctor продолжают запускаться, а
 Plugin отображается как unavailable.
 
 ## Plugin Platform
 
-`plugin init` разрешает bundled или external source, материализует package при
-необходимости, проверяет manifest, package identity и public API и только после
-успеха публикует exact declaration в Project config.
+`plugin init` разрешает bundled или external source, передаёт внешний dependency npm,
+проверяет manifest, package identity и public API и только после успеха публикует
+стабильный Plugin ID в Project config. Extension Manager использует тот же package
+supply, но проверяет декларативный payload через Extension SDK и не выполняет его код.
 
 `plugin connect`:
 
 1. создаёт новый Repository-scoped `PluginContext`;
 2. выполняет repository contribution;
 3. подключает Plugin-owned Extension;
-4. сохраняет binding только после полного успеха.
+4. сохраняет binding только после полного успеха. При batch-ошибке Core откатывает
+   уже подключённые Agent Extensions в обратном порядке и не публикует bindings.
 
-`disconnect` сначала отключает Extension, затем удаляет binding. `remove`
-разрешён только без bindings и удаляет declaration/runtime, но не tracked repository
+Граница этой гарантии — состояние, которым владеет Core: bindings и Agent Extensions.
+Произвольные side effects стороннего `repository.connect` через `files` или `process`
+не являются транзакционными: Plugin SDK не может безопасно определить, какие внешние
+данные допустимо удалить при компенсации.
+
+`disconnect` сначала отключает Extension, затем удаляет binding; при ошибке Core
+повторно подключает уже отключённые Extensions и сохраняет прежние bindings. `remove`
+разрешён только без bindings и удаляет declaration/dependency, но не tracked repository
 data и не произвольные tool-owned artifacts.
 
-Commands обычно монтируются внутри namespace Plugin. Только first-party Plugins могут
-получить явно разрешённые root commands из distribution config. Commands-only Plugin
-не требует binding; repository lifecycle работает только с поддерживаемыми roles.
+Все Plugin commands выполняются через `plugin exec`; Core не продвигает их в root CLI
+и не содержит исключений для конкретных Plugin IDs. Commands-only Plugin не требует
+binding; repository lifecycle работает только с поддерживаемыми roles.
 
 ## Опциональные Graph и tracking
 
@@ -167,11 +189,15 @@ Change Tracking Extension устанавливается только в под�
 
 `@openspec-orch/mcp` предоставляет только local stdio transport. Runtime собирается
 в public MCP adapter и вызывает те же Core/Plugin application services, что CLI.
+Base tools принадлежат MCP package; optional Agent tools и overlays обнаруживаются
+через универсальный Plugin contribution без импорта конкретных Plugin applications.
+При старте adapter объединяет contributions bundled Plugins с contributions внешних
+Plugins, которые загружены из Store package runtime.
 
 Public surface состоит из:
 
-- read tools для status, setup/change context, next action, assignment, Doctor и
-  Graph query;
+- base read tools для status, setup/change context, next action, assignment и Doctor;
+- optional read tools, поставляемые owning Plugins, включая Graph query;
 - controlled setup tools `initialize_project` и `connect_project` только для
   strict fixed-cwd flow;
 - task evidence tools `start_attempt` и `complete_attempt`;
@@ -181,6 +207,13 @@ Public surface состоит из:
 Resources и tool arguments проверяются fail-closed. MCP намеренно не предоставляет
 verification, Feature Acceptance, Release, Archive, arbitrary Git writes, Plugin
 lifecycle, Agent management или network transport.
+
+Read tools возвращают scoped `context_revision`. Conditional read с
+`if_context_revision` не доверяет локальному TTL и заново разрешает Project, Repository
+и Plugin state; при совпадении сервер сокращает ответ до `unchanged`. Для Apply
+`get_change_context(include_assignment: true)` собирает Change и assignment одним
+runtime-вызовом, а Graph contribution использует один Change impact и для context, и
+для assignment projection.
 
 ## Safe infrastructure
 

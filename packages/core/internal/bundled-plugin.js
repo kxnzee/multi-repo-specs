@@ -17,12 +17,12 @@ export class BundledPluginPackage {
   #catalogEntry;
   #packageRoot;
 
-  constructor({ id, name, packageName, packageRoot, version } = {}) {
+  constructor({ id, name, packageName, packageRoot, recommended = false, version } = {}) {
     if (typeof packageRoot !== "string" || !path.isAbsolute(packageRoot)) {
       invalid("packageRoot должен быть абсолютным путём");
     }
     const source = PluginSource.bundled({ name: packageName, version });
-    this.#catalogEntry = new PluginCatalogEntry({ id, name, source });
+    this.#catalogEntry = new PluginCatalogEntry({ id, name, recommended, source });
     this.#packageRoot = path.normalize(packageRoot);
     Object.freeze(this);
   }
@@ -62,33 +62,34 @@ export class BundledPluginProvider {
 
   get catalog() { return this.#catalog; }
 
-  has(pluginId, sourceDeclaration) {
-    return this.#find(pluginId, sourceDeclaration) !== undefined;
+  has(pluginId) {
+    return this.#find(pluginId) !== undefined;
   }
 
   async install(pluginId, source) {
     if (!(source instanceof PluginSource) || source.kind !== "bundled") {
       invalid("source должен быть bundled PluginSource");
     }
-    const pluginPackage = this.#find(pluginId, source.declaration);
+    const pluginPackage = this.#find(pluginId);
     if (!pluginPackage) {
-      invalid(`${pluginId} с source ${source.declaration} не входит в дистрибутив`);
+      invalid(`${pluginId} не входит в дистрибутив`);
+    }
+    if (pluginPackage.source.declaration !== source.declaration) {
+      invalid(`${pluginId}: source не совпадает с дистрибутивом`);
     }
     return this.#load(pluginPackage, source);
   }
 
   async resolve(declaration) {
-    const pluginPackage = this.#find(declaration?.id, declaration?.source);
+    const pluginPackage = this.#find(declaration?.id);
     if (!pluginPackage) {
       invalid(`${declaration?.id ?? ""} не входит в дистрибутив`);
     }
     return this.#load(pluginPackage, pluginPackage.source);
   }
 
-  #find(pluginId, sourceDeclaration) {
-    return this.#packages.find((candidate) => (
-      candidate.id === pluginId && candidate.source.declaration === sourceDeclaration
-    ));
+  #find(pluginId) {
+    return this.#packages.find((candidate) => candidate.id === pluginId);
   }
 
   async #load(pluginPackage, source) {

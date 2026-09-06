@@ -28,6 +28,16 @@ import {
 } from "@openspec-orch/core";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../../templates/default/", import.meta.url));
+const TEST_TEMPLATE_PROVIDER = Object.freeze({
+  defaultId: "default",
+  catalog: Object.freeze({ entries: Object.freeze([]) }),
+  resolve(templateId) {
+    if (templateId !== "default") {
+      throw new Error(`TEMPLATE_NOT_DISCOVERED: template-id '${templateId ?? ""}' не найден`);
+    }
+    return Object.freeze({ id: "default", root: TEMPLATE_ROOT });
+  },
+});
 
 const TEST_AGENTS = new Map([
   ["claude", new AgentDefinition({
@@ -292,7 +302,7 @@ test("custom Template is applied once and its source is not needed for repeated 
     storeId: "payments-specs",
     agentId: "claude",
     templateRoot: customRoot,
-    extensions: [{ id: "superpowers", source: "bundled:superpowers" }],
+    extensions: ["superpowers"],
     repositories: [configurationService.parseRepositoryArgument(
       "frontend=https://example.test/frontend.git#main",
     )],
@@ -302,7 +312,7 @@ test("custom Template is applied once and its source is not needed for repeated 
   );
   assert.deepEqual(project.template, { id: "custom-product" });
   assert.deepEqual(project.extensionDeclarations.map((extension) => extension.toConfig()), [
-    { id: "superpowers", source: "bundled:superpowers" },
+    "superpowers",
   ]);
   assert.equal((await fs.readFile(path.join(root, "openspec/context/product.md"), "utf8")), "# Product\n");
 
@@ -324,7 +334,7 @@ test("custom Template is applied once and its source is not needed for repeated 
     target: root,
     storeId: "payments-specs",
     agentId: "claude",
-    extensions: [{ id: "spec-driven-extended", source: "bundled:spec-driven-extended" }],
+    extensions: ["spec-driven-extended"],
     replaceExtensions: false,
   });
   assert.deepEqual(augmented.updated, ["openspec-orch.yaml"]);
@@ -412,8 +422,8 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
     }),
   ]);
   const cli = new CandidateCli({
+    bundledTemplateProvider: TEST_TEMPLATE_PROVIDER,
     initSelectionService: new InitSelectionService({ extensionCatalog: availableExtensions }),
-    templateRoot: TEMPLATE_ROOT,
     initializationService: {
       async initialize(options) {
         calls.push(options);
@@ -466,8 +476,8 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
   assert.equal(calls[0].templateId, "default");
   assert.equal(calls[0].templateRoot, TEMPLATE_ROOT);
   assert.deepEqual(calls[0].extensions, [
-    { id: "superpowers", source: "bundled:superpowers" },
-    { id: "company-tools", source: "bundled:company-tools" },
+    "superpowers",
+    "company-tools",
   ]);
   assert.equal(calls[0].replaceExtensions, true);
   assert.equal(calls[0].repositories[0].id, "frontend");
@@ -598,6 +608,7 @@ test("CandidateCli interactive init skips an Extension prompt with no selectable
     }),
   ]);
   const cli = new CandidateCli({
+    bundledTemplateProvider: TEST_TEMPLATE_PROVIDER,
     initSelectionService: new InitSelectionService({
       agentCatalog,
       extensionCatalog,
@@ -665,8 +676,8 @@ test("CandidateCli interactive init skips an Extension prompt with no selectable
     templateId: "default",
     templateRoot: TEMPLATE_ROOT,
     extensions: [
-      { id: "spec-driven-extended", source: "bundled:spec-driven-extended" },
-      { id: "superpowers", source: "bundled:superpowers" },
+      "spec-driven-extended",
+      "superpowers",
     ],
     replaceExtensions: true,
     repositories: undefined,
@@ -690,6 +701,7 @@ test("CandidateCli starts init progress after interactive selection and closes i
   };
   const successEvents = [];
   const successfulCli = new CandidateCli({
+    bundledTemplateProvider: TEST_TEMPLATE_PROVIDER,
     initSelectionService: {
       async resolve() {
         successEvents.push("selection:complete");
@@ -710,7 +722,6 @@ test("CandidateCli starts init progress after interactive selection and closes i
       },
     },
     progress: recordingProgress(successEvents),
-    templateRoot: TEMPLATE_ROOT,
   });
 
   await successfulCli.createProgram().parseAsync(["node", "openspec-orch", "init", "project"]);
@@ -723,6 +734,7 @@ test("CandidateCli starts init progress after interactive selection and closes i
 
   const failureEvents = [];
   const failingCli = new CandidateCli({
+    bundledTemplateProvider: TEST_TEMPLATE_PROVIDER,
     initSelectionService: { async resolve() { return selection; } },
     initializationService: {
       async initialize() {
@@ -731,7 +743,6 @@ test("CandidateCli starts init progress after interactive selection and closes i
       },
     },
     progress: recordingProgress(failureEvents),
-    templateRoot: TEMPLATE_ROOT,
   });
 
   await assert.rejects(
@@ -836,9 +847,9 @@ test("init selects Template before Extensions and locks its required Extensions"
     "Итоговое подтверждение",
   ]);
   assert.deepEqual(selection.extensions, [
-    { id: "spec-driven-extended", source: "bundled:spec-driven-extended" },
-    { id: "superpowers", source: "bundled:superpowers" },
-    { id: "team-extension", source: "bundled:team-extension" },
+    "spec-driven-extended",
+    "superpowers",
+    "team-extension",
   ]);
 });
 
@@ -873,8 +884,8 @@ test("init applies required Extension profiles in flag mode and rejects disablin
     store: "payments-specs",
     agent: "qwen",
   })).extensions, [
-    { id: "spec-driven-extended", source: "bundled:spec-driven-extended" },
-    { id: "superpowers", source: "bundled:superpowers" },
+    "spec-driven-extended",
+    "superpowers",
   ]);
 
   for (const [template, extension] of [
@@ -893,6 +904,7 @@ test("init applies required Extension profiles in flag mode and rejects disablin
 test("CandidateCli interactive init cancels before mutation and non-TTY requires flags", async () => {
   const calls = [];
   const candidate = (selectionOverrides) => new CandidateCli({
+    bundledTemplateProvider: TEST_TEMPLATE_PROVIDER,
     initSelectionService: new InitSelectionService({
       agentCatalog: new AgentCatalog([
         new AgentCatalogEntry({ id: "qwen", name: "Qwen Code" }),
@@ -900,7 +912,6 @@ test("CandidateCli interactive init cancels before mutation and non-TTY requires
       extensionCatalog: new ExtensionCatalog(),
       ...selectionOverrides,
     }),
-    templateRoot: TEMPLATE_ROOT,
     initializationService: { async initialize(options) { calls.push(options); } },
   }).createProgram();
 

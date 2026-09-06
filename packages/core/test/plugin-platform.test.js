@@ -14,6 +14,8 @@ import {
   configuration,
   createCandidateProgram,
   createProject,
+  PluginPlatform,
+  storeProjects,
 } from "@openspec-orch/core";
 
 import { loadPluginExport, SAMPLE_PLUGIN_ROOT } from "./helpers/plugin-materializer.js";
@@ -30,7 +32,7 @@ async function storeFixture(t, { declared = true } = {}) {
     template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
-    plugins: declared ? [{ id: "sample", source: "@test/plugin-sample@1.0.0" }] : [],
+    plugins: declared ? ["sample"] : [],
     repositories: [
       {
         id: "specs",
@@ -83,13 +85,13 @@ async function samplePlugin(t, calls) {
     registerCommands(commands) {
       commands.command("hello")
         .description("Hello")
-        .action(() => calls.push(["command", "hello"]));
+        .action(() => { calls.push(["command", "hello"]); });
     },
   });
   return loadPluginExport(t, plugin);
 }
 
-test("PluginPlatform wires sample lifecycle and namespaced command into candidate CLI", async (t) => {
+test("PluginPlatform routes native and registered commands through plugin exec", async (t) => {
   const storeRoot = await storeFixture(t);
   const calls = [];
   const loadedPlugin = await samplePlugin(t, calls);
@@ -153,16 +155,19 @@ test("PluginPlatform wires sample lifecycle and namespaced command into candidat
       "openspec-orch",
       "plugin",
       "exec",
-      "sample",
       "--repo",
       "frontend",
-      "--",
+      "sample",
       "native-status",
       "--json",
     ]);
     await (await createCandidateProgram(options)).parseAsync([
       "node",
       "openspec-orch",
+      "plugin",
+      "exec",
+      "--repo",
+      "frontend",
       "sample",
       "hello",
     ]);
@@ -190,6 +195,67 @@ test("PluginPlatform wires sample lifecycle and namespaced command into candidat
     "  indexed",
     "native output",
   ]);
+});
+
+test("commands-only Plugin exec uses the Store without a binding or repo selector", async (t) => {
+  const storeRoot = await storeFixture(t);
+  const calls = [];
+  const plugin = await loadPluginExport(t, definePlugin({
+    id: "sample",
+    registerCommands(commands) {
+      commands.command("hello").description("Hello").action(() => { calls.push("hello"); });
+    },
+  }));
+  const previousCwd = process.cwd();
+  process.chdir(storeRoot);
+  try {
+    const program = await createCandidateProgram({ loadedPlugins: [plugin] });
+    await program.parseAsync([
+      "node", "openspec-orch", "plugin", "exec", "sample", "hello",
+    ]);
+  } finally {
+    process.chdir(previousCwd);
+  }
+  assert.deepEqual(calls, ["hello"]);
+});
+
+test("automatic PluginPlatform composition exposes Agent tools from installed Plugins", async (t) => {
+  const storeRoot = await storeFixture(t);
+  const loadedPlugin = await loadPluginExport(t, definePlugin({
+    id: "sample",
+    agent: {
+      create: () => Object.freeze({}),
+      tools: [{
+        name: "sample_read",
+        description: "Read sample data.",
+        execute: () => "sample",
+      }],
+    },
+  }));
+  const resolutions = [];
+  const platform = await PluginPlatform.create({
+    managerService: {
+      forStore() {
+        return {
+          async resolve(declaration) {
+            resolutions.push(declaration.id);
+            return Object.freeze({ loadedPlugin });
+          },
+        };
+      },
+    },
+    start: storeRoot,
+    storeProjectService: {
+      load: (candidate) => storeProjects.load(candidate),
+      resolve: (candidate) => storeProjects.load(candidate),
+    },
+  });
+
+  assert.deepEqual(resolutions, ["sample"]);
+  assert.deepEqual(platform.agentContributions.map(({ pluginId, contribution }) => ({
+    pluginId,
+    tools: contribution.tools.map(({ name }) => name),
+  })), [{ pluginId: "sample", tools: ["sample_read"] }]);
 });
 
 test("empty composition still exposes Core plugin lifecycle without Plugin-specific branches", async () => {
@@ -267,7 +333,7 @@ test("automatic composition restores declared Plugins through injected services"
   const start = "/virtual/store";
   const loadedPlugin = await samplePlugin(t, []);
   const checkout = Object.freeze({ root: start });
-  const declaration = Object.freeze({ id: "sample", source: "@test/plugin-sample@1.0.0" });
+  const declaration = Object.freeze("sample");
   const calls = [];
   const program = await createCandidateProgram({
     pluginManagerService: {
@@ -299,68 +365,7 @@ test("automatic composition restores declared Plugins through injected services"
     ["forStore", checkout],
     ["resolvePlugin", declaration],
   ]);
-  assert.equal(program.commands.some((command) => command.name() === "sample"), true);
-});
-
-test("command context preserves start and selects current or Store scope explicitly", async (t) => {
-  const calls = [];
-  const contextCalls = [];
-  const start = "/virtual/workspace/repositories/frontend";
-  const commandPlugin = definePlugin({
-    id: "sample",
-    supports: ["store", "code"],
-    repository: {
-      connect() {},
-      status() { return { state: "ready" }; },
-    },
-    registerCommands(commands) {
-      commands.command("current-scope").description("Current")
-        .actionWithContext((context) => calls.push(context));
-      commands.command("store-scope").description("Store")
-        .actionWithContext((context) => calls.push(context), { scope: "store" });
-      commands.command("store-history").description("Store history")
-        .actionWithContext((context) => calls.push(context), { scope: "store", requireBinding: false });
-    },
-  });
-  const scopedPlugin = await loadPluginExport(t, commandPlugin);
-  const storeProject = { store: { id: "specs" } };
-  const invocation = Object.freeze({ id: "frontend", role: "code", path: start });
-  const storeStarts = [];
-  const program = await createCandidateProgram({
-    currentRepositoryService: {
-      async resolve(input) {
-        assert.equal(input.start, start);
-        return invocation;
-      },
-    },
-    loadedPlugins: [scopedPlugin],
-    pluginContextFactory: {
-      async forRepository(input) {
-        contextCalls.push(["connected", input.repositoryId]);
-        return Object.freeze({ invocation: input.invocation, repositoryId: input.repositoryId });
-      },
-      async forRepositorySetup(input) {
-        contextCalls.push(["unbound", input.repositoryId]);
-        return Object.freeze({ invocation: input.invocation, repositoryId: input.repositoryId });
-      },
-    },
-    start,
-    storeProjectService: {
-      async load() { assert.fail("load is only used by MCP init"); },
-      async resolve(received) {
-        storeStarts.push(received);
-        return storeProject;
-      },
-    },
-  });
-
-  await program.parseAsync(["node", "openspec-orch", "sample", "current-scope"]);
-  await program.parseAsync(["node", "openspec-orch", "sample", "store-scope"]);
-  await program.parseAsync(["node", "openspec-orch", "sample", "store-history"]);
-  assert.deepEqual(storeStarts, [start]);
-  assert.deepEqual(calls.map(({ repositoryId }) => repositoryId), ["frontend", "specs", "specs"]);
-  assert.equal(calls.every((context) => context.invocation === invocation), true);
-  assert.deepEqual(contextCalls.map(([kind]) => kind), ["connected", "connected", "unbound"]);
+  assert.equal(program.commands.some((command) => command.name() === "sample"), false);
 });
 
 test("bundled provider initializes and restores a Plugin without Store runtime", async (t) => {
@@ -388,8 +393,7 @@ test("bundled provider initializes and restores a Plugin without Store runtime",
       "--all",
     ]);
     const restarted = await createCandidateProgram(options);
-    assert.equal(restarted.commands.some((command) => command.name() === "sample"), true);
-    await restarted.parseAsync(["node", "openspec-orch", "sample", "hello"]);
+    assert.equal(restarted.commands.some((command) => command.name() === "sample"), false);
     await (await createCandidateProgram(options)).parseAsync([
       "node",
       "openspec-orch",
@@ -405,13 +409,10 @@ test("bundled provider initializes and restores a Plugin without Store runtime",
   const project = configuration.parseProject(
     await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"),
   );
-  assert.equal(
-    project.pluginDeclaration("sample").source,
-    "@test/openspec-orch-plugin-sample@1.0.0",
-  );
+  assert.equal(project.pluginDeclaration("sample").id, "sample");
   assert.equal(await fs.lstat(path.join(
     storeRoot,
-    ".openspec-orch/cache/plugin-runtimes",
+    ".openspec-orch/packages",
   )).catch((error) => error.code), "ENOENT");
   assert.deepEqual(output, [
     "✓ sample — инициализирован",
@@ -457,10 +458,10 @@ test("automatic composition keeps Core available for unavailable or corrupted Pl
 
     const runtimeDirectory = path.join(
       storeRoot,
-      ".openspec-orch/cache/plugin-runtimes/sample",
+      ".openspec-orch/packages",
     );
     await fs.mkdir(runtimeDirectory, { recursive: true });
-    await fs.writeFile(path.join(runtimeDirectory, "unexpected"), "corrupted");
+    await fs.writeFile(path.join(runtimeDirectory, "package.json"), "{}\n");
     const corrupted = await createCandidateProgram();
     assert.equal(corrupted.commands.some((command) => command.name() === "plugin"), true);
     assert.equal(corrupted.commands.some((command) => command.name() === "sample"), false);

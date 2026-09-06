@@ -69,7 +69,9 @@ test("change-tracking ships schema-neutral Apply guidance for every Agent", asyn
   assert.equal(claude.name, "change-tracking-agent");
   assert.equal(marketplace.name, "openspec-orch-change-tracking-agent");
   assert.match(instructions, /standard OpenSpec Apply workflow/u);
-  assert.match(instructions, /get_change_context` with `artifact: "apply"/u);
+  assert.match(instructions, /get_change_context` once with\s+`artifact: "apply"`/u);
+  assert.match(instructions, /`include_assignment: true`/u);
+  assert.match(instructions, /duplicate `get_assignment_scope`/u);
   assert.match(instructions, /active schema's returned\s+Apply instructions/u);
   assert.match(instructions, /start_attempt/u);
   assert.match(instructions, /complete_attempt/u);

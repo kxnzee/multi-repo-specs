@@ -1,110 +1,61 @@
 /** @fileoverview Координация Plugin Manager и project declaration. */
 
-import path from "node:path";
-
-import { configuration } from "./configuration.js";
-import { CORE_FILES, CORE_SERVICE_PATHS } from "./constants.js";
-import { files } from "./files.js";
-import { ensureDirectory } from "./fs.js";
-import { locks } from "./lock.js";
 import { pluginManagers } from "./plugin-manager.js";
 import { PluginSource } from "./plugin-source.js";
-import { StoreProject, storeProjects } from "./store-project.js";
+import { rollbackOrRethrow } from "./compensation.js";
+import { storeProjectMutations } from "./store-project-mutation.js";
+import { StoreProject } from "./store-project.js";
 
 /** Завершает операцию стабильной ошибкой Plugin application service. */
 function invalid(message, options) {
   throw new Error(`PLUGIN_APPLICATION_INVALID: ${message}`, options);
 }
 
-/** Создаёт безопасный общий Core lock directory. */
-async function ensureLockDirectory(root, corruptionCode = "PLUGIN_APPLICATION_INVALID") {
-  let current = root;
-  for (const segment of CORE_SERVICE_PATHS.lockDirectory.split("/")) {
-    current = path.join(current, segment);
-    const stat = await ensureDirectory(current, { mode: 0o700 });
-    if (!stat.isDirectory() || stat.isSymbolicLink()) {
-      throw new Error(
-        `${corruptionCode}: ${CORE_SERVICE_PATHS.lockDirectory} содержит небезопасный segment`,
-      );
-    }
-  }
-}
-
 /** Immutable результат успешной установки и регистрации Plugin. */
 export class PluginApplicationResult {
-  #initialized;
-
   constructor({ initialized }) {
     if (typeof initialized !== "boolean") invalid("initialized должен быть boolean");
-    this.#initialized = initialized;
+    this.initialized = initialized;
     Object.freeze(this);
   }
-
-  get initialized() { return this.#initialized; }
 }
 
 /** Immutable результат удаления Plugin declaration. */
 export class PluginRemovalResult {
-  #removed;
-
   constructor({ removed }) {
     if (typeof removed !== "boolean") invalid("removed должен быть boolean");
-    this.#removed = removed;
+    this.removed = removed;
     Object.freeze(this);
   }
-
-  get removed() { return this.#removed; }
 }
 
 /** Immutable результат изменения одного Repository binding. */
 export class PluginBindingChange {
-  #changed;
-  #output;
-
   constructor({ changed, output }) {
     if (typeof changed !== "boolean") invalid("binding change требует changed");
-    this.#changed = changed;
-    this.#output = output;
+    this.changed = changed;
+    this.output = output;
     Object.freeze(this);
   }
-
-  get changed() { return this.#changed; }
-  get output() { return this.#output; }
 }
 
 /** Application service безопасного изменения Plugin project state. */
 export class PluginApplicationService {
-  #configuration;
-  #files;
   #managers;
-  #lock;
-  #storeProjects;
+  #mutations;
 
   constructor({
-    configurationService = configuration,
-    fileService = files,
     managerService = pluginManagers,
-    lock = locks,
-    storeProjectService = storeProjects,
+    mutationService = storeProjectMutations,
   } = {}) {
-    if (typeof configurationService?.serializeProject !== "function") {
-      invalid("configurationService должен предоставлять serializeProject");
-    }
-    if (typeof fileService?.forRepository !== "function") {
-      invalid("fileService должен предоставлять forRepository");
-    }
     if (typeof managerService?.forStore !== "function") {
       invalid("managerService должен предоставлять forStore");
     }
-    if (typeof lock?.run !== "function") invalid("lock должен предоставлять run");
-    if (typeof storeProjectService?.load !== "function") {
-      invalid("storeProjectService должен предоставлять load");
+    if (typeof mutationService?.run !== "function" || typeof mutationService?.write !== "function") {
+      invalid("mutationService должен предоставлять run и write");
     }
-    this.#configuration = configurationService;
-    this.#files = fileService;
     this.#managers = managerService;
-    this.#lock = lock;
-    this.#storeProjects = storeProjectService;
+    this.#mutations = mutationService;
     Object.freeze(this);
   }
 
@@ -114,58 +65,71 @@ export class PluginApplicationService {
     if (!(source instanceof PluginSource)) {
       invalid("требуется PluginSource");
     }
-    await ensureLockDirectory(storeProject.root);
-    return this.#lock.run(
-      path.join(storeProject.root, CORE_SERVICE_PATHS.projectConfigLock),
-      () => this.#installUnlocked(storeProject.root, pluginId, source),
-      { busyCode: "PLUGIN_APPLICATION_BUSY" },
+    return this.#mutations.run(
+      storeProject.root,
+      (current) => this.#installUnlocked(current, pluginId, source),
+      { busyCode: "PLUGIN_APPLICATION_BUSY", corruptionCode: "PLUGIN_APPLICATION_INVALID" },
     );
   }
 
   /** Удаляет только Plugin без Repository bindings и принадлежащий ему runtime. */
   async remove(storeProject, pluginId) {
     if (!(storeProject instanceof StoreProject)) invalid("требуется StoreProject");
-    await ensureLockDirectory(storeProject.root);
-    return this.#lock.run(
-      path.join(storeProject.root, CORE_SERVICE_PATHS.projectConfigLock),
-      () => this.#removeUnlocked(storeProject.root, pluginId),
-      { busyCode: "PLUGIN_APPLICATION_BUSY" },
+    return this.#mutations.run(
+      storeProject.root,
+      (current) => this.#removeUnlocked(current, pluginId),
+      { busyCode: "PLUGIN_APPLICATION_BUSY", corruptionCode: "PLUGIN_APPLICATION_INVALID" },
     );
   }
 
   /** Выполняет Plugin setup и публикует bindings одной project mutation. */
-  async connectMany(storeProject, pluginId, repositoryIds, operation) {
+  async connectMany(
+    storeProject,
+    pluginId,
+    repositoryIds,
+    operation,
+    rollback = async () => {},
+  ) {
     if (!(storeProject instanceof StoreProject)) invalid("требуется StoreProject");
     if (!Array.isArray(repositoryIds) || repositoryIds.length === 0) {
       invalid("repositoryIds должен быть непустым массивом");
     }
-    if (typeof operation !== "function") invalid("требуется connect operation");
+    if (typeof operation !== "function" || typeof rollback !== "function") {
+      invalid("требуются connect operation и rollback");
+    }
     const selectedIds = [...new Set(repositoryIds)];
-    await ensureLockDirectory(storeProject.root, "PLUGIN_BINDING_CORRUPTED");
-    return this.#lock.run(
-      path.join(storeProject.root, CORE_SERVICE_PATHS.projectConfigLock),
-      async () => {
-        const current = await this.#storeProjects.load(storeProject.root);
+    return this.#mutations.run(
+      storeProject.root,
+      async (current) => {
         current.project.requirePlugin(pluginId);
         for (const repositoryId of selectedIds) current.project.requireRepository(repositoryId);
         const changes = [];
         const connectedIds = [];
-        for (const repositoryId of selectedIds) {
-          if (current.project.isPluginConnected(pluginId, repositoryId)) {
-            changes.push(new PluginBindingChange({ changed: false, output: "" }));
-            continue;
+        try {
+          for (const repositoryId of selectedIds) {
+            if (current.project.isPluginConnected(pluginId, repositoryId)) {
+              changes.push(new PluginBindingChange({ changed: false, output: "" }));
+              continue;
+            }
+            const output = await operation(current, repositoryId);
+            connectedIds.push(repositoryId);
+            changes.push(new PluginBindingChange({ changed: true, output }));
           }
-          const output = await operation(current, repositoryId);
-          connectedIds.push(repositoryId);
-          changes.push(new PluginBindingChange({ changed: true, output }));
-        }
-        if (connectedIds.length > 0) {
-          current.project.connectPlugin(pluginId, connectedIds);
-          await this.#writeProject(current);
+          if (connectedIds.length > 0) {
+            current.project.connectPlugin(pluginId, connectedIds);
+            await this.#writeProject(current);
+          }
+        } catch (error) {
+          await rollbackOrRethrow(
+            error,
+            connectedIds,
+            (repositoryId) => rollback(current, repositoryId),
+            `PLUGIN_CONNECT_ROLLBACK_FAILED: ${pluginId}`,
+          );
         }
         return Object.freeze(changes);
       },
-      { busyCode: "PLUGIN_BINDING_BUSY" },
+      { busyCode: "PLUGIN_BINDING_BUSY", corruptionCode: "PLUGIN_BINDING_CORRUPTED" },
     );
   }
 
@@ -182,11 +146,9 @@ export class PluginApplicationService {
       invalid("repositoryIds должен быть непустым массивом");
     }
     const selectedIds = [...new Set(repositoryIds)];
-    await ensureLockDirectory(storeProject.root, "PLUGIN_BINDING_CORRUPTED");
-    return this.#lock.run(
-      path.join(storeProject.root, CORE_SERVICE_PATHS.projectConfigLock),
-      async () => {
-        const current = await this.#storeProjects.load(storeProject.root);
+    return this.#mutations.run(
+      storeProject.root,
+      async (current) => {
         current.project.requirePlugin(pluginId);
         for (const repositoryId of selectedIds) current.project.requireRepository(repositoryId);
         const changes = selectedIds.map((repositoryId) => new PluginBindingChange({
@@ -196,12 +158,11 @@ export class PluginApplicationService {
         if (changes.some(({ changed }) => changed)) await this.#writeProject(current);
         return Object.freeze(changes);
       },
-      { busyCode: "PLUGIN_BINDING_BUSY" },
+      { busyCode: "PLUGIN_BINDING_BUSY", corruptionCode: "PLUGIN_BINDING_CORRUPTED" },
     );
   }
 
-  async #installUnlocked(root, pluginId, source) {
-    const current = await this.#storeProjects.load(root);
+  async #installUnlocked(current, pluginId, source) {
     let result;
     await this.#managers.forStore(current.checkout).install(
       pluginId,
@@ -210,12 +171,11 @@ export class PluginApplicationService {
         if (
           !installation ||
           installation.id !== pluginId ||
-          !(installation.source instanceof PluginSource) ||
-          typeof installation.declaration !== "string"
+          !(installation.source instanceof PluginSource)
         ) {
           invalid("Plugin Manager вернул несогласованный installation");
         }
-        const initialized = current.project.declarePlugin(pluginId, installation.declaration);
+        const initialized = current.project.declarePlugin(pluginId);
         await this.#writeProject(current);
         result = new PluginApplicationResult({ initialized });
       },
@@ -226,8 +186,7 @@ export class PluginApplicationService {
     return result;
   }
 
-  async #removeUnlocked(root, pluginId) {
-    const current = await this.#storeProjects.load(root);
+  async #removeUnlocked(current, pluginId) {
     const declaration = current.project.pluginDeclaration(pluginId);
     if (!declaration) return new PluginRemovalResult({ removed: false });
     const manager = this.#managers.forStore(current.checkout);
@@ -240,17 +199,7 @@ export class PluginApplicationService {
   }
 
   async #writeProject(storeProject) {
-    await this.#writeProjectSource(
-      storeProject,
-      this.#configuration.serializeProject(storeProject.project),
-    );
-  }
-
-  async #writeProjectSource(storeProject, source) {
-    await this.#files.forRepository(storeProject.checkout).write(
-      CORE_FILES.orchestratorConfig,
-      source,
-    );
+    await this.#mutations.write(storeProject);
   }
 }
 

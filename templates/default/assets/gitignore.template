@@ -2,6 +2,7 @@
 # or .openspec-orch/ as a whole.
 .openspec-orch/state.json
 .openspec-orch/cache/
+.openspec-orch/packages/node_modules/
 .openspec-orch/logs/
 .openspec-orch/plugins/
 
@@ -10,3 +11,11 @@
 
 # Agent-local approvals
 .claude/settings.local.json
+
+# Gigacode settings
+.gigacode/settings*
+
+# Agent runtime caches
+.gigacode/tmp/
+.qwen/tmp/
+nul

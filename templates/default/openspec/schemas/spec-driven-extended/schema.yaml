@@ -245,9 +245,13 @@ artifacts:
     description: Implementation checklist with a final verification checkpoint
     template: tasks.md
     instruction: |
-      Create the task list that breaks down the implementation work.
+      The Analyst creates the task list that breaks down the implementation work.
       Before completion invoke spec-driven-extended-meta-planning for the tasks stage and
       verify Scenario → Design decision → Task traceability.
+
+      The Developer, Tester and Development Lead review the complete Planning change
+      through the project PR process before Gate 1. Their review does not transfer
+      ownership of Planning artifacts away from the Analyst.
 
       Before writing tasks, check design.md for Open Questions. If any of them
       would change what gets built, resolve them with the user first - do not
@@ -302,8 +306,10 @@ artifacts:
       Present that evidence for an explicit human decision. The Agent must keep the
       Human gate `PENDING` until a person explicitly selects `PASS` or
       `FAIL`; Agent evidence cannot make this decision. After implementation changes,
-      collect current evidence and obtain a new decision. Verify does not authorize
-      Release or Archive. Process Compliance for `spec-driven-extended` is NOT_APPLICABLE.
+      collect current evidence and obtain a new decision. Verify does not perform
+      Archive, UAT or Release. Human Feature Acceptance `PASS` is required before the
+      team archives the Change through a Store PR. Process Compliance for
+      `spec-driven-extended` is NOT_APPLICABLE.
     requires:
       - tasks
 

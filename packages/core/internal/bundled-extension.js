@@ -4,12 +4,11 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { parse } from "yaml";
+import { ExtensionDescriptor, ExtensionPackage } from "@openspec-orch/extension-sdk";
 
 import { ExtensionCatalog, ExtensionCatalogEntry } from "./extension-catalog.js";
 import { isContainedPath } from "./path.js";
-import { hasExactKeys } from "./value.js";
 
-const DESCRIPTOR_KEYS = Object.freeze(["id", "manifests", "name"]);
 const PACKAGE_CONSTRUCTION = Symbol("BundledExtensionPackage construction");
 
 /** Завершает операцию стабильной ошибкой bundled Extension provider. */
@@ -48,13 +47,11 @@ async function loadDescriptor(root, manifestKeys) {
   } catch (cause) {
     invalid("extension.yaml содержит некорректный YAML", { cause });
   }
-  if (!hasExactKeys(descriptor, DESCRIPTOR_KEYS)) {
-    invalid(`extension.yaml должен содержать только ${DESCRIPTOR_KEYS.join(", ")}`);
+  try {
+    return new ExtensionDescriptor(descriptor, { agentIds: manifestKeys });
+  } catch (cause) {
+    invalid(cause.message, { cause });
   }
-  if (!hasExactKeys(descriptor.manifests, manifestKeys)) {
-    invalid(`manifests должен содержать только ${manifestKeys.join(", ")}`);
-  }
-  return descriptor;
 }
 
 /** Читает и проверяет обычный файл внутри Extension root. */
@@ -122,8 +119,8 @@ export class BundledExtensionPackage {
       name: descriptor.name,
       source,
     });
-    await Promise.all(manifestKeys.map((agentId) => (
-      validateManifest(canonicalRoot, descriptor.manifests[agentId])
+    await Promise.all(Object.values(descriptor.manifests).map((manifest) => (
+      validateManifest(canonicalRoot, manifest)
     )));
     return new BundledExtensionPackage({
       catalogEntry,
@@ -140,6 +137,34 @@ export class BundledExtensionPackage {
 
   toCatalogEntry() {
     return this.#catalogEntry;
+  }
+}
+
+/** Загружает standalone Extension из установленного npm package. */
+export class NpmExtensionPackage {
+  static async load(root, { agentIds, expectedId } = {}) {
+    const manifestPath = path.join(root, "package.json");
+    const stat = await fs.lstat(manifestPath).catch((cause) => {
+      invalid("package.json отсутствует", { cause });
+    });
+    if (!stat.isFile() || stat.isSymbolicLink()) invalid("package.json должен быть обычным файлом");
+    let packageContract;
+    try {
+      packageContract = new ExtensionPackage(JSON.parse(await fs.readFile(manifestPath, "utf8")));
+    } catch (cause) {
+      invalid(cause.message, { cause });
+    }
+    const loaded = await BundledExtensionPackage.load(root, { agentIds });
+    if (expectedId !== undefined && loaded.id !== expectedId) {
+      invalid(`ожидался extension-id ${expectedId}, package содержит ${loaded.id}`);
+    }
+    return Object.freeze({
+      id: loaded.id,
+      manifests: loaded.manifests,
+      name: loaded.name,
+      root: loaded.root,
+      source: `${packageContract.name}@${packageContract.version}`,
+    });
   }
 }
 
@@ -178,12 +203,14 @@ export class BundledExtensionProvider {
 
   get catalog() { return this.#catalog; }
 
+  has(extensionId) {
+    return this.#packages.some(({ id }) => id === extensionId);
+  }
+
   resolve(declaration) {
-    const extensionPackage = this.#packages.find((candidate) => (
-      candidate.id === declaration?.id && candidate.source === declaration?.source
-    ));
+    const extensionPackage = this.#packages.find(({ id }) => id === declaration?.id);
     if (!extensionPackage) {
-      invalid(`${declaration?.id ?? ""} с source ${declaration?.source ?? ""} не входит в дистрибутив`);
+      invalid(`${declaration?.id ?? ""} не входит в дистрибутив`);
     }
     return extensionPackage;
   }

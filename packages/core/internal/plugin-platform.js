@@ -2,50 +2,52 @@
 
 import process from "node:process";
 
-import { COMMAND_SCOPE } from "@openspec-orch/plugin-sdk";
-
 import { isAgentExtensionAdapter } from "./agent-extension-adapter.js";
 import { bundledAgents } from "./bundled-agent.js";
 import { bundledExtensions } from "./bundled-extension.js";
 import { bundledTemplates, isBundledTemplateProvider } from "./bundled-template.js";
 import { BundledPluginProvider } from "./bundled-plugin.js";
 import { CandidateCli } from "./cli.js";
-import { currentRepositories } from "./current-repository.js";
 import { DoctorService } from "./doctor.js";
+import { ExtensionCommands } from "./extension-cli.js";
 import { ExtensionLifecycle } from "./extension-lifecycle.js";
+import { ExtensionApplicationService } from "./extension-application.js";
+import { ExtensionManagerService } from "./extension-manager.js";
 import { InitializationService } from "./initialization.js";
 import { InitSelectionService } from "./init-selection.js";
 import { PluginApplicationService } from "./plugin-application.js";
 import { pluginCatalog } from "./plugin-catalog.js";
-import { pluginContexts } from "./plugin-context.js";
 import { PluginLifecycleCommands } from "./plugin-cli.js";
-import { PluginCommandMounter } from "./plugin-commands.js";
 import { PluginHost, PluginRegistry } from "./plugin-host.js";
 import { PluginLifecycleService } from "./plugin-lifecycle.js";
 import { PluginManagerService, pluginManagers } from "./plugin-manager.js";
+import { PackageCommands } from "./package-cli.js";
+import { packageSupplies } from "./package-supply.js";
 import { ProjectSetupService } from "./project-setup.js";
 import { RepositoryStatusService } from "./repository-status.js";
 import { storeProjects } from "./store-project.js";
 import { hasMethods } from "./value.js";
 
-const RECOVERABLE_PLUGIN_RESOLUTION = /^(?:BUNDLED_PLUGIN_INVALID|PLUGIN_CONTRACT_INVALID|PLUGIN_LOAD_INVALID|PLUGIN_MANAGER_INVALID|PLUGIN_RUNTIME_UNAVAILABLE):/u;
+const RECOVERABLE_PLUGIN_RESOLUTION = /^(?:BUNDLED_PLUGIN_INVALID|PACKAGE_RUNTIME_UNAVAILABLE|PACKAGE_SUPPLY_INVALID|PLUGIN_CONTRACT_INVALID|PLUGIN_LOAD_INVALID|PLUGIN_MANAGER_INVALID|PLUGIN_RUNTIME_UNAVAILABLE):/u;
 
 /** Keeps optional Plugin failures isolated without swallowing unrelated Core defects. */
 function isRecoverablePluginResolution(error) {
-  return error?.code === "PLUGIN_RUNTIME_UNAVAILABLE" ||
+  return ["PACKAGE_RUNTIME_UNAVAILABLE", "PLUGIN_RUNTIME_UNAVAILABLE"].includes(error?.code) ||
     RECOVERABLE_PLUGIN_RESOLUTION.test(error?.message ?? "");
 }
 
 /** Собирает Loader output, Host, lifecycle и CLI adapters без знания Plugin IDs. */
 export class PluginPlatform {
+  #agentContributions;
   #bundledTemplates;
-  #commands;
   #doctor;
+  #extensionCommands;
   #extensionLifecycle;
   #initialization;
   #initSelection;
   #pluginExtensions;
   #lifecycleCommands;
+  #packageCommands;
   #setup;
   #setupCatalog;
 
@@ -56,11 +58,11 @@ export class PluginPlatform {
     bundledExtensionProvider = bundledExtensions,
     bundledTemplateProvider = bundledTemplates,
     catalog,
-    contextFactory = pluginContexts,
-    currentRepositoryService = currentRepositories,
+    contextFactory,
     loadedPlugins = [],
+    managerService = pluginManagers,
     pluginCommandOptions = {},
-    rootCommands = new Map(),
+    packageSupplyService = packageSupplies,
     start = process.cwd(),
     storeProjectService = storeProjects,
   } = {}) {
@@ -83,6 +85,11 @@ export class PluginPlatform {
       throw new Error("PLUGIN_PLATFORM_INVALID: bundled Agent provider не предоставляет adapter");
     }
     const registry = new PluginRegistry(loadedPlugins);
+    this.#agentContributions = Object.freeze(loadedPlugins.flatMap(({ plugin }) => (
+      typeof plugin.hasAgentContribution === "function" && plugin.hasAgentContribution()
+        ? [Object.freeze({ pluginId: plugin.id, contribution: plugin.agentContribution() })]
+        : []
+    )));
     const host = new PluginHost({
       agentAdapter: resolvedAgentAdapter,
       contextFactory,
@@ -91,9 +98,14 @@ export class PluginPlatform {
     const lifecycle = new PluginLifecycleService({
       applicationService,
       host,
+      managerService,
       start,
     });
     this.#pluginExtensions = lifecycle;
+    const extensionManagers = new ExtensionManagerService({
+      agentIds: bundledAgentProvider.catalog.entries.map(({ id }) => id),
+      bundledProvider: bundledExtensionProvider,
+    });
     this.#initialization = new InitializationService({ agentProvider: bundledAgentProvider });
     this.#initSelection = new InitSelectionService({
       agentCatalog: bundledAgentProvider.catalog,
@@ -103,13 +115,27 @@ export class PluginPlatform {
     });
     this.#extensionLifecycle = new ExtensionLifecycle({
       agentAdapter: resolvedAgentAdapter,
-      bundledProvider: bundledExtensionProvider,
+      managerService: extensionManagers,
       start,
+      storeProjectService,
+    });
+    this.#extensionCommands = new ExtensionCommands({
+      cwd: start,
+      extensionApplication: new ExtensionApplicationService({
+        managerService: extensionManagers,
+        storeProjectService,
+      }),
+      extensionLifecycle: this.#extensionLifecycle,
+      storeProjectService,
+    });
+    this.#packageCommands = new PackageCommands({
+      supplyService: packageSupplyService,
       storeProjectService,
     });
     this.#doctor = new DoctorService({
       extensionStatusService: this.#extensionLifecycle,
       pluginStatusService: lifecycle,
+      packageSupplyService,
       repositoryStatusService: new RepositoryStatusService({ storeProjectService }),
       start,
       storeProjectService,
@@ -120,6 +146,7 @@ export class PluginPlatform {
       initializationService: this.#initialization,
       initSelectionService: this.#initSelection,
       pluginExtensionConnector: this.#pluginExtensions,
+      packageSupplyService,
       start,
       storeProjectService,
     });
@@ -135,48 +162,6 @@ export class PluginPlatform {
           required_extensions: entry.requiredExtensions,
         })
       ))),
-    });
-    const loadedIds = new Set(registry.list().map(({ id }) => id));
-    const activeRootCommands = new Map(
-      [...rootCommands].filter(([pluginId]) => loadedIds.has(pluginId)),
-    );
-    let invocationPromise;
-    const resolveInvocation = () => {
-      invocationPromise ??= storeProjectService.resolve(start).then(async (storeProject) => ({
-        storeProject,
-        invocation: await currentRepositoryService.resolve({ start, storeProject }),
-      }));
-      return invocationPromise;
-    };
-    this.#commands = new PluginCommandMounter({
-      onError() {
-        // Optional Plugin command failures must not prevent Core and Doctor from starting.
-      },
-      registry,
-      resolveContext: async (pluginId, scope, requireBinding) => {
-        const { storeProject, invocation } = await resolveInvocation();
-        if (scope === COMMAND_SCOPE.current && !invocation) {
-          throw new Error("PLUGIN_COMMAND_CONTEXT_UNAVAILABLE: текущий Repository не определён");
-        }
-        const loadedPlugin = registry.require(pluginId);
-        if (
-          !requireBinding &&
-          scope === COMMAND_SCOPE.store &&
-          !loadedPlugin.plugin.hasRepositoryContribution()
-        ) {
-          return contextFactory.forStoreSetup({ loadedPlugin, storeProject });
-        }
-        const createContext = requireBinding
-          ? contextFactory.forRepository.bind(contextFactory)
-          : contextFactory.forRepositorySetup.bind(contextFactory);
-        return createContext({
-          loadedPlugin,
-          storeProject,
-          repositoryId: scope === COMMAND_SCOPE.store ? storeProject.store.id : invocation.id,
-          invocation,
-        });
-      },
-      rootCommands: activeRootCommands,
     });
     this.#lifecycleCommands = new PluginLifecycleCommands({
       ...pluginCommandOptions,
@@ -225,6 +210,7 @@ export class PluginPlatform {
       applicationService,
       catalog,
       loadedPlugins: resolved,
+      managerService: resolvedManagerService,
       pluginCommandOptions,
       start,
       storeProjectService,
@@ -236,14 +222,20 @@ export class PluginPlatform {
       ...options,
       bundledTemplateProvider: this.#bundledTemplates,
       doctorService: this.#doctor,
+      extensionCommands: this.#extensionCommands,
       extensionLifecycle: this.#extensionLifecycle,
       initSelectionService: this.#initSelection,
       initializationService: this.#initialization,
-      pluginCommandMounter: this.#commands,
       pluginExtensionConnector: this.#pluginExtensions,
       pluginLifecycleCommands: this.#lifecycleCommands,
+      packageCommands: this.#packageCommands,
       setupService: this.#setup,
     }).createProgram();
+  }
+
+  /** Returns immutable Agent contributions from the same installed Plugin set as the CLI. */
+  get agentContributions() {
+    return this.#agentContributions;
   }
 
   /** Runs the exact Doctor composition shared by CLI and other protocol adapters. */

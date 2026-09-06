@@ -30,6 +30,7 @@ export {
 export {
   BundledExtensionPackage,
   BundledExtensionProvider,
+  NpmExtensionPackage,
   bundledExtensions,
 } from "./internal/bundled-extension.js";
 export { CandidateCli } from "./internal/cli.js";
@@ -68,7 +69,9 @@ export {
   extensionCatalog,
 } from "./internal/extension-catalog.js";
 export { ExtensionDeclaration } from "./internal/extension-declaration.js";
-export { PluginCommandBuilder, PluginCommandMounter, PluginCommandRegistry } from "./internal/plugin-commands.js";
+export { ExtensionLifecycle } from "./internal/extension-lifecycle.js";
+export { ExtensionApplicationService } from "./internal/extension-application.js";
+export { ExtensionManagerService, StoreExtensionManager } from "./internal/extension-manager.js";
 export { PluginHost, PluginRegistry } from "./internal/plugin-host.js";
 export {
   PluginConnectionResult,
@@ -83,12 +86,15 @@ export {
   StorePluginManager,
   pluginManagers,
 } from "./internal/plugin-manager.js";
-export { NpmPackageInstaller, NpmPackageInstallResult, npmPackageInstaller } from "./internal/npm-package-installer.js";
+export { NpmPackageInstaller, npmPackageInstaller } from "./internal/npm-package-installer.js";
+export { ExtensionCommands } from "./internal/extension-cli.js";
+export { PackageSupplyService, StorePackageSupply, packageSupplies } from "./internal/package-supply.js";
+export { PackageCommands } from "./internal/package-cli.js";
 export { PluginPlatform } from "./internal/plugin-platform.js";
 export { PluginSource } from "./internal/plugin-source.js";
 export { PluginScaffoldService, pluginScaffolds } from "./internal/plugin-scaffold.js";
 export { PluginStorage, PluginStorageService, pluginStorage } from "./internal/plugin-storage.js";
-export { ProcessService, ScopedProcess, processes } from "./internal/process.js";
+export { ProcessService, ScopedProcess, processes, redactSensitive } from "./internal/process.js";
 export { ProjectSetupService } from "./internal/project-setup.js";
 export { Project, createProject } from "./internal/project.js";
 export { Repository, createRepository } from "./internal/repository.js";
@@ -112,12 +118,10 @@ export async function createCandidateProgram({
   bundledExtensionProvider,
   bundledTemplateProvider,
   bundledProvider,
-  currentRepositoryService,
   loadedPlugins,
   pluginCommandOptions,
   pluginContextFactory,
   pluginManagerService,
-  rootCommands,
   start,
   storeProjectService,
   ...options
@@ -128,11 +132,9 @@ export async function createCandidateProgram({
     bundledTemplateProvider,
     bundledProvider,
     contextFactory: pluginContextFactory,
-    currentRepositoryService,
     loadedPlugins,
     managerService: pluginManagerService,
     pluginCommandOptions,
-    rootCommands,
     start,
     storeProjectService,
   });

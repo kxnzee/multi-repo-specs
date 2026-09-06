@@ -27,9 +27,10 @@ Plugin API. Совпадение `instanceof` не требуется.
 
 `definePlugin` требует хотя бы один contribution:
 
-- `commands` — декларативная grammar в namespace Plugin;
+- `commands` — декларативная grammar за единым `plugin exec`;
 - `repository` — `connect/status` и optional `sync/exec`;
-- `extensions` — data-only Agent Extension для Store или Code Repository.
+- `extensions` — data-only Agent Extension для Store или Code Repository;
+- `agent` — Plugin-owned Agent tools и overlays для общего gateway.
 
 ```js
 import { definePlugin } from "@openspec-orch/plugin-sdk";
@@ -48,6 +49,14 @@ Commands-only Plugin не требует binding. Repository contribution объ
 поддерживаемые roles. Native `repository.exec` нужен только для непрозрачного argv
 passthrough; иначе SDK может выполнить зарегистрированную grammar.
 
+Agent contribution обнаруживается distribution без специальных Plugin IDs как у
+bundled, так и у объявленных в Project внешних Plugins. Общий MCP/runtime валидирует
+и маршрутизирует immutable tool metadata, но tool handler, availability fallback и
+response overlays остаются в owning Plugin package.
+Agent-only Plugin без Repository contribution получает Store-scoped context с
+исходным `invocation`, не требуя поддержки role `store`. Для Repository contribution
+сохраняется проверка поддерживаемой role, а `requireBinding` требует Store binding.
+
 ## PluginContext
 
 Core создаёт новый scoped context для каждого invocation:
@@ -65,18 +74,49 @@ Plugin не получает checkout paths через Repository handles и н�
 
 ## Extensions
 
-Extension declaration содержит package-relative `root` и точный target. Core
+Plugin-owned Extension declaration содержит package-relative `root` и точный target. Core
 проверяет realpath, manifests и ID всех providers до mutation. Native lifecycle
 выполняет выбранный Agent adapter.
 
 Plugin-owned Extension подключается и отключается вместе с binding. Отдельного
 `agent.integration` API и Template fallback нет.
 
+Standalone Extension — отдельный декларативный npm package с `extension.yaml` и
+Agent manifests. Его контракт предоставляет `@openspec-orch/extension-sdk`; Core не
+загружает из такого package исполняемый entrypoint. Package объявляет непустое
+подмножество поддерживаемых Agents; Core отклоняет неизвестные Agent IDs и проверяет
+manifest выбранного в Store Agent перед native mutation.
+
+```json
+{
+  "name": "@company/workflow-extension",
+  "version": "1.0.0",
+  "openspecOrchestrator": {
+    "apiVersion": 1,
+    "extension": "./extension.yaml"
+  }
+}
+```
+
+```bash
+openspec-orch extension init workflow --from @company/workflow-extension@1.0.0
+openspec-orch extension connect workflow
+openspec-orch extension status workflow
+openspec-orch extension disconnect workflow
+openspec-orch extension remove workflow
+```
+
+```js
+import { testExtensionContract } from "@openspec-orch/extension-sdk/testing";
+
+testExtensionContract({ agentIds, descriptor, packageManifest });
+```
+
 ## Selection и output
 
 Для multi-repository lifecycle повторяемый `--repo` выбирает IDs, `--all` —
-все candidates или bindings. Флаги несовместимы. Без selector non-TTY завершается
-ошибкой, TTY показывает выбор.
+все candidates или bindings. Флаги несовместимы. Единственный candidate выбирается
+автоматически; при нескольких TTY показывает выбор, а non-TTY требует selector.
 
 Progress пишется в stderr; structured output остаётся в stdout. Ошибка одного instance
 не считается общим успехом.
@@ -84,8 +124,18 @@ Progress пишется в stderr; structured output остаётся в stdout.
 ## External packages
 
 `plugin init --from` принимает npm spec, Git URL, tarball или локальный package.
-Core создаёт Store-local runtime, устанавливает production dependencies без lifecycle
-scripts и сохраняет exact identity. Bundled Plugins загружаются из distribution.
+Core добавляет package в единый private npm-проект Store и устанавливает production
+dependencies без lifecycle scripts. npm фиксирует dependency graph в lockfile;
+`openspec-orch.yaml` хранит только Plugin ID. Bundled Plugins загружаются из distribution.
+`plugin update <id> --from <source>` является единственным явным обновлением версии;
+`connect` может лишь восстановить уже зафиксированный lock. `package status` сверяет
+имя и версию установленного package, а также SHA-256 полного lockfile с отметкой
+успешной установки в `node_modules/.openspec-orch-lock.sha256`. Изменение Git commit,
+integrity или транзитивной зависимости обнаруживается даже при прежней версии
+прямого package. При несовпадении или отсутствии отметки runtime получает `stale`;
+`package sync` восстанавливает и отсутствующий, и устаревший runtime. Отметка
+удаляется перед npm mutation и записывается только после успешной установки и
+проверки packages; неуспешный sync не делает runtime готовым.
 
 Template не управляет Plugins.
 
@@ -99,7 +149,9 @@ import { testPluginContract } from "@openspec-orch/plugin-sdk/testing";
 testPluginContract({ plugin, packageManifest: manifest });
 ```
 
-Contract test проверяет manifest, public export и contribution shape без импорта Core.
+Contract test проверяет manifest, public export и ту же command grammar, которую
+исполняет runtime, без запуска actions и без импорта Core. Plugin обязан объявить
+совместимый диапазон `@openspec-orch/plugin-sdk` в `peerDependencies`.
 
 ## Полный developer flow
 
@@ -150,16 +202,16 @@ openspec-orch plugin status --plugin dependency-audit --json
 openspec-orch doctor
 ```
 
-Проверьте root command для commands/repository profile либо `plugin exec` для
-repository/native profile. Если есть Agent Extension, перезапустите Agent и проверьте
-его native status. Тестируйте disconnect/remove по пользовательскому
+Проверьте `plugin exec` для любого profile. Если есть Agent Extension, перезапустите
+Agent и проверьте его native status. Тестируйте disconnect/remove по пользовательскому
 [операционному flow](../user/plugins.md#проверяемое-отключение-и-удаление).
 
 ### 4. Зафиксируйте поставку
 
 После локальной проверки опубликуйте package принятым командой способом: immutable npm
 version, tarball или Git revision. В Store замените локальный `--from` на exact source,
-просмотрите изменение `openspec-orch.yaml`, затем выполните `plugin status` и `doctor`.
+просмотрите изменения `.openspec-orch/packages/package.json`, `package-lock.json` и
+`openspec-orch.yaml`, затем выполните `plugin status` и `doctor`.
 Повторный `plugin connect` восстанавливает Agent Extension существующего binding, но не
 заменяет Plugin-specific `sync` или migration. Обновление Plugin проходит тем же
 reviewable Store flow; Template не должен устанавливать или обновлять Plugins.

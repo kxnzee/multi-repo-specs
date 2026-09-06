@@ -5,18 +5,17 @@ import path from "node:path";
 
 import { atomicWriter } from "./atomic-writer.js";
 import { CORE_CONTRACT_VERSIONS, CORE_SERVICE_PATHS } from "./constants.js";
-import { ensureDirectory, lstatOrNull } from "./fs.js";
+import { ensureSafeDirectoryChain, lstatOrNull } from "./fs.js";
 import { locks } from "./lock.js";
 
 /** Проверяет либо создаёт Core-owned directory chain. */
 async function ensureDirectories(root, relativePath) {
-  let current = root;
-  for (const segment of relativePath.split("/")) {
-    current = path.join(current, segment);
-    const stat = await ensureDirectory(current, { mode: 0o700 });
-    if (!stat.isDirectory() || stat.isSymbolicLink()) {
-      throw new Error(`STATE_CORRUPTED: ${current} должен быть обычным каталогом`);
-    }
+  try {
+    await ensureSafeDirectoryChain(root, relativePath, { mode: 0o700 });
+  } catch (error) {
+    throw new Error(`STATE_CORRUPTED: ${relativePath} должен быть обычным каталогом`, {
+      cause: error,
+    });
   }
 }
 

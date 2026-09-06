@@ -95,7 +95,8 @@ export class PluginLifecycleCommands {
       throw new Error("CLI_COMMAND_CONFLICT: command path 'plugin' уже зарегистрирован");
     }
     const plugin = program.command("plugin")
-      .description("инициализация, подключение и состояние CLI Plugins");
+      .description("инициализация, подключение и состояние CLI Plugins")
+      .enablePositionalOptions();
     plugin.command("register <plugin-id> [path]")
       .description("создать самостоятельный Plugin Package с готовым entrypoint")
       .addOption(new Option("--name <display-name>", "читаемое имя Plugin")
@@ -119,6 +120,10 @@ export class PluginLifecycleCommands {
         pluginIds: options.plugin ?? [],
         sources: options.from ?? [],
       }));
+    plugin.command("update <plugin-id>")
+      .description("явно обновить внешний Plugin и npm lock")
+      .requiredOption("--from <source>", "точная npm-версия, tarball, Git commit или path")
+      .action((pluginId, options) => this.#update(pluginId, options.from));
     plugin.command("connect <plugin-id>")
       .description("связать Plugin с одним или несколькими repositories")
       .addOption(new Option("--repo <repository-id>", "repository-id без prompt")
@@ -151,6 +156,7 @@ export class PluginLifecycleCommands {
       }));
     plugin.command("exec <plugin-id> <command> [args...]")
       .description("передать command в один или все связанные Plugin instances")
+      .passThroughOptions()
       .addOption(new Option("--repo <repository-id>", "repository-id")
         .argParser(collectValues))
       .option("--all", "выполнить во всех связанных repositories без prompt")
@@ -216,8 +222,8 @@ export class PluginLifecycleCommands {
       const selectedIds = await this.#checkbox({
         message: "Выберите Plugins",
         theme: CHECKBOX_THEME,
-        choices: this.#catalog.entries.map(({ id, name }) => ({
-          name: `${name} (${id})`,
+        choices: this.#catalog.entries.map(({ id, name, recommended }) => ({
+          name: `${recommended ? "★ " : ""}${name} (${id})`,
           value: id,
         })),
       });
@@ -243,6 +249,18 @@ export class PluginLifecycleCommands {
         : `✓ ${id} — уже инициализирован`);
     }
     this.#output.log("Далее: openspec-orch plugin connect <plugin-id>");
+  }
+
+  async #update(pluginId, requestedSource) {
+    const storeProject = await this.#storeProjects.find();
+    storeProject.project.requirePlugin(pluginId);
+    const source = PluginSource.parse(requestedSource, { cwd: process.cwd() });
+    await this.#progress.run(
+      `Обновление Plugin ${pluginId}...`,
+      () => this.#applications.install(storeProject, pluginId, source),
+      { success: `Plugin ${pluginId} обновлён и npm lock зафиксирован` },
+    );
+    this.#output.log(`✓ ${pluginId} — обновлён; выполните openspec-orch connect`);
   }
 
   async #connect(pluginId, selection) {
@@ -362,12 +380,13 @@ export class PluginLifecycleCommands {
       throw new Error("PLUGIN_REPOSITORY_SELECTION_INVALID: --all и --repo нельзя использовать вместе");
     }
     if (repositoryIds.length > 0) return Object.freeze([...new Set(repositoryIds)]);
-    if (!all && (!this.#stdin?.isTTY || !this.#stdout?.isTTY)) {
-      throw new Error("Интерактивный выбор требует TTY; используйте --repo или --all");
-    }
     const candidates = await this.#lifecycle.repositoryCandidates({ pluginId, operation });
     if (all || candidates.length === 0) {
       return Object.freeze(candidates.map(({ id }) => id));
+    }
+    if (candidates.length === 1) return Object.freeze([candidates[0].id]);
+    if (!this.#stdin?.isTTY || !this.#stdout?.isTTY) {
+      throw new Error("Интерактивный выбор требует TTY; используйте --repo или --all");
     }
     const messages = {
       connect: `Подключить ${pluginId} к repositories`,
