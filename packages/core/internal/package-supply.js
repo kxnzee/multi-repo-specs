@@ -175,23 +175,24 @@ export class StorePackageSupply {
         const before = current ?? await this.#readOrCreateManifest(runtimeRoot);
         const previousPackage = before.openspecOrchestrator[kind][id];
         const dependenciesBefore = new Set(Object.keys(before.dependencies));
-        await this.#invalidateRuntime(runtimeRoot);
-        await this.#installer.install({ runtimeRoot, source });
-        const installed = await this.#readManifest(runtimeRoot);
-        const added = Object.keys(installed.dependencies)
-          .filter((name) => !dependenciesBefore.has(name));
-        const packageName = previousPackage ?? (added.length === 1 ? added[0] : undefined);
-        if (!packageName || !Object.hasOwn(installed.dependencies, packageName)) {
-          invalid("npm install должен добавить ровно один новый package");
-        }
-        if (previousPackage && added.some((name) => name !== previousPackage)) {
-          invalid(`для замены package ${id} сначала удалите его`);
-        }
-        const value = await validate(await this.#requirePackageRoot(runtimeRoot, packageName));
-        installed.openspecOrchestrator[kind][id] = packageName;
-        await this.#writeManifest(runtimeRoot, installed);
-        const lockfile = await this.#assertLockedState(runtimeRoot, installed);
-        await this.#markRuntime(runtimeRoot, installed, lockfile);
+        const value = await this.#mutateRuntime(runtimeRoot, async () => {
+          await this.#installer.install({ runtimeRoot, source });
+          const installed = await this.#readManifest(runtimeRoot);
+          const added = Object.keys(installed.dependencies)
+            .filter((name) => !dependenciesBefore.has(name));
+          const packageName = previousPackage ?? (added.length === 1 ? added[0] : undefined);
+          if (!packageName || !Object.hasOwn(installed.dependencies, packageName)) {
+            invalid("npm install должен добавить ровно один новый package");
+          }
+          if (previousPackage && added.some((name) => name !== previousPackage)) {
+            invalid(`для замены package ${id} сначала удалите его`);
+          }
+          const result = await validate(await this.#requirePackageRoot(runtimeRoot, packageName));
+          installed.openspecOrchestrator[kind][id] = packageName;
+          await this.#writeManifest(runtimeRoot, installed);
+          const lockfile = await this.#assertLockedState(runtimeRoot, installed);
+          return { lockfile, manifest: installed, result };
+        });
         await publish(value);
         return value;
       } catch (error) {
@@ -215,8 +216,11 @@ export class StorePackageSupply {
     if (!Object.hasOwn(manifest.dependencies, packageName)) {
       invalid(`${kind}/${id}: mapping не входит в dependencies`);
     }
-    const locked = this.#lockedPackage(lockfile, packageName);
-    const runtime = await this.#inspectPackageRuntime(runtimeRoot, packageName, locked.version);
+    const { locked, runtime } = await this.#inspectLockedRuntime(
+      runtimeRoot,
+      lockfile,
+      packageName,
+    );
     if (runtime.state !== "ready") {
       unavailable(
         `${packageName}: runtime ${runtime.version ?? "отсутствует"} не соответствует ` +
@@ -246,8 +250,7 @@ export class StorePackageSupply {
       const lockfile = await this.#assertLockedState(runtimeRoot, manifest);
       const unavailablePackages = [];
       for (const packageName of Object.keys(manifest.dependencies)) {
-        const locked = this.#lockedPackage(lockfile, packageName);
-        const runtime = await this.#inspectPackageRuntime(runtimeRoot, packageName, locked.version);
+        const { runtime } = await this.#inspectLockedRuntime(runtimeRoot, lockfile, packageName);
         if (runtime.state !== "ready") unavailablePackages.push(packageName);
       }
       if (unavailablePackages.length === 0 && await this.#matchesRuntimeLock(runtimeRoot, lockfile)) {
@@ -281,8 +284,11 @@ export class StorePackageSupply {
     for (const kind of [...KINDS].sort()) {
       for (const [id, packageName] of Object.entries(manifest.openspecOrchestrator[kind])) {
         const requested = manifest.dependencies[packageName];
-        const locked = this.#lockedPackage(lockfile, packageName);
-        const runtime = await this.#inspectPackageRuntime(runtimeRoot, packageName, locked.version);
+        const { locked, runtime } = await this.#inspectLockedRuntime(
+          runtimeRoot,
+          lockfile,
+          packageName,
+        );
         const provenance = packageProvenance(requested, locked);
         packages.push(Object.freeze({
           id,
@@ -336,15 +342,18 @@ export class StorePackageSupply {
         ));
         await this.#writeManifest(runtimeRoot, manifest);
         if (!stillUsed) {
-          await this.#invalidateRuntime(runtimeRoot);
-          await this.#installer.remove({ packageName, runtimeRoot });
-        }
-        const updated = await this.#readManifest(runtimeRoot);
-        updated.openspecOrchestrator = manifest.openspecOrchestrator;
-        await this.#writeManifest(runtimeRoot, updated);
-        if (!stillUsed) {
-          const lockfile = await this.#assertLockedState(runtimeRoot, updated);
-          await this.#markRuntime(runtimeRoot, updated, lockfile);
+          await this.#mutateRuntime(runtimeRoot, async () => {
+            await this.#installer.remove({ packageName, runtimeRoot });
+            const updated = await this.#readManifest(runtimeRoot);
+            updated.openspecOrchestrator = manifest.openspecOrchestrator;
+            await this.#writeManifest(runtimeRoot, updated);
+            const lockfile = await this.#assertLockedState(runtimeRoot, updated);
+            return { lockfile, manifest: updated };
+          });
+        } else {
+          const updated = await this.#readManifest(runtimeRoot);
+          updated.openspecOrchestrator = manifest.openspecOrchestrator;
+          await this.#writeManifest(runtimeRoot, updated);
         }
         await publish();
         return true;
@@ -459,6 +468,12 @@ export class StorePackageSupply {
     return locked && typeof locked === "object" && !Array.isArray(locked) ? locked : {};
   }
 
+  async #inspectLockedRuntime(runtimeRoot, lockfile, packageName) {
+    const locked = this.#lockedPackage(lockfile, packageName);
+    const runtime = await this.#inspectPackageRuntime(runtimeRoot, packageName, locked.version);
+    return Object.freeze({ locked, runtime });
+  }
+
   #lockFingerprint(lockfile) {
     return createHash("sha256").update(JSON.stringify(lockfile)).digest("hex");
   }
@@ -488,8 +503,11 @@ export class StorePackageSupply {
   /** Records the full lock only after npm and direct package validation succeed. */
   async #markRuntime(runtimeRoot, manifest, lockfile) {
     for (const packageName of Object.keys(manifest.dependencies)) {
-      const locked = this.#lockedPackage(lockfile, packageName);
-      const runtime = await this.#inspectPackageRuntime(runtimeRoot, packageName, locked.version);
+      const { locked, runtime } = await this.#inspectLockedRuntime(
+        runtimeRoot,
+        lockfile,
+        packageName,
+      );
       if (runtime.state !== "ready") {
         unavailable(`${packageName}: npm не восстановил версию ${locked.version ?? "из lockfile"}`);
       }
@@ -502,10 +520,20 @@ export class StorePackageSupply {
     );
   }
 
-  async #synchronize(runtimeRoot, manifest, lockfile) {
+  /** Keeps every npm mutation stale until the resulting full lock is materialized and checked. */
+  async #mutateRuntime(runtimeRoot, operation) {
     await this.#invalidateRuntime(runtimeRoot);
-    await this.#installer.sync({ runtimeRoot });
-    await this.#markRuntime(runtimeRoot, manifest, lockfile);
+    const outcome = await operation();
+    if (outcome === null) return undefined;
+    await this.#markRuntime(runtimeRoot, outcome.manifest, outcome.lockfile);
+    return outcome.result;
+  }
+
+  async #synchronize(runtimeRoot, manifest, lockfile) {
+    await this.#mutateRuntime(runtimeRoot, async () => {
+      await this.#installer.sync({ runtimeRoot });
+      return { lockfile, manifest };
+    });
   }
 
   #writeManifest(runtimeRoot, manifest) {
@@ -585,21 +613,23 @@ export class StorePackageSupply {
       await fs.rm(runtimeRoot, { force: true, recursive: true });
       return;
     }
-    await this.#invalidateRuntime(runtimeRoot);
-    const restore = async (name, contents) => {
-      const target = path.join(runtimeRoot, name);
-      if (contents === null) await fs.rm(target, { force: true });
-      else await this.#writer.write(target, contents, { mode: 0o600 });
-    };
-    await restore("package.json", snapshot.manifest);
-    await restore("package-lock.json", snapshot.lockfile);
-    if (snapshot.lockfile) {
+    await this.#mutateRuntime(runtimeRoot, async () => {
+      const restore = async (name, contents) => {
+        const target = path.join(runtimeRoot, name);
+        if (contents === null) await fs.rm(target, { force: true });
+        else await this.#writer.write(target, contents, { mode: 0o600 });
+      };
+      await restore("package.json", snapshot.manifest);
+      await restore("package-lock.json", snapshot.lockfile);
+      if (!snapshot.lockfile) {
+        await fs.rm(path.join(runtimeRoot, "node_modules"), { force: true, recursive: true });
+        return null;
+      }
       const manifest = await this.#readManifest(runtimeRoot);
       const lockfile = await this.#assertLockedState(runtimeRoot, manifest);
-      await this.#synchronize(runtimeRoot, manifest, lockfile);
-    } else {
-      await fs.rm(path.join(runtimeRoot, "node_modules"), { force: true, recursive: true });
-    }
+      await this.#installer.sync({ runtimeRoot });
+      return { lockfile, manifest };
+    });
   }
 
   async #rollback(runtimeRoot, snapshot, error) {
