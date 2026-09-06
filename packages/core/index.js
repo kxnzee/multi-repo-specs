@@ -87,6 +87,7 @@ export {
   pluginManagers,
 } from "./internal/plugin-manager.js";
 export { NpmPackageInstaller, npmPackageInstaller } from "./internal/npm-package-installer.js";
+export { ExtensionCommands } from "./internal/extension-cli.js";
 export { PackageSupplyService, StorePackageSupply, packageSupplies } from "./internal/package-supply.js";
 export { PackageCommands } from "./internal/package-cli.js";
 export { PluginPlatform } from "./internal/plugin-platform.js";

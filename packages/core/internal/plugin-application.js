@@ -2,6 +2,7 @@
 
 import { pluginManagers } from "./plugin-manager.js";
 import { PluginSource } from "./plugin-source.js";
+import { rollbackOrRethrow } from "./compensation.js";
 import { storeProjectMutations } from "./store-project-mutation.js";
 import { StoreProject } from "./store-project.js";
 
@@ -119,18 +120,12 @@ export class PluginApplicationService {
             await this.#writeProject(current);
           }
         } catch (error) {
-          try {
-            for (const repositoryId of [...connectedIds].reverse()) {
-              await rollback(current, repositoryId);
-            }
-          } catch (cause) {
-            throw new AggregateError(
-              [error, cause],
-              `PLUGIN_CONNECT_ROLLBACK_FAILED: ${pluginId}`,
-              { cause: error },
-            );
-          }
-          throw error;
+          await rollbackOrRethrow(
+            error,
+            connectedIds,
+            (repositoryId) => rollback(current, repositoryId),
+            `PLUGIN_CONNECT_ROLLBACK_FAILED: ${pluginId}`,
+          );
         }
         return Object.freeze(changes);
       },

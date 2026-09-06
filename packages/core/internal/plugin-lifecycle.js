@@ -3,6 +3,7 @@
 import process from "node:process";
 
 import { pluginApplications } from "./plugin-application.js";
+import { rollbackOrRethrow } from "./compensation.js";
 import { PluginHost } from "./plugin-host.js";
 import { pluginManagers } from "./plugin-manager.js";
 import { repositoryRunner } from "./repository-operations.js";
@@ -342,18 +343,16 @@ export class PluginLifecycleService {
         selectedIds,
       );
     } catch (error) {
-      try {
-        for (const repositoryId of [...disconnectedExtensions].reverse()) {
-          await this.#host.connectExtensions({ pluginId, repositoryId, storeProject });
-        }
-      } catch (cause) {
-        throw new AggregateError(
-          [error, cause],
-          `PLUGIN_DISCONNECT_ROLLBACK_FAILED: ${pluginId}`,
-          { cause: error },
-        );
-      }
-      throw error;
+      await rollbackOrRethrow(
+        error,
+        disconnectedExtensions,
+        (repositoryId) => this.#host.connectExtensions({
+          pluginId,
+          repositoryId,
+          storeProject,
+        }),
+        `PLUGIN_DISCONNECT_ROLLBACK_FAILED: ${pluginId}`,
+      );
     }
     if (connectedIds.length > 0 && remainingIds.length > 0) {
       const currentStoreProject = await this.#storeProjects.find(storeProject.root);

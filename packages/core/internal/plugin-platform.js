@@ -9,6 +9,7 @@ import { bundledTemplates, isBundledTemplateProvider } from "./bundled-template.
 import { BundledPluginProvider } from "./bundled-plugin.js";
 import { CandidateCli } from "./cli.js";
 import { DoctorService } from "./doctor.js";
+import { ExtensionCommands } from "./extension-cli.js";
 import { ExtensionLifecycle } from "./extension-lifecycle.js";
 import { ExtensionApplicationService } from "./extension-application.js";
 import { ExtensionManagerService } from "./extension-manager.js";
@@ -39,6 +40,7 @@ function isRecoverablePluginResolution(error) {
 export class PluginPlatform {
   #bundledTemplates;
   #doctor;
+  #extensionCommands;
   #extensionLifecycle;
   #initialization;
   #initSelection;
@@ -111,12 +113,15 @@ export class PluginPlatform {
       start,
       storeProjectService,
     });
-    this.#packageCommands = new PackageCommands({
+    this.#extensionCommands = new ExtensionCommands({
       extensionApplication: new ExtensionApplicationService({
         managerService: extensionManagers,
         storeProjectService,
       }),
       extensionLifecycle: this.#extensionLifecycle,
+      storeProjectService,
+    });
+    this.#packageCommands = new PackageCommands({
       supplyService: packageSupplyService,
       storeProjectService,
     });
@@ -210,6 +215,7 @@ export class PluginPlatform {
       ...options,
       bundledTemplateProvider: this.#bundledTemplates,
       doctorService: this.#doctor,
+      extensionCommands: this.#extensionCommands,
       extensionLifecycle: this.#extensionLifecycle,
       initSelectionService: this.#initSelection,
       initializationService: this.#initialization,

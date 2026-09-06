@@ -10,10 +10,10 @@ import { Command } from "commander";
 
 import {
   ExtensionApplicationService,
+  ExtensionCommands,
   ExtensionLifecycle,
   ExtensionManagerService,
   NpmPackageInstaller,
-  PackageCommands,
   PackageSupplyService,
   storeProjects,
 } from "@openspec-orch/core";
@@ -85,11 +85,10 @@ test("extension CLI installs, runs and removes one external npm package", async 
     start: root,
     storeProjectService: projectService,
   });
-  const commands = new PackageCommands({
+  const commands = new ExtensionCommands({
     extensionApplication: new ExtensionApplicationService({ managerService }),
     extensionLifecycle: lifecycle,
     output: { log() {} },
-    supplyService,
     storeProjectService: projectService,
   });
   const program = new Command().exitOverride();

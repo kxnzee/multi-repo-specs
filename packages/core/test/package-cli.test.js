@@ -5,9 +5,9 @@ import test from "node:test";
 
 import { Command } from "commander";
 
-import { PackageCommands } from "@openspec-orch/core";
+import { ExtensionCommands, PackageCommands } from "@openspec-orch/core";
 
-test("PackageCommands exposes Extension lifecycle and npm package status/sync", async () => {
+test("ExtensionCommands and PackageCommands expose separate public groups", async () => {
   const calls = [];
   const output = [];
   let rollbackRemove;
@@ -31,7 +31,7 @@ test("PackageCommands exposes Extension lifecycle and npm package status/sync", 
     mutable: 0,
     available: 0,
   });
-  const commands = new PackageCommands({
+  const extensionCommands = new ExtensionCommands({
     extensionApplication: {
       async install(project, id, source) {
         calls.push(["install", project, id, source]);
@@ -52,6 +52,10 @@ test("PackageCommands exposes Extension lifecycle and npm package status/sync", 
     },
     output: { log: (value) => output.push(value) },
     storeProjectService: { async resolve() { return storeProject; } },
+  });
+  const packageCommands = new PackageCommands({
+    output: { log: (value) => output.push(value) },
+    storeProjectService: { async resolve() { return storeProject; } },
     supplyService: {
       forStore(checkout) {
         assert.equal(checkout, storeProject.checkout);
@@ -63,7 +67,8 @@ test("PackageCommands exposes Extension lifecycle and npm package status/sync", 
     },
   });
   const program = new Command().exitOverride();
-  commands.mount(program);
+  extensionCommands.mount(program);
+  packageCommands.mount(program);
 
   await program.parseAsync(["node", "test", "extension", "init", "workflow", "--from", "pkg@1.2.3"]);
   await program.parseAsync(["node", "test", "extension", "connect", "workflow"]);

@@ -41,6 +41,7 @@ function buildConnectHint(storeRoot, storeId) {
 export class CandidateCli {
   #agentGateway;
   #doctor;
+  #extensionCommands;
   #pluginLifecycleCommands;
   #packageCommands;
   #progress;
@@ -52,6 +53,7 @@ export class CandidateCli {
     bundledTemplateProvider,
     connectionService,
     doctorService = doctor,
+    extensionCommands,
     extensionLifecycle,
     initSelectionService,
     initializationService,
@@ -77,6 +79,10 @@ export class CandidateCli {
       throw new Error("CLI_INVALID: doctorService должен предоставлять inspect");
     }
     this.#doctor = doctorService;
+    if (extensionCommands && typeof extensionCommands.mount !== "function") {
+      throw new Error("CLI_INVALID: extensionCommands должен предоставлять mount");
+    }
+    this.#extensionCommands = extensionCommands;
     if (extensionLifecycle && !hasMethods(
       extensionLifecycle,
       ["connectSelected", "disconnectSelected", "preflight", "statusSelected"],
@@ -166,6 +172,7 @@ export class CandidateCli {
       .description("локально отключить Agent Extensions без изменения Store config")
       .action(() => this.#disconnect());
     if (this.#agentGateway) this.#mountAgentGateway(program);
+    this.#extensionCommands?.mount(program);
     this.#packageCommands?.mount(program);
     this.#pluginLifecycleCommands?.mount(program);
     return program;

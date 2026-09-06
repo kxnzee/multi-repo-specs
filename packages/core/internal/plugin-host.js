@@ -4,6 +4,7 @@ import path from "node:path";
 import { promises as fs } from "node:fs";
 
 import { pluginContexts } from "./plugin-context.js";
+import { rollbackOrRethrow } from "./compensation.js";
 import { LoadedPlugin } from "./plugin-loader.js";
 import { isContainedPath } from "./path.js";
 import { hasMethods } from "./value.js";
@@ -303,18 +304,12 @@ export class PluginHost {
     } catch (error) {
       if (operation !== "connect" || completed.length === 0) throw error;
       const rollback = Object.freeze({ operation: "disconnect", ownerId: loadedPlugin.id });
-      try {
-        for (const resolvedExtension of [...completed].reverse()) {
-          await this.#agentAdapter.invokeExtension(context, resolvedExtension, rollback);
-        }
-      } catch (cause) {
-        throw new AggregateError(
-          [error, cause],
-          `PLUGIN_EXTENSION_ROLLBACK_FAILED: ${loadedPlugin.id}`,
-          { cause: error },
-        );
-      }
-      throw error;
+      await rollbackOrRethrow(
+        error,
+        completed,
+        (extension) => this.#agentAdapter.invokeExtension(context, extension, rollback),
+        `PLUGIN_EXTENSION_ROLLBACK_FAILED: ${loadedPlugin.id}`,
+      );
     }
   }
 
