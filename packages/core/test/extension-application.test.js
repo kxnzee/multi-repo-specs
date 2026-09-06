@@ -77,3 +77,29 @@ test("ExtensionApplication removes native state before publishing Store changes"
   ]);
   assert.deepEqual((await storeProjects.load(root)).project.extensions, []);
 });
+
+test("ExtensionApplication restores native state when Store removal rolls back", async (t) => {
+  const { root, storeProject } = await storeFixture(t);
+  const calls = [];
+  const service = new ExtensionApplicationService({
+    managerService: {
+      forStore() {
+        return {
+          async prepareRemoval() { calls.push("prepare"); },
+          async remove() {
+            calls.push("package");
+            throw new Error("npm uninstall failed");
+          },
+        };
+      },
+    },
+  });
+
+  await assert.rejects(service.remove(storeProject, "workflow", {
+    beforeRemove: async () => calls.push("native-remove"),
+    rollbackRemove: async () => calls.push("native-restore"),
+  }), /npm uninstall failed/);
+
+  assert.deepEqual(calls, ["prepare", "native-remove", "package", "native-restore"]);
+  assert.deepEqual((await storeProjects.load(root)).project.extensions, ["workflow"]);
+});

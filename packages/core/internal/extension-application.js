@@ -44,21 +44,42 @@ export class ExtensionApplicationService {
     }, { busyCode: "EXTENSION_APPLICATION_BUSY", corruptionCode: "EXTENSION_APPLICATION_INVALID" });
   }
 
-  async remove(storeProject, extensionId, { beforeRemove = async () => {} } = {}) {
+  async remove(storeProject, extensionId, {
+    beforeRemove = async () => {},
+    rollbackRemove = async () => {},
+  } = {}) {
     this.#assertProject(storeProject);
-    if (typeof beforeRemove !== "function") invalid("beforeRemove должен быть function");
+    if (typeof beforeRemove !== "function" || typeof rollbackRemove !== "function") {
+      invalid("beforeRemove и rollbackRemove должны быть functions");
+    }
     return this.#mutations.run(storeProject.root, async (current) => {
       if (!current.project.extensionDeclaration(extensionId)) {
         return Object.freeze({ removed: false });
       }
       const manager = this.#managers.forStore(current.checkout);
       await manager.prepareRemoval(extensionId);
-      await beforeRemove();
-      current.project.removeExtension(extensionId);
-      await manager.remove(
-        extensionId,
-        () => this.#writeProject(current),
-      );
+      let nativeRemoved = false;
+      try {
+        await beforeRemove();
+        nativeRemoved = true;
+        current.project.removeExtension(extensionId);
+        await manager.remove(
+          extensionId,
+          () => this.#writeProject(current),
+        );
+      } catch (cause) {
+        if (!nativeRemoved) throw cause;
+        try {
+          await rollbackRemove();
+        } catch (rollbackCause) {
+          throw new AggregateError(
+            [cause, rollbackCause],
+            `EXTENSION_REMOVE_ROLLBACK_FAILED: ${extensionId}`,
+            { cause },
+          );
+        }
+        throw cause;
+      }
       return Object.freeze({ removed: true });
     }, { busyCode: "EXTENSION_APPLICATION_BUSY", corruptionCode: "EXTENSION_APPLICATION_INVALID" });
   }

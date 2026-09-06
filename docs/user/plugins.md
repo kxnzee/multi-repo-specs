@@ -60,7 +60,9 @@ ID встроенной Extension нельзя затенить внешним p
 удаляет Extension из native Agent и только после успеха удаляет её ID и внешнюю
 npm-зависимость из Store. Если локальный `node_modules` отсутствует, `remove` сначала
 восстанавливает его из committed lockfile. Если удалить нужно сразу, отдельный
-`disconnect` не нужен.
+`disconnect` не нужен. Если публикация Store после native removal завершается ошибкой,
+Orchestrator откатывает npm state и повторно подключает Extension; ошибка компенсации
+возвращается вместе с исходной причиной.
 Общий `openspec-orch connect` остаётся способом восстановить все объявленные
 Extensions после checkout.
 

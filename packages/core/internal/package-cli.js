@@ -115,6 +115,7 @@ export class PackageCommands {
     const storeProject = await this.#storeProjects.resolve();
     const result = await this.#extensions.remove(storeProject, extensionId, {
       beforeRemove: () => this.#lifecycle.remove(extensionId),
+      rollbackRemove: () => this.#lifecycle.connect(extensionId),
     });
     this.#output.log(result.removed
       ? `✓ ${extensionId} — удалён`

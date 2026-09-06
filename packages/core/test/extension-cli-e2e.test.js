@@ -45,10 +45,18 @@ test("extension CLI installs, runs and removes one external npm package", async 
   ].join("\n"));
   await fs.writeFile(path.join(source, "qwen-extension.json"), "{\"name\":\"workflow\"}\n");
 
+  const npmInstaller = new NpmPackageInstaller({
+    environment: { NPM_CONFIG_CACHE: path.join(root, ".npm-cache") },
+  });
+  let removalFails = false;
   const supplyService = new PackageSupplyService({
-    installer: new NpmPackageInstaller({
-      environment: { NPM_CONFIG_CACHE: path.join(root, ".npm-cache") },
-    }),
+    installer: {
+      install: (options) => npmInstaller.install(options),
+      remove: (options) => removalFails
+        ? Promise.reject(new Error("simulated npm removal failure"))
+        : npmInstaller.remove(options),
+      sync: (options) => npmInstaller.sync(options),
+    },
   });
   const managerService = new ExtensionManagerService({
     agentIds: ["qwen"],
@@ -90,6 +98,13 @@ test("extension CLI installs, runs and removes one external npm package", async 
   await program.parseAsync(["node", "test", "extension", "init", "workflow", "--from", source]);
   assert.deepEqual((await storeProjects.load(root)).project.extensions, ["workflow"]);
   await program.parseAsync(["node", "test", "extension", "connect", "workflow"]);
+  removalFails = true;
+  await assert.rejects(
+    program.parseAsync(["node", "test", "extension", "remove", "workflow"]),
+    /simulated npm removal failure/,
+  );
+  assert.deepEqual((await storeProjects.load(root)).project.extensions, ["workflow"]);
+  removalFails = false;
   await program.parseAsync(["node", "test", "extension", "remove", "workflow"]);
 
   const runtimeManifest = JSON.parse(await fs.readFile(
@@ -99,5 +114,8 @@ test("extension CLI installs, runs and removes one external npm package", async 
   assert.deepEqual((await storeProjects.load(root)).project.extensions, []);
   assert.deepEqual(runtimeManifest.dependencies, {});
   assert.deepEqual(runtimeManifest.openspecOrchestrator.extensions, {});
-  assert.deepEqual(nativeCalls, ["preflight", "validate", "connect", "status", "remove"]);
+  assert.deepEqual(nativeCalls, [
+    "preflight", "validate", "connect", "status", "remove",
+    "preflight", "validate", "connect", "remove",
+  ]);
 });

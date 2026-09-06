@@ -10,6 +10,7 @@ import { PackageCommands } from "@openspec-orch/core";
 test("PackageCommands exposes the complete Extension lifecycle and lockfile sync", async () => {
   const calls = [];
   const output = [];
+  let rollbackRemove;
   const storeProject = Object.freeze({
     checkout: Object.freeze({}),
     project: Object.freeze({ extensionDeclaration: () => Object.freeze({ id: "workflow" }) }),
@@ -26,8 +27,9 @@ test("PackageCommands exposes the complete Extension lifecycle and lockfile sync
         calls.push(["install", project, id, source]);
         return { initialized: true };
       },
-      async remove(project, id, { beforeRemove }) {
-        await beforeRemove();
+      async remove(project, id, options) {
+        rollbackRemove = options.rollbackRemove;
+        await options.beforeRemove();
         calls.push(["remove", project, id]);
         return { removed: true };
       },
@@ -56,6 +58,7 @@ test("PackageCommands exposes the complete Extension lifecycle and lockfile sync
   await program.parseAsync(["node", "test", "extension", "disconnect", "workflow"]);
   await program.parseAsync(["node", "test", "extension", "remove", "workflow"]);
   await program.parseAsync(["node", "test", "package", "sync"]);
+  await rollbackRemove();
 
   assert.deepEqual(calls, [
     ["install", storeProject, "workflow", "pkg@1.2.3"],
@@ -66,6 +69,7 @@ test("PackageCommands exposes the complete Extension lifecycle and lockfile sync
     ["native-remove", "workflow"],
     ["remove", storeProject, "workflow"],
     ["sync"],
+    ["connect", "workflow"],
   ]);
   assert.deepEqual(output, [
     "✓ workflow — инициализирован",
