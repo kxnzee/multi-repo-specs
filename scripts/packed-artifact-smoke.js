@@ -106,7 +106,20 @@ try {
   if (version !== distributionVersion) {
     throw new Error(`PACKED_SMOKE_VERSION_INVALID: ${version}; expected ${distributionVersion}`);
   }
-  console.log(`Packed artifact smoke passed for ${packages.length} packages.`);
+  execFileSync(process.execPath, [
+    "--test", "--test-concurrency=1", "--test-timeout=180000",
+    path.join(root, "test/distribution-plugin-cli.test.js"),
+  ], {
+    cwd: consumer,
+    env: {
+      ...process.env,
+      OPENSPEC_ORCH_TEST_CLI_PATH: path.join(consumer, "node_modules/openspec-orchestrator/bin/openspec-orch.js"),
+      OPENSPEC_ORCH_TEST_MCP_PATH: path.join(consumer, "node_modules/openspec-orchestrator/bin/openspec-orch-mcp.js"),
+    },
+    stdio: "inherit",
+    timeout: 300000,
+  });
+  console.log(`Packed artifact smoke passed for ${packages.length} packages, including CLI/MCP first-run scenarios.`);
 } finally {
   await fs.rm(temporary, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

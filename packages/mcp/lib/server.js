@@ -2,6 +2,7 @@
 
 import { createHash } from "node:crypto";
 
+import { AjvJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/ajv";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -356,6 +357,10 @@ export function createOrchestratorMcpServer(application) {
   }
   const tools = Object.freeze(definitions.map(({ tool }) => tool));
   const definitionByName = new Map(definitions.map((definition) => [definition.tool.name, definition]));
+  const validator = new AjvJsonSchemaValidator();
+  const agentValidators = new Map(agentDefinitions.map(({ tool }) => [
+    tool.name, validator.getValidator(tool.inputSchema),
+  ]));
   const server = new Server(
     { name: "openspec-orchestrator", version: "1.0.0" },
     { capabilities: { resources: {}, tools: {} } },
@@ -368,7 +373,12 @@ export function createOrchestratorMcpServer(application) {
       return errorContent(new Error(`MCP_TOOL_NOT_FOUND: ${request.params.name}`));
     }
     try {
-      assertArguments(definition, args);
+      if (definition.agentTool) {
+        const validation = agentValidators.get(definition.tool.name)(args);
+        if (!validation.valid) {
+          throw new Error(`MCP_TOOL_INPUT_INVALID: ${definition.tool.name}: ${validation.errorMessage}`);
+        }
+      } else assertArguments(definition, args);
       const input = applicationArguments(definition, args);
       const value = definition.agentTool
         ? await application.invokeAgentTool(definition.tool.name, input)

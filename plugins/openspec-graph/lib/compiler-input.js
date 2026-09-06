@@ -20,16 +20,35 @@ import {
 
 const { error: ERROR } = GRAPH_REPORT_CONTRACT.severity;
 
+/** Checks every ancestor before a Store-relative read, including the openspec directory. */
+async function ordinaryStat(root, relativePath) {
+  let current = root;
+  const segments = relativePath.split("/");
+  for (const [index, segment] of segments.entries()) {
+    if (!segment || segment === "." || segment === ".." || /[\\:\0]/u.test(segment)) {
+      fatal(`${relativePath} must be a portable relative path`);
+    }
+    current = path.join(current, segment);
+    let stat;
+    try {
+      stat = await fs.lstat(current);
+    } catch (error) {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    }
+    if (stat.isSymbolicLink()) fatal(`${relativePath} must not traverse a symlink`);
+    if (index < segments.length - 1 && !stat.isDirectory()) {
+      fatal(`${relativePath} must traverse ordinary directories`);
+    }
+    if (index === segments.length - 1) return stat;
+  }
+}
+
 /** Lists ordinary spec.md files below a Store-relative directory. */
 export async function specFiles(root, relativeRoot) {
   const absoluteRoot = path.join(root, relativeRoot);
-  let stat;
-  try {
-    stat = await fs.lstat(absoluteRoot);
-  } catch (error) {
-    if (error.code === "ENOENT") return [];
-    throw error;
-  }
+  const stat = await ordinaryStat(root, relativeRoot);
+  if (!stat) return [];
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     fatal(`${relativeRoot} must be an ordinary directory`);
   }
@@ -53,13 +72,8 @@ export async function specFiles(root, relativeRoot) {
 /** Lists immediate ordinary child directories in stable name order. */
 export async function ordinaryDirectories(root, relativeRoot) {
   const absoluteRoot = path.join(root, relativeRoot);
-  let stat;
-  try {
-    stat = await fs.lstat(absoluteRoot);
-  } catch (error) {
-    if (error.code === "ENOENT") return [];
-    throw error;
-  }
+  const stat = await ordinaryStat(root, relativeRoot);
+  if (!stat) return [];
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     fatal(`${relativeRoot} must be an ordinary directory`);
   }
@@ -77,13 +91,8 @@ export async function ordinaryDirectories(root, relativeRoot) {
 /** Reads one optional ordinary Store file. */
 export async function readOptionalFile(root, relativePath) {
   const absolutePath = path.join(root, relativePath);
-  let stat;
-  try {
-    stat = await fs.lstat(absolutePath);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
+  const stat = await ordinaryStat(root, relativePath);
+  if (!stat) return null;
   if (!stat.isFile() || stat.isSymbolicLink()) {
     fatal(`${relativePath} must be an ordinary file`);
   }

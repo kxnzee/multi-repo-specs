@@ -176,6 +176,11 @@ export class StorePackageSupply {
         const previousPackage = before.openspecOrchestrator[kind][id];
         const dependenciesBefore = new Set(Object.keys(before.dependencies));
         const value = await this.#mutateRuntime(runtimeRoot, async () => {
+          // npm considers an unchanged file source/version up to date, even if its bytes changed.
+          // Remove the old resolution inside this transaction before resolving the explicit update.
+          if (previousPackage) {
+            await this.#installer.remove({ packageName: previousPackage, runtimeRoot });
+          }
           await this.#installer.install({ runtimeRoot, source });
           const installed = await this.#readManifest(runtimeRoot);
           const added = Object.keys(installed.dependencies)
@@ -187,7 +192,12 @@ export class StorePackageSupply {
           if (previousPackage && added.some((name) => name !== previousPackage)) {
             invalid(`для замены package ${id} сначала удалите его`);
           }
-          const result = await validate(await this.#requirePackageRoot(runtimeRoot, packageName));
+          const result = await validate(
+            await this.#requirePackageRoot(runtimeRoot, packageName),
+            Object.freeze({
+              runtimeRevision: this.#lockFingerprint(await this.#assertLockedState(runtimeRoot, installed)),
+            }),
+          );
           installed.openspecOrchestrator[kind][id] = packageName;
           await this.#writeManifest(runtimeRoot, installed);
           const lockfile = await this.#assertLockedState(runtimeRoot, installed);
@@ -204,7 +214,7 @@ export class StorePackageSupply {
   async resolve(kind, id) {
     assertRequest(kind, id);
     const runtimeRoot = this.#runtimeRoot();
-    const runtimeStat = await lstatOrNull(runtimeRoot);
+    const runtimeStat = await this.#runtimeStat();
     if (!runtimeStat) unavailable(`${kind}/${id}: package runtime отсутствует`);
     if (!runtimeStat.isDirectory() || runtimeStat.isSymbolicLink()) {
       invalid(`${CORE_SERVICE_PATHS.packageDirectory} должен быть безопасным каталогом`);
@@ -237,6 +247,7 @@ export class StorePackageSupply {
       packageName,
       packageRoot: runtime.packageRoot,
       runtimeRoot,
+      runtimeRevision: this.#lockFingerprint(lockfile),
       version: locked.version,
     });
   }
@@ -264,7 +275,7 @@ export class StorePackageSupply {
   /** Inspects manifest, lock provenance and materialized packages without changing the Store. */
   async inspect() {
     const runtimeRoot = this.#runtimeRoot();
-    const runtimeStat = await lstatOrNull(runtimeRoot);
+    const runtimeStat = await this.#runtimeStat();
     if (!runtimeStat) {
       return Object.freeze({
         state: "absent",
@@ -380,7 +391,7 @@ export class StorePackageSupply {
     return this.#lock.run(
       path.join(this.#checkout.root, CORE_SERVICE_PATHS.packageManagerLock),
       async () => {
-        const existed = Boolean(await lstatOrNull(runtimeRoot));
+        const existed = Boolean(await this.#runtimeStat());
         if (create) await this.#ensureDirectoryChain(runtimeRoot);
         return operation(runtimeRoot, existed);
       },
@@ -395,6 +406,21 @@ export class StorePackageSupply {
     } catch (error) {
       invalid(`${relative} небезопасен`, { cause: error });
     }
+  }
+
+  /** Checks the complete Store-owned directory chain before reads or npm mutations. */
+  async #runtimeStat() {
+    let current = this.#checkout.root;
+    let stat;
+    for (const segment of CORE_SERVICE_PATHS.packageDirectory.split("/")) {
+      current = path.join(current, segment);
+      stat = await lstatOrNull(current);
+      if (!stat) return null;
+      if (!stat.isDirectory() || stat.isSymbolicLink()) {
+        invalid(`${CORE_SERVICE_PATHS.packageDirectory} содержит небезопасный каталог`);
+      }
+    }
+    return stat;
   }
 
   #runtimeRoot() {

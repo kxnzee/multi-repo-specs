@@ -56,8 +56,8 @@ export class StorePluginManager {
       id: pluginId,
       kind: "plugins",
       source: source.installSpec,
-      validate: async (packageRoot) => createPluginInstallation({
-        loadedPlugin: await this.#loader.load({ packageRoot, pluginId }),
+      validate: async (packageRoot, { runtimeRevision } = {}) => createPluginInstallation({
+        loadedPlugin: await this.#loader.load({ packageRoot, pluginId, runtimeRevision }),
         runtimeRoot: packageRoot,
         source,
       }),
@@ -72,6 +72,7 @@ export class StorePluginManager {
     const loadedPlugin = await this.#loader.load({
       packageRoot: resolved.packageRoot,
       pluginId: declaration.id,
+      runtimeRevision: resolved.runtimeRevision,
     });
     return createPluginInstallation({
       loadedPlugin,

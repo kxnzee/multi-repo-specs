@@ -1,11 +1,17 @@
 /** @fileoverview Shared reverse-order compensation for partially completed operations. */
 
-/** Rolls completed values back in reverse order, preserving both failures when rollback fails. */
+/** Attempts every compensation and preserves the original and all rollback failures. */
 export async function rollbackOrRethrow(error, completed, rollback, message) {
-  try {
-    for (const value of [...completed].reverse()) await rollback(value);
-  } catch (cause) {
-    throw new AggregateError([error, cause], message, { cause: error });
+  const failures = [];
+  for (const value of [...completed].reverse()) {
+    try {
+      await rollback(value);
+    } catch (cause) {
+      failures.push(cause);
+    }
+  }
+  if (failures.length > 0) {
+    throw new AggregateError([error, ...failures], message, { cause: error });
   }
   throw error;
 }

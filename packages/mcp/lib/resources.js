@@ -96,7 +96,8 @@ async function schemaOutputs(files, schemaId) {
   if (!Array.isArray(schema.artifacts)) {
     throw new Error(`MCP_RESOURCE_SCHEMA_INVALID: ${schemaPath}.artifacts должна быть array`);
   }
-  return Object.freeze(schema.artifacts.map(({ generates }, index) => {
+  return Object.freeze(schema.artifacts.map((artifact, index) => {
+    const generates = artifact?.generates;
     if (
       typeof generates !== "string" ||
       generates.length === 0 ||

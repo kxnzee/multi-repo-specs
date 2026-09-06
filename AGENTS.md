@@ -87,6 +87,8 @@ compilation step, application server, database or provider account.
 - `test:pack` installs tarballs in a separate consumer and needs npm registry
   access. Distinguish access failures from code failures; never report a blocked
   or skipped check as passed.
+- After external package changes restart long-lived MCP processes; do not bypass
+  Plugin Loader restart diagnostics with cache-busting entrypoint URLs.
 - Update current docs under `docs/user/` or `docs/technical/` for behavior changes.
   Code, tests and manifests are the source of truth for runtime claims.
 - Review the staged diff. Commit/push/open a PR when requested; a request to

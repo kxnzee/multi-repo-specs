@@ -898,3 +898,12 @@ test("viewer serves graph diagnostics and structured evidence from loopback", as
   const preview = await request(evidence[0].preview_url);
   assert.equal(preview, "source:openspec-orch.yaml");
 });
+
+
+test("Graph rejects a symlinked openspec ancestor before reading outside Store", async (t) => {
+  const root = await storeFixture(t);
+  const outside = path.join(root, "external-specs");
+  await fs.rename(path.join(root, "openspec"), outside);
+  await fs.symlink(outside, path.join(root, "openspec"), process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(compileOpenSpecGraph(root, { storeId, repositories }), /symlink|ordinary directory/);
+});

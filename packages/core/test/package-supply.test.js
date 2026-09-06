@@ -15,6 +15,8 @@ import {
   PackageSupplyService,
 } from "@openspec-orch/core";
 
+import { createDirectoryLink } from "../fixtures/filesystem.js";
+
 const PACKAGE_NAME = "@test/sample-plugin";
 
 /** Создаёт Store checkout и npm emulator, сохраняющий реальный manifest/lock. */
@@ -411,4 +413,48 @@ test("StorePackageSupply refuses to mark a successful npm call with incomplete m
   installer.sync = synchronize;
   assert.equal(await supply.ensure(), true);
   assert.equal((await supply.inspect()).state, "ready");
+});
+
+
+test("package reads and sync reject a symlinked runtime without touching its target", async (t) => {
+  const { root, supply, calls } = await fixture(t);
+  await supply.install({ id: "sample", kind: "plugins", source: "/packages/sample", validate: async () => true });
+  const runtime = path.join(root, ".openspec-orch/packages");
+  const outside = path.join(root, "outside-runtime");
+  await fs.rename(runtime, outside);
+  await createDirectoryLink(outside, runtime);
+  const before = await fs.readFile(path.join(outside, "package.json"), "utf8");
+  const count = calls.length;
+  await assert.rejects(supply.sync(), /PACKAGE_SUPPLY_INVALID/);
+  await assert.rejects(supply.ensure(), /PACKAGE_SUPPLY_INVALID/);
+  assert.equal(calls.length, count);
+  assert.equal(await fs.readFile(path.join(outside, "package.json"), "utf8"), before);
+});
+
+test("package diagnostics reject a symlink in the parent runtime chain", async (t) => {
+  const { root, supply } = await fixture(t);
+  await supply.install({ id: "sample", kind: "plugins", source: "/packages/sample", validate: async () => true });
+  const state = path.join(root, ".openspec-orch");
+  const outside = path.join(root, "outside-state");
+  await fs.rename(state, outside);
+  await createDirectoryLink(outside, state);
+  await assert.rejects(supply.inspect(), /PACKAGE_SUPPLY_INVALID/);
+  await assert.rejects(supply.resolve("plugins", "sample"), /PACKAGE_SUPPLY_INVALID/);
+});
+
+test("explicit local package reinstall refreshes contents without a version change", async (t) => {
+  const { root } = await fixture(t);
+  const checkout = createRepositoryCheckout(createRepository({
+    id: "specs", role: "store", remote: "https://example.test/specs.git", defaultBranch: "main",
+  }), root);
+  const supply = new PackageSupplyService().forStore(checkout);
+  const runtimeRoot = path.join(root, ".openspec-orch/packages");
+  const packageRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-local-update-"));
+  t.after(() => fs.rm(packageRoot, { recursive: true, force: true }));
+  await fs.writeFile(path.join(packageRoot, "package.json"), JSON.stringify({ name: "local-update", version: "1.0.0" }));
+  await fs.writeFile(path.join(packageRoot, "value.txt"), "before");
+  await supply.install({ id: "sample", kind: "plugins", source: packageRoot, validate: async () => true });
+  await fs.writeFile(path.join(packageRoot, "value.txt"), "after");
+  await supply.install({ id: "sample", kind: "plugins", source: packageRoot, validate: async () => true });
+  assert.equal(await fs.readFile(path.join(runtimeRoot, "node_modules/local-update/value.txt"), "utf8"), "after");
 });

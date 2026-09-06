@@ -17,7 +17,11 @@ export class FailClosedLock {
     } catch (error) {
       if (error.code === "EEXIST") {
         throw Object.assign(
-          new Error(`${busyCode}: состояние уже изменяется другой командой; повторите вызов`),
+          new Error(
+            `${busyCode}: lock ${lockPath} занят; дождитесь завершения команды. ` +
+              "После прерывания остановите использующие Store процессы, сохраните состояние и " +
+              "удалите только этот пустой lock-каталог перед повторным вызовом",
+          ),
           { code: busyCode },
         );
       }

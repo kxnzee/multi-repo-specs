@@ -14,6 +14,7 @@ try {
   assertNodeVersion(process.versions.node);
   const { agentGatewayService, platform } = await createDistributionPlatform({
     start: process.cwd(),
+    loadInstalledPlugins: false,
   });
   const program = platform.createProgram({
     agentGatewayService,

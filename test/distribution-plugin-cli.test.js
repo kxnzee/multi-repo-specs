@@ -17,10 +17,7 @@ import { configuration, createProject } from "@openspec-orch/core";
 
 const CLI_PATH = process.env.OPENSPEC_ORCH_TEST_CLI_PATH ??
   fileURLToPath(new URL("../bin/openspec-orch.js", import.meta.url));
-const MCP_PATH = fileURLToPath(new URL("../bin/openspec-orch-mcp.js", import.meta.url));
-const distributionTest = process.env.OPENSPEC_ORCH_SKIP_DISTRIBUTION_SMOKE === "1"
-  ? test.skip
-  : test;
+const MCP_PATH = process.env.OPENSPEC_ORCH_TEST_MCP_PATH ?? fileURLToPath(new URL("../bin/openspec-orch-mcp.js", import.meta.url));
 
 /** Запускает candidate CLI в изолированном Store. */
 function runCli(cwd, ...args) {
@@ -70,7 +67,7 @@ async function writeFakeQwen(fakeBin) {
   );
 }
 
-distributionTest("candidate distribution bootstraps the Agent gateway once in user scope", async (t) => {
+test("candidate distribution bootstraps the Agent gateway once in user scope", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-agent-bootstrap-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const fakeBin = path.join(root, "bin");
@@ -253,7 +250,7 @@ async function distributionFixture(t, prefix) {
   });
 }
 
-distributionTest("candidate distribution exposes every Plugin through plugin exec", async (t) => {
+test("candidate distribution exposes every Plugin through plugin exec", async (t) => {
   const { codeRoot, nativeLog, storeRoot } = await distributionFixture(
     t,
     "openspec-orch-distribution-cli-",
@@ -465,7 +462,7 @@ distributionTest("candidate distribution exposes every Plugin through plugin exe
   assert.deepEqual(withoutGraph.plugins, ["change-tracking"]);
 });
 
-distributionTest("candidate distribution serves OpenSpec Graph through public MCP only", async (t) => {
+test("candidate distribution serves OpenSpec Graph through public MCP only", async (t) => {
   const { registerCleanup, storeRoot } = await distributionFixture(
     t,
     "openspec-orch-distribution-graph-mcp-",
@@ -492,7 +489,7 @@ distributionTest("candidate distribution serves OpenSpec Graph through public MC
   assert.equal(report.summary.nodes, 2);
 });
 
-distributionTest("candidate distribution completes Change Tracking through public MCP", async (t) => {
+test("candidate distribution completes Change Tracking through public MCP", async (t) => {
   const { codeRoot, registerCleanup, storeRoot } = await distributionFixture(
     t,
     "openspec-orch-distribution-mcp-",
@@ -558,4 +555,34 @@ distributionTest("candidate distribution completes Change Tracking through publi
     base: baseRevision,
     implementation: implementationRevision,
   }]);
+});
+
+
+test("public CLI initializes a fresh Store and repeats connect from the Code Repository", async (t) => {
+  const { storeRoot, codeRoot } = await distributionFixture(t, "openspec-orch-first-run-");
+  for (const entry of await fs.readdir(storeRoot)) {
+    if (entry !== ".git") await fs.rm(path.join(storeRoot, entry), { recursive: true, force: true });
+  }
+  await commitAll(storeRoot, "Prepare empty Store for first-run smoke");
+  for (const name of ["xdg-config", "xdg-data"]) {
+    await fs.rm(path.join(path.dirname(storeRoot), name), { recursive: true, force: true });
+  }
+  const args = ["init", ".", "--store", "specs", "--agent", "qwen",
+    "--repo", "frontend=https://example.test/frontend.git#main"];
+  await runCli(storeRoot, ...args);
+  const config = await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8");
+  assert.deepEqual(configuration.parseProject(config).extensions, ["spec-driven-extended", "superpowers"]);
+  await runCli(storeRoot, ...args);
+  assert.equal(await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"), config);
+  await commitAll(storeRoot, "Initialize Store");
+  await runCli(storeRoot, "connect");
+  const pointer = await fs.readFile(path.join(codeRoot, "openspec/config.yaml"), "utf8");
+  await runCli(codeRoot, "connect");
+  assert.equal(await fs.readFile(path.join(codeRoot, "openspec/config.yaml"), "utf8"), pointer);
+  assert.equal(await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"), config);
+  await commitAll(codeRoot, "Connect to central Store");
+  const report = JSON.parse((await runCli(codeRoot, "doctor", "--json")).stdout);
+  assert.equal(report.summary.error, 0);
+  await assert.rejects(fs.access(path.join(codeRoot, "openspec/specs")), /ENOENT/);
+  await assert.rejects(fs.access(path.join(codeRoot, "openspec/changes")), /ENOENT/);
 });

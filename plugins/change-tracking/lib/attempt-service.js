@@ -3,6 +3,7 @@
 import {
   assertChangeId,
   CHANGE_TRACKING_CONTRACT,
+  CHANGE_TRACKING_PATTERNS,
   isGitRevision,
 } from "./contracts.js";
 import { ImplementationMapRepository } from "./implementation-map-repository.js";
@@ -39,6 +40,29 @@ function readState(value) {
     !Array.isArray(value.active_attempts)
   ) {
     throw new Error("PLUGIN_STORAGE_CORRUPTED: некорректное состояние implementation attempts");
+  }
+  const keys = new Set();
+  for (const attempt of value.active_attempts) {
+    if (!attempt || typeof attempt !== "object" || Array.isArray(attempt) ||
+      Object.keys(attempt).sort().join("\0") !== [
+        "base_revision", "change_id", "planning_revision", "repository_id", "schema_name", "started_at", "task",
+      ].join("\0") ||
+      typeof attempt.change_id !== "string" ||
+      !CHANGE_TRACKING_PATTERNS.identifier.test(attempt.change_id) ||
+      typeof attempt.repository_id !== "string" ||
+      !CHANGE_TRACKING_PATTERNS.identifier.test(attempt.repository_id) ||
+      !attempt.task || typeof attempt.task !== "object" || Array.isArray(attempt.task) ||
+      Object.keys(attempt.task).sort().join("\0") !== "description\0id" ||
+      typeof attempt.task.id !== "string" || !attempt.task.id ||
+      typeof attempt.task.description !== "string" || !attempt.task.description ||
+      typeof attempt.schema_name !== "string" || !attempt.schema_name ||
+      !isGitRevision(attempt.planning_revision) || !isGitRevision(attempt.base_revision) ||
+      typeof attempt.started_at !== "string" || Number.isNaN(Date.parse(attempt.started_at))) {
+      throw new Error("PLUGIN_STORAGE_CORRUPTED: некорректная активная implementation attempt");
+    }
+    const key = attemptKey(attempt);
+    if (keys.has(key)) throw new Error("PLUGIN_STORAGE_CORRUPTED: повторяющаяся активная attempt");
+    keys.add(key);
   }
   return value;
 }
@@ -167,7 +191,10 @@ export class AttemptTrackingService {
       return {
         ...checked,
         active_attempts: checked.active_attempts.filter((candidate) => (
-          attemptKey(candidate) !== attemptKey(selector)
+          attemptKey(candidate) !== attemptKey(selector) ||
+          ["started_at", "base_revision", "planning_revision", "schema_name"].some((field) => (
+            candidate[field] !== active[field]
+          )) || candidate.task.description !== active.task.description
         )),
       };
     });

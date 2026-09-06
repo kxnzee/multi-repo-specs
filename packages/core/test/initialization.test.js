@@ -938,3 +938,16 @@ test("CandidateCli interactive init cancels before mutation and non-TTY requires
   assert.equal(confirmCalls, 2);
   assert.deepEqual(calls, []);
 });
+
+
+test("repeated init leaves config unchanged when Store completeness validation fails", async (t) => {
+  const root = await storeFixture(t);
+  const { service } = initFixture(fakeExecutor(root).executor);
+  const options = { target: root, storeId: "payments-specs", agentId: "claude", templateRoot: TEMPLATE_ROOT };
+  await service.initialize(options);
+  const configPath = path.join(root, "openspec-orch.yaml");
+  const before = await fs.readFile(configPath, "utf8");
+  await fs.rm(path.join(root, "openspec/specs"), { recursive: true });
+  await assert.rejects(service.initialize({ ...options, extensions: ["superpowers"] }), /needs_recovery/);
+  assert.equal(await fs.readFile(configPath, "utf8"), before);
+});

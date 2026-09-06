@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parse } from "yaml";
+import { parse, stringify } from "yaml";
 
 import { AttemptTrackingService } from "../lib/attempt-service.js";
 import { ImplementationMapRepository } from "../lib/implementation-map-repository.js";
@@ -230,4 +230,74 @@ test("implementation map retries a transient Core file-update lock", async () =>
 
   assert.equal(result.changed, true);
   assert.equal(updates, 2);
+});
+
+
+test("completion remains idempotent after YAML keys are reordered", async () => {
+  const context = assignmentContext();
+  const repository = new ImplementationMapRepository(context.files);
+  const attempt = {
+    repository_id: "frontend", task: { id: "1", description: "Implement checkout" },
+    schema_name: "spec-driven-extended", planning_revision: BASE, base_revision: BASE,
+    implementation_revision: IMPLEMENTATION, started_at: "2026-08-31T10:00:00.000Z",
+    completed_at: "2026-08-31T10:01:00.000Z",
+  };
+  const result = await repository.append("checkout-flow", attempt);
+  const document = parse(await context.files.read(result.path));
+  document.attempts[0] = Object.fromEntries(Object.entries(attempt).reverse());
+  document.attempts[0].task = { description: attempt.task.description, id: attempt.task.id };
+  await context.files.update(result.path, () => stringify(document));
+  assert.equal((await repository.append("checkout-flow", attempt)).changed, false);
+  assert.equal((await repository.read("checkout-flow")).length, 1);
+});
+
+
+test("a delayed duplicate completion cannot erase a newly reopened attempt", async () => {
+  const tasks = [{ id: "1", description: "Implement checkout", done: false }];
+  const heads = { frontend: BASE };
+  const context = assignmentContext({ invocation: { id: "frontend", role: "code" }, implementationHeads: heads, tasks });
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  let entered;
+  const waiting = new Promise((resolve) => { entered = resolve; });
+  let updates = 0;
+  const service = new AttemptTrackingService({
+    ...context,
+    files: {
+      ...context.files,
+      async update(...args) {
+        if (++updates === 2) { entered(); await held; }
+        return context.files.update(...args);
+      },
+    },
+  });
+  const input = { changeId: "checkout-flow", taskId: "1" };
+  await service.start(input);
+  tasks[0].done = true;
+  heads.frontend = IMPLEMENTATION;
+  const first = service.complete(input);
+  const second = service.complete(input);
+  try {
+    await waiting;
+    await first;
+    tasks[0].done = false;
+    const reopened = await service.start(input);
+    release();
+    await second;
+    const { active, completed } = await service.status(input.changeId);
+    assert.equal(active.length, 1);
+    assert.equal(active[0].base_revision, reopened.base_revision);
+    assert.equal(completed.length, 1);
+  } finally {
+    release();
+    await Promise.allSettled([first, second]);
+  }
+});
+
+test("corrupt active attempts fail closed with a diagnostic instead of a TypeError", async () => {
+  const context = assignmentContext();
+  const corrupt = { contract_version: 1, active_attempts: [null] };
+  await context.storage.update(() => corrupt);
+  await assert.rejects(new AttemptTrackingService(context).status("checkout-flow"), /PLUGIN_STORAGE_CORRUPTED/);
+  assert.deepEqual(await context.storage.read(), corrupt);
 });

@@ -48,12 +48,11 @@ function validateAttempt(candidate, path) {
 
 /** Treats a repeated completion after local cleanup failure as the same durable attempt. */
 function sameAttempt(left, right) {
-  const withoutCompletionTime = (value) => {
-    const attempt = { ...value };
-    delete attempt.completed_at;
-    return attempt;
-  };
-  return JSON.stringify(withoutCompletionTime(left)) === JSON.stringify(withoutCompletionTime(right));
+  return [
+    "repository_id", "schema_name", "planning_revision", "base_revision",
+    "implementation_revision", "started_at",
+  ].every((field) => left[field] === right[field]) &&
+    left.task.id === right.task.id && left.task.description === right.task.description;
 }
 
 /** Owns the one Git-tracked implementation map inside an OpenSpec Change. */

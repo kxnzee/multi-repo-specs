@@ -270,7 +270,6 @@ export class CandidateCli {
     this.#progress.start("Подключение Store и Code Repositories...");
     let result;
     try {
-      this.#progress.update("Проверка native CLI выбранного Agent...");
       result = await this.#setup.connect({
         workspace: options.workspace,
         noStrict: options.strict === false,

@@ -40,3 +40,11 @@ test("PluginSource only validates its own minimal boundary", () => {
     /credentials/,
   );
 });
+
+
+test("PluginSource resolves file protocol paths from the caller before npm changes cwd", () => {
+  for (const specifier of ["file:../plugin", "file:./plugin.tgz"]) {
+    assert.equal(PluginSource.parse(specifier, { cwd: CWD }).installSpec,
+      `file:${path.resolve(CWD, specifier.slice(5))}`);
+  }
+});

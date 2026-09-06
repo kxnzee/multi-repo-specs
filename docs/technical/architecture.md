@@ -24,7 +24,8 @@ templates/                       bundled copy-only Project Templates
 
 `bin/internal/distribution.js` читает root `package.json`, проверяет Node.js,
 создаёт каталоги bundled Agents, Extensions, Templates и Plugins, а затем собирает
-одну `PluginPlatform`. CLI и MCP используют эту же Platform и общие application
+одну `PluginPlatform`. CLI загружает Plugins по необходимости, MCP собирает contributions при старте.
+Оба используют эту же Platform и общие application
 services.
 
 Root `package.json` определяет minimum Node.js, default Template и first-party Plugin
@@ -204,7 +205,9 @@ Public surface состоит из:
 - read-only Store resources для Project/OpenSpec config, context, Master Specs и
   outputs, объявленных schema конкретного Change.
 
-Resources и tool arguments проверяются fail-closed. MCP намеренно не предоставляет
+Resources и tool arguments проверяются fail-closed. Схемы аргументов внешних
+Agent tools проверяются JSON Schema validator из MCP SDK, включая вложенные
+объекты, required, числовые ограничения и массивы. MCP намеренно не предоставляет
 verification, Feature Acceptance, Release, Archive, arbitrary Git writes, Plugin
 lifecycle, Agent management или network transport.
 
@@ -242,3 +245,11 @@ replace; corruption, неизвестная версия, path escape и symlink
 - Опциональный Plugin не становится обязательным условием обычного Apply.
 - Agent, Orchestrator и Plugins не принимают человеческие gates и не выполняют
   Release или Archive автоматически.
+
+
+При повторной загрузке Plugin Loader сверяет содержимое package (включая helper
+modules) и доступный npm lock с уже импортированным module graph. Изменение требует
+перезапуска процесса с `PLUGIN_LOAD_INVALID`, чтобы не выполнить устаревший export
+из ESM cache. Это проверка согласованности процесса, а не sandbox или проверка
+целостности произвольных файлов всей машины. CLI не импортирует старые Plugins
+перед package mutation; Doctor и lifecycle загружают их по необходимости.

@@ -2,6 +2,7 @@
 
 import process from "node:process";
 
+import { isRecoverablePluginResolution } from "./plugin-resolution.js";
 import { pluginApplications } from "./plugin-application.js";
 import { rollbackOrRethrow } from "./compensation.js";
 import { PluginHost } from "./plugin-host.js";
@@ -330,6 +331,12 @@ export class PluginLifecycleService {
     const remainingIds = storeProject.project.pluginConnections({ pluginId })
       .map(({ repository }) => repository.id)
       .filter((repositoryId) => !disconnectedIds.has(repositoryId));
+    try {
+      await this.#ensureLoaded(storeProject, pluginId);
+    } catch (error) {
+      if (!isRecoverablePluginResolution(error)) throw error;
+      // Preserve the existing ability to remove bindings for an unavailable package.
+    }
     const disconnectedExtensions = [];
     let changes;
     try {
@@ -390,6 +397,7 @@ export class PluginLifecycleService {
         entry.repository.id === repository.id
       ))) {
         try {
+          await this.#ensureLoaded(storeProject, connection.pluginId);
           const value = await this.#host.status({
             pluginId: connection.pluginId,
             repositoryId: repository.id,

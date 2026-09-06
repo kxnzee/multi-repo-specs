@@ -247,5 +247,6 @@ test("ProjectSetupService connects a strict Project from its resolved Code Repos
   });
 
   assert.equal((await service.connect({ requireStrict: true })).status, "ready");
-  assert.deepEqual(starts, [storeRoot]);
+  await service.connect();
+  assert.deepEqual(starts, [storeRoot, storeRoot]);
 });
