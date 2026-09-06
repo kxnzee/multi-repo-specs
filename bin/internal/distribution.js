@@ -65,7 +65,7 @@ async function resolveBundledDirectories({ label, load, Provider, providerOption
 }
 
 /** Builds the one distribution Platform used by every public protocol adapter. */
-export async function createDistributionPlatform({ start }) {
+export async function createDistributionPlatform({ start, loadInstalledPlugins = true }) {
   const core = await import("@openspec-orch/core");
   const pluginPackages = await Promise.all(
     DISTRIBUTION_CONFIG.plugins.map(({ packageName }) => resolvePluginPackage(packageName)),
@@ -117,6 +117,7 @@ export async function createDistributionPlatform({ start }) {
     bundledExtensionProvider,
     bundledTemplateProvider,
     bundledProvider,
+    ...(loadInstalledPlugins ? {} : { loadedPlugins: [] }),
     start,
   });
   const loadAgentContributions = async () => {

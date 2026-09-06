@@ -49,7 +49,9 @@ export class PluginSource {
     }
     if (/[\r\n\0]/.test(specifier)) invalid("source должен быть однострочным");
     assertNoCredentials(specifier);
-    const installSpec = specifier.startsWith(".")
+    const installSpec = specifier.startsWith("file:")
+      ? `file:${path.resolve(cwd, specifier.slice(5))}`
+      : specifier.startsWith(".")
       ? path.resolve(cwd, specifier)
       : specifier;
     return new PluginSource({

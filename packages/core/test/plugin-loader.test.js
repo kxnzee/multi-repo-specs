@@ -154,3 +154,28 @@ test("PluginLoader rejects invalid API and mismatched Plugin identity", async (t
   );
   assert.throws(() => new LoadedPlugin(), /LOADED_PLUGIN_INVALID/);
 });
+
+
+test("PluginLoader rejects cached code after a same-version helper change", async (t) => {
+  const root = await packageFixture(t);
+  const source = `import { version } from './helper.js';
+export default Object.freeze({
+ id: 'external', supports: Object.freeze([]), version,
+ ${Object.keys(externalPlugin()).filter((key) => typeof externalPlugin()[key] === 'function').map((key) => `${key}() {}`).join(',')}
+});`;
+  await fs.writeFile(path.join(root, "index.js"), source);
+  await fs.writeFile(path.join(root, "helper.js"), "export const version = 'before';");
+  assert.equal((await new PluginLoader().load({ packageRoot: root, pluginId: "external" })).plugin.version, "before");
+  await fs.writeFile(path.join(root, "helper.js"), "export const version = 'after';");
+  await assert.rejects(new PluginLoader().load({ packageRoot: root, pluginId: "external" }), /PLUGIN_LOAD_INVALID.*restart/);
+});
+
+test("PluginLoader rejects a changed dependency lock even when Plugin files are unchanged", async (t) => {
+  const root = await packageFixture(t);
+  const importer = async () => ({ default: externalPlugin() });
+  await new PluginLoader(importer).load({ packageRoot: root, pluginId: "external", runtimeRevision: "before" });
+  await assert.rejects(
+    new PluginLoader(importer).load({ packageRoot: root, pluginId: "external", runtimeRevision: "after" }),
+    /PLUGIN_LOAD_INVALID.*restart/,
+  );
+});

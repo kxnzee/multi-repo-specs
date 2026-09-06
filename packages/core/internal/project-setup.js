@@ -199,35 +199,38 @@ export class ProjectSetupService {
 
   /** Runs the same complete connect sequence for every protocol adapter. */
   async connect({ workspace, noStrict = false, onProgress = () => {}, requireStrict = false } = {}) {
-    let start = this.#start;
     const storeProject = await this.#storeProjects.resolve(this.#start);
     if (requireStrict) {
       if (!storeProject.project.strict) {
         throw new Error("MCP_SETUP_STRICT_REQUIRED: connect_project недоступен для relaxed Project");
       }
-      start = storeProject.root;
     }
     onProgress("Восстановление Store packages из npm lock...");
     await this.#packages.forStore(storeProject.checkout).ensure();
     onProgress("Проверка native CLI выбранного Agent...");
     await this.#extensionPreflight?.preflight();
     const result = await this.#connection.connect({
-      start,
+      start: storeProject.root,
       workspace,
       noStrict,
       onProgress,
     });
     onProgress("Подключение выбранных Extensions...");
-    for (const lifecycle of this.#extensionLifecycles) await lifecycle.connectSelected();
+    for (const lifecycle of this.#extensionLifecycles) {
+      await lifecycle.connectSelected({ start: storeProject.root });
+    }
     onProgress("Проверка состояния Extensions и Plugins...");
-    for (const lifecycle of this.#extensionLifecycles) await lifecycle.statusSelected();
+    for (const lifecycle of this.#extensionLifecycles) {
+      await lifecycle.statusSelected({ start: storeProject.root });
+    }
     return connectionResult(result);
   }
 
   /** Disconnects only Agent Extensions; exposed to CLI, not to MCP. */
   async disconnect() {
+    const storeProject = await this.#storeProjects.resolve(this.#start);
     for (const lifecycle of [...this.#extensionLifecycles].reverse()) {
-      await lifecycle.disconnectSelected();
+      await lifecycle.disconnectSelected({ start: storeProject.root });
     }
   }
 }

@@ -165,6 +165,7 @@ export class InitializationService {
         `STORE_TEMPLATE_MISMATCH: Store создан из ${project.template.id}, а не ${templateId}`,
       );
     }
+    await this.#assertComplete({ storeTarget, metadata, project, agent });
     let currentProject = project;
     const updated = [];
     if (extensions !== undefined) {

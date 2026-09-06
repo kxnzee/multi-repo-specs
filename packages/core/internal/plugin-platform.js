@@ -28,13 +28,7 @@ import { RepositoryStatusService } from "./repository-status.js";
 import { storeProjects } from "./store-project.js";
 import { hasMethods } from "./value.js";
 
-const RECOVERABLE_PLUGIN_RESOLUTION = /^(?:BUNDLED_PLUGIN_INVALID|PACKAGE_RUNTIME_UNAVAILABLE|PACKAGE_SUPPLY_INVALID|PLUGIN_CONTRACT_INVALID|PLUGIN_LOAD_INVALID|PLUGIN_MANAGER_INVALID|PLUGIN_RUNTIME_UNAVAILABLE):/u;
-
-/** Keeps optional Plugin failures isolated without swallowing unrelated Core defects. */
-function isRecoverablePluginResolution(error) {
-  return ["PACKAGE_RUNTIME_UNAVAILABLE", "PLUGIN_RUNTIME_UNAVAILABLE"].includes(error?.code) ||
-    RECOVERABLE_PLUGIN_RESOLUTION.test(error?.message ?? "");
-}
+import { isRecoverablePluginResolution } from "./plugin-resolution.js";
 
 /** Собирает Loader output, Host, lifecycle и CLI adapters без знания Plugin IDs. */
 export class PluginPlatform {

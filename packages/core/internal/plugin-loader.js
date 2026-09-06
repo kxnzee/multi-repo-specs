@@ -1,5 +1,6 @@
 /** @fileoverview Безопасная загрузка установленного ESM Plugin entrypoint. */
 
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -13,6 +14,28 @@ import {
 
 import { lstatOrNull, requireSafePath } from "./fs.js";
 import { isContainedPath } from "./path.js";
+
+const defaultImport = (specifier) => import(specifier);
+const importedPackages = new WeakMap();
+
+/** Includes helper modules and data files, since changing just an entry URL leaves imports cached. */
+async function packageFingerprint(root, runtimeRevision) {
+  const hash = createHash("sha256");
+  /** Hashes the complete ordinary package tree in deterministic order. */
+  async function visit(directory) {
+    for (const entry of (await fs.readdir(directory, { withFileTypes: true }))
+      .sort((left, right) => left.name.localeCompare(right.name))) {
+      const target = path.join(directory, entry.name);
+      hash.update(JSON.stringify(path.relative(root, target)));
+      if (entry.isDirectory()) await visit(target);
+      else if (entry.isFile()) hash.update(await fs.readFile(target));
+      else if (entry.isSymbolicLink()) hash.update(await fs.readlink(target));
+      else invalid("package содержит специальный файл");
+    }
+  }
+  await visit(root);
+  return { contents: hash.digest("hex"), lock: runtimeRevision ?? null };
+}
 
 const REPOSITORY_ROLES = new Set(Object.values(REPOSITORY_ROLE));
 
@@ -99,7 +122,7 @@ export class LoadedPlugin {
 export class PluginLoader {
   #importModule;
 
-  constructor(importModule = (specifier) => import(specifier)) {
+  constructor(importModule = defaultImport) {
     if (typeof importModule !== "function") {
       throw new Error("PLUGIN_LOADER_INVALID: importModule должен быть функцией");
     }
@@ -107,7 +130,7 @@ export class PluginLoader {
     Object.freeze(this);
   }
 
-  async load({ packageRoot, pluginId } = {}) {
+  async load({ packageRoot, pluginId, runtimeRevision } = {}) {
     if (typeof packageRoot !== "string" || !path.isAbsolute(packageRoot)) {
       invalid("packageRoot должен быть абсолютным путём");
     }
@@ -134,6 +157,19 @@ export class PluginLoader {
     }
     const pluginPackage = new PluginPackage(manifest);
     const entrypoint = await requirePackagePath(root, pluginPackage.entrypoint.slice(2));
+    const fingerprint = await packageFingerprint(root, runtimeRevision);
+    let imported = importedPackages.get(this.#importModule);
+    if (!imported) {
+      imported = new Map();
+      importedPackages.set(this.#importModule, imported);
+    }
+    const previous = imported.get(root);
+    if (previous && (previous.contents !== fingerprint.contents ||
+      (previous.lock !== null && fingerprint.lock !== null && previous.lock !== fingerprint.lock))) {
+      invalid("package runtime изменился после import; restart CLI/MCP process перед повторным вызовом");
+    }
+    // Failed ESM evaluations are cached too; never accept a repaired package through an old graph.
+    imported.set(root, fingerprint);
     let namespace;
     try {
       namespace = await this.#importModule(pathToFileURL(entrypoint).href);
