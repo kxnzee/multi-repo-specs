@@ -26,6 +26,7 @@ Repository через OpenSpec pointer. Соблюдайте scope конкре�
 | Подключить Agent gateway, OpenSpec Graph, Change Tracking, CodeGraph или внешний Plugin | [Plugins](user/plugins.md) |
 | Провести Jira Story от требования до UAT и Release | [Единый процесс поставки](user/story-delivery-process.md) |
 | Выбрать действие в пограничной ситуации | [Сценарии работы с Change](user/change-scenarios.md) |
+| Получить человекочитаемые мастер-спеки | [Spec Reader](user/spec-reader.md) |
 
 Template `default` предоставляет две schemas: `spec-driven-extended` с Intent и
 Intake и `superspec-multirepo` с обязательными Brainstorm, Plan и Process

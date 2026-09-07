@@ -43,6 +43,10 @@ committed lockfile, затем догружает Plugins и восстанав�
 
 ## Standalone Extensions
 
+Встроенный необязательный `spec-reader` создаёт человекочитаемую документацию из
+мастер-спек по одной capability или всей системе. Подключение и примеры запросов —
+в [руководстве Spec Reader](spec-reader.md).
+
 Standalone Extension управляется адресно через собственную группу CLI:
 
 ```bash
