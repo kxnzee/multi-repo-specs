@@ -5,6 +5,9 @@
 `openspec status` и `openspec instructions`. Orchestrator и Plugins не создают
 параллельный workflow.
 
+Пошаговый порядок для существующей системы, включая отсутствующие Master Specs, —
+в [руководстве по изменениям и brownfield baseline](brownfield-and-changes.md).
+
 ## Выбор процесса и старт
 
 | Ситуация | Действие |
