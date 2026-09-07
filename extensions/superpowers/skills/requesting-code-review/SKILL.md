@@ -37,7 +37,11 @@ independent review remains pending until supplied.
 
 **2. Dispatch code reviewer subagent:**
 
-Dispatch a `general-purpose` subagent, filling the template at [code-reviewer.md](code-reviewer.md)
+Dispatch a `general-purpose` subagent, filling the template at [code-reviewer.md](code-reviewer.md).
+Supply repository ID, absolute checkout, base/HEAD, snapshot tree and available
+test report. For uncommitted changes use the worktree package contract in
+`../subagent-driven-development/SKILL.md`; never replace it with BASE..HEAD.
+Resolve a Not verified result before claiming review or validation is complete
 
 **Placeholders:**
 - `{DESCRIPTION}` - Brief summary of what you built

@@ -93,6 +93,60 @@ test("review package covers multiple commits and preserves output on invalid rev
   assert.equal(await fs.readFile(output, "utf8"), contents);
 });
 
+test("worktree review captures owned uncommitted content without changing the real index", async (t) => {
+  const root = await temporary(t);
+  const outputRoot = await temporary(t);
+  const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: "pipe" }).trim();
+  git("init", "-b", "main");
+  for (const name of ["edited", "deleted", "unrelated"]) {
+    await fs.writeFile(path.join(root, name), "baseline\n");
+  }
+  git("add", ".");
+  git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "baseline");
+  const base = git("rev-parse", "HEAD");
+  await fs.writeFile(path.join(root, "edited"), "staged\n");
+  git("add", "edited");
+  await fs.writeFile(path.join(root, "edited"), "working\n");
+  await fs.rm(path.join(root, "deleted"));
+  await fs.writeFile(path.join(root, "new with space"), Buffer.from([0, 1, 2, 255]));
+  await fs.writeFile(path.join(root, "unrelated"), "other owner's work\n");
+  const indexPath = path.join(root, ".git", "index");
+  const originalIndex = await fs.readFile(indexPath);
+  const output = path.join(outputRoot, "review.diff");
+  const script = "skills/subagent-driven-development/scripts/review-package";
+  const args = [base, "--worktree", output, "--", "edited", "deleted", "new with space"];
+  const result = shell(script, args, root);
+  assert.equal(result.status, 0, result.stderr);
+  const contents = await fs.readFile(output, "utf8");
+  const tree = /^Snapshot tree: ([a-f0-9]+)$/mu.exec(contents)?.[1];
+  assert.ok(tree);
+  assert.match(contents, /Worktree snapshot: true/u);
+  assert.match(contents, /\+working/u);
+  assert.match(contents, /deleted file mode/u);
+  assert.match(contents, /GIT binary patch/u);
+  assert.equal(git("show", `${tree}:edited`), "working");
+  assert.equal(git("show", `${tree}:unrelated`), "baseline");
+  assert.deepEqual(execFileSync("git", ["show", `${tree}:new with space`], { cwd: root }), Buffer.from([0, 1, 2, 255]));
+  assert.deepEqual(await fs.readFile(indexPath), originalIndex);
+  assert.equal(git("rev-parse", "HEAD"), base);
+  assert.equal(git("branch", "--show-current"), "main");
+  assert.equal(await fs.readFile(path.join(root, "edited"), "utf8"), "working\n");
+
+  // Repeated snapshots identify the same state; later fixes get a new tree.
+  assert.equal(shell(script, args, root).status, 0);
+  assert.equal(await fs.readFile(output, "utf8"), contents);
+  await fs.writeFile(path.join(root, "edited"), "fixed\n");
+  assert.equal(shell(script, args, root).status, 0);
+  const fixed = await fs.readFile(output, "utf8");
+  assert.notEqual(/^Snapshot tree: (.+)$/mu.exec(fixed)?.[1], tree);
+  assert.notEqual(shell(script, [base, "--worktree", output, "--", "missing-path"], root).status, 0);
+  assert.equal(await fs.readFile(output, "utf8"), fixed);
+  assert.notEqual(shell(script, [base, "--worktree", output, "--"], root).status, 0);
+  assert.notEqual(shell(script, [base, "--worktree", path.join(root, "unrelated"), "--", "edited"], root).status, 0);
+  assert.equal(await fs.readFile(path.join(root, "unrelated"), "utf8"), "other owner's work\n");
+  assert.deepEqual(await fs.readFile(indexPath), originalIndex);
+});
+
 test("visual explicit choice reaches the server event file, including falsey choices", async (t) => {
   const root = await temporary(t);
   await fs.mkdir(path.join(root, "state"));
