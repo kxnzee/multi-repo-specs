@@ -98,7 +98,7 @@ Use `--url-host` to control what hostname is printed in the returned URL JSON.
 ## The Loop
 
 1. **Check server is alive**, then **write HTML** to a new file in `screen_dir`:
-   - **Required: confirm the server is alive before referring to the URL or pushing a screen.** Check that `$STATE_DIR/server-info` exists and `$STATE_DIR/server-stopped` does not. If it has shut down, restart it with `start-server.sh` using the **same `--project-dir`** — it reuses the same port, so the user's open tab reconnects on its own (it shows a "paused" overlay while the server is down) and you don't need to send a new URL. The server auto-exits after 4 hours idle (configurable with `--idle-timeout-minutes`).
+   - **Required: confirm the server is alive before referring to the URL or pushing a screen.** Check that `$STATE_DIR/server-info` exists and `$STATE_DIR/server-stopped` does not. If it has shut down, restart it with `start-server.sh` using the **same `--project-dir`** — it attempts to reuse the recorded port/key. Read the new startup JSON and replace your saved directories; a busy port can produce a new URL, which must be shared. When the URL is unchanged, the open tab reconnects (it shows a "paused" overlay while down). The server auto-exits after 4 hours idle (configurable with `--idle-timeout-minutes`).
    - Use semantic filenames: `platform.html`, `visual-style.html`, `layout.html`
    - **Never reuse filenames** — each screen gets a fresh file
    - Use your file-creation tool — **never use cat/heredoc** (dumps noise into terminal)
@@ -280,10 +280,10 @@ If `$STATE_DIR/events` doesn't exist, the user didn't interact with the browser 
 ## Cleaning Up
 
 ```bash
-scripts/stop-server.sh $SESSION_DIR
+scripts/stop-server.sh "$SESSION_DIR"
 ```
 
-If the session used `--project-dir`, mockup files persist in `.superpowers/brainstorm/` for later reference. Only `/tmp` sessions get deleted on stop.
+If the session used `--project-dir`, mockup files persist in `.superpowers/brainstorm/` for later reference. Only sessions created without `--project-dir` as `/tmp/brainstorm-<pid>-<timestamp>` get deleted on stop.
 
 ## Reference
 

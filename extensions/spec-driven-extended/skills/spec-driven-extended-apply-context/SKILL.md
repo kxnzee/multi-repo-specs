@@ -1,6 +1,7 @@
 ---
 name: spec-driven-extended-apply-context
-description: Подготовить нейтральный repository scope для штатного OpenSpec Apply по принятым Planning-артефактам. Не заменяет встроенный openspec-apply-change.
+description: "[spec-driven-extended] Проверить repository scope перед штатным OpenSpec Apply."
+argument-hint: "[change-id]"
 ---
 
 # Контекст Apply
@@ -11,15 +12,24 @@ description: Подготовить нейтральный repository scope дл
 - Любое невыполненное обязательное условие означает BLOCKER. НЕМЕДЛЕННО ОСТАНОВИСЬ;
   не угадывай значение и не расширяй scope.
 
+При вызове из штатного Apply верни preflight вызывающему workflow и не запускай
+Apply повторно: его schema instruction уже привела сюда. При прямом запуске
+передай проверенный scope в штатный Apply один раз.
+
 Это единый project entrypoint Apply. Он проверяет только OpenSpec Planning и текущий
 Repository; Plugin-specific поведение остаётся вне этого skill.
 
 ## Общая предварительная проверка
 
+0. Определить точный Change из запроса или Work Context. Сначала проверить
+   `openspec_status.schemaName` в актуальном `get_change_context` без `artifact`.
+   Для другой schema вернуть `BLOCKER: SCHEMA_MISMATCH`; не запускать этот
+   preflight или встроенный Apply.
 1. Переиспользовать актуальный Work Context для того же `change_id` и `artifact: apply`.
    Если его нет или наступила граница свежести, один раз вызвать MCP
    `get_change_context` с `change_id`, `artifact: apply` и `include_assignment: true`.
-   Использовать возвращённые rules, paths, Tasks и вложенный `assignment_scope`; не
+   Instructions и Tasks брать из `artifact_instructions`, paths — из
+   `openspec_status`, repository scope — из вложенного `assignment_scope`; не
    вызывай `get_assignment_scope` повторно, когда эти Repository и revision уже
    получены, и не собирай этот контекст вручную.
 2. Проверить, что Repository Impact использует строгую таблицу
@@ -31,10 +41,17 @@ Repository; Plugin-specific поведение остаётся вне этог�
    напрямую; не создавать фиктивную Delta Spec.
 5. Неизвестный Repository/capability или расхождение принятого implementation scope
    блокирует Apply и не создаёт Repository автоматически.
-6. Сверить полученный assignment с принятым Repository Impact. Если Graph недоступен
-   и `assigned` равен `null`, прочитать Proposal через MCP resource и подтвердить
+6. Сверить полученный assignment с принятым Repository Impact. Если
+   `assignment_scope.assigned` равен `null`, прочитать Proposal через MCP resource
+   и подтвердить
    текущий repository-id по строгой таблице Repository Impact. Не продолжать при
    расхождении или отсутствии подтверждённого scope.
+
+Для `current_assignment.role: code` требовать connected checkout и совпадение
+его полного HEAD с assignment. `assigned: false` блокирует реализацию; `null`
+требует прямого подтверждения через Proposal, как описано выше. Store с
+`current_assignment.role: store` выполняет только координацию и не считается
+назначенным Code Repository. Неизвестная роль или отсутствующий assignment — blocker.
 
 Для Code Repository передать встроенному Apply только Tasks его принятой repository
 section. Для Store-level координации передать исходный набор Tasks без фильтрации.
@@ -45,9 +62,11 @@ section. Для Store-level координации передать исходн
 брать из вложенного `assignment_scope`; отдельный `get_assignment_scope` допустим только
 при отсутствии этих данных или после границы свежести. Не очищать чужие изменения.
 
-CodeGraph разрешён только внутри current repository и только при ready index на той же
-revision. Иначе использовать адресный read/search. Не запускать sync автоматически и не
-считать навигационный индекс evidence реализации.
+CodeGraph разрешён только внутри подтверждённого current repository. Если индекс
+есть, а MCP недоступен, остановиться согласно CodeGraph Extension. Адресный
+read/search допустим при отсутствии индекса либо когда сам MCP сообщил stale или
+unavailable. Индекс другой revision не подтверждает текущий код. Не запускать
+sync автоматически и не считать навигационный индекс evidence реализации.
 
 Перед checkbox сформировать:
 

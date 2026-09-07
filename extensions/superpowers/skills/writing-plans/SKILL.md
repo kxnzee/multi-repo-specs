@@ -18,6 +18,13 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 **Save plans to:** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
 - (User preferences for plan location override this default)
 
+## OpenSpec artifact mode
+
+When called for an OpenSpec Plan artifact, use its resolved output path, template
+and accepted repository scope. Finish the Plan and return to OpenSpec. Do not
+offer or start execution, create worktrees, commit Store files or mark coarse
+Tasks complete. The execution-choice section below applies only to standalone plans.
+
 ## Scope Check
 
 If the spec covers multiple independent subsystems, it should have been broken into sub-project specs during brainstorming. If it wasn't, suggest breaking this into separate plans — one per subsystem. Each plan should produce working, testable software on its own.
@@ -167,7 +174,7 @@ After saving the plan, offer execution choice:
 
 **If Subagent-Driven chosen:**
 - **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development
-- Fresh subagent per task + two-stage review
+- Fresh subagent per task + one task reviewer with spec and quality verdicts, then final review
 
 **If Inline Execution chosen:**
 - **REQUIRED SUB-SKILL:** Use superpowers:executing-plans

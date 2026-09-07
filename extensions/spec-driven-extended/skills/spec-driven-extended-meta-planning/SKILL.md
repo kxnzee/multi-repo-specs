@@ -1,6 +1,7 @@
 ---
 name: spec-driven-extended-meta-planning
-description: Единая read-only проверка Proposal, Specs, Design, Tasks, impact или полного Planning OpenSpec Change. Использует фактические artifact rules, Store-артефакты и адресные вызовы repository evidence scout по правилу «один вопрос — один subagent»; не изменяет артефакты и не принимает Gate.
+description: "[spec-driven-extended] Проверить Planning выбранного Change без изменения артефактов и принятия Gate."
+argument-hint: "[change-id] [proposal|specs|design|tasks|impact-review|planning-review]"
 ---
 
 # Проверка Planning
@@ -25,18 +26,29 @@ planning-review. Не создавать параллельный workflow и н
 
 Proposal и Specs являются Store-only стадиями. Code Repository, CodeGraph и
 repository evidence scout для них запрещены. На Design, Tasks, impact-review и
-planning-review разрешены только адресные repository evidence requests: сначала через
-scout, а при его недоступности — тем же адресным read/search основного агента. Каждый
-request проверяет один вопрос в одном Repository.
+planning-review разрешены только адресные repository evidence requests по правилам
+раздела «Подтверждения из Repository», включая условия fallback. Каждый request
+проверяет один вопрос в одном Repository.
 
 ## Предварительная проверка
 
+0. Определить точный Change из запроса или Work Context; при неоднозначности
+   запросить выбор. Сначала получить `get_change_context` без `artifact` и проверить
+   `openspec_status.schemaName`. Если это не `spec-driven-extended`, вернуть
+   `BLOCKER: SCHEMA_MISMATCH` и не применять этот checklist. Актуальный ответ
+   с уже проверенной schema переиспользовать.
 1. Переиспользовать актуальный Work Context для того же `change_id` и текущего
-   `artifact`; при его отсутствии или после границы свежести один раз вызвать MCP
-   `get_change_context`. Использовать возвращённые planningHome, changeRoot,
-   artifactPaths, actionContext и rules.
-2. `rules` из этого ответа — единственный содержательный checklist стадии. Не
-   реконструировать его из документации или памяти сессии.
+   `artifact`; при его отсутствии или после границы свежести вызвать MCP
+   `get_change_context`. Для proposal, specs, design и tasks передавать одноимённый
+   `artifact`. `impact-review` и `planning-review` — режимы проверки, а не artifact ID:
+   сначала получить статус без `artifact`, затем запросить инструкции существующих
+   артефактов, относящихся к проверке. Не передавать эти два режима как `artifact`.
+   Пути и schema брать из `openspec_status`: `planningHome`, `changeRoot`,
+   `artifactPaths`, `actionContext`, `schemaName`.
+2. Checklist стадии составлять из `artifact_instructions.instruction` и применимых
+   `artifact_instructions.rules`, учитывая `template` и зависимости из того же ответа.
+   Отсутствие дополнительных `rules` не отменяет требования schema в `instruction`.
+   Не реконструировать checklist из документации или памяти сессии.
 3. Прочитать только существующие outputs, их зависимости и релевантный Store context.
    Отсутствие ещё не разблокированного следующего артефакта не является finding.
 4. Если существует openspec-orch.yaml, использовать code repository records как
@@ -99,26 +111,34 @@ Requirement/Scenario или path:line и отделить факт, вывод, 
 
 ## Подтверждения из Repository
 
-Если на разрешённой стадии нужен current-state факт, вызвать только
-spec-driven-extended-repository-evidence-scout.
+Если на разрешённой стадии нужен current-state факт, использовать
+spec-driven-extended-repository-evidence-scout. Fallback основного агента допустим
+только при недоступности механизма запуска scout и если принятые инструкции не
+требуют независимого subagent. Сохранить тот же входной контракт, scope, revision,
+anchors, ограничения чтения и формат результата; явно обозначить fallback в отчёте.
+Отсутствие обязательного входа или ответ scout `blocked` не разрешает fallback.
+Ограничения CodeGraph действуют и для основного агента; отказ доставки MCP не
+обходится обычным поиском. Если fallback запрещён, вернуть blocker.
 
-- Один вопрос — один новый subagent. После декомпозиции N вопросов означают
+- Один вопрос — один новый subagent при доступном scout. После декомпозиции N вопросов означают
   ровно N независимых вызовов: пять вопросов — пять subagents. Не передавать список
   вопросов и не переиспользовать завершённый или продолжающийся контекст.
 - Общий или межрепозиторный вопрос сначала разложить на независимые
   repository-specific вопросы. Для каждого подготовить собственные question_id,
   полный входной контракт и отдельный результат.
-- Передать question_id, question, один repository-id, checkout, revision и anchors из
-  уже полученного `assignment_scope`. Если его нет, вызвать `get_assignment_scope` один
-  раз для всей декомпозиции и переиспользовать результат. Чистоту worktree проверить до
-  вызова.
+- Взять repository-id, checkout и revision из `assignment_scope.assignments`;
+  `anchors` этот MCP-ответ не содержит. Сформировать непустой список anchors из
+  переданных пользователем точных путей/symbols или уже подтверждённого evidence.
+  Если anchors неизвестны, вернуть unknown и запросить точку входа, не начинать
+  общий обход кода. Добавить собственные question_id и один question.
+  Если scope отсутствует, вызвать `get_assignment_scope` один раз для всей
+  декомпозиции. До вызова проверить connected, полный SHA и чистоту worktree.
 - Для каждого вызова принять только один YAML-объект `repository_evidence` с тем же
   question_id и полями status, answer и evidence. Текст до или после YAML
   считать нарушением контракта и не использовать как evidence.
 
-Не просить scout делать межрепозиторный вывод или собирать общий обзор. Если scout
-недоступен, выполнить такой же адресный read/search самостоятельно с теми же
-ограничениями. Store-level context и Planning review основной агент читает сам.
+Не просить scout делать межрепозиторный вывод или собирать общий обзор.
+Store-level context и Planning review основной агент читает сам.
 
 spec-driven-extended-test-cases применять только по запросу пользователя либо для проверки
 неоднозначного test coverage. Expected result брать из Planning; repository evidence

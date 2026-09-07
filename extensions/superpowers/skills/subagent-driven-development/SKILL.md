@@ -42,6 +42,14 @@ digraph when_to_use {
 - Review after each task (spec compliance + code quality), broad review at the end
 - Faster iteration (no human-in-loop between tasks)
 
+## OpenSpec Apply mode
+
+When called by OpenSpec Apply, execute only the accepted repository scope and
+return verification evidence to the caller. Do not invoke
+finishing-a-development-branch automatically: publication, merge and Store Git
+remain separate authorized actions. Track micro-steps in local scratch; only
+completed coarse Tasks are checked in the Store by the Apply coordinator.
+
 ## The Process
 
 ```dot
@@ -98,36 +106,13 @@ conflicts that only emerge from implementation.
 
 ## Model Selection
 
-Use the least powerful model that can handle each role to conserve cost and increase speed.
-
-**Mechanical implementation tasks** (isolated functions, clear specs, 1-2 files): use a fast, cheap model. Most implementation tasks are mechanical when the plan is well-specified.
-
-**Integration and judgment tasks** (multi-file coordination, pattern matching, debugging): use a standard model.
-
-**Architecture and design tasks**: use the most capable available model.
-The final whole-branch review is one of these — dispatch it on the most
-capable available model, not the session default.
-
-**Review tasks**: choose the model with the same judgment, scaled to the
-diff's size, complexity, and risk. A small mechanical diff does not need the
-most capable model; a subtle concurrency change does.
-
-**Always specify the model explicitly when dispatching a subagent.** An
-omitted model inherits your session's model — often the most capable and
-most expensive — which silently defeats this section.
-
-**Turn count beats token price.** Wall-clock and context cost scale with how
-many turns a subagent takes, and the cheapest models routinely take 2-3× the
-turns on multi-step work — costing more overall. Use a mid-tier model as the
-floor for reviewers and for implementers working from prose descriptions.
-When the task's plan text contains the complete code to write, the
-implementation is transcription plus testing: use the cheapest tier for
-that implementer. Single-file mechanical fixes also take the cheapest tier.
-
-**Task complexity signals (implementation tasks):**
-- Touches 1-2 files with a complete spec → cheap model
-- Touches multiple files with integration concerns → standard model
-- Requires design judgment or broad codebase understanding → most capable model
+Follow the user and project model policy and the actual dispatch tool capabilities.
+Inherit the current model unless an explicit policy or instruction authorizes an
+override. Specify a model only when supported and needed to implement that policy;
+do not assume model names, tiers, prices, availability or inheritance semantics.
+Task complexity and risk inform the required capability, not a fixed file-count
+threshold. If the permitted environment cannot meet a required capability, report
+that limitation without silently choosing another model.
 
 ## Handling Implementer Status
 
@@ -141,7 +126,7 @@ Implementer subagents report one of four statuses. Handle each appropriately:
 
 **BLOCKED:** The implementer cannot complete the task. Assess the blocker:
 1. If it's a context problem, provide more context and re-dispatch with the same model
-2. If the task requires more reasoning, re-dispatch with a more capable model
+2. If the task requires more reasoning, follow Model Selection before re-dispatching with a more capable model; if no permitted model is available, provide additional context, decompose the task or report the limitation
 3. If the task is too large, break it into smaller pieces
 4. If the plan itself is wrong, escalate to the human
 
@@ -218,12 +203,17 @@ final whole-branch review. When you fill a reviewer template:
 
 ## File Handoffs
 
+Invoke helper scripts by their absolute skill path while keeping the working
+directory in the assigned Code Repository. Do not change into the Extension
+installation directory to run Git helpers. Pass the exact accepted plan path.
+
 Everything you paste into a dispatch prompt — and everything a subagent
 prints back — stays resident in your context for the rest of the session
 and is re-read on every later turn. Hand artifacts over as files:
 
 - **Task brief:** before dispatching an implementer, run this skill's
-  `scripts/task-brief PLAN_FILE N` — it extracts the task's full text to a
+  `scripts/task-brief PLAN_FILE N --repo REPOSITORY_ID` for a repository-sectioned
+  plan (omit `--repo` only for a single-repository plan) — it extracts the task's full text to a
   uniquely named file and prints the path. Compose the dispatch so the
   brief stays the single source of requirements. Your dispatch should
   contain: (1) one line on where this task fits in the project; (2) the
@@ -232,7 +222,10 @@ and is re-read on every later turn. Hand artifacts over as files:
   from earlier tasks that the brief cannot know; (4) your resolution of
   any ambiguity you noticed in the brief; (5) the report-file path and
   report contract. Exact values (numbers, magic strings, signatures, test
-  cases) appear only in the brief.
+  cases) appear only in the brief. Include a separate required Global Constraints
+  block copied from the plan/spec, plus the repository ID, checkout, full base SHA,
+  TDD requirement and authorized commit scope. The extractor selects task text only;
+  it does not copy these plan-level constraints.
 - **Report file:** name the implementer's report file after the brief
   (brief `…/task-N-brief.md` → report `…/task-N-report.md`) and put it in
   the dispatch prompt. The implementer writes the full report there and
@@ -250,18 +243,28 @@ controllers that lost their place have re-dispatched entire completed task
 sequences — the single most expensive failure observed. Track progress in
 a ledger file, not only in todos.
 
-- At skill start, check for a ledger:
-  `cat "$(git rev-parse --show-toplevel)/.superpowers/sdd/progress.md"`. Tasks listed there
-  as complete are DONE — do not re-dispatch them; resume at the first task
-  not marked complete.
-- When a task's review comes back clean, append one line to the ledger in
-  the same message as your other bookkeeping:
-  `Task N: complete (commits <base7>..<head7>, review clean)`.
-- The ledger is your recovery map: the commits it names exist in git even
-  when your context no longer remembers creating them. After compaction,
-  trust the ledger and `git log` over your own recollection.
-- `git clean -fdx` will destroy the ledger (it's git-ignored scratch); if
-  that happens, recover from `git log`.
+- At skill start, run `scripts/sdd-workspace PLAN_FILE` from the assigned Code
+  Repository and use only `<returned-directory>/progress.md`. Without Bash, use
+  `node <skill-directory>/scripts/task-context.cjs workspace PLAN_FILE`.
+- The directory identity includes the exact plan path (and therefore Change), plan
+  contents, checkout and branch. Changing any of these selects a new ledger. Never
+  import the old unscoped `.superpowers/sdd/progress.md` automatically. A detached
+  checkout also includes HEAD; revalidate evidence after HEAD changes.
+- Record the exact repository ID, task number, full base and implementation commit
+  SHAs, review result and verification evidence. Before reusing a completed entry,
+  confirm its repository/task identity, that both commits exist and the implementation
+  commit is an ancestor of current HEAD, and that recorded review and checks apply to
+  this plan. Missing or conflicting evidence requires revalidation, not a silent skip.
+- Append completion only after task review and required checks pass. After compaction,
+  resume using this scoped ledger and verified Git evidence; do not trust task numbers
+  alone. Reverted or subsequently changed implementations require fresh verification.
+- Task briefs and reports use the same plan-scoped workspace. The extractor accepts
+  only one matching task, respects Markdown section boundaries and ignores headings
+  inside fenced code. Missing or ambiguous tasks stop dispatch without overwriting
+  an existing brief. For platforms without Bash, use
+  `node <skill-directory>/scripts/task-context.cjs brief PLAN_FILE N --repo REPOSITORY_ID`.
+- The ledger is ignored scratch, not an acceptance artifact. If removed, recover from
+  the accepted plan and current Git/test evidence instead of assuming completion.
 
 ## Prompt Templates
 
@@ -367,7 +370,7 @@ Done!
 ## Red Flags
 
 **Never:**
-- Start implementation on main/master branch without explicit user consent
+- Start implementation on a protected or integration branch identified by repository policy without explicit user authorization
 - Skip task review, or accept a report missing either verdict (spec compliance AND task quality are both required)
 - Proceed with unfixed issues
 - Dispatch multiple implementation subagents in parallel (conflicts)

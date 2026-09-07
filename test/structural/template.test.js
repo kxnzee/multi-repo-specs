@@ -77,7 +77,7 @@ function featureAcceptanceContract(source) {
 
 test("Default Template is copy-only and applies identically for every independent Agent", async (t) => {
   const descriptor = parse(await fs.readFile(path.join(TEMPLATE_ROOT, "template.yaml"), "utf8"));
-  assert.deepEqual(Object.keys(descriptor).sort(), ["copy", "id", "name", "requires"]);
+  assert.deepEqual(Object.keys(descriptor).sort(), ["agentInstructions", "copy", "id", "name", "requires"]);
   assert.equal(descriptor.id, "default");
   assert.deepEqual(descriptor.requires, {
     extensions: ["spec-driven-extended", "superpowers"],
@@ -99,12 +99,23 @@ test("Default Template is copy-only and applies identically for every independen
     const expected = await expectedTargets(descriptor.copy);
     const service = new ProjectTemplateService();
     const agent = provider.resolve(agentId);
+    expected.push(agent.instructionsFile);
+    expected.sort();
     const plan = await service.plan({ templateRoot: TEMPLATE_ROOT, targetRoot, agent });
     const result = await plan.apply(await plan.inspectPreExistingFiles());
 
     assert.deepEqual(result.created, expected, agentId);
     assert.deepEqual(result.updated, [], agentId);
     for (const relative of expected) await fs.access(path.join(targetRoot, relative));
+    assert.equal(
+      await fs.readFile(path.join(targetRoot, agent.instructionsFile), "utf8"),
+      await fs.readFile(path.join(TEMPLATE_ROOT, descriptor.agentInstructions), "utf8"),
+    );
+    for (const other of ["CLAUDE.md", "QWEN.md", "GIGACODE.md"]) {
+      if (other !== agent.instructionsFile) {
+        await assert.rejects(fs.access(path.join(targetRoot, other)), { code: "ENOENT" });
+      }
+    }
 
     const repeated = await service.plan({ templateRoot: TEMPLATE_ROOT, targetRoot, agent });
     assert.deepEqual(
@@ -118,7 +129,7 @@ test("Default Template is copy-only and applies identically for every independen
   const gitignore = await fs.readFile(path.join(TEMPLATE_ROOT, "assets/gitignore.template"), "utf8");
   assert.match(gitignore, /^\.gigacode\/tmp\/$/mu);
   assert.match(gitignore, /^\.qwen\/tmp\/$/mu);
-  const allowed = /^(?:assets\/gitignore\.template|context\/|openspec\/|template\.yaml$)/u;
+  const allowed = /^(?:assets\/(?:gitignore\.template|STORE\.md|agent-instructions\.md)$|context\/|openspec\/|template\.yaml$)/u;
   for (const relative of await listFiles(TEMPLATE_ROOT)) {
     assert.match(relative, allowed, `Template содержит не copy-only asset: ${relative}`);
   }

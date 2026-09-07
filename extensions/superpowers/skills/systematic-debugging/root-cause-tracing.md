@@ -98,13 +98,20 @@ npm test 2>&1 | grep 'DEBUG git init'
 
 If something appears during tests but you don't know which test:
 
-Use the bisection script `find-polluter.sh` in this directory:
+Use the sequential scan script `find-polluter.sh` in this directory:
 
 ```bash
-./find-polluter.sh '.git' 'src/**/*.test.ts'
+./find-polluter.sh 'unexpected-output' '<test-path-pattern>' -- <runner> [runner-args...]
 ```
 
-Runs tests one-by-one, stops at first polluter. See script for usage.
+Run in an isolated checkout with the pollution path initially absent. Verify that
+the supplied runner and arguments execute only the appended test file for this project.
+Arguments are passed literally, without shell evaluation. For example, a project
+using Node's test runner can pass `-- node --test`; use an explicit wrapper if the
+project needs a different filename position or setup. No runner is guessed.
+The script stops at the
+first polluter; no matches, pre-existing pollution or failed test commands are
+inconclusive (exit 2), not a clean result. It does not test order-dependent pairs.
 
 ## Real Example: Empty projectDir
 

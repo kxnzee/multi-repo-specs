@@ -209,7 +209,9 @@ function readSuperpowersVersion() {
   const root = path.join(__dirname, '../../..');
   const manifests = [
     path.join(root, 'package.json'),
-    path.join(root, '.codex-plugin/plugin.json')
+    path.join(root, '.claude-plugin/plugin.json'),
+    path.join(root, 'qwen-extension.json'),
+    path.join(root, 'gigacode-extension.json')
   ];
 
   for (const manifest of manifests) {
@@ -510,7 +512,7 @@ function handleMessage(text) {
   }
   touchActivity();
   console.log(JSON.stringify({ source: 'user-event', ...event }));
-  if (event && event.choice) {
+  if (event && typeof event === 'object' && Object.hasOwn(event, 'choice')) {
     const eventsFile = path.join(STATE_DIR, 'events');
     fs.appendFileSync(eventsFile, JSON.stringify(event) + '\n');
   }

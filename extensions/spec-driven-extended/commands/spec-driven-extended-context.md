@@ -1,5 +1,6 @@
 ---
-description: Инициализировать, проверить или обновить подтверждённый долговечный project context в openspec/context/.
+description: "[spec-driven-extended] Инициализировать, проверить или обновить долговечный контекст Store."
+argument-hint: "[initialize|audit|update] [--change <change-id>] [--spec <capability-path>] [--domain <domain-path>]"
 ---
 
 # /spec-driven-extended-context
@@ -14,6 +15,8 @@ description: Инициализировать, проверить или обн�
 
 Поддерживать только долговечные Store-level знания. Команда не создаёт Requirements,
 Changes, Specs, Tasks и repository-specific техническую документацию.
+Команда не зависит от schema: `--change` ограничивает источники проверки, но не
+включает workflow этого Extension и не требует смены схемы выбранного Change.
 
 ## Режим
 

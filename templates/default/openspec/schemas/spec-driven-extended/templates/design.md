@@ -14,6 +14,12 @@
 
 <!-- Key design decisions with rationale and alternatives considered -->
 
+## Repository Implementation Map
+
+| Repository | Responsibility | Contracts and dependencies |
+| --- | --- | --- |
+| `<repository-id>` | <!-- accepted result --> | <!-- public boundaries --> |
+
 ## Risks / Trade-offs
 
 <!-- Known risks and trade-offs -->

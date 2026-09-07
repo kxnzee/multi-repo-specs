@@ -110,7 +110,7 @@ if [[ -f "$PID_FILE" ]]; then
   mark_stopped "stop-server.sh"
 
   # Only delete ephemeral /tmp directories
-  if [[ "$SESSION_DIR" == /tmp/* ]]; then
+  if [[ "$SESSION_DIR" =~ ^/tmp/brainstorm-[0-9]+-[0-9]+$ && ! -L "$SESSION_DIR" ]]; then
     rm -rf "$SESSION_DIR"
   fi
 

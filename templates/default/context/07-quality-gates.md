@@ -23,7 +23,7 @@ approvals; базовая роль не означает фиксированн�
 | Evidence | Минимальное условие |
 |---|---|
 | Jira и Change | Jira Story связана с `change-id` |
-| OpenSpec | Intake завершён; его маршрут разрешён; Proposal, Delta Specs, Design и Tasks согласованы и валидны |
+| OpenSpec | Все обязательные Planning-артефакты выбранной schema согласованы и валидны; состав и зависимости определяются её актуальными instructions |
 | Scope | Capability, системы и Code Repositories определены |
 | Repository impact | Указаны только `repository-id` с планируемым изменением; для каждого согласованы impact, Design scope, Tasks и evidence |
 | Verification | Каждый новый или изменённый Scenario имеет план проверки |
@@ -77,7 +77,9 @@ expected_source: Test strategy, maintained requirements, incidents, or CI
 -->
 
 Локальные команды build/test/lint, CI-конфигурация и технические критерии хранятся в
-соответствующих Code Repositories и не дублируются в Store.
+соответствующих Code Repositories. Исполнительные артефакты выбранной schema
+содержат команды и evidence в предусмотренном ею формате. В долговечный context
+они не копируются.
 
 ## Исключения
 

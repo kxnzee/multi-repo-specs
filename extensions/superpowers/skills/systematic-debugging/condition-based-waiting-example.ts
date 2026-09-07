@@ -1,4 +1,5 @@
-// Complete implementation of condition-based waiting utilities
+// Domain-specific reference: adapt the Lace types/imports to your project.
+// Condition callbacks may throw; propagate errors as promise rejections.
 // From: Lace test infrastructure improvements (2025-10-03)
 // Context: Fixed 15 flaky tests by replacing arbitrary timeouts
 
@@ -27,6 +28,7 @@ export function waitForEvent(
     const startTime = Date.now();
 
     const check = () => {
+      try {
       const events = threadManager.getEvents(threadId);
       const event = events.find((e) => e.type === eventType);
 
@@ -36,6 +38,9 @@ export function waitForEvent(
         reject(new Error(`Timeout waiting for ${eventType} event after ${timeoutMs}ms`));
       } else {
         setTimeout(check, 10); // Poll every 10ms for efficiency
+      }
+      } catch (error) {
+        reject(error);
       }
     };
 
@@ -68,6 +73,7 @@ export function waitForEventCount(
     const startTime = Date.now();
 
     const check = () => {
+      try {
       const events = threadManager.getEvents(threadId);
       const matchingEvents = events.filter((e) => e.type === eventType);
 
@@ -81,6 +87,9 @@ export function waitForEventCount(
         );
       } else {
         setTimeout(check, 10);
+      }
+      } catch (error) {
+        reject(error);
       }
     };
 
@@ -119,6 +128,7 @@ export function waitForEventMatch(
     const startTime = Date.now();
 
     const check = () => {
+      try {
       const events = threadManager.getEvents(threadId);
       const event = events.find(predicate);
 
@@ -128,6 +138,9 @@ export function waitForEventMatch(
         reject(new Error(`Timeout waiting for ${description} after ${timeoutMs}ms`));
       } else {
         setTimeout(check, 10);
+      }
+      } catch (error) {
+        reject(error);
       }
     };
 

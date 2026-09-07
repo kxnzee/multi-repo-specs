@@ -64,6 +64,8 @@ artifacts:
     description: Initial proposal document outlining the change
     template: proposal.md
     instruction: |
+      Use accepted planning sources and normative Store artifacts for this stage.
+      Do not inspect Code Repositories to formulate Proposal, Requirements or Scenarios.
       Create the proposal document that establishes WHY this change is needed.
       Read intake.md first, resolve or preserve its relevant open questions, and
       promote only confirmed conclusions without copying the questionnaire verbatim.
@@ -103,6 +105,8 @@ artifacts:
     description: Detailed specifications for the change
     template: spec.md
     instruction: |
+      Use accepted planning sources and normative Store artifacts for this stage.
+      Do not inspect Code Repositories to formulate Proposal, Requirements or Scenarios.
       Create specification files that define WHAT the system should do.
       Before completion invoke spec-driven-extended-meta-planning for the specs stage.
 
@@ -188,7 +192,7 @@ artifacts:
       ### Requirement: User can export data
       The system SHALL allow users to export their data in CSV format.
 
-      #### Scenario: Successful export
+      #### Scenario: Successful export — <change-id>-001
       - **WHEN** user clicks "Export" button
       - **THEN** system downloads a CSV file with all user data
 
@@ -212,7 +216,9 @@ artifacts:
       Before completion invoke spec-driven-extended-meta-planning for the design stage.
       Include a Repository Implementation Map for Repository IDs accepted in Proposal.
 
-      When to include design.md (create only if any apply):
+      Design is required before Tasks in this schema. For a simple Change, record
+      that no new architectural decision is needed and include its Repository
+      Implementation Map. Use a detailed design when any of these apply:
       - Cross-cutting change (multiple services/modules) or new architectural pattern
       - New external dependency or significant data model changes
       - Security, performance, or migration complexity
@@ -245,13 +251,13 @@ artifacts:
     description: Implementation checklist with a final verification checkpoint
     template: tasks.md
     instruction: |
-      The Analyst creates the task list that breaks down the implementation work.
+      The project-designated Planning owner creates the task list that breaks down the implementation work.
       Before completion invoke spec-driven-extended-meta-planning for the tasks stage and
       verify Scenario → Design decision → Task traceability.
 
-      The Developer, Tester and Development Lead review the complete Planning change
-      through the project PR process before Gate 1. Their review does not transfer
-      ownership of Planning artifacts away from the Analyst.
+      Use the Planning owner, required reviewers and acceptance gates declared in
+      openspec/context/07-quality-gates.md. Follow the project PR process in
+      openspec/context/08-release-process.md; do not infer roles from job titles.
 
       Before writing tasks, check design.md for Open Questions. If any of them
       would change what gets built, resolve them with the user first - do not
@@ -275,15 +281,15 @@ artifacts:
 
       Example:
       ```
-      ## 1. Setup
+      ## 1. `<repository-id>`
 
-      - [ ] 1.1 Create new module structure and verify expected files are present
-      - [ ] 1.2 Add dependencies to package.json and verify package installation succeeds
+      - [ ] 1.1 Prepare the repository for the accepted change and verify its setup
+      - [ ] 1.2 Configure required dependencies and verify reproducible setup succeeds
 
-      ## 2. Core Implementation
+      ## 2. `<other-repository-id>`
 
       - [ ] 2.1 Implement data export function and verify the export test passes
-      - [ ] 2.2 Add CSV formatting utilities and verify unit tests cover quoting and delimiters
+      - [ ] 2.2 Support required CSV formatting and verify quoting and delimiters
       ```
 
       Reference specs for what needs to be built, design for how to build it.

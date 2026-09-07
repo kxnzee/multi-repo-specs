@@ -14,11 +14,8 @@ if [ $# -lt 2 ] || [ $# -gt 3 ]; then
   exit 2
 fi
 
-base=$1
-head=$2
-
-git rev-parse --verify --quiet "$base" >/dev/null || { echo "bad BASE: $base" >&2; exit 2; }
-git rev-parse --verify --quiet "$head" >/dev/null || { echo "bad HEAD: $head" >&2; exit 2; }
+base=$(git rev-parse --verify --end-of-options "${1}^{commit}") || exit 2
+head=$(git rev-parse --verify --end-of-options "${2}^{commit}") || exit 2
 
 if [ $# -eq 3 ]; then
   out=$3
@@ -27,6 +24,9 @@ else
   out="$dir/review-$(git rev-parse --short "$base")..$(git rev-parse --short "$head").diff"
 fi
 
+temporary=$(mktemp "${out}.tmp.XXXXXX")
+trap 'rm -f "$temporary"' EXIT
+
 {
   echo "# Review package: ${base}..${head}"
   echo
@@ -34,11 +34,13 @@ fi
   git log --oneline "${base}..${head}"
   echo
   echo "## Files changed"
-  git diff --stat "${base}..${head}"
+  git diff --no-ext-diff --no-textconv --stat "${base}..${head}"
   echo
   echo "## Diff"
-  git diff -U10 "${base}..${head}"
-} > "$out"
+  git diff --no-ext-diff --no-textconv -U10 "${base}..${head}"
+} > "$temporary"
+mv -- "$temporary" "$out"
 
 commits=$(git rev-list --count "${base}..${head}")
-echo "wrote ${out}: ${commits} commit(s), $(wc -c < "$out" | tr -d ' ') bytes"
+echo "${commits} commit(s), $(wc -c < "$out" | tr -d ' ') bytes" >&2
+printf '%s\n' "$out"

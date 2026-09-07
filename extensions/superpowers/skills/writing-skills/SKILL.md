@@ -94,8 +94,8 @@ skills/
 
 **Frontmatter (YAML):**
 - Two required fields: `name` and `description` (see [agentskills.io/specification](https://agentskills.io/specification) for all supported fields)
-- Max 1024 characters total
-- `name`: Use letters, numbers, and hyphens only (no parentheses, special chars)
+- `name`: 1-64 characters; `description`: 1-1024 characters (not a total frontmatter limit)
+- `name`: Lowercase letters, numbers and single hyphens; no leading/trailing hyphen; match the parent directory
 - `description`: Third-person, describes ONLY when to use (NOT what it does)
   - Start with "Use when..." to focus on triggering conditions
   - Include specific symptoms, situations, and contexts
@@ -104,7 +104,7 @@ skills/
 
 ```markdown
 ---
-name: Skill-Name-With-Hyphens
+name: skill-name-with-hyphens
 description: Use when [specific triggering conditions and symptoms]
 ---
 
@@ -634,8 +634,8 @@ Deploying untested skills = deploying untested code. It's a violation of quality
 - [ ] Identify patterns in rationalizations/failures
 
 **GREEN Phase - Write Minimal Skill:**
-- [ ] Name uses only letters, numbers, hyphens (no parentheses/special chars)
-- [ ] YAML frontmatter with required `name` and `description` fields (max 1024 chars; see [spec](https://agentskills.io/specification))
+- [ ] Name is a lowercase slug matching the parent directory (1-64 characters, no consecutive/edge hyphens)
+- [ ] YAML frontmatter with required `name` and `description` fields (name: 1-64 chars; description: 1-1024 chars; see [spec](https://agentskills.io/specification))
 - [ ] Description starts with "Use when..." and includes specific triggers/symptoms
 - [ ] Description written in third person
 - [ ] Keywords throughout for search (errors, symptoms, tools)
@@ -662,7 +662,7 @@ Deploying untested skills = deploying untested code. It's a violation of quality
 - [ ] Supporting files only for tools or heavy reference
 
 **Deployment:**
-- [ ] Commit skill to git and push to your fork (if configured)
+- [ ] Commit or publish only within the user-authorized scope; a configured fork is not push authorization
 - [ ] Consider contributing back via PR (if broadly useful)
 
 ## Discovery Workflow

@@ -17,9 +17,22 @@ Do NOT invoke any implementation skill, write any code, scaffold any project, or
 
 Every project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it and get approval.
 
+## OpenSpec handoff
+
+When invoked for an OpenSpec artifact, its returned instructions govern output
+location and lifecycle. Finish only the requested artifact and return to the
+OpenSpec caller after approval. Do not invoke writing-plans automatically, create
+later artifacts or commit Store files. The active schema determines the next
+artifact and its prerequisites. The standalone transition
+to writing-plans below applies only outside a governed OpenSpec artifact.
+
 ## Checklist
 
-You MUST create a task for each of these items and complete them in order:
+You MUST create a task for each of these items and complete them in order.
+For an OpenSpec artifact, step 6 uses the caller's resolved output path without a
+Store commit, and step 9 returns to OpenSpec after approval. These substitutions
+also govern the Process Flow and After the Design sections below. Outside OpenSpec,
+use the standalone checklist unchanged:
 
 1. **Explore project context** — check files, docs, recent commits
 2. **Offer the visual companion just-in-time** — NOT upfront. The first time a question would genuinely be clearer shown than described, offer it then (its own message); on approval its browser tab opens for you. If no visual question ever arises, never offer it. See the Visual Companion section below.

@@ -46,6 +46,14 @@ async function files(directory) {
   return result;
 }
 
+/** Checks that menu metadata remains scalar YAML with optional argument hints. */
+function assertMenuMetadata(metadata, artifact) {
+  assert.equal(typeof metadata.description, "string", artifact);
+  assert.match(metadata.description, /^\[spec-driven-extended\] \S/u, artifact);
+  assert.equal(typeof metadata["argument-hint"], "string", artifact);
+  assert.match(metadata["argument-hint"], /^\[[^[\]\n]+\](?: \[[^[\]\n]+\])*$/u, artifact);
+}
+
 test("every skill and command is a self-describing standalone artifact", async () => {
   const skillRoot = path.join(EXTENSION_ROOT, "skills");
   for (const entry of await entries(skillRoot)) {
@@ -54,8 +62,7 @@ test("every skill and command is a self-describing standalone artifact", async (
     const source = await fs.readFile(path.join(EXTENSION_ROOT, relative), "utf8");
     const { metadata } = parseFrontmatter(source, relative);
     assert.equal(metadata.name, entry.name, relative);
-    assert.equal(typeof metadata.description, "string", relative);
-    assert.equal(metadata.description.trim().length > 0, true, relative);
+    assertMenuMetadata(metadata, relative);
   }
 
   const commandRoot = path.join(EXTENSION_ROOT, "commands");
@@ -64,8 +71,7 @@ test("every skill and command is a self-describing standalone artifact", async (
     const relative = `commands/${entry.name}`;
     const source = await fs.readFile(path.join(EXTENSION_ROOT, relative), "utf8");
     const { metadata } = parseFrontmatter(source, relative);
-    assert.equal(typeof metadata.description, "string", relative);
-    assert.equal(metadata.description.trim().length > 0, true, relative);
+    assertMenuMetadata(metadata, relative);
   }
 });
 
@@ -136,6 +142,7 @@ test("repository evidence delegation keeps one question per subagent invocation"
   const contracts = [...scout.matchAll(/~~~yaml\n([\s\S]*?)\n~~~/gu)]
     .map(([, contract]) => parse(contract));
   assert.equal(contracts.length, 2);
+  assert.ok(contracts[0].repository_evidence_request.anchors.length > 0);
   assert.deepEqual(
     Object.keys(contracts[0].repository_evidence_request),
     ["question_id", "question", "repository_id", "checkout_path", "revision", "anchors"],
@@ -195,12 +202,13 @@ test("Change Tracking reuses the Apply Work Context instead of duplicating MCP r
   assert.doesNotMatch(source, /then resolve the current\s+Repository through `get_assignment_scope`/iu);
 });
 
-test("spec-driven-extended Extension does not route Superspec Changes through another workflow", async () => {
+test("spec-driven-extended Extension isolates its workflow without naming other schemas", async () => {
   const source = await fs.readFile(path.join(EXTENSION_ROOT, "agent-instructions.md"), "utf8");
   assert.match(source, /schemaName/u);
   assert.match(source, /только\s+к `spec-driven-extended`/u);
-  assert.match(source, /Для `superspec-multirepo`[\s\S]*не добавляй[\s\S]*spec-driven-extended Intake/u);
-  assert.match(source, /Это правило не изменяет Superspec Brainstorm/u);
+  assert.match(source, /Для другой schema следуй её artifact DAG и instructions/u);
+  assert.match(source, /не добавляй стадии или preflight этого Extension/u);
+  assert.doesNotMatch(source, /superspec-multirepo|Superspec/u);
 });
 
 test("Default Template artifacts do not depend on concrete Plugins", async () => {

@@ -63,6 +63,12 @@ Each agent gets:
 - **Constraints:** Don't change other code
 - **Expected output:** Summary of what you found and fixed
 
+Before dispatch, allocate exact file ownership and identify shared mutable state.
+Agents in one checkout share the Git index and HEAD even when files differ. Only
+the controller stages/commits there; parallel workers must not switch branches,
+reset, clean, stash or commit. Use separate authorized worktrees for independent
+Git writes. Wait for all writers before combined verification.
+
 ### 3. Dispatch in Parallel
 
 Issue all three subagent dispatches in the same response — they run in parallel:

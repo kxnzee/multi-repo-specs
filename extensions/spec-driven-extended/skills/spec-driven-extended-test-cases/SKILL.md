@@ -1,6 +1,7 @@
 ---
 name: spec-driven-extended-test-cases
-description: Сформировать проверяемый список тест-кейсов для конкретного OpenSpec Change. Использовать, когда пользователь просит подготовить тест-кейсы, тестовые сценарии, план тестирования или матрицу проверок по Change либо проверить покрытие его требований. Expected result выводить только из принятых Planning-артефактов; repository evidence использовать опционально для automation placement и существующего покрытия.
+description: "[spec-driven-extended] Составить тест-кейсы и проверить покрытие требований выбранного Change."
+argument-hint: "[change-id]"
 ---
 
 # Тест-кейсы для OpenSpec Change
@@ -37,9 +38,12 @@ description: Сформировать проверяемый список тес
    выбрать, не угадывая Change.
 2. Переиспользовать актуальный `get_change_context` для выбранного Change либо вызвать
    его один раз при отсутствии контекста или после границы свежести. Использовать
-   возвращённые `planningHome`, `changeRoot`, `artifactPaths` и `actionContext`, не
+   поля `openspec_status.planningHome`, `openspec_status.changeRoot`,
+   `openspec_status.artifactPaths` и `openspec_status.actionContext`, не
    собирать пути вручную.
-3. Прочитать все существующие файлы из `artifactPaths.<id>.existingOutputPaths`.
+   Если `openspec_status.schemaName` не `spec-driven-extended`, вернуть
+   `BLOCKER: SCHEMA_MISMATCH`; использовать маршрут выбранной schema.
+3. Прочитать все существующие файлы из `openspec_status.artifactPaths.<id>.existingOutputPaths`.
    Обычно это proposal, delta specs, design и tasks, но набор определяет активная
    schema. Отметить отсутствующие или пропущенные источники. Если существует
    `openspec-orch.yaml`, прочитать допустимые Code Repository ids и Repository impact

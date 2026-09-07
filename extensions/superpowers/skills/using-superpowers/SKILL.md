@@ -15,11 +15,19 @@ IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
 This is not negotiable. You cannot rationalize your way out of this.
 </EXTREMELY-IMPORTANT>
 
+## OpenSpec routing
+
+For an OpenSpec Change, resolve the current schema and artifact instructions first.
+They govern skill selection, output paths, allowed code access and lifecycle.
+An accepted Intent, Requirements or Plan does not trigger brainstorming again.
+A nested skill returns to OpenSpec after its assigned artifact or repository result;
+it does not automatically start another artifact, branch closeout or Store Git action.
+
 ## The Rule
 
 **Invoke relevant or requested skills BEFORE any response or action** — including clarifying questions, exploring the codebase, or checking files. If it turns out wrong for the situation, you don't have to use it.
 
-**Before entering plan mode:** if you haven't already brainstormed, invoke the brainstorming skill first.
+**Before entering plan mode outside OpenSpec:** if the task needs design and no accepted design exists, invoke brainstorming first.
 
 Then announce "Using [skill] to [purpose]" and follow the skill exactly. If it has a checklist, create a todo per item.
 

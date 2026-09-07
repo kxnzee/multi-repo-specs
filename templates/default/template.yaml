@@ -1,10 +1,13 @@
 id: default
 name: Default Project Template
+agentInstructions: assets/agent-instructions.md
 requires:
   extensions:
     - spec-driven-extended
     - superpowers
 copy:
+  - from: assets/STORE.md
+    to: STORE.md
   - from: context
     to: openspec/context
   - from: openspec/config.yaml
