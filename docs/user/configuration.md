@@ -100,7 +100,7 @@ bindings и ссылка на необъявленный Plugin также за�
 
 Git Flow контракт не является частью `openspec-orch.yaml`. Команда заполняет роли
 веток, их имена и patterns, направления PR и protection rules в
-`openspec/context/08-release-process.md`. Соблюдение обеспечивают Git-хостинг, CI
+`openspec/process/release-process.md`. Соблюдение обеспечивают Git-хостинг, CI
 и review,
 а не Core и не MCP.
 

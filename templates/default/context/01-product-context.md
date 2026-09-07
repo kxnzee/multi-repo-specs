@@ -1,33 +1,24 @@
-# Product context
+# Назначение и участники
 
-## Назначение и ценность
+Этот раздел отвечает на вопрос «зачем и для кого». Границы ответственности относительно
+внешних систем — в [бизнес-архитектуре](03-architecture.md); последовательность работы —
+в [бизнес-процессах](04-business-processes.md).
 
-<!-- TODO
-question: Какую проблему решает проект и какую проверяемую ценность даёт?
-owner: unassigned
-expected_source: Product documentation or maintainer confirmation
--->
-
-## Пользователи и участники
+## Проблема и ценность
 
 <!-- TODO
-question: Кто использует проект и какие внешние участники с ним взаимодействуют?
+question: Какую бизнес-проблему решает приложение и какой результат даёт?
 owner: unassigned
-expected_source: User research, product documentation, or maintained requirements
+expected_source: Подтверждённое назначение приложения
 -->
 
-## Основные сценарии
+## Участники и их цели
 
 <!-- TODO
-question: Какие устойчивые пользовательские или операционные сценарии определяют проект?
+question: Кто пользуется приложением или получает его результат и чего хочет достичь каждый участник?
 owner: unassigned
-expected_source: Maintained requirements or project documentation
+expected_source: Подтверждённые роли и цели участников
 -->
 
-## Границы и ограничения
-
-<!-- TODO
-question: Что входит и не входит в ответственность проекта?
-owner: unassigned
-expected_source: Scope documentation or maintainer confirmation
--->
+Участником может быть человек, организация или другая система. Не добавляйте
+обязательные должности и не копируйте сюда шаги процессов, словарь или ограничения.

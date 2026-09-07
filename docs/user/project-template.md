@@ -17,8 +17,14 @@ Bundled Template `default` копирует в Store:
 - файл выбранного агента (`CLAUDE.md`, `QWEN.md` или `GIGACODE.md`), направляющий к `STORE.md`;
 - `openspec/config.yaml`;
 - долговечный project context в `openspec/context/`;
+- правила согласований и поставки в `openspec/process/`;
 - schemas `spec-driven-extended` и `superspec-multirepo` со всеми templates;
 - `.gitignore` для локального состояния Orchestrator и Agent.
+
+`openspec/context/` хранит бизнес-знания. Поле `context` в `openspec/config.yaml`
+имеет другое назначение: это общие инструкции OpenSpec для создания артефактов.
+Schemas задают состав, зависимости и требования артефактов, Extensions — процедуры
+работы агента. Поэтому вызов skill в schema может быть нужен, а в бизнес-описании — нет.
 
 Descriptor `default` требует standalone Extensions `spec-driven-extended` и
 `superpowers`. `init` добавляет их в project composition независимо от выбранного
@@ -36,6 +42,11 @@ Orchestrator и не заменяет schemas или Extensions. Исходни�
 проверяемый Store PR: повторный init не обновляет Template.
 
 ## Выбор Template и Extensions
+
+Структура и порядок наполнения контекста описаны в
+[руководстве по бизнес-контексту](project-context.md): бизнес-архитектура — в
+`03-architecture.md`, применимые ограничения кибербезопасности — в
+`05-constraints.md`, проверяемые обязательства продукта — в Specs.
 
 Без `--template` используется bundled Template `default`. В TTY `init` показывает
 каталог, а в non-TTY требует как минимум `--store` и `--agent`:
@@ -57,11 +68,17 @@ openspec-orch init /absolute/path/to/store \
 `openspec/config.yaml.schema` задаёт только схему по умолчанию. Граф, пути артефактов,
 допустимое исследование кода и проверки стадий задаёт выбранная schema; общие
 инструкции не должны повторять список установленных схем и их этапы.
-Роли и согласования хранятся в `openspec/context/07-quality-gates.md`, порядок
-поставки и направления PR — в `openspec/context/08-release-process.md`. При адаптации
+Роли и согласования хранятся в `openspec/process/quality-gates.md`, порядок
+поставки и направления PR — в `openspec/process/release-process.md`. При адаптации
 проекта меняйте эти источники; имена внешних статусов и должностей не задаются skills.
 
 ## Выбор schema
+
+`skip_specs: true` разрешает отсутствие Delta Specs в OpenSpec, но не отменяет
+требования других инструментов. При изменении Code Repositories без capabilities
+таблица Repository Impact несовместима с текущим контрактом Graph: пустая ячейка
+не принимается, `N/A` считается именем capability. Такой случай требует разрешения
+несовместимости до Apply; фиктивные capabilities и Requirements создавать нельзя.
 
 Один Store может содержать Changes с разными schemas. OpenSpec сохраняет выбор в
 `.openspec.yaml` конкретного Change:

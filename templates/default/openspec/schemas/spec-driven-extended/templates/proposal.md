@@ -27,7 +27,10 @@
 ## Repository Impact
 
 <!-- List only registered Code Repositories that this Change modifies. Every capability
-     must be an exact path from New Capabilities or Modified Capabilities above. -->
+     must be an exact path from New Capabilities or Modified Capabilities above.
+     With skip_specs and no capabilities, this mapping cannot be populated under
+     the current Graph contract. Report that incompatibility before Apply; do not
+     invent a capability or use an empty cell / N/A as a substitute. -->
 | Repository | Capabilities |
 | --- | --- |
 | `<repository-id>` | `<capability-path>` |

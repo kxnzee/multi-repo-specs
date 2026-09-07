@@ -18,6 +18,9 @@
 
 ## Repository Impact
 
+<!-- With skip_specs and no capabilities, this mapping cannot be populated under
+     the current Graph contract. Report that incompatibility before Apply; do not
+     invent a capability or use an empty cell / N/A as a substitute. -->
 | Repository | Capabilities |
 | --- | --- |
 | `<repository-id>` | `<capability-path>` |

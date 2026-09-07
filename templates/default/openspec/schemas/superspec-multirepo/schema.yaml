@@ -101,8 +101,8 @@ artifacts:
       it will be checked. Do not introduce behavior outside the accepted Specs.
 
       Use the Planning owner, required reviewers and acceptance gates declared in
-      openspec/context/07-quality-gates.md. Follow the project PR process in
-      openspec/context/08-release-process.md; do not infer roles from job titles.
+      openspec/process/quality-gates.md. Follow the project PR process in
+      openspec/process/release-process.md; do not infer roles from job titles.
 
       Human Feature Acceptance belongs to the following Verify artifact, not to
       implementation Tasks.

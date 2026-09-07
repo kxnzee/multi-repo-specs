@@ -13,8 +13,8 @@ context: |
   Определи schema текущего Change по его .openspec.yaml. Актуальные artifact
   instructions определяют зависимости, допустимое исследование кода, содержимое
   и пути результатов. Не смешивай workflows подключённых Extensions.
-  Роли и согласования проекта определены в openspec/context/07-quality-gates.md,
-  порядок поставки — в openspec/context/08-release-process.md.
+  Роли и согласования проекта определены в openspec/process/quality-gates.md,
+  порядок поставки — в openspec/process/release-process.md.
   Долговечный context не хранит локальные implementation details.
 
   Для spec-driven-extended и superspec-multirepo порядок: Planning → Apply → Verify.
@@ -61,7 +61,7 @@ context: |
 
 rules:
   proposal:
-    - "Владельца Planning и обязательных reviewers определяй по актуальной политике проекта в openspec/context/07-quality-gates.md."
+    - "Владельца Planning и обязательных reviewers определяй по актуальной политике проекта в openspec/process/quality-gates.md."
     - "Сначала зафиксировать WHY и наблюдаемое WHAT, scope, Non-Goals и критерии успеха; implementation details относятся к Design или execution artifacts выбранной schema."
     - "Repository Impact содержит только зарегистрированные Code Repository IDs, где ожидаются изменения, и связывает каждый Repository с точными capability paths."
   specs:
@@ -79,4 +79,4 @@ operations:
     guidance:
       - "Определи schema Change по .openspec.yaml и не смешивай process-specific gates разных schemas."
       - "Проверь условия Archive по актуальным инструкциям выбранной schema; используй указанные ими артефакты и требуемые решения людей."
-      - "Следуй принятому порядку поставки, полномочиям и направлениям PR из openspec/context/08-release-process.md; не угадывай ветки или статусы внешних систем."
+      - "Следуй принятому порядку поставки, полномочиям и направлениям PR из openspec/process/release-process.md; не угадывай ветки или статусы внешних систем."

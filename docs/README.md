@@ -23,6 +23,7 @@ Repository через OpenSpec pointer. Соблюдайте scope конкре�
 | Создать новый Store или подключить существующий | [Начало работы](user/getting-started.md) |
 | Настроить Project v1, repositories, Extensions, Plugins и local state | [Конфигурация](user/configuration.md) |
 | Выбрать schema, понять artifacts или подготовить Custom Template | [Project Template](user/project-template.md) |
+| Описать бизнес приложения, его окружение и ограничения без привязки к репозиториям | [Бизнес-контекст](user/project-context.md) |
 | Подключить Agent gateway, OpenSpec Graph, Change Tracking, CodeGraph или внешний Plugin | [Plugins](user/plugins.md) |
 | Провести Jira Story от требования до UAT и Release | [Единый процесс поставки](user/story-delivery-process.md) |
 | Выбрать действие в пограничной ситуации | [Сценарии работы с Change](user/change-scenarios.md) |
