@@ -558,6 +558,35 @@ test("candidate distribution completes Change Tracking through public MCP", asyn
 });
 
 
+test("candidate distribution installs optional spec-reader with its skill payload", async (t) => {
+  const { storeRoot } = await distributionFixture(t, "openspec-orch-spec-reader-");
+  const configPath = path.join(storeRoot, "openspec-orch.yaml");
+  const before = configuration.parseProject(await fs.readFile(configPath, "utf8"));
+  assert.equal(before.extensions.includes("spec-reader"), false);
+
+  await runCli(storeRoot, "extension", "init", "spec-reader");
+  const initialized = await fs.readFile(configPath, "utf8");
+  assert.deepEqual(configuration.parseProject(initialized).extensions,
+    [...before.extensions, "spec-reader"]);
+  await runCli(storeRoot, "extension", "init", "spec-reader");
+  assert.equal(await fs.readFile(configPath, "utf8"), initialized);
+  await runCli(storeRoot, "extension", "connect", "spec-reader");
+
+  const extensionRoot = path.resolve(path.dirname(CLI_PATH), "../extensions/spec-reader");
+  const skillPath = path.join(extensionRoot, "skills/specs-to-business/SKILL.md");
+  const skill = await fs.readFile(skillPath, "utf8");
+  const metadata = parse(skill.split("---\n")[1]);
+  assert.equal(metadata.name, "specs-to-business");
+  for (const manifest of ["qwen-extension.json", "gigacode-extension.json", ".claude-plugin/plugin.json"]) {
+    const value = JSON.parse(await fs.readFile(path.join(extensionRoot, manifest), "utf8"));
+    assert.equal(value.name, "spec-reader");
+    if (value.contextFileName) {
+      await fs.access(path.join(extensionRoot, value.contextFileName));
+    }
+  }
+  await assert.rejects(fs.access(path.join(storeRoot, "docs/business")), { code: "ENOENT" });
+});
+
 test("public CLI initializes a fresh Store and repeats connect from the Code Repository", async (t) => {
   const { storeRoot, codeRoot } = await distributionFixture(t, "openspec-orch-first-run-");
   for (const entry of await fs.readdir(storeRoot)) {
