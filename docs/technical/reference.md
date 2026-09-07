@@ -38,6 +38,10 @@ Diagnostic Report в JSON. Без `--repo` он проверяет все Store 
 detached HEAD остаётся read-only состоянием `connected`. Другой `origin` даёт
 `identity_mismatch` и блокирует Doctor.
 
+Во время обычного вызова Doctor показывает текущую группу проверок в stderr:
+в TTY — анимированный индикатор ожидания, при перенаправлении — отдельные строки
+без управляющих последовательностей. `--json` отключает эту индикацию.
+
 Root `disconnect` отключает локальные Agent Extensions и не меняет portable config.
 
 ## Plugin lifecycle
@@ -134,7 +138,11 @@ Read tools:
 - `get_change_context` — принимает опциональный `include_assignment: true`, чтобы
   вернуть `assignment_scope` в том же ответе без повторного Project envelope и второй
   компиляции Graph impact;
-- `get_next_action`;
+- `get_next_action` — учитывает прогресс Apply перед предложением следующего
+  артефакта: незавершённые задачи дают `apply_change`, неизвестный или противоречивый
+  прогресс — `consult_change_context`. Доступный Verify предлагается после
+  подтверждённого OpenSpec завершения отслеживаемых задач; фактический результат
+  реализации и проверки агент дополнительно проверяет по инструкциям Verify;
 - `get_assignment_scope`;
 - `get_doctor_report`;
 - `query_graph` — Plugin-owned tool, доступный в дистрибутиве и исполняемый только

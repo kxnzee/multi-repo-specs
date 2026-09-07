@@ -296,9 +296,10 @@ export class DoctorService {
     Object.freeze(this);
   }
 
-  async inspect({ start = this.#start, repositoryIds = [] } = {}) {
+  async inspect({ start = this.#start, repositoryIds = [], onProgress = () => {} } = {}) {
     const checks = [];
     let storeProject;
+    onProgress("Проверка Store...");
     try {
       storeProject = await this.#storeProjects.resolve(start);
       checks.push(new DiagnosticResult({ id: "store", subject: "Store", outcome: "pass" }));
@@ -329,6 +330,7 @@ export class DoctorService {
       ["plugins", "Plugins", "PLUGIN_STATUS_UNAVAILABLE", () => this.#inspectPlugins(storeProject)],
     ];
     for (const [id, subject, fallback, inspect] of groups) {
+      onProgress(`Проверка ${subject}...`);
       await appendDiagnostics(checks, { id, subject, fallback }, inspect);
     }
     return new DiagnosticReport(checks);

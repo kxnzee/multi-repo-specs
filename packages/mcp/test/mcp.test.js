@@ -167,10 +167,15 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     assert.deepEqual(schemas[name].properties.if_context_revision, nonEmptyStringSchema, name);
   }
   assert.equal(schemas.initialize_project.properties.if_context_revision, undefined);
-  assert.deepEqual(schemas.start_attempt.properties, {
-    change_id: identifierSchema,
-    task_id: nonEmptyStringSchema,
-  });
+  for (const name of ["start_attempt", "complete_attempt"]) {
+    const { description, ...taskSchema } = schemas[name].properties.task_id;
+    assert.match(description, /artifact_instructions.tasks/u);
+    assert.match(description, /do not use a Markdown/u);
+    assert.deepEqual({ ...schemas[name].properties, task_id: taskSchema }, {
+      change_id: identifierSchema,
+      task_id: nonEmptyStringSchema,
+    });
+  }
   assert.deepEqual(schemas.initialize_project.properties.store_id, identifierSchema);
   assert.deepEqual(
     schemas.initialize_project.properties.repositories.items.properties,

@@ -284,7 +284,24 @@ export class CandidateCli {
   }
 
   async #diagnose({ json, repositoryIds }) {
-    const report = await this.#doctor.inspect({ repositoryIds });
+    let report;
+    if (json) {
+      report = await this.#doctor.inspect({ repositoryIds });
+    } else {
+      this.#progress.start("Диагностика Store и локального окружения...");
+      try {
+        report = await this.#doctor.inspect({
+          repositoryIds,
+          onProgress: (message) => this.#progress.update(message),
+        });
+        if (report.status === "blocked") this.#progress.fail("Doctor: есть блокирующие ошибки");
+        else if (report.status === "degraded") this.#progress.warn("Doctor: есть замечания");
+        else this.#progress.succeed("Doctor: проверки завершены");
+      } catch (error) {
+        this.#progress.fail("Doctor: диагностика прервана из-за ошибки");
+        throw error;
+      }
+    }
     process.exitCode = report.status === "blocked" ? 1 : 0;
     if (json) {
       console.log(JSON.stringify(report, null, 2));

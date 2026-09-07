@@ -191,6 +191,13 @@ Governed MCP сам получает Store context, поэтому отдель�
    `complete_attempt`.
 5. В Change появляется связь task с planning, base и implementation revisions.
 
+`task_id` для MCP и CLI берётся дословно из `artifact_instructions.tasks[].id`
+в Apply-контексте. Например, для `{ "id": "4", "description": "2.3 Обработать ошибки" }`
+передаётся `"4"`, а не `"2.3"`. Индекс самостоятельно не вычисляется. Для завершения
+используется ID начатой attempt, сверенный с актуальным описанием задачи.
+При ошибке поиска нужно обновить контекст и проверить идентичность задачи.
+`complete_attempt` не меняет checkbox: его предварительно отмечает штатный Apply.
+
 Для Superspec Apply-контекст ведёт к repository section в `plan.md`; другая schema
 может вернуть другой artifact. Tracker не разбирает имена файлов и Markdown-заголовки,
 поэтому кастомная schema работает через тот же OpenSpec Apply API. Отдельных
