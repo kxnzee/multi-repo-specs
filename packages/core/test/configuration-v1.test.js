@@ -77,3 +77,26 @@ test("configuration v1 rejects unsupported versions, legacy fields and duplicate
     /повторяющийся extension-id/,
   );
 });
+
+
+test("repository descriptions survive YAML round trips and binding changes", () => {
+  const description = "Личный кабинет: заказы и оплата.\nReact, TypeScript.";
+  const source = CONFIG_V1.replace("    roles: [code]", `    description: ${JSON.stringify(description)}\n    roles: [code]`);
+  const project = configuration.parseProject(source);
+  const repository = project.requireRepository("frontend");
+  assert.equal(repository.description, description);
+  assert.equal(repository.disconnectPlugin("codegraph").connectPlugin("codegraph").description, description);
+  project.declarePlugin("audit");
+  const restored = configuration.parseProject(configuration.serializeProject(project));
+  assert.equal(restored.requireRepository("frontend").description, description);
+  assert.equal(Object.hasOwn(restored.storeRepository.toConfig(), "description"), false);
+  assert.equal(restored.version, 1);
+});
+
+test("repository descriptions reject empty and non-string values", () => {
+  for (const value of ['""', '"   "', 'null', '42', 'true', '[]', '{}']) {
+    assert.throws(() => configuration.parseProject(CONFIG_V1.replace(
+      "    roles: [code]", `    description: ${value}\n    roles: [code]`,
+    )), /CONFIG_INVALID/);
+  }
+});
