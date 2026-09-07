@@ -1,0 +1,8 @@
+{
+  "name": "spec-reader",
+  "version": "1.0.0",
+  "description": "Generate human-readable documentation from OpenSpec master specifications",
+  "author": {
+    "name": "OpenSpec Orchestrator"
+  }
+}

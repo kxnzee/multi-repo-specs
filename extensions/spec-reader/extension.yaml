@@ -1,0 +1,6 @@
+id: spec-reader
+name: Human-readable OpenSpec specifications
+manifests:
+  claude: .claude-plugin/plugin.json
+  qwen: qwen-extension.json
+  gigacode: gigacode-extension.json
