@@ -123,6 +123,7 @@ label { display: grid; gap: 4px; color: #475569; font-size: 11px; font-weight: 5
   box-shadow: 0 10px 30px rgb(15 23 42 / 14%);
 }
 .node-type-filters { margin: 0; padding: 0; border: 0; }
+.change-state-filters { margin-top: 8px; }
 .node-type-filters legend {
   padding: 3px 5px 7px;
   color: #64748b;
@@ -145,6 +146,7 @@ label { display: grid; gap: 4px; color: #475569; font-size: 11px; font-weight: 5
 }
 .filter-options label:hover { background: #eef2f7; color: #0f172a; }
 .filter-options label:has(input:not(:checked)) { opacity: 0.52; }
+.filter-options label:has(input:disabled) { opacity: 0.4; cursor: not-allowed; }
 .filter-options input { width: 13px; height: 13px; margin: 0; accent-color: #2563eb; }
 .filter-options input:focus-visible { outline: 3px solid rgb(37 99 235 / 18%); outline-offset: 2px; }
 .filter-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; }
@@ -152,6 +154,10 @@ label { display: grid; gap: 4px; color: #475569; font-size: 11px; font-weight: 5
 .filter-dot.master { background: #059669; }
 .filter-dot.change { background: #7c3aed; }
 .filter-dot.delta { background: #d97706; }
+.filter-dot.archived, .legend-dot.archived {
+  background: #cbd5e1;
+  border: 1px dashed #64748b;
+}
 button { cursor: pointer; font-weight: 500; white-space: nowrap; }
 button:hover { background: #f1f5f9; }
 .reset-view {
@@ -222,6 +228,16 @@ aside { min-width: 0; overflow: auto; padding: 18px; background: #f8fafc; }
 #details { padding-top: 14px; overflow-wrap: anywhere; }
 .details-empty { color: #64748b; font-size: 13px; }
 .details-title { margin: 0 0 14px; font-size: 15px; font-weight: 500; }
+.archive-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 6px;
+  border: 1px dashed #64748b;
+  border-radius: 4px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+}
 .entity-name {
   min-width: 0;
   padding: 6px 9px;
