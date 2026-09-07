@@ -1,8 +1,13 @@
 /** @fileoverview Read-only schema-aware resources for normative Store artifacts. */
 
+import { createHash } from "node:crypto";
+
 import { parse } from "yaml";
 
-const ROOT_FILES = Object.freeze(["openspec-orch.yaml", "openspec/config.yaml"]);
+const ROOT_FILES = Object.freeze([
+  "openspec-orch.yaml", "openspec/config.yaml", "STORE.md",
+  "openspec/process/quality-gates.md", "openspec/process/release-process.md",
+]);
 const STATIC_TREES = Object.freeze([
   Object.freeze({ root: "openspec/context", suffixes: new Set([".md", ".yaml", ".yml"]) }),
   Object.freeze({ root: "openspec/specs", names: new Set(["spec.md"]) }),
@@ -185,20 +190,28 @@ export class StoreResourceService {
     Object.freeze(this);
   }
 
-  async list() {
+  async list({ changeId } = {}) {
     const paths = [];
     for (const relativePath of ROOT_FILES) {
       if (await this.#files.read(relativePath, { optional: true }) !== null) paths.push(relativePath);
     }
     for (const rule of STATIC_TREES) paths.push(...await walkStatic(this.#files, rule));
     paths.push(...await changeArtifacts(this.#files));
-    return Object.freeze([...new Set(paths)].sort().map((relativePath) => Object.freeze({
+    const selected = [...new Set(paths)].sort().filter((relativePath) => (
+      changeId === undefined || !relativePath.startsWith("openspec/changes/") ||
+      relativePath.startsWith(`openspec/changes/${changeId}/`)
+    ));
+    return Object.freeze(await Promise.all(selected.map(async (relativePath) => Object.freeze({
       uri: resourceUri(this.#storeId, relativePath),
       name: relativePath,
       title: relativePath,
       mimeType: mimeType(relativePath),
       description: "Read-only normative artifact from the current OpenSpec Store",
-    })));
+      _meta: Object.freeze({
+        content_revision: createHash("sha256")
+          .update(await this.#files.read(relativePath)).digest("hex"),
+      }),
+    }))));
   }
 
   async read(uri) {

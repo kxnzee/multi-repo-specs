@@ -2,7 +2,12 @@
 
 Используй MCP `openspec-orchestrator` как источник актуального контекста Project,
 Change, Repository, Doctor и доступных Plugin capabilities. Нормативные артефакты
-Store читай через предоставляемые им ресурсы.
+Store читай через предоставляемые им ресурсы. `get_change_context.resources`
+содержит артефакты текущего Change, `shared_resources` — общие инструкции, контекст
+и Master Specs. Среди общих ресурсов доступны `STORE.md` и два файла правил
+`openspec/process/quality-gates.md`, `openspec/process/release-process.md`.
+Descriptors содержат `_meta.content_revision`: при обновлении Work Context
+перечитывай изменившиеся нужные ресурсы; удалённый ресурс не сохраняй как актуальный.
 
 ## Политика свежести контекста
 
