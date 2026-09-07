@@ -51,9 +51,10 @@ Core не интерпретирует требования, не реализу
 → после UAT принять Release-решение и выполнить Release по Git Flow
 ```
 
-Store и все Code Repositories используют одну проектную Git Flow конвенцию.
-Команда задаёт в контексте имена Production, Integration, work, Release и Hotfix
-branches; Orchestrator эти имена не валидирует.
+Приведённый путь относится к проектам, выбравшим процесс Jira Story / Git Flow.
+Template не задаёт Git-конвенцию: команда записывает свой порядок поставки,
+маршруты изменений и согласования отдельно от бизнес-контекста, в `openspec/process/`.
+Orchestrator их не валидирует.
 
 Template `default` предоставляет короткую schema `spec-driven-extended` и полную
 `superspec-multirepo`. Schema выбирается отдельно для каждого Change.

@@ -37,6 +37,7 @@ function projectJson(storeProject, invocation) {
       repositories: Object.freeze(project.repositories.map((repository) => Object.freeze({
         repository_id: repository.id,
         role: repository.role,
+        ...(repository.description !== undefined ? { description: repository.description } : {}),
         plugins: repository.plugins,
       }))),
     }),

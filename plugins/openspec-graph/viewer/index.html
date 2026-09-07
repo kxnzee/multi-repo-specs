@@ -28,8 +28,8 @@
         <details id="layers-menu" class="layers-menu">
           <summary>
             <span aria-hidden="true">◉</span>
-            Слои
-            <strong id="layer-count">3/4</strong>
+            Фильтры
+            <strong id="layer-count">3/5</strong>
           </summary>
           <div class="layers-popover">
             <fieldset id="node-type-filters" class="node-type-filters">
@@ -43,13 +43,22 @@
                   <input type="checkbox" value="master-spec" checked>
                   <i class="filter-dot master" aria-hidden="true"></i>Мастер-спеки
                 </label>
+              </div>
+            </fieldset>
+            <fieldset id="change-state-filters" class="node-type-filters change-state-filters">
+              <legend>Изменения</legend>
+              <div class="filter-options">
                 <label>
-                  <input type="checkbox" value="change" checked>
-                  <i class="filter-dot change" aria-hidden="true"></i>Изменения
+                  <input type="checkbox" value="active" checked>
+                  <i class="filter-dot change" aria-hidden="true"></i>Активные
                 </label>
                 <label>
-                  <input type="checkbox" value="delta-spec">
-                  <i class="filter-dot delta" aria-hidden="true"></i>Дельта-спеки
+                  <input type="checkbox" value="archived">
+                  <i class="filter-dot archived" aria-hidden="true"></i>Архивные
+                </label>
+                <label>
+                  <input type="checkbox" value="delta-spec" id="delta-filter">
+                  <i class="filter-dot delta" aria-hidden="true"></i>Показывать их дельта-спеки
                 </label>
               </div>
             </fieldset>
@@ -68,6 +77,7 @@
           <span><i class="legend-dot repository"></i>Репозиторий</span>
           <span><i class="legend-dot master"></i>Мастер-спека</span>
           <span><i class="legend-dot change"></i>Изменение</span>
+          <span><i class="legend-dot archived"></i>Архив</span>
           <span><i class="legend-dot delta"></i>Дельта-спека</span>
         </div>
         <div id="layout-status" class="layout-status" role="status">Расположение графа…</div>

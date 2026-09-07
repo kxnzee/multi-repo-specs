@@ -13,6 +13,7 @@ import {
   ProjectTemplateService,
 } from "@openspec-orch/core";
 import { parse, stringify } from "yaml";
+import { auditContextLinks } from "../helpers/context-links.js";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/default/", import.meta.url));
 const AGENTS_ROOT = fileURLToPath(new URL("../../agents/", import.meta.url));
@@ -129,7 +130,7 @@ test("Default Template is copy-only and applies identically for every independen
   const gitignore = await fs.readFile(path.join(TEMPLATE_ROOT, "assets/gitignore.template"), "utf8");
   assert.match(gitignore, /^\.gigacode\/tmp\/$/mu);
   assert.match(gitignore, /^\.qwen\/tmp\/$/mu);
-  const allowed = /^(?:assets\/(?:gitignore\.template|STORE\.md|agent-instructions\.md)$|context\/|openspec\/|template\.yaml$)/u;
+  const allowed = /^(?:assets\/(?:gitignore\.template|STORE\.md|agent-instructions\.md)$|context\/|process\/|openspec\/|template\.yaml$)/u;
   for (const relative of await listFiles(TEMPLATE_ROOT)) {
     assert.match(relative, allowed, `Template содержит не copy-only asset: ${relative}`);
   }
@@ -290,10 +291,6 @@ test("Jira Story delivery policy keeps Planning ownership and closeout order exp
     "utf8",
   );
   const glossary = await fs.readFile(path.join(PROJECT_ROOT, "CONTEXT.md"), "utf8");
-  const qualityGates = await fs.readFile(
-    path.join(TEMPLATE_ROOT, "context/07-quality-gates.md"),
-    "utf8",
-  );
 
   for (let stage = 1; stage <= 10; stage += 1) {
     assert.match(delivery, new RegExp(`^## ${stage}\\.`, "mu"), `missing stage ${stage}`);
@@ -311,17 +308,18 @@ test("Jira Story delivery policy keeps Planning ownership and closeout order exp
   assert.ok(delivery.indexOf("## 9. Archive") < delivery.indexOf("## 10. UAT"));
   assert.match(glossary, /\*\*Store Story branch\*\*/u);
   assert.match(glossary, /\*\*Story Store PR\*\*/u);
-  assert.match(qualityGates, /Archive.*UAT/su);
-  assert.match(
-    await fs.readFile(path.join(TEMPLATE_ROOT, "context/08-release-process.md"), "utf8"),
-    /Store и все Code Repositories должны следовать одной/u,
-  );
   assert.match(delivery, /^## Применение процесса одним человеком$/mu);
   for (const removedFlow of ["team-flow.md", "solo-flow.md"]) {
     await assert.rejects(fs.access(path.join(PROJECT_ROOT, "docs/user", removedFlow)), {
       code: "ENOENT",
     });
   }
+});
+
+test("shipped context Markdown links resolve inside its self-contained tree", async () => {
+  const report = await auditContextLinks(path.join(TEMPLATE_ROOT, "context"));
+  assert.deepEqual(report.diagnostics, []);
+  assert.ok(report.checkedLinks > 0, "context must have usable internal navigation");
 });
 
 test("superspec-multirepo preserves the complete skill-driven lifecycle", async () => {

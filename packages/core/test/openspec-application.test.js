@@ -120,3 +120,18 @@ test("OpenSpec application stops automation after every Apply task is complete",
     change_id: "pay",
   });
 });
+
+test("OpenSpec application does not route to Verify from blocked or inconsistent Apply progress", async () => {
+  for (const instructions of [
+    { state: "blocked", progress: { total: 2, complete: 1, remaining: 1 } },
+    { state: "all_done", progress: { total: 2, complete: 1, remaining: 1 } },
+    { state: "all_done", progress: { total: 2, complete: 2, remaining: 1 } },
+    { state: "all_done" },
+  ]) {
+    const application = repositoryOpenSpec({
+      artifacts: [{ id: "tasks", status: "done" }, { id: "verify", status: "ready" }],
+      applyRequires: ["tasks"],
+    }, instructions);
+    assert.equal((await application.nextAction("pay")).action, "consult_change_context");
+  }
+});

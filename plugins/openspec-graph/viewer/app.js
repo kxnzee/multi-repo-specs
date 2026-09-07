@@ -13,6 +13,7 @@ const colors = {
   change: { background: "#7c3aed", border: "#6d28d9", highlight: "#a78bfa" },
   "delta-spec": { background: "#d97706", border: "#b45309", highlight: "#fbbf24" },
 };
+const archivedColor = { background: "#cbd5e1", border: "#64748b", highlight: "#94a3b8" };
 
 const typeNames = {
   store: "Store",
@@ -74,7 +75,7 @@ for (const value of graph.diagnostics ?? []) {
 const filterableNodeTypes = ["repository", "master-spec", "change", "delta-spec"];
 const defaultVisibleNodeTypes = new Set(["repository", "master-spec", "change"]);
 const defaultNodeIds = new Set(graph.nodes
-  .filter(({ type }) => defaultVisibleNodeTypes.has(type))
+  .filter(({ type, state }) => defaultVisibleNodeTypes.has(type) && state !== "archived")
   .map(({ id }) => id));
 const deltaIdsByChange = new Map(graph.nodes
   .filter(({ type }) => type === "change")
@@ -112,8 +113,9 @@ function friendlyNodeLabel(node) {
   if (!node) return "Неизвестный узел";
   if (node.type === "store") return node.store_id ?? node.label;
   if (node.type === "repository") return node.repository_id ?? node.label;
-  if (node.type === "change") return humanizeSegment(node.change_id ?? node.label);
-  return humanizePath(node.capability ?? node.label);
+  if (node.type === "change") return node.change_id ?? node.label;
+  const label = humanizePath(node.capability ?? node.label);
+  return node.state === "archived" ? `${label} · Архив` : label;
 }
 
 /** Wraps one complete graph-entity name so slashes remain visually grouped. */
@@ -249,9 +251,10 @@ function viewerNode(node) {
   const seed = seedPositions.get(node.id);
   return {
     id: node.id,
-    label: ["repository", "change"].includes(node.type) ? friendlyNodeLabel(node) : "",
+    label: ["repository", "change"].includes(node.type) ? visibleNodeLabel(node) : "",
     group: node.type,
-    title: `${typeNames[node.type]}: ${friendlyNodeLabel(node)} · ${node.status}`,
+    title: `${typeNames[node.type]}: ${friendlyNodeLabel(node)} · ${node.status}`
+      + (node.state ? ` · ${stateNames[node.state] ?? node.state}` : ""),
     hidden: !visible,
     physics: visible,
     ...(seed ? { x: seed.x, y: seed.y } : {}),
@@ -292,6 +295,9 @@ const graphDiagnostics = document.getElementById("graph-diagnostics");
 const selectionKind = document.getElementById("selection-kind");
 const search = document.getElementById("search");
 const typeFilters = [...document.querySelectorAll("#node-type-filters input[type='checkbox']")];
+const stateFilters = [...document.querySelectorAll("#change-state-filters input[type='checkbox']")]
+  .filter(({ value }) => value !== "delta-spec");
+const deltaFilter = document.getElementById("delta-filter");
 const layersMenu = document.getElementById("layers-menu");
 const layerCount = document.getElementById("layer-count");
 
@@ -677,6 +683,12 @@ function renderNode(nodeId) {
   const title = document.createElement("h3");
   title.className = "details-title";
   title.append(createEntityName(data, { title: true }));
+  if (data.type === "change" && data.state === "archived") {
+    const badge = document.createElement("span");
+    badge.className = "archive-badge";
+    badge.textContent = "Архив";
+    title.append(badge);
+  }
   const list = document.createElement("dl");
   list.className = "details-grid";
   if (data.type === "store") addDetail(list, "ID Store", data.store_id);
@@ -748,12 +760,24 @@ let initialLayoutSettled = false;
 
 /** Returns the node types currently enabled by the user. */
 function enabledNodeTypes() {
-  return new Set(typeFilters.filter(({ checked }) => checked).map(({ value }) => value));
+  const types = new Set(typeFilters.filter(({ checked }) => checked).map(({ value }) => value));
+  types.add("change");
+  if (deltaFilter.checked && !deltaFilter.disabled) types.add("delta-spec");
+  return types;
+}
+
+/** Applies lifecycle filters to Changes and their Delta Specs in every navigation path. */
+function nodeIsEnabled(node, enabledTypes) {
+  if (!node || !enabledTypes.has(node.type)) return false;
+  if (!["change", "delta-spec"].includes(node.type)) return true;
+  return stateFilters.some(({ checked, value }) => checked && value === node.state);
 }
 
 /** Keeps the layer-menu summary in sync with its checkboxes. */
 function syncLayerCount() {
-  layerCount.textContent = `${typeFilters.filter(({ checked }) => checked).length}/${typeFilters.length}`;
+  deltaFilter.disabled = !stateFilters.some(({ checked }) => checked);
+  const filters = [...typeFilters, ...stateFilters, deltaFilter];
+  layerCount.textContent = `${filters.filter(({ checked, disabled }) => checked && !disabled).length}/${filters.length}`;
 }
 
 /** Returns whether an affects edge is represented by a currently visible Delta path. */
@@ -785,6 +809,9 @@ function refreshEdges() {
       : edge.relation === "changes"
         ? focused ? "rgba(217,119,6,0.82)" : "rgba(217,119,6,0.22)"
         : "rgba(100,116,139,0.34)";
+    const archived = [edge.source, edge.target]
+      .some((id) => graphNodes.get(id)?.state === "archived");
+    if (archived) baseColor = "rgba(100,116,139,0.46)";
     if (edge.status === "warning") baseColor = "rgba(217,119,6,0.88)";
     if (edge.status === "error") baseColor = "rgba(220,38,38,0.9)";
     return {
@@ -797,7 +824,7 @@ function refreshEdges() {
         highlight: baseColor,
         hover: baseColor,
       },
-      dashes: edge.status !== "ok",
+      dashes: archived || edge.status !== "ok",
       width: focused || edge.status !== "ok" ? 2.2 : 0.9,
     };
   }));
@@ -805,6 +832,9 @@ function refreshEdges() {
 
 /** Returns the label shown at the current zoom and focus. */
 function visibleNodeLabel(node) {
+  if (node.type === "change" && node.state === "archived") {
+    return `${friendlyNodeLabel(node)}\nАрхив`;
+  }
   if (["repository", "change", "delta-spec"].includes(node.type)) return friendlyNodeLabel(node);
   if (node.type === "master-spec" && (
     labelsExpanded || focusNodeIds.has(node.id) || search.value.trim() !== ""
@@ -818,7 +848,8 @@ function visibleNodeLabel(node) {
 function refreshNodeAppearance() {
   const focusing = selectedNodeId !== undefined;
   nodes.update(graph.nodes.map((node) => {
-    let color = colors[node.type];
+    const archived = node.state === "archived";
+    let color = archived ? archivedColor : colors[node.type];
     let borderWidth = node.type === "master-spec" ? 1 : 2;
     if (directImpactIds.has(node.id)) {
       color = { background: "#059669", border: "#7c3aed", highlight: "#34d399" };
@@ -837,6 +868,7 @@ function refreshNodeAppearance() {
       label: visibleNodeLabel(node),
       color,
       borderWidth,
+      shapeProperties: { borderDashes: archived },
       opacity: focusing && !focusNodeIds.has(node.id) ? 0.16 : 1,
     };
   }));
@@ -927,7 +959,7 @@ function expandChange(changeNodeId) {
   directImpactIds = impact.masterIds;
   const enabledTypes = enabledNodeTypes();
   for (const id of impact.focusNodeIds) {
-    if (enabledTypes.has(graphNodes.get(id)?.type)) visibleNodeIds.add(id);
+    if (nodeIsEnabled(graphNodes.get(id), enabledTypes)) visibleNodeIds.add(id);
   }
   refreshVisibility();
   positionExpandedDeltas(impact);
@@ -945,11 +977,11 @@ function matchingNodeIds() {
   const enabledTypes = enabledNodeTypes();
   if (!query) {
     return new Set(graph.nodes
-      .filter(({ type }) => enabledTypes.has(type))
+      .filter((node) => nodeIsEnabled(node, enabledTypes))
       .map(({ id }) => id));
   }
   const matches = graph.nodes.filter((node) => (
-    enabledTypes.has(node.type)
+    nodeIsEnabled(node, enabledTypes)
     && JSON.stringify(node).toLowerCase().includes(query)
   ));
   const matchIds = new Set(matches.map(({ id }) => id));
@@ -960,7 +992,7 @@ function matchingNodeIds() {
     if (!sourceMatch && !targetMatch) continue;
     const neighborId = sourceMatch ? edge.target : edge.source;
     const neighbor = graphNodes.get(neighborId);
-    if (!enabledTypes.has(neighbor?.type)) continue;
+    if (!nodeIsEnabled(neighbor, enabledTypes)) continue;
     visible.add(neighborId);
   }
   return visible;
@@ -1002,7 +1034,7 @@ document.addEventListener("click", (event) => {
   }
   if (!layersMenu.contains(event.target)) layersMenu.open = false;
 });
-for (const filter of typeFilters) {
+for (const filter of [...typeFilters, ...stateFilters, deltaFilter]) {
   filter.addEventListener("change", () => {
     syncLayerCount();
     network.unselectAll();
@@ -1015,6 +1047,8 @@ for (const filter of typeFilters) {
 document.getElementById("reset-view").addEventListener("click", () => {
   search.value = "";
   for (const filter of typeFilters) filter.checked = defaultVisibleNodeTypes.has(filter.value);
+  for (const filter of stateFilters) filter.checked = filter.value === "active";
+  deltaFilter.checked = false;
   syncLayerCount();
   layersMenu.open = false;
   network.unselectAll();
@@ -1153,7 +1187,7 @@ network.on("selectNode", ({ nodes: selected }) => {
     const neighborhood = neighborhoodForNode(selectedNodeId);
     const enabledTypes = enabledNodeTypes();
     for (const id of neighborhood.nodeIds) {
-      if (enabledTypes.has(graphNodes.get(id)?.type)) visibleNodeIds.add(id);
+      if (nodeIsEnabled(graphNodes.get(id), enabledTypes)) visibleNodeIds.add(id);
     }
     focusNodeIds = neighborhood.nodeIds;
     focusedEdgeIds = neighborhood.edgeIds;
@@ -1170,5 +1204,6 @@ network.on("click", ({ nodes: selectedNodes, edges: selectedEdges }) => {
   if (selectedNodes.length === 0 && selectedEdges.length === 0) clearFocus();
 });
 
+syncLayerCount();
 refreshNodeAppearance();
 refreshEdges();

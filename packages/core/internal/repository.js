@@ -19,8 +19,9 @@ export class Repository {
   #remote;
   #defaultBranch;
   #plugins;
+  #description;
 
-  constructor({ id, role, remote, defaultBranch, plugins = [] }) {
+  constructor({ id, role, remote, defaultBranch, description, plugins = [] }) {
     if (typeof id !== "string" || id.length === 0) invalid("id обязателен");
     if (!REPOSITORY_ROLES.has(role)) invalid(`неизвестная role '${role}'`);
     if (typeof remote !== "string" || remote.length === 0) invalid(`remote ${id} обязателен`);
@@ -34,6 +35,10 @@ export class Repository {
       invalid(`plugins ${id} содержит повторяющийся ID`);
     }
 
+    if (description !== undefined && (typeof description !== "string" || description.trim().length === 0)) {
+      invalid(`description ${id} должен быть непустой строкой`);
+    }
+    this.#description = description;
     this.#id = id;
     this.#role = role;
     this.#remote = remote;
@@ -60,6 +65,10 @@ export class Repository {
 
   get plugins() {
     return this.#plugins;
+  }
+
+  get description() {
+    return this.#description;
   }
 
   isStore() {
@@ -102,6 +111,7 @@ export class Repository {
       role: this.#role,
       remote: this.#remote,
       defaultBranch: this.#defaultBranch,
+      ...(this.#description !== undefined ? { description: this.#description } : {}),
       plugins: [...this.#plugins],
     });
   }

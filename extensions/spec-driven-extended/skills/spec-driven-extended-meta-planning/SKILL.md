@@ -93,6 +93,22 @@ planning-review разрешены только адресные repository evid
 - полный Planning Review проверяет цепочку source → Why/scope → capability →
   Requirement → Scenario → Design decision → Task → evidence.
 
+На каждой стадии проверять также обратное влияние её подтверждённых выводов на
+Intake и остальные уже созданные артефакты. Проверка охватывает затронутые разделы,
+включая зависимые документы после актуализации раннего артефакта. Не требовать
+будущие артефакты. Уточнённый Intake сохраняет исходный источник и основание
+пересмотра; предположение не становится подтверждённым ответом пользователя.
+При расхождении назвать точные файлы и разделы, которые вызывающий workflow должен
+актуализировать, затем повторить затронутые проверки. Сам meta-skill остаётся
+read-only. До устранения расхождений не возвращать ready; новый scope или
+нерешённое бизнес-решение требуют request_owner_decision. Проверить необходимость
+повторного Gate 1 и Feature Acceptance по влиянию правки, а не факту изменения файла:
+редакционная правка без изменения смысла требует review и сверки; изменение
+принятого контракта — нового Gate 1; изменение реализации, проверяемого контракта
+или потеря применимости evidence — повторной Feature Acceptance. В finding указать
+основание классификации и затронутые решения/проверки. Сохранить исходные ссылки
+на решения и revisions, соблюдать правила PR approvals проекта.
+
 Расхождение целевого Requirement с текущим кодом — implementation gap, а не причина
 переписать Requirement. Код может опровергнуть только утверждение о текущем состоянии
 или технической возможности.
@@ -164,7 +180,7 @@ meta_planning:
   repository_scout_used: false
   findings: { blockers: 0, warnings: 0, notes: 0 }
   check_status: ready | needs_revision | blocked
-  next_action: continue | revise_current_artifact | request_owner_decision
+  next_action: continue | revise_current_artifact | reconcile_existing_artifacts | request_owner_decision
 ~~~
 
 После блока вывести только findings текущей стадии с evidence и требуемым решением.

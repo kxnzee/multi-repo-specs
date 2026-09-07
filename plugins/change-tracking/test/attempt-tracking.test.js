@@ -11,6 +11,38 @@ import { assignmentContext } from "./assignment-context.js";
 const BASE = "a".repeat(40);
 const IMPLEMENTATION = "b".repeat(40);
 
+test("attempt rejects display numbers and recovers with the canonical OpenSpec ID", async () => {
+  const tasks = [{ id: "4", description: "2.3 Handle errors", done: false }];
+  const heads = { frontend: BASE };
+  const context = assignmentContext({
+    invocation: { id: "frontend", role: "code", path: "/workspace/frontend" },
+    implementationHeads: heads,
+    tasks,
+  });
+  const service = new AttemptTrackingService(context);
+  const before = await context.storage.read();
+  await assert.rejects(service.start({ changeId: "checkout-flow", taskId: "2.3" }), (error) => {
+    assert.match(error.message, /ATTEMPT_TASK_NOT_FOUND:.*tasks\[\].id/u);
+    assert.doesNotMatch(error.message, /get_change_context|artifact_instructions|tracking\.active/u);
+    return true;
+  });
+  assert.deepEqual(await context.storage.read(), before);
+  const started = await service.start({ changeId: "checkout-flow", taskId: "4" });
+  assert.deepEqual(started.task, { id: "4", description: "2.3 Handle errors" });
+  const active = await context.storage.read();
+  await assert.rejects(service.complete({ changeId: "checkout-flow", taskId: "2.3" }), (error) => {
+    assert.match(error.message, /ATTEMPT_NOT_FOUND:.*активной attempt/u);
+    assert.doesNotMatch(error.message, /start_attempt|tracking\.active|get_change_context/u);
+    return true;
+  });
+  assert.deepEqual(await context.storage.read(), active);
+  assert.equal(tasks[0].done, false, "attempt tools must not mark task checkboxes");
+  tasks[0].done = true;
+  heads.frontend = IMPLEMENTATION;
+  const result = await service.complete({ changeId: "checkout-flow", taskId: started.task.id });
+  assert.deepEqual(result.attempt.task, started.task);
+});
+
 test("attempt starts locally and completes once into the owning Change manifest", async () => {
   const tasks = [{ id: "1", description: "1.1 Implement checkout", done: false }];
   const heads = { frontend: BASE };

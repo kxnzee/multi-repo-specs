@@ -23,6 +23,9 @@ repositories:
     plugins: [openspec-graph]
   - id: frontend
     roles: [code]
+    description: >-
+      Личный кабинет клиента: заказы, оплата и история покупок.
+      React, TypeScript. Обработка платежей находится в backend.
     remote: ssh://git.example.org/product/frontend.git
     default_branch: main
     plugins: []
@@ -43,6 +46,7 @@ repositories:
 | `repositories[].roles` | Ровно одна роль: `[store]` или `[code]` |
 | `repositories[].remote` | Ожидаемый Git `origin` Repository |
 | `repositories[].default_branch` | Ветка, которую strict `connect` checkout-ит при clone отсутствующего Repository |
+| `repositories[].description` | Необязательное краткое описание назначения, технологий и границ ответственности; непустая строка |
 | `repositories[].plugins` | Уникальные bindings только объявленных Plugins; по умолчанию пустой массив |
 
 Должен существовать ровно один Repository с `roles: [store]`. Остальные используют
@@ -52,6 +56,26 @@ repositories:
 HTTP(S) credentials, `file://`, локальные абсолютные remote и значения Git,
 начинающиеся с `-`, отклоняются. Неизвестные поля, повторяющиеся ID, повторяющиеся
 bindings и ссылка на необъявленный Plugin также завершаются ошибкой.
+
+## Описание репозитория для агента
+
+Команда заполняет `repositories[].description` вручную в `openspec-orch.yaml`
+в Store: при настройке проекта или позже. Ориентир — 2–4 предложения:
+назначение, основные технологии, границы ответственности. Если описание пока
+не готово, пропустите поле; пустая строка и `null` не допускаются.
+
+Агента можно попросить подготовить черновики по README, манифестам и структуре
+кода и записать их после согласования. Команда поддерживает актуальность описаний
+и проверяет изменения обычным review в Store. `init`, `connect` и `doctor`
+не генерируют и не обновляют описания автоматически. Отдельной команды генерации нет.
+
+Описание передаётся в `project.repositories[].description` общего контекста MCP,
+включая `get_status` и `get_change_context`. Оно помогает агенту выбрать репозитории
+для исследования; фактическое влияние изменения нужно проверять по коду.
+
+Конфиги без поля продолжают работать с `version: 1`. Старые версии Orchestrator,
+которые ещё не знают `description`, отклонят его как неизвестное поле: перед
+добавлением поля обновите Orchestrator у участников проекта.
 
 ## Strict и relaxed mode
 
@@ -76,7 +100,7 @@ bindings и ссылка на необъявленный Plugin также за�
 
 Git Flow контракт не является частью `openspec-orch.yaml`. Команда заполняет роли
 веток, их имена и patterns, направления PR и protection rules в
-`openspec/context/08-release-process.md`. Соблюдение обеспечивают Git-хостинг, CI
+`openspec/process/release-process.md`. Соблюдение обеспечивают Git-хостинг, CI
 и review,
 а не Core и не MCP.
 

@@ -75,7 +75,12 @@ function attemptKey(value) {
 /** Resolves an exact task without interpreting schema-specific prose or headings. */
 function findTask(instructions, taskId) {
   const task = instructions.tasks.find(({ id }) => id === taskId);
-  if (!task) throw new Error(`ATTEMPT_TASK_NOT_FOUND: OpenSpec task '${taskId}' не найден`);
+  if (!task) throw new Error(
+    `ATTEMPT_TASK_NOT_FOUND: OpenSpec task '${taskId}' не найден. ` +
+    "Используйте точный tasks[].id из актуальных OpenSpec Apply instructions; " +
+    "номер вроде 1.1 в description не заменяет ID. " +
+    "Не вычисляйте индекс и не подбирайте другую задачу.",
+  );
   return task;
 }
 
@@ -154,7 +159,12 @@ export class AttemptTrackingService {
     const state = readState(await this.#context.storage.read());
     const selector = { change_id: changeId, repository_id: invocation.id, task: { id: taskId } };
     const active = state.active_attempts.find((candidate) => attemptKey(candidate) === attemptKey(selector));
-    if (!active) throw new Error("ATTEMPT_NOT_FOUND: сначала запустите attempt для этого task");
+    if (!active) throw new Error(
+      "ATTEMPT_NOT_FOUND: активная attempt для этого task_id не найдена. " +
+      "Сверьте ID и описание задачи с активной attempt текущего Change " +
+      "и Repository; номер задачи из description не заменяет ID. " +
+      "Если attempt не начиналась до реализации, не создавайте её задним числом.",
+    );
     const instructions = await applyInstructions(this.#context.process, changeId);
     const task = findTask(instructions, taskId);
     if (!task.done) {

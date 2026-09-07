@@ -57,9 +57,9 @@ schema does not call it or persist a separate closeout receipt.
 
 Archive requires human Feature Acceptance and Superspec Process Compliance.
 Resolve branch roles, PR directions, external status transitions and Release gates
-from the project's `openspec/context/08-release-process.md`.
+from the project's `openspec/process/release-process.md`.
 
 Archive does not perform UAT, deployment or Release. Successful UAT and a separate
-human Release gate are required before Git Flow release. A UAT defect against an
+human Release gate are required before Release. A UAT defect against an
 archived Scenario creates a linked corrective Change and blocks Release; Master Specs
 are not edited directly.

@@ -14,6 +14,7 @@ const REPOSITORY_FIELDS = {
   roles: z.array(z.enum(Object.values(REPOSITORY_ROLE))).length(1),
   remote: z.string().min(1),
   default_branch: z.string().min(1),
+  description: z.string().refine((value) => value.trim().length > 0, "не должно быть пустым").optional(),
 };
 const REPOSITORY_SCHEMA = z.strictObject({
   ...REPOSITORY_FIELDS,

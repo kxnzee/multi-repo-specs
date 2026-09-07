@@ -29,7 +29,12 @@ const ATTEMPT_SCHEMA = Object.freeze({
   type: "object",
   properties: Object.freeze({
     change_id: IDENTIFIER_SCHEMA,
-    task_id: NON_EMPTY_STRING_SCHEMA,
+    task_id: Object.freeze({
+      ...NON_EMPTY_STRING_SCHEMA,
+      description: "Exact tasks[].id from get_change_context with artifact: apply " +
+        "(artifact_instructions.tasks). Copy the returned string; do not use a Markdown " +
+        "task number such as 1.1 or 2.3 from description, or calculate an array index.",
+    }),
   }),
   required: ["change_id", "task_id"],
   additionalProperties: false,
@@ -151,7 +156,9 @@ const TOOL_DEFINITIONS = Object.freeze([
   defineTool({
     name: "complete_attempt",
     applicationMethod: "completeAttempt",
-    description: "Map one completed OpenSpec Apply task to the current clean Code Repository revision.",
+    description: "Map one completed OpenSpec Apply task to the current clean Code Repository revision. " +
+      "Use the canonical task_id from start_attempt. Does not mark the task checkbox; " +
+      "the task must already be marked done by Apply.",
     inputSchema: ATTEMPT_SCHEMA,
     annotations: WRITE_ANNOTATIONS,
   }),

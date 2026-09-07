@@ -161,6 +161,7 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
   const codeRepository = Object.freeze({
     id: "frontend",
     role: "code",
+    description: "Личный кабинет: React, TypeScript.",
     plugins: Object.freeze([]),
   });
   const project = Object.freeze({
@@ -263,6 +264,10 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
   const setup = await runtime.getSetupContext();
   const initialized = await runtime.initializeProject({ store_id: "specs", agent_id: "qwen" });
   const connected = await runtime.connectProject();
+  for (const result of [status, context]) {
+    assert.equal(result.project.repositories[1].description, codeRepository.description);
+    assert.equal(Object.hasOwn(result.project.repositories[0], "description"), false);
+  }
   assert.equal(resolutions, 4);
   assert.equal(status.capabilities.tracking.available, false);
   assert.equal(status.capabilities.graph.available, false);

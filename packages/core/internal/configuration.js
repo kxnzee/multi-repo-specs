@@ -62,6 +62,7 @@ function normalizeRepository(value) {
     role: value.roles[0],
     remote: value.remote,
     defaultBranch: value.default_branch,
+    ...(value.description !== undefined ? { description: value.description } : {}),
     plugins: value.plugins ?? [],
   };
   if (repository.defaultBranch.startsWith("-")) {
@@ -161,6 +162,7 @@ export class CoreConfiguration {
         roles: [repository.role],
         remote: repository.remote,
         default_branch: repository.defaultBranch,
+        ...(repository.description !== undefined ? { description: repository.description } : {}),
         plugins: repository.plugins,
       })),
     }, { lineWidth: 0 });

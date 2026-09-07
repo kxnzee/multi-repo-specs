@@ -10,6 +10,26 @@ artifacts:
       Create the intake document before Proposal to preserve the confirmed source
       context of this Change and make the next planning decision explicit.
 
+      Write intake.md as readable Russian analysis for the people discussing the
+      change, including readers unfamiliar with OpenSpec. Start the substantive
+      description with the problem, who encounters it, and the expected result.
+      Use the template's Russian headings and plain professional language:
+      - name the actor, their action, and the observable system response;
+      - keep one main thought per sentence; split chains of conditions into steps;
+      - prefer verbs over abstract nouns and avoid bureaucratic filler;
+      - explain necessary domain terms and abbreviations at first use; retain exact
+        public API names, identifiers, units and machine status values;
+      - use short paragraphs for explanations, numbered steps for sequences, and
+        tables for comparable UI or access rules. Do not turn every answer into a table;
+      - describe each fact once and refer to its section instead of repeating it;
+      - keep workflow vocabulary and route codes in the closing planning section.
+      Before saving, read the document as someone who did not attend the interview.
+      Check that they can identify the problem, main scenario, expected result and
+      remaining decisions without decoding internal terminology. Simplify wording
+      without deleting conditions, exceptions, constraints, source references or
+      uncertainty. Readability is not a reason to invent missing facts or shorten
+      the analysis to a summary that loses behavior.
+
       A new Change requires an agreed Intent. Use an accepted Daily Intent Brief,
       Jira Story, or another user-confirmed source when it explicitly provides the
       intended change, Why Now, expected improvement, success criteria, and
@@ -40,19 +60,25 @@ artifacts:
         constraints, and failure and degraded behavior;
       - a PlantUML sequence diagram when the Change involves two or more interacting
         components, an external dependency, asynchronous messaging, or meaningful
-        error branches. Otherwise retain the Interaction Diagram section with a
+        error branches. Otherwise retain the "Схема взаимодействия" section with a
         concise Not applicable reason;
-      - open questions and one Planning Route: ready_for_proposal,
+      - open questions and one planning route in "Готовность к следующему шагу": ready_for_proposal,
         explore_recommended, or blocked, with its rationale and exact Explore
         questions when applicable.
 
-      For explore_recommended, keep the Exploration section pending with exact
+      For explore_recommended, keep "Результаты исследования" pending with exact
       researchable questions. When Explore results are supplied, classify findings
       as CONFIRMED, CONTRADICTED, UNKNOWN, or MISSING, update this same intake.md,
       and reassess the Planning Route. Do not create a second questionnaire or
       exploration artifact and do not continue to Proposal automatically.
 
-      intake.md is planning input and historical provenance, not an accepted
+      Keep intake.md current when later stages refine confirmed analytical context,
+      preserving original source provenance and the reason for each revised conclusion.
+      Before finishing Intake, including after Explore or a repeated interview,
+      reconcile all existing Change artifacts using the spec-driven-extended
+      stage-completion rule in project context. Do not advance automatically.
+
+      intake.md is planning input with historical provenance, not an accepted
       Requirement, Scenario, Design decision, ADR, repository scope, or proof of
       implementation. Proposal and later artifacts must promote only confirmed
       conclusions into their proper normative boundaries. Do not add an Owner
@@ -69,7 +95,9 @@ artifacts:
       Create the proposal document that establishes WHY this change is needed.
       Read intake.md first, resolve or preserve its relevant open questions, and
       promote only confirmed conclusions without copying the questionnaire verbatim.
-      Before completion invoke spec-driven-extended-meta-planning for the proposal stage and
+      Before completion reconcile Intake and all existing Change artifacts under
+      the stage-completion rule in project context. Then invoke
+      spec-driven-extended-meta-planning for the proposal stage and
       resolve its findings. Include a Repository Impact table containing only exact
       registered Code Repository IDs and capability paths expected to change.
 
@@ -108,7 +136,9 @@ artifacts:
       Use accepted planning sources and normative Store artifacts for this stage.
       Do not inspect Code Repositories to formulate Proposal, Requirements or Scenarios.
       Create specification files that define WHAT the system should do.
-      Before completion invoke spec-driven-extended-meta-planning for the specs stage.
+      Before completion reconcile Intake, Proposal and all existing Change artifacts
+      under the stage-completion rule in project context. Then invoke
+      spec-driven-extended-meta-planning for the specs stage.
 
       Read intake.md and proposal.md before writing Delta Specs. For every confirmed
       preliminary scenario, access rule, failure/degraded case, data/security
@@ -213,7 +243,9 @@ artifacts:
     template: design.md
     instruction: |
       Create the design document that explains HOW to implement the change.
-      Before completion invoke spec-driven-extended-meta-planning for the design stage.
+      Before completion reconcile Intake, Proposal and existing Specs/Tasks with
+      confirmed Design findings under the stage-completion rule in project context.
+      Then invoke spec-driven-extended-meta-planning for the design stage.
       Include a Repository Implementation Map for Repository IDs accepted in Proposal.
 
       Design is required before Tasks in this schema. For a simple Change, record
@@ -252,12 +284,14 @@ artifacts:
     template: tasks.md
     instruction: |
       The project-designated Planning owner creates the task list that breaks down the implementation work.
-      Before completion invoke spec-driven-extended-meta-planning for the tasks stage and
+      Before completion reconcile Intake, Proposal, Specs and Design with confirmed
+      planning findings under the stage-completion rule in project context.
+      Then invoke spec-driven-extended-meta-planning for the tasks stage and
       verify Scenario → Design decision → Task traceability.
 
       Use the Planning owner, required reviewers and acceptance gates declared in
-      openspec/context/07-quality-gates.md. Follow the project PR process in
-      openspec/context/08-release-process.md; do not infer roles from job titles.
+      openspec/process/quality-gates.md. Follow the project PR process in
+      openspec/process/release-process.md; do not infer roles from job titles.
 
       Before writing tasks, check design.md for Open Questions. If any of them
       would change what gets built, resolve them with the user first - do not
@@ -293,6 +327,9 @@ artifacts:
       ```
 
       Reference specs for what needs to be built, design for how to build it.
+      After writing Tasks, refresh get_next_action and hand off to Apply when its
+      prerequisites are complete. Do not suggest or create verify.md from Planning,
+      even if OpenSpec reports it ready. Continue/Fast-forward must stop at Apply.
     requires:
       - specs
       - design
@@ -305,6 +342,24 @@ artifacts:
       Treat this artifact as a separate post-implementation gate: its availability in
       the artifact graph is not proof that an Apply candidate exists and can never
       justify PASS by itself.
+
+      Before creating or updating verify.md, including from Continue/Fast-forward,
+      read current Apply instructions. Require state: all_done with a positive task
+      total, complete equal to total and remaining: 0, plus an actual implementation
+      candidate and executed Apply checks. Completed checkboxes alone are not evidence.
+      If tasks are pending or reopened, return to Apply. If progress or the candidate
+      is unknown, resolve that uncertainty first. Do not create an empty or PENDING
+      Verify placeholder before Apply completes; preserve any existing file without
+      treating it as proof of completion. After Apply, collect current evidence and
+      keep the human decision PENDING until explicitly made.
+
+      Reconcile findings with all existing Change artifacts under the stage-completion
+      rule in project context. Return requirement or planning conflicts to Planning;
+      do not rewrite expected behavior to make implementation pass. Repeat acceptance
+      on current evidence when implementation or the verified contract changes, or
+      prior evidence no longer supports the result. Editorial changes with no semantic
+      impact require review and a coherence check, not a new acceptance decision by
+      themselves. Preserve the original decision and revision references.
 
       Invoke **openspec-verify-change**, then fill the shared Feature Acceptance
       evidence table with applicable OpenSpec, repository and Scenario results. Use
@@ -325,5 +380,19 @@ apply:
   instruction: |
     Invoke spec-driven-extended-apply-context, then read context files, work through pending
     tasks and mark complete as you go. Apply does not create a separate receipt artifact.
+    Resolve exactly one existing Store task file from contextFiles.tasks; stop if
+    its identity is ambiguous. After verifying the selected task's result, update
+    only its checkbox using the Agent's file editor. Match the task to its full
+    description and repository section. A Store coordinator may record verified
+    Code Repository results without treating Store as an implementation repository.
+    Pending or blocked tasks remain unchecked. Re-read before editing, preserve task
+    descriptions, numbering and unrelated changes, verify the diff and refresh context.
+    Report access failures with the exact path and verified results for handoff,
+    without claiming progress was saved or creating a second tasks.md. Do not bypass
+    environment restrictions, change accepted Planning or commit/publish implicitly.
     Pause if you hit blockers or need clarification. Human Feature Acceptance belongs
     to the following Verify artifact, not to implementation Tasks.
+    At each task completion and before ending Apply, check findings against existing
+    Change artifacts under the stage-completion rule in project context. If a finding
+    requires an earlier artifact to change, pause affected work and return to Planning
+    for reconciliation and the required review before resuming implementation.

@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import process from "node:process";
 import test from "node:test";
+import { createCliProgress } from "@openspec-orch/plugin-sdk";
 
 import {
   CandidateCli,
@@ -122,7 +123,25 @@ test("DoctorService reuses read-only status services and keeps checking after fa
     },
   });
 
-  const report = await service.inspect({ repositoryIds: ["specs"] });
+  const stages = [];
+  const report = await service.inspect({
+    repositoryIds: ["specs"],
+    onProgress: (message) => {
+      stages.push(message);
+      calls.push(["progress", message]);
+    },
+  });
+
+  assert.deepEqual(stages, [
+    "Проверка Store...", "Проверка Store packages...", "Проверка OpenSpec...",
+    "Проверка Repositories...", "Проверка Standalone Extensions...", "Проверка Plugins...",
+  ]);
+  for (const [index, operation] of [
+    "store", "packages", "openspec-version", "repositories", "extensions", "plugins",
+  ].entries()) {
+    assert.ok(calls.findIndex(([name, text]) => name === "progress" && text === stages[index]) <
+      calls.findIndex(([name]) => name === operation));
+  }
 
   assert.equal(report instanceof DiagnosticReport, true);
   assert.equal(report.status, "blocked");
@@ -222,7 +241,7 @@ test("CandidateCli doctor renders human and JSON output from the same report", a
   const cli = new CandidateCli({
     doctorService: {
       async inspect(options) {
-        calls.push(options);
+        calls.push({ repositoryIds: options.repositoryIds });
         return report;
       },
     },
@@ -278,4 +297,80 @@ test("CandidateCli doctor renders human and JSON output from the same report", a
   assert.deepEqual(JSON.parse(output[0]), report.toJSON());
   assert.equal(process.exitCode, 1);
   assert.equal(cli.createProgram().commands.some((command) => command.name() === "repository"), false);
+});
+
+for (const isTTY of [false, true]) {
+  for (const status of ["ready", "degraded", "blocked", "error"]) {
+    test(`Doctor progress is visible while pending and stops for ${status} (TTY=${isTTY})`, async (t) => {
+      t.mock.timers.enable({ apis: ["setInterval"] });
+      const output = [];
+      const stdout = [];
+      t.mock.method(console, "log", (value) => stdout.push(value));
+      const previousExitCode = process.exitCode;
+      t.after(() => { process.exitCode = previousExitCode; });
+      const progress = createCliProgress({ output: {
+        isTTY, write: (value) => output.push(value),
+      } });
+      const { promise, resolve, reject } = Promise.withResolvers();
+      const cli = new CandidateCli({
+        progress,
+        doctorService: {
+          async inspect({ onProgress }) {
+            assert.ok(output.length > 0, "progress must start before diagnostics");
+            onProgress("Проверка OpenSpec...");
+            return promise;
+          },
+        },
+      });
+      const running = cli.createProgram().parseAsync(["node", "openspec-orch", "doctor"]);
+      assert.match(output.join(""), /Проверка OpenSpec/u);
+      assert.deepEqual(stdout, []);
+      if (isTTY) {
+        const previous = output.at(-1);
+        t.mock.timers.tick(80);
+        assert.notEqual(output.at(-1), previous, "spinner must animate during the wait");
+      } else {
+        assert.ok(output.every((line) => line.endsWith("\n") && !line.includes("\u001b")));
+      }
+      if (status === "error") {
+        reject(new Error("probe failed"));
+        await assert.rejects(running, /probe failed/u);
+        assert.deepEqual(stdout, []);
+      } else {
+        const outcome = { ready: "pass", degraded: "warning", blocked: "error" }[status];
+        resolve(new DiagnosticReport([new DiagnosticResult({ id: "store", subject: "Store", outcome })]));
+        await running;
+        assert.equal(process.exitCode, status === "blocked" ? 1 : 0);
+        assert.equal(stdout.length, 1);
+      }
+      assert.equal(progress.active, false);
+      assert.match(output.at(-1), status === "ready" ? /✓/u : status === "degraded" ? /⚠/u : /✗/u);
+      const length = output.length;
+      t.mock.timers.tick(800);
+      assert.equal(output.length, length, "no spinner frames after completion or failure");
+    });
+  }
+}
+
+test("Doctor JSON mode never starts progress even with TTY stderr", async (t) => {
+  const stderr = [];
+  const stdout = [];
+  t.mock.method(console, "log", (value) => stdout.push(value));
+  const previousExitCode = process.exitCode;
+  t.after(() => { process.exitCode = previousExitCode; });
+  const report = new DiagnosticReport([
+    new DiagnosticResult({ id: "store", subject: "Store", outcome: "pass" }),
+  ]);
+  const cli = new CandidateCli({
+    progress: createCliProgress({ output: { isTTY: true, write: (value) => stderr.push(value) } }),
+    doctorService: {
+      async inspect(options) {
+        assert.deepEqual(options, { repositoryIds: [] });
+        return report;
+      },
+    },
+  });
+  await cli.createProgram().parseAsync(["node", "openspec-orch", "doctor", "--json"]);
+  assert.deepEqual(stderr, []);
+  assert.deepEqual(JSON.parse(stdout[0]), report.toJSON());
 });
