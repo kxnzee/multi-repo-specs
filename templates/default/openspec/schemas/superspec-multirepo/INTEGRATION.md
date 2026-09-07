@@ -2,14 +2,12 @@
 
 ## Required composition
 
-Project Template `default` declares both `spec-driven-extended` and `superpowers` Extensions
-as required and installs this schema beside `spec-driven-extended`. During interactive init both
-Extensions are shown selected and locked; flag mode adds them automatically. Explicit
-`--no-extensions` is rejected for this Template. A Change selects this schema with
-`openspec new change <change-id> --schema superspec-multirepo`.
+This schema requires the Superpowers Extension. The selected Project Template's
+`requires.extensions` declares its required composition; consult that descriptor
+and the current project configuration rather than inferring other installed schemas.
+Select this schema with `openspec new change <change-id> --schema superspec-multirepo`.
 
-The Extension remains a standalone native Agent payload. The requirement guarantees
-composition; it does not copy skills into the Template or move their ownership to Core.
+The Extension owns the native Agent payload; the Template owns this schema.
 
 ## Skill handoffs
 
@@ -42,8 +40,7 @@ plan's dependency order.
 5. Implementation changes require current evidence and a new human decision.
 
 Feature Acceptance remains `PENDING` until a person explicitly selects `PASS` or
-`FAIL` from the collected evidence. It is exactly the same universal contract
-used by `spec-driven-extended`. Agent reasoning and technical checks prepare evidence
+`FAIL` from the collected evidence. Agent reasoning and technical checks prepare evidence
 but cannot make the human decision. Superspec Process Compliance is evaluated
 separately and cannot weaken Feature Acceptance.
 
@@ -58,10 +55,9 @@ A person explicitly invokes any required branch, review or PR command after Feat
 Acceptance. `superpowers:finishing-a-development-branch` remains available, but the
 schema does not call it or persist a separate closeout receipt.
 
-Archive requires human Feature Acceptance and Superspec Process Compliance. It runs
-in a Store subtask branch and reaches the Store Story branch only through review and
-PR. After the final Story Store PR is merged into the Store Integration branch, the Jira Story becomes
-`Ready to UAT`.
+Archive requires human Feature Acceptance and Superspec Process Compliance.
+Resolve branch roles, PR directions, external status transitions and Release gates
+from the project's `openspec/context/08-release-process.md`.
 
 Archive does not perform UAT, deployment or Release. Successful UAT and a separate
 human Release gate are required before Git Flow release. A UAT defect against an

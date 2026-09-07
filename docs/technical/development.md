@@ -155,4 +155,9 @@ vendored skills перечислены в `extensions/superpowers/NOTICE.md`.
 `test/agent-audit-helpers.test.js` исполняет дополнительные regression cases
 для shipped Bash helpers, review packages, visual events, renderer и bootstrap.
 Для shell cases нужен Bash (на Windows — Git Bash из Git for Windows).
-[Полный аудит](agent-audit.md) содержит инвентарь, исправления и ограничения проверки.
+
+`find-polluter.sh` требует явный runner после `--`:
+`find-polluter.sh <absent-path> <test-pattern> -- <runner> [args...]`.
+Каждый выбранный путь теста добавляется последним отдельным аргументом без shell
+интерпретации. Runner должен выполнять только этот тест; для другого интерфейса
+используйте wrapper. Прежний вызов без runner отклоняется до запуска тестов.

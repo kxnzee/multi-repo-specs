@@ -43,24 +43,29 @@ test("visual launcher rejects missing option values instead of looping", async (
   assert.deepEqual(await fs.readdir(root), []);
 });
 
-test("polluter scan distinguishes empty, existing, failed and genuinely clean runs", async (t) => {
+test("polluter scan runs an explicit runner and distinguishes inconclusive results", async (t) => {
   const root = await temporary(t);
   const script = "skills/systematic-debugging/find-polluter.sh";
+  const args = ["pollution", "src/*.test.ts", "--", "project_runner", "literal ; $(touch injected)"];
+  const runner = `project_runner() { [ "$#" -eq 2 ] && [ "$1" = 'literal ; $(touch injected)' ] && [ "$2" = "./src/with space.test.ts" ]; }; export -f project_runner; exec "$@"`;
   assert.equal(shell(script, ["pollution", "src/*.test.ts"], root).status, 2);
+  assert.deepEqual(await fs.readdir(root), []);
+  assert.equal(shell(script, args, root, runner).status, 2);
   await fs.mkdir(path.join(root, "src"));
   await fs.writeFile(path.join(root, "src", "with space.test.ts"), "fixture");
-  const clean = shell(script, ["pollution", "src/*.test.ts"], root,
-    'npm() { [ "$#" -eq 3 ] && [ "$1" = test ] && [ "$2" = -- ] && [ "$3" = "./src/with space.test.ts" ]; }; export -f npm; exec "$@"');
+  const clean = shell(script, args, root, runner);
   assert.equal(clean.status, 0, clean.stderr);
   assert.match(clean.stdout, /1 selected test commands passed/u);
-  const failed = shell(script, ["pollution", "src/*.test.ts"], root,
-    'npm() { return 1; }; export -f npm; exec "$@"');
+  assert.equal(existsSync(path.join(root, "injected")), false);
+  const failed = shell(script, args, root,
+    'project_runner() { return 1; }; export -f project_runner; exec "$@"');
   assert.equal(failed.status, 2);
-  const polluted = shell(script, ["pollution", "src/*.test.ts"], root,
-    'npm() { touch pollution; }; export -f npm; exec "$@"');
+  assert.equal(shell(script, ["pollution", "src/*.test.ts", "--", "missing-fixture-runner"], root).status, 2);
+  const polluted = shell(script, args, root,
+    'project_runner() { touch pollution; }; export -f project_runner; exec "$@"');
   assert.equal(polluted.status, 1, polluted.stderr);
-  assert.match(polluted.stdout, /Polluter: .\/src\/with space.test.ts/u);
-  assert.equal(shell(script, ["pollution", "src/*.test.ts"], root).status, 2);
+  assert.match(polluted.stdout, /Polluter: \.\/src\/with space.test.ts/u);
+  assert.equal(shell(script, args, root, runner).status, 2);
 });
 
 test("review package covers multiple commits and preserves output on invalid revision", async (t) => {

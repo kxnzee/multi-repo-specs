@@ -18,6 +18,13 @@ by OpenSpec Orchestrator. The unavailable platform-reference link was removed.
 
 The subsequent full asset audit also aligns schema routing and reviewer handoffs,
 clarifies worktree authority, repairs helper error handling and local module
-compatibility, and corrects reference examples. Details and the complete file
-inventory are recorded in the distribution's `docs/technical/agent-audit.md`.
+compatibility, and corrects reference examples.
 These adaptations are not claims about unchanged upstream behavior.
+
+Project schema instructions now own governed artifact routing; project policy owns
+Git remotes, protected branches and authorized model selection. The polluter helper
+requires an explicit test runner and passes its arguments without shell evaluation.
+
+The OpenSpec checklist substitutions are documented in-place, leaving the standalone
+Superpowers flow intact. Blocker escalation follows the existing Model Selection
+policy rather than introducing a second model policy.

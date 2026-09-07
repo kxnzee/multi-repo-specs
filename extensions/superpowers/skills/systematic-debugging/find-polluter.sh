@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # Sequential scan, not bisection. Run only in an isolated test checkout.
-# Usage: find-polluter.sh <absent-file-or-directory> <test-path-pattern>
+# Usage: find-polluter.sh <absent-file-or-directory> <test-path-pattern> -- <runner> [args...]
+# The selected filename is appended as one argument; no shell evaluation.
 # Pattern is relative to cwd, e.g. 'src/*.test.ts' (find's * crosses /).
 # Exit: 0 all selected tests passed without pollution; 1 polluter; 2 inconclusive.
 set -euo pipefail
-if [ $# -ne 2 ]; then
-  echo "usage: find-polluter.sh <absent-path> <test-pattern>" >&2
+if [ $# -lt 4 ] || [ "${3:-}" != -- ] || [ -z "${4:-}" ]; then
+  echo "usage: find-polluter.sh <absent-path> <test-pattern> -- <runner> [args...]" >&2
   exit 2
 fi
 pollution=$1
 pattern="./${2#./}"
+shift 3
 if [ -e "$pollution" ] || [ -L "$pollution" ]; then
   echo "inconclusive: pollution path already exists: $pollution" >&2
   exit 2
@@ -22,7 +24,7 @@ failures=0
 while IFS= read -r -d '' test_file; do
   count=$((count + 1))
   printf 'Testing: %s\n' "$test_file"
-  if ! npm test -- "$test_file"; then
+  if ! "$@" "$test_file"; then
     failures=$((failures + 1))
   fi
   if [ -e "$pollution" ] || [ -L "$pollution" ]; then

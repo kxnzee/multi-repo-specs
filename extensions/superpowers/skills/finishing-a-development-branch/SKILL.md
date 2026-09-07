@@ -61,10 +61,11 @@ This determines which menu to show and how cleanup works:
 
 ### Step 3: Determine Base Branch
 
-Resolve the target branch and remote from the accepted project Git Flow or the
+Resolve the target branch, base remote and push remote from the accepted project Git Flow or the
 user request. `git merge-base` computes a revision; it does not identify the
 authorized PR target. If the target is unknown, ask before mutation. Record the
-feature branch and full HEAD. Preserve any unrelated dirty/staged changes.
+feature branch and full HEAD. A fork may use different base and push remotes;
+record both without assuming a remote name. Preserve unrelated dirty/staged changes.
 Use `git worktree list --porcelain` to locate the existing target checkout; do not
 assume the common Git directory lives immediately below the main working tree.
 
@@ -108,7 +109,7 @@ cd "$MAIN_ROOT"
 
 # Merge first — verify success before removing anything
 git checkout <base-branch>
-git pull --ff-only
+git pull --ff-only <confirmed-base-remote> <base-branch>
 git merge <feature-branch>
 
 # Verify tests on merged result
@@ -127,7 +128,7 @@ git branch -d <feature-branch>
 
 ```bash
 # Push branch
-git push -u origin <feature-branch>
+git push -u <confirmed-push-remote> <feature-branch>
 ```
 
 After a successful push, create or reuse the PR through the configured hosting

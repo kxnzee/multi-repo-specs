@@ -4,7 +4,9 @@ Use this template when dispatching a spec document reviewer subagent.
 
 **Purpose:** Verify the spec is complete, consistent, and ready for implementation planning.
 
-**Dispatch after:** Spec document is written to docs/superpowers/specs/
+**Dispatch after:** The requested document is written to the resolved `SPEC_FILE_PATH`.
+Use the path and applicable artifact instructions supplied by the caller; do not
+assume a directory, filename or next lifecycle stage.
 
 ```
 Subagent (general-purpose):

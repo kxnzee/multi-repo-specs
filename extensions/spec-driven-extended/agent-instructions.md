@@ -32,12 +32,9 @@ Qwen/GigaCode. В Claude установленный Plugin добавляет na
 
 ## Границы
 
-Ограничения этого раздела на исследование кода и технические детали относятся к
-workflow `spec-driven-extended` и долговечному `openspec/context/`. Для Change
-`superspec-multirepo` допустимое содержимое Design и execution artifacts определяют
-его актуальные schema instructions: `plan.md` может содержать точные пути, команды
-и ожидаемые результаты. Это исключение не относится к Requirements, Scenarios
-или долговечному context.
+Ограничения этого раздела относятся к workflow `spec-driven-extended` и
+долговечному `openspec/context/`. Для остальных schemas допустимые стадии,
+содержимое и пути артефактов определяют их актуальные instructions.
 
 - Не открывай Code Repository или CodeGraph для Intent, Intake, Proposal,
   Requirements и Scenarios. На Design, Tasks, Apply и при проверке current-state
@@ -53,16 +50,19 @@ workflow `spec-driven-extended` и долговечному `openspec/context/`.
 
 ## Маршрутизация
 
-- Для любого действия над существующим Change сначала обеспечь актуальный `schemaName`:
+- `/spec-driven-extended-context` обслуживает долговечный контекст Store независимо
+  от schema. Переданный `--change` задаёт источник и scope проверки, а не выбор
+  workflow; команда не запускает его стадии. Для работы без Change schema не нужна.
+- Для действий над артефактами существующего Change сначала обеспечь актуальный `schemaName`:
   переиспользуй переданный `get_change_context` либо вызови его один раз. Применяй
-  маршруты, skills и команды `spec-driven-extended-*` только
-  к `spec-driven-extended`. Для `superspec-multirepo` следуй artifact DAG и instructions этой
-  schema; не добавляй в него spec-driven-extended Intake, meta-planning или Apply preflight.
+  workflow-маршруты, skills и команды `spec-driven-extended-*` (кроме context) только
+  к `spec-driven-extended`. Для другой schema следуй её artifact DAG и instructions;
+  не добавляй стадии или preflight этого Extension.
 - Для нового `spec-driven-extended` Change без принятого Intent начни с
   `spec-driven-extended-intent`; готовый полный
   Intent повторно не собирай. Первый artifact создаёт
   `/spec-driven-extended-intake <change-id>`. После Intake следующий маршрут выбирает
-  пользователь. Это правило не изменяет Superspec Brainstorm.
+  пользователь. Это правило не применяется к другим schemas.
 - Для проверки Planning используй `spec-driven-extended-meta-planning`, для Apply preflight —
   `spec-driven-extended-apply-context`, для test cases — `spec-driven-extended-test-cases`, для
   долговечного context и ADR — `/spec-driven-extended-context`.

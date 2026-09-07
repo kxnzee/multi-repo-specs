@@ -202,12 +202,13 @@ test("Change Tracking reuses the Apply Work Context instead of duplicating MCP r
   assert.doesNotMatch(source, /then resolve the current\s+Repository through `get_assignment_scope`/iu);
 });
 
-test("spec-driven-extended Extension does not route Superspec Changes through another workflow", async () => {
+test("spec-driven-extended Extension isolates its workflow without naming other schemas", async () => {
   const source = await fs.readFile(path.join(EXTENSION_ROOT, "agent-instructions.md"), "utf8");
   assert.match(source, /schemaName/u);
   assert.match(source, /только\s+к `spec-driven-extended`/u);
-  assert.match(source, /Для `superspec-multirepo`[\s\S]*не добавляй[\s\S]*spec-driven-extended Intake/u);
-  assert.match(source, /Это правило не изменяет Superspec Brainstorm/u);
+  assert.match(source, /Для другой schema следуй её artifact DAG и instructions/u);
+  assert.match(source, /не добавляй стадии или preflight этого Extension/u);
+  assert.doesNotMatch(source, /superspec-multirepo|Superspec/u);
 });
 
 test("Default Template artifacts do not depend on concrete Plugins", async () => {

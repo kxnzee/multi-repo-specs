@@ -15,6 +15,8 @@ argument-hint: "[initialize|audit|update] [--change <change-id>] [--spec <capabi
 
 Поддерживать только долговечные Store-level знания. Команда не создаёт Requirements,
 Changes, Specs, Tasks и repository-specific техническую документацию.
+Команда не зависит от schema: `--change` ограничивает источники проверки, но не
+включает workflow этого Extension и не требует смены схемы выбранного Change.
 
 ## Режим
 

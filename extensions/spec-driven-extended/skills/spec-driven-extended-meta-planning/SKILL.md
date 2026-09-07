@@ -26,9 +26,9 @@ planning-review. Не создавать параллельный workflow и н
 
 Proposal и Specs являются Store-only стадиями. Code Repository, CodeGraph и
 repository evidence scout для них запрещены. На Design, Tasks, impact-review и
-planning-review разрешены только адресные repository evidence requests: сначала через
-scout, а при его недоступности — тем же адресным read/search основного агента. Каждый
-request проверяет один вопрос в одном Repository.
+planning-review разрешены только адресные repository evidence requests по правилам
+раздела «Подтверждения из Repository», включая условия fallback. Каждый request
+проверяет один вопрос в одном Repository.
 
 ## Предварительная проверка
 
@@ -111,10 +111,16 @@ Requirement/Scenario или path:line и отделить факт, вывод, 
 
 ## Подтверждения из Repository
 
-Если на разрешённой стадии нужен current-state факт, вызвать только
-spec-driven-extended-repository-evidence-scout.
+Если на разрешённой стадии нужен current-state факт, использовать
+spec-driven-extended-repository-evidence-scout. Fallback основного агента допустим
+только при недоступности механизма запуска scout и если принятые инструкции не
+требуют независимого subagent. Сохранить тот же входной контракт, scope, revision,
+anchors, ограничения чтения и формат результата; явно обозначить fallback в отчёте.
+Отсутствие обязательного входа или ответ scout `blocked` не разрешает fallback.
+Ограничения CodeGraph действуют и для основного агента; отказ доставки MCP не
+обходится обычным поиском. Если fallback запрещён, вернуть blocker.
 
-- Один вопрос — один новый subagent. После декомпозиции N вопросов означают
+- Один вопрос — один новый subagent при доступном scout. После декомпозиции N вопросов означают
   ровно N независимых вызовов: пять вопросов — пять subagents. Не передавать список
   вопросов и не переиспользовать завершённый или продолжающийся контекст.
 - Общий или межрепозиторный вопрос сначала разложить на независимые
@@ -131,9 +137,8 @@ spec-driven-extended-repository-evidence-scout.
   question_id и полями status, answer и evidence. Текст до или после YAML
   считать нарушением контракта и не использовать как evidence.
 
-Не просить scout делать межрепозиторный вывод или собирать общий обзор. Если scout
-недоступен, выполнить такой же адресный read/search самостоятельно с теми же
-ограничениями. Store-level context и Planning review основной агент читает сам.
+Не просить scout делать межрепозиторный вывод или собирать общий обзор.
+Store-level context и Planning review основной агент читает сам.
 
 spec-driven-extended-test-cases применять только по запросу пользователя либо для проверки
 неоднозначного test coverage. Expected result брать из Planning; repository evidence

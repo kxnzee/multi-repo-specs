@@ -8,8 +8,8 @@ entrypoint. Do not create separate `implement-design` or `implement-plan` workfl
   and freshness boundary. Otherwise call `get_change_context` once with
   `artifact: "apply"` and `include_assignment: true`; use its embedded
   `assignment_scope` instead of making a duplicate `get_assignment_scope` call. Follow
-  the active schema's returned Apply instructions: a Superspec Change executes its
-  repository section of `plan.md`; another schema may use a different Apply artifact.
+  the active schema's returned Apply instructions and resolved artifact paths; execute
+  only the selected repository scope.
 - For each selected canonical OpenSpec Apply task, call `start_attempt` immediately
   before implementation. Do not treat Design as a separate implementation action
   and do not track plan micro-steps.

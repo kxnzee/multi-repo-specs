@@ -1,3 +1,6 @@
+# Схема по умолчанию для новых Changes, создаваемых без --schema.
+# Доступные схемы: openspec schemas.
+# Выбор для отдельного Change: openspec new change <change-id> --schema <schema-name>.
 schema: spec-driven-extended
 
 context: |
@@ -7,22 +10,16 @@ context: |
   Specs принадлежат OpenSpec Store. Если существует openspec-orch.yaml, используй
   только зарегистрированные Code Repository IDs.
 
-  Определи schema текущего Change по его .openspec.yaml и следуй только её artifact
-  graph и process-specific instructions. spec-driven-extended и superspec-multirepo являются
-  независимыми workflows; доступность обоих Extensions не разрешает смешивать их
-  стадии или создавать параллельные planning documents.
-
-  Intent, Proposal, Requirements и Scenarios формируй без чтения Code Repository.
-  Для spec-driven-extended Code разрешено открывать на Design, Tasks и Apply только
-  для проверки заранее сформулированного current-state или feasibility утверждения;
-  внутренние symbols, code inventory и path:line не переносятся в его artifacts.
-  Для superspec-multirepo исследование на Brainstorm, Design, Plan, Apply и Verify
-  следует schema и подтверждённому repository scope; Plan содержит точные пути,
-  команды и ожидаемые результаты. Долговечный openspec/context/ не хранит эти детали.
+  Определи schema текущего Change по его .openspec.yaml. Актуальные artifact
+  instructions определяют зависимости, допустимое исследование кода, содержимое
+  и пути результатов. Не смешивай workflows подключённых Extensions.
+  Роли и согласования проекта определены в openspec/context/07-quality-gates.md,
+  порядок поставки — в openspec/context/08-release-process.md.
+  Долговечный context не хранит локальные implementation details.
 
 rules:
   proposal:
-    - "Аналитик владеет всеми Planning-артефактами; разработчик, тестировщик и лид разработки ревьюят весь Planning PR до Gate 1."
+    - "Владельца Planning и обязательных reviewers определяй по актуальной политике проекта в openspec/context/07-quality-gates.md."
     - "Сначала зафиксировать WHY и наблюдаемое WHAT, scope, Non-Goals и критерии успеха; implementation details относятся к Design или execution artifacts выбранной schema."
     - "Repository Impact содержит только зарегистрированные Code Repository IDs, где ожидаются изменения, и связывает каждый Repository с точными capability paths."
   specs:
@@ -33,13 +30,11 @@ rules:
   tasks:
     - "Группировать реализацию по точным Repository IDs, связывать задачи с принятыми Requirements или Scenarios и указывать наблюдаемый способ проверки."
   verify:
-    - "Verify является универсальной Feature Acceptance: Agent готовит evidence, человек явно принимает решение PASS или FAIL, а до решения gate остаётся PENDING."
+    - "Следуй контракту проверки выбранной schema; evidence агента не заменяет требуемое решение человека."
 
 operations:
   archive:
     guidance:
       - "Определи schema Change по .openspec.yaml и не смешивай process-specific gates разных schemas."
-      - "Требуй human Feature Acceptance PASS в verify.md; Agent evidence не заменяет явное решение человека."
-      - "Для superspec-multirepo дополнительно требуй Process Compliance PASS или PASS_WITH_WARNINGS."
-      - "Выполняй Archive до Ready to UAT только в Store subtask branch и публикуй результат через Story Store PR в Integration branch Store; Agent не принимает UAT и Release-решение."
-      - "Если UAT выявил несоответствие архивированному Scenario, требуй связанный корректирующий Change и блокируй Release; Master Specs напрямую не исправляй."
+      - "Проверь условия Archive по актуальным инструкциям выбранной schema; используй указанные ими артефакты и требуемые решения людей."
+      - "Следуй принятому порядку поставки, полномочиям и направлениям PR из openspec/context/08-release-process.md; не угадывай ветки или статусы внешних систем."

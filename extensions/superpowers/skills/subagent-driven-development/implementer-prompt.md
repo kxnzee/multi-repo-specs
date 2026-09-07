@@ -5,8 +5,8 @@ Use this template when dispatching an implementer subagent.
 ```
 Subagent (general-purpose):
   description: "Implement Task N: [task name]"
-  model: [MODEL — REQUIRED: choose per SKILL.md Model Selection; an omitted
-         model silently inherits the session's most expensive one]
+  model: [OPTIONAL — omit unless the dispatch tool supports an authorized override;
+         follow SKILL.md Model Selection]
   prompt: |
     You are implementing Task N: [task name]
 
@@ -85,7 +85,7 @@ Subagent (general-purpose):
 
     **How to escalate:** Report back with status BLOCKED or NEEDS_CONTEXT. Describe
     specifically what you're stuck on, what you've tried, and what kind of help you need.
-    The controller can provide more context, re-dispatch with a more capable model,
+    The controller can provide more context, re-dispatch with a more capable model when authorized and available,
     or break the task into smaller pieces.
 
     ## Before Reporting Back: Self-Review

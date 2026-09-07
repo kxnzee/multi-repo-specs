@@ -64,6 +64,8 @@ artifacts:
     description: Initial proposal document outlining the change
     template: proposal.md
     instruction: |
+      Use accepted planning sources and normative Store artifacts for this stage.
+      Do not inspect Code Repositories to formulate Proposal, Requirements or Scenarios.
       Create the proposal document that establishes WHY this change is needed.
       Read intake.md first, resolve or preserve its relevant open questions, and
       promote only confirmed conclusions without copying the questionnaire verbatim.
@@ -103,6 +105,8 @@ artifacts:
     description: Detailed specifications for the change
     template: spec.md
     instruction: |
+      Use accepted planning sources and normative Store artifacts for this stage.
+      Do not inspect Code Repositories to formulate Proposal, Requirements or Scenarios.
       Create specification files that define WHAT the system should do.
       Before completion invoke spec-driven-extended-meta-planning for the specs stage.
 
@@ -247,13 +251,13 @@ artifacts:
     description: Implementation checklist with a final verification checkpoint
     template: tasks.md
     instruction: |
-      The Analyst creates the task list that breaks down the implementation work.
+      The project-designated Planning owner creates the task list that breaks down the implementation work.
       Before completion invoke spec-driven-extended-meta-planning for the tasks stage and
       verify Scenario → Design decision → Task traceability.
 
-      The Developer, Tester and Development Lead review the complete Planning change
-      through the project PR process before Gate 1. Their review does not transfer
-      ownership of Planning artifacts away from the Analyst.
+      Use the Planning owner, required reviewers and acceptance gates declared in
+      openspec/context/07-quality-gates.md. Follow the project PR process in
+      openspec/context/08-release-process.md; do not infer roles from job titles.
 
       Before writing tasks, check design.md for Open Questions. If any of them
       would change what gets built, resolve them with the user first - do not

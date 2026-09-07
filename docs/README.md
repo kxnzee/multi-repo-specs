@@ -48,12 +48,6 @@ Compliance. Schema выбирается отдельно для каждого C
   OpenSpec, команды проверок, структура checkout и диагностика CI.
 - [Инструкции агента](../AGENTS.md) — маршрут работы над этим репозиторием.
 
-- [Аудит готовности к пилоту](technical/pilot-audit.md) — исходный commit, находки,
-  проверки и оставшиеся ограничения.
-
-- [Аудит агентской поставки](technical/agent-audit.md) — полный инвентарь skills,
-  commands, subagents, Extensions и Template rules, исправления и границы проверки.
-
 ## Источники истины
 
 Для runtime behavior приоритет имеют код, тесты и package manifests. Текущие

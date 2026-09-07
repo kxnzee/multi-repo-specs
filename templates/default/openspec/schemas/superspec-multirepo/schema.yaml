@@ -34,6 +34,8 @@ artifacts:
     description: Governed OpenSpec Change contract derived from brainstorming
     template: proposal.md
     instruction: |
+      Use accepted planning sources and normative Store artifacts for this stage.
+      Do not inspect Code Repositories to formulate Proposal, Requirements or Scenarios.
       Read brainstorm.md and create the OpenSpec Proposal. Extract motivation,
       observable changes, capability impact and constraints without repeating the
       dialogue. Keep implementation choices out of Proposal.
@@ -73,6 +75,8 @@ artifacts:
     description: Observable behavioral contract expressed as Delta Specs
     template: spec.md
     instruction: |
+      Use accepted planning sources and normative Store artifacts for this stage.
+      Do not inspect Code Repositories to formulate Proposal, Requirements or Scenarios.
       Create one Delta Spec for every new or modified capability in proposal.md.
       Requirements use SHALL or MUST and every Requirement has at least one level-4
       Scenario with WHEN and THEN. MODIFIED contains the complete resulting
@@ -91,14 +95,14 @@ artifacts:
     description: Coarse implementation and verification work grouped by repository
     template: tasks.md
     instruction: |
-      The Analyst reads proposal.md, Delta Specs and optional design.md and creates
+      The project-designated Planning owner reads proposal.md, Delta Specs and optional design.md and creates
       coarse-grained checkbox tasks grouped under headings containing the exact
       Repository ID that owns the work. Each task states the required result and how
       it will be checked. Do not introduce behavior outside the accepted Specs.
 
-      The Developer, Tester and Development Lead review the complete Planning change
-      through the project PR process before Gate 1. Their review does not transfer
-      ownership of Planning artifacts away from the Analyst.
+      Use the Planning owner, required reviewers and acceptance gates declared in
+      openspec/context/07-quality-gates.md. Follow the project PR process in
+      openspec/context/08-release-process.md; do not infer roles from job titles.
 
       Human Feature Acceptance belongs to the following Verify artifact, not to
       implementation Tasks.
@@ -139,8 +143,8 @@ artifacts:
       Then invoke **openspec-verify-change** and fill the shared Feature Acceptance
       evidence table. Present it for an explicit human decision. The Agent must keep
       the Human gate `PENDING` until a person explicitly selects `PASS`
-      or `FAIL`; Agent evidence cannot make this decision. This is the same universal
-      acceptance contract used by `spec-driven-extended`.
+      or `FAIL`; Agent evidence cannot make this decision. Follow the acceptance
+      contract defined in this schema's Verify template.
 
       Separately record Superspec Process Compliance: Delta Spec sync and
       Design/Specs coherence, clean implementation state, TDD evidence, task reviews,

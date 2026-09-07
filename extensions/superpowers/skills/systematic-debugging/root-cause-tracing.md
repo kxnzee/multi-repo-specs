@@ -101,11 +101,15 @@ If something appears during tests but you don't know which test:
 Use the sequential scan script `find-polluter.sh` in this directory:
 
 ```bash
-./find-polluter.sh 'unexpected-output' 'src/*.test.ts'
+./find-polluter.sh 'unexpected-output' '<test-path-pattern>' -- <runner> [runner-args...]
 ```
 
 Run in an isolated checkout with the pollution path initially absent. Verify that
-`npm test -- <file>` runs only that file for this project. The script stops at the
+the supplied runner and arguments execute only the appended test file for this project.
+Arguments are passed literally, without shell evaluation. For example, a project
+using Node's test runner can pass `-- node --test`; use an explicit wrapper if the
+project needs a different filename position or setup. No runner is guessed.
+The script stops at the
 first polluter; no matches, pre-existing pollution or failed test commands are
 inconclusive (exit 2), not a clean result. It does not test order-dependent pairs.
 
