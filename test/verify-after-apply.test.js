@@ -24,6 +24,9 @@ for (const schema of ["spec-driven-extended", "superspec-multirepo"]) {
     await fs.cp(path.join(ROOT, "templates/default/openspec"), path.join(root, "openspec"), {
       recursive: true,
     });
+    await fs.cp(path.join(ROOT, "templates/default/process"), path.join(root, "openspec/process"), {
+      recursive: true,
+    });
     const change = path.join(root, "openspec/changes/verify-order");
     await fs.mkdir(path.join(change, "specs/example"), { recursive: true });
     await fs.writeFile(path.join(change, ".openspec.yaml"), `schema: ${schema}\n`);
@@ -72,7 +75,10 @@ for (const schema of ["spec-driven-extended", "superspec-multirepo"]) {
     const verification = await application.artifactInstructions("verify-order", "verify");
     assert.match(planning.instruction, /refresh get_next_action/u);
     assert.match(verification.instruction, /Before creating or updating verify\.md/u);
-    assert.match(verification.context, /Не создавай verify\.md заранее/u);
+    const policyPath = verification.context.match(/openspec\/process\/quality-gates\.md/u)?.[0];
+    assert.ok(policyPath, "OpenSpec must route the agent to the stage policy");
+    const policy = await fs.readFile(path.join(root, policyPath), "utf8");
+    assert.match(policy, /Не создавай verify\.md заранее/u);
 
     await writeTasks("x", " ");
     assert.equal((await application.nextAction("verify-order")).action, "apply_change");
