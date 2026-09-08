@@ -1,0 +1,12 @@
+{
+  "name": "openspec-orch-spec-reader",
+  "owner": {
+    "name": "OpenSpec Orchestrator"
+  },
+  "plugins": [
+    {
+      "name": "spec-reader",
+      "source": "./"
+    }
+  ]
+}
