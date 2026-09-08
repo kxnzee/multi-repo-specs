@@ -50,7 +50,7 @@ Requirements и Scenarios описывают наблюдаемое поведе
 - Роли и согласования: `openspec/process/quality-gates.md`.
 - Процесс поставки проекта: `openspec/process/release-process.md`.
 - Workflow, команды и специализированные проверки: подключённые Extensions.
-- Наполнение и аудит бизнес-контекста: `/spec-driven-extended-context` из Extension
+- Инициализация и дополнение бизнес-контекста: `/spec-driven-extended-context` из Extension
   `spec-driven-extended`; режимы и правила записи определяет сама команда.
 - Требования конкретной стадии: актуальные OpenSpec instructions выбранного Change.
 

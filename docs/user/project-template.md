@@ -168,7 +168,7 @@ Release-решение.
 |---|---|---|---|
 | `spec-driven-extended-intent` | skill | `[описание изменения]` | Intent в диалоге, без записи файлов |
 | `spec-driven-extended-intake` | command | `[change-id]` | Intake и рекомендуемый следующий шаг |
-| `spec-driven-extended-context` | command | `[initialize\|audit\|update]` и selectors | Аудит контекста либо согласованный diff |
+| `spec-driven-extended-context` | command | `[initialize\|update]` и selectors | Инициализация или дополнение общего контекста |
 | `spec-driven-extended-meta-planning` | skill | `[change-id] [stage]` | Проверка Planning без записи и принятия Gate |
 | `spec-driven-extended-apply-context` | skill | `[change-id]` | Проверенный scope для штатного Apply |
 | `spec-driven-extended-test-cases` | skill | `[change-id]` | Тест-кейсы по принятым требованиям |
