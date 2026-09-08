@@ -137,7 +137,8 @@ Read tools:
 - `get_setup_context`;
 - `get_change_context` — принимает опциональный `include_assignment: true`, чтобы
   вернуть `assignment_scope` в том же ответе без повторного Project envelope и второй
-  компиляции Graph impact;
+  компиляции Graph impact. `resources` содержит артефакты выбранного Change,
+  `shared_resources` — общие инструкции, контекст и Master Specs Store;
 - `get_next_action` — учитывает прогресс Apply перед предложением следующего
   артефакта: незавершённые задачи дают `apply_change`, неизвестный или противоречивый
   прогресс — `consult_change_context`. Доступный Verify предлагается после
@@ -176,8 +177,14 @@ Task evidence tools:
   итоговую revision в Change-local implementation map; повторная реализация того же
   task добавляется как новая attempt.
 
-Resources ограничены Project config, OpenSpec config, Markdown/YAML context, Master
-Specs и schema-declared Change artifacts. `.openspec.yaml` и произвольные Store
+Resources ограничены Project config, OpenSpec config, `STORE.md`, точными файлами
+`openspec/process/quality-gates.md` и `openspec/process/release-process.md`,
+Markdown/YAML context, Master Specs и schema-declared Change artifacts.
+Каждый descriptor содержит `_meta.content_revision` — SHA-256 содержимого файла.
+`get_change_context` включает эти descriptors, поэтому изменение текста, добавление
+или удаление ресурса текущего Change либо общего Store context меняет его
+`context_revision`, даже если статус artifact прежний. Изменения артефактов других
+Changes не входят в этот набор; Plugin overlays могут иметь собственные зависимости. `.openspec.yaml` и произвольные Store
 files не публикуются.
 
 В `get_assignment_scope` поле `assigned` равно `true` или `false`, когда scope

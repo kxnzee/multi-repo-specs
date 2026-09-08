@@ -385,3 +385,72 @@ test("runtime does not advertise a bound Graph Plugin whose runtime is unavailab
   resolutionError = new TypeError("broken Plugin factory");
   await assert.rejects(runtime.getStatus(), /broken Plugin factory/u);
 });
+
+test("public MCP refreshes artifact content and exposes only the declared shared policies", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-mcp-freshness-"));
+  const client = new Client({ name: "freshness-regression", version: "1.0.0" });
+  t.after(async () => {
+    try { await client.close(); } finally {
+      await fs.rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+  });
+  await execa("git", ["init", "--initial-branch", "main"], { cwd: root });
+  await fs.mkdir(path.join(root, ".openspec-store"));
+  await fs.writeFile(path.join(root, ".openspec-store/store.yaml"),
+    "version: 1\nid: specs\nremote: https://example.test/specs.git\n");
+  await fs.writeFile(path.join(root, "openspec-orch.yaml"), configuration.serializeProject(createProject({
+    version: 1, strict: true, template: { id: "default" }, agent: { id: "qwen" },
+    extensions: [], plugins: [], repositories: [{
+      id: "specs", role: "store", remote: "https://example.test/specs.git",
+      defaultBranch: "main", plugins: [],
+    }],
+  })));
+  await fs.cp(path.join(repositoryRoot, "templates/default/openspec"), path.join(root, "openspec"), { recursive: true });
+  await fs.mkdir(path.join(root, "openspec/process"));
+  await fs.mkdir(path.join(root, "openspec/context"));
+  await fs.mkdir(path.join(root, "openspec/specs/payments"), { recursive: true });
+  const shared = ["STORE.md", "openspec/process/quality-gates.md", "openspec/process/release-process.md",
+    "openspec/context/product.md", "openspec/specs/payments/spec.md"];
+  for (const name of shared) await fs.writeFile(path.join(root, name), "# Original\n");
+  await fs.writeFile(path.join(root, "openspec/process/private.md"), "private\n");
+  for (const change of ["pay", "other"]) {
+    await execa("openspec", ["new", "change", change, "--schema", "spec-driven-extended"], { cwd: root });
+    await fs.writeFile(path.join(root, `openspec/changes/${change}/intake.md`), "# Intake\n");
+    await fs.writeFile(path.join(root, `openspec/changes/${change}/proposal.md`), "## Why\nOriginal.\n");
+  }
+  await client.connect(new StdioClientTransport({
+    command: process.execPath, args: [serverPath], cwd: root, env: { ...process.env }, stderr: "pipe",
+  }));
+  const readContext = async (revision) => {
+    const response = await client.callTool({ name: "get_change_context", arguments: {
+      change_id: "pay", artifact: "specs", ...(revision ? { if_context_revision: revision } : {}),
+    } });
+    assert.notEqual(response.isError, true, JSON.stringify(response.content));
+    return JSON.parse(response.content[0].text);
+  };
+  const uri = (name) => `openspec-orch://store/specs/${name}`;
+  let previous = await readContext();
+  for (const name of shared) {
+    assert.ok(previous.shared_resources.some((resource) => resource.name === name), name);
+    assert.equal((await client.readResource({ uri: uri(name) })).contents[0].text, "# Original\n");
+  }
+  await assert.rejects(client.readResource({ uri: uri("openspec/process/private.md") }), /MCP_RESOURCE_NOT_FOUND/u);
+  assert.equal((await readContext(previous.context_revision)).unchanged, true);
+  for (const name of ["openspec/changes/pay/proposal.md", ...shared]) {
+    await fs.writeFile(path.join(root, name), "# Changed content\n");
+    const current = await readContext(previous.context_revision);
+    assert.notEqual(current.unchanged, true, name);
+    assert.notEqual(current.context_revision, previous.context_revision, name);
+    assert.equal((await readContext(current.context_revision)).unchanged, true, name);
+    previous = current;
+  }
+  // A different Change is outside this Work Context.
+  await fs.writeFile(path.join(root, "openspec/changes/other/proposal.md"), "# Unrelated update\n");
+  assert.equal((await readContext(previous.context_revision)).unchanged, true);
+  await fs.rm(path.join(root, shared[0]));
+  const removed = await readContext(previous.context_revision);
+  assert.notEqual(removed.context_revision, previous.context_revision);
+  assert.equal(removed.shared_resources.some(({ name }) => name === shared[0]), false);
+  await fs.writeFile(path.join(root, shared[0]), "# Restored\n");
+  assert.notEqual((await readContext(removed.context_revision)).context_revision, removed.context_revision);
+});

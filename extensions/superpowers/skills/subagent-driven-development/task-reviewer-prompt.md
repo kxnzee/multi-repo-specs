@@ -31,6 +31,9 @@ Subagent (general-purpose):
 
     ## Diff Under Review
 
+    **Repository:** [REPOSITORY_ID]
+    **Checkout:** [CHECKOUT_PATH]
+    **Snapshot tree:** [SNAPSHOT_TREE_SHA]
     **Base:** [BASE_SHA]
     **Head:** [HEAD_SHA]
     **Diff file:** [DIFF_FILE]
@@ -40,7 +43,13 @@ Subagent (general-purpose):
     change. The diff's context lines ARE the changed files: do not Read a
     changed file separately unless a hunk you must judge is cut off
     mid-function — and say so in your report. Do not re-run git commands.
-    If the diff file is missing, fetch the diff yourself:
+    Verify these identities match the package and test report. Missing inputs,
+    mismatched versions or stale test evidence mean Blocked / Cannot verify;
+    identify what the controller must supply. Do not approve unseen changes.
+    For a worktree snapshot, HEAD is only its committed foundation: the tree SHA
+    identifies the reviewed content. If that package is missing, return Blocked;
+    a BASE..HEAD diff cannot reconstruct uncommitted work.
+    For a committed result only, if the diff file is missing, fetch the diff yourself:
     `git diff --stat [BASE_SHA]..[HEAD_SHA]` and `git diff [BASE_SHA]..[HEAD_SHA]`.
     Do not crawl the broader codebase. Inspect code outside the diff only
     to evaluate a concrete risk you can name — one focused check per named
@@ -160,7 +169,7 @@ Subagent (general-purpose):
 
     ### Assessment
 
-    **Task quality:** [Approved | Needs fixes]
+    **Task quality:** [Approved | Needs fixes | Blocked]
 
     **Reasoning:** [1-2 sentence technical assessment]
 ```
@@ -175,6 +184,8 @@ Subagent (general-purpose):
   are already in this template)
 - `[REPORT_FILE]` — REQUIRED: the file the implementer wrote its detailed
   report to
+- `[REPOSITORY_ID]`, `[CHECKOUT_PATH]` — assigned repository identity and absolute checkout
+- `[SNAPSHOT_TREE_SHA]` — full tree SHA shared by package and test report
 - `[BASE_SHA]` — commit before this task
 - `[HEAD_SHA]` — current commit
 - `[DIFF_FILE]` — REQUIRED: the path the controller wrote the review

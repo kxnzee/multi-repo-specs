@@ -63,6 +63,18 @@ export function createQwenCompatibleAdapter({ scopeMarkers = QWEN_SCOPE_MARKERS 
             `не совпадает с native ID '${nativeId}'`,
         );
       }
+      const marketplace = await readNativeManifest(
+        path.join(extension.root, ".claude-plugin", "marketplace.json"),
+        extension.root,
+      );
+      const entries = Array.isArray(marketplace.plugins)
+        ? marketplace.plugins.filter((entry) => entry?.name === nativeId)
+        : [];
+      if (entries.length !== 1 || entries[0].source !== "./") {
+        throw new Error(
+          `AGENT_EXTENSION_INVALID: marketplace должен объявлять один ${nativeId} с source './'`,
+        );
+      }
     },
 
     async invokeExtension(context, extension, request) {

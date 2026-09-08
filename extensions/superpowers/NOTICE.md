@@ -28,3 +28,8 @@ requires an explicit test runner and passes its arguments without shell evaluati
 The OpenSpec checklist substitutions are documented in-place, leaving the standalone
 Superpowers flow intact. Blocker escalation follows the existing Model Selection
 policy rather than introducing a second model policy.
+
+Review handoffs now support scoped uncommitted snapshots through a temporary Git
+index and identify reviewed/tested content by its tree SHA. Reviewer templates
+explicitly report missing evidence; optional document-review templates remain
+outside the default inline self-review flow.

@@ -25,6 +25,8 @@ Subagent (general-purpose):
     Repository: [REPOSITORY_ID]; checkout: [DIRECTORY]; base: [FULL_BASE_SHA].
     TDD requirement: [REQUIRED_OR_ACCEPTED_EXCEPTION].
     Commit authority: [AUTHORIZED_SCOPE_OR_NO_COMMIT].
+    Owned paths: [EXPLICIT_TASK_PATHS]; review package output: [REVIEW_PACKAGE_FILE].
+    Keep reports and packages outside the checkout or in Git-ignored scratch.
     Read the checkout instructions. Never commit other agents' or user changes.
     If commits are not authorized, return verified work and say it is uncommitted;
     do not report a committed repository result.
@@ -114,6 +116,26 @@ Subagent (general-purpose):
     - Is the test output pristine (no stray warnings or noise)?
 
     If you find issues during self-review, fix them now before reporting.
+
+    ## Verification Identity
+
+    Record repository ID, absolute checkout, full base and HEAD SHAs, and the
+    snapshot tree SHA in the report. For uncommitted work, use the controller's
+    absolute `review-package` helper path with
+    `BASE --worktree REVIEW_PACKAGE_FILE -- OWNED_PATHS...`; paths are literal,
+    relative to the invocation directory. Include every task change, including
+    new files, deletions and both sides of renames. Never include others' work.
+    The helper uses a temporary index; it does not commit or stage your changes.
+    For committed work use `BASE HEAD REVIEW_PACKAGE_FILE` only when the
+    tested checkout matches HEAD. Check for task changes before and after tests;
+    a committed tree SHA alone cannot detect later worktree edits.
+
+    Capture the snapshot before validation and regenerate it afterwards. The
+    tree SHA must match; if tests or fixes changed task code, run the affected
+    checks again on the new snapshot. Record commands, outcomes and limitations
+    against that SHA. Unrelated dirty code can affect tests: use an authorized
+    isolated checkout or report the limitation; never claim exact-snapshot
+    validation when tested files differ from the snapshot.
 
     ## After Review Findings
 
