@@ -26,6 +26,7 @@ Repository через OpenSpec pointer. Соблюдайте scope конкре�
 | Описать бизнес приложения, его окружение и ограничения без привязки к репозиториям | [Бизнес-контекст](user/project-context.md) |
 | Подключить Agent gateway, OpenSpec Graph, Change Tracking, CodeGraph или внешний Plugin | [Plugins](user/plugins.md) |
 | Провести Jira Story от требования до UAT и Release | [Единый процесс поставки](user/story-delivery-process.md) |
+| Доработать существующую систему или впервые описать её контракт | [Изменения и brownfield baseline](user/brownfield-and-changes.md) |
 | Выбрать действие в пограничной ситуации | [Сценарии работы с Change](user/change-scenarios.md) |
 | Получить человекочитаемые мастер-спеки | [Spec Reader](user/spec-reader.md) |
 

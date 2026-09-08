@@ -208,7 +208,7 @@ export class OrchestratorMcpRuntime {
   async getChangeContext({ change_id: changeId, artifact, include_assignment: includeAssignment } = {}) {
     const state = await this.#state();
     const repositoryOpenSpec = this.#openSpec.forRepository(state.storeProject.checkout);
-    const resources = await this.#resourceService(state).list();
+    const resources = await this.#resourceService(state).list({ changeId });
     const changePrefix = `openspec/changes/${changeId}/`;
     const tracking = await this.#optionalAgentApplication(state, "change-tracking");
     const result = Object.freeze({
@@ -220,6 +220,7 @@ export class OrchestratorMcpRuntime {
         ? await repositoryOpenSpec.artifactInstructions(changeId, artifact)
         : null,
       resources: Object.freeze(resources.filter(({ name }) => name.startsWith(changePrefix))),
+      shared_resources: Object.freeze(resources.filter(({ name }) => !name.startsWith("openspec/changes/"))),
       tracking: tracking ? await tracking.getStatus(changeId) : null,
       ...(includeAssignment ? {
         assignment_scope: await this.#assignmentScope(state),

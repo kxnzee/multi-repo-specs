@@ -1,43 +1,79 @@
 #!/usr/bin/env bash
-# Generate a review package: commit list, stat summary, and the net
-# diff with extended context, written to a file the reviewer reads in one
-# call. Using the recorded per-task BASE (not HEAD~1) keeps multi-commit
-# tasks intact.
-#
 # Usage: review-package BASE HEAD [OUTFILE]
-# Default OUTFILE: <repo-root>/.superpowers/sdd/review-<base7>..<head7>.diff
-# (named per range, so a re-review after fixes gets a distinct fresh file).
+#        review-package BASE --worktree OUTFILE -- PATH [PATH ...]
+# Worktree mode snapshots only the explicitly owned paths over current HEAD.
+# It writes Git objects through a temporary index, never stages or commits work.
 set -euo pipefail
 
-if [ $# -lt 2 ] || [ $# -gt 3 ]; then
-  echo "usage: review-package BASE HEAD [OUTFILE]" >&2
+usage() {
+  echo "usage: review-package BASE HEAD [OUTFILE] | BASE --worktree OUTFILE -- PATH [PATH ...]" >&2
   exit 2
+}
+[ $# -ge 2 ] || usage
+base=$(git rev-parse --verify --end-of-options "${1}^{commit}") || exit 2
+root=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
+worktree=false
+if [ "$2" = --worktree ]; then
+  [ $# -ge 5 ] && [ "$4" = -- ] || usage
+  worktree=true
+  out=$3
+  shift 4
+  head=$(git rev-parse --verify HEAD)
+else
+  [ $# -le 3 ] || usage
+  head=$(git rev-parse --verify --end-of-options "${2}^{commit}") || exit 2
+  if [ $# -eq 3 ]; then
+    out=$3
+  else
+    dir=$("$(cd "$(dirname "$0")" && pwd)/sdd-workspace")
+    out="$dir/review-$(git rev-parse --short "$base")..$(git rev-parse --short "$head").diff"
+  fi
 fi
 
-base=$(git rev-parse --verify --end-of-options "${1}^{commit}") || exit 2
-head=$(git rev-parse --verify --end-of-options "${2}^{commit}") || exit 2
+if $worktree; then
+  outdir=$(cd "$(dirname "$out")" && pwd -P)
+  absolute_out="$outdir/$(basename "$out")"
+  case "$absolute_out" in
+    "$root"/*)
+      git -C "$root" check-ignore -q -- "$absolute_out" || {
+        echo "worktree output must be outside the checkout or Git-ignored scratch" >&2
+        exit 2
+      }
+      ;;
+  esac
+fi
 
-if [ $# -eq 3 ]; then
-  out=$3
+scratch=$(mktemp -d)
+temporary=""
+trap 'rm -rf -- "$scratch"; [ -z "$temporary" ] || rm -f -- "$temporary"' EXIT
+if $worktree; then
+  # Use an absent index path; Git rejects an empty mktemp file as an index.
+  GIT_INDEX_FILE="$scratch/index" git read-tree "$head"
+  GIT_INDEX_FILE="$scratch/index" git --literal-pathspecs add -A -- "$@"
+  tree=$(GIT_INDEX_FILE="$scratch/index" git write-tree)
 else
-  dir=$("$(cd "$(dirname "$0")" && pwd)/sdd-workspace")
-  out="$dir/review-$(git rev-parse --short "$base")..$(git rev-parse --short "$head").diff"
+  tree=$(git rev-parse "${head}^{tree}")
 fi
 
 temporary=$(mktemp "${out}.tmp.XXXXXX")
-trap 'rm -f "$temporary"' EXIT
-
 {
   echo "# Review package: ${base}..${head}"
+  echo "Checkout: $root"
+  echo "Snapshot tree: $tree"
+  echo "Worktree snapshot: $worktree"
+  if $worktree; then
+    echo "Owned paths (relative to invocation directory):"
+    printf '  %s\n' "$@"
+  fi
   echo
   echo "## Commits"
   git log --oneline "${base}..${head}"
   echo
   echo "## Files changed"
-  git diff --no-ext-diff --no-textconv --stat "${base}..${head}"
+  git diff --no-ext-diff --no-textconv --stat "$base" "$tree"
   echo
   echo "## Diff"
-  git diff --no-ext-diff --no-textconv -U10 "${base}..${head}"
+  git diff --no-ext-diff --no-textconv --binary -U10 "$base" "$tree"
 } > "$temporary"
 mv -- "$temporary" "$out"
 

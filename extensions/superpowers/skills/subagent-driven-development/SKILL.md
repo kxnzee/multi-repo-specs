@@ -118,7 +118,9 @@ that limitation without silently choosing another model.
 
 Implementer subagents report one of four statuses. Handle each appropriately:
 
-**DONE:** Generate the review package (`scripts/review-package BASE HEAD`, from this skill's directory — it prints the unique file path it wrote; BASE is the commit you recorded before dispatching the implementer — never `HEAD~1`, which silently drops all but the last commit of a multi-commit task), then dispatch the task reviewer with the printed path.
+**DONE:** Follow Review Snapshot Handoff below. Generate or verify the package
+for the returned committed or uncommitted state, then dispatch the task reviewer
+with its path. BASE is the full commit recorded before dispatch, never `HEAD~1`.
 
 **DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before review. If they're observations (e.g., "this file is getting large"), note them and proceed to review.
 
@@ -131,6 +133,33 @@ Implementer subagents report one of four statuses. Handle each appropriately:
 4. If the plan itself is wrong, escalate to the human
 
 **Never** ignore an escalation or force the same model to retry without changes. If the implementer said it's stuck, something needs to change.
+
+## Review Snapshot Handoff
+
+Pass repository ID, absolute checkout, full base SHA, explicitly owned task paths,
+absolute helper path and a package output path to the implementer. Reports and
+packages belong outside the checkout or in Git-ignored scratch.
+
+- Committed result: `review-package BASE HEAD OUTFILE`.
+- Uncommitted result: `review-package BASE --worktree OUTFILE -- PATH [PATH ...]`.
+  Run from the assigned checkout. Include all task paths, including new files,
+  deletions and both sides of renames; never use a broad scope containing others'
+  work. The snapshot includes BASE-to-HEAD committed changes plus the selected
+  working-tree state over HEAD; confirm that the commit range is task-owned too.
+- Compare the report's repository, checkout, base, HEAD and snapshot tree SHA
+  with the package before dispatch. A mismatch or missing identity requires
+  fresh verification, not approval based on an older report. If unrelated dirty
+  code influenced tests, resolve the limitation before accepting exact-snapshot
+  evidence. Freeze edits during snapshot creation and verification handoff.
+- Give these identities to the reviewer. After fixes, regenerate the package and
+  obtain test evidence for the new tree. Do not substitute BASE..HEAD for a
+  worktree result, even when no commits were made.
+- Record uncommitted completion with its snapshot SHA and owned paths in the
+  ledger, explicitly marked uncommitted. The ancestor-based reuse rule below
+  applies only to committed results; for uncommitted results regenerate the
+  snapshot and compare the tree and test/review evidence before reuse.
+- The final whole-branch review follows the same rule if work remains uncommitted,
+  using the accepted branch base and the full authorized implementation path set.
 
 ## Handling Reviewer ⚠️ Items
 
@@ -163,11 +192,12 @@ final whole-branch review. When you fill a reviewer template:
   Y"). The reviewer's template already carries the process rules (YAGNI,
   test hygiene, review method) — the constraints block is for what THIS
   project's spec demands.
-- Hand the reviewer its diff as a file: run this skill's
-  `scripts/review-package BASE HEAD` and pass the reviewer the file path
-  it prints (or, without bash: `git log --oneline`, `git diff --stat`,
-  and `git diff -U10` for the range, redirected to one uniquely named
-  file). The output never enters your own context, and the reviewer sees
+- Hand the reviewer its diff as a file: run `scripts/review-package` in the
+  appropriate mode from Review Snapshot Handoff and pass its printed path.
+  Without Bash, a committed package can be assembled from `git log --oneline`,
+  `git diff --stat`, and `git diff --binary -U10` for the exact range, plus the
+  checkout, full base/HEAD and tree SHA. If the worktree helper cannot run,
+  report the limitation instead of substituting a committed diff. The output never enters your own context, and the reviewer sees
   the commit list, stat summary, and full diff with context in one Read
   call. Use the BASE you recorded before dispatching the implementer —
   never `HEAD~1`, which silently truncates multi-commit tasks.
@@ -189,7 +219,8 @@ final whole-branch review. When you fill a reviewer template:
   `scripts/review-package MERGE_BASE HEAD` (MERGE_BASE = the commit the
   branch started from, e.g. `git merge-base main HEAD`) and include the
   printed path in the final review dispatch, so the final reviewer reads
-  one file instead of re-deriving the branch diff with git commands.
+  one file instead of re-deriving the branch diff with git commands. For an
+  uncommitted result use Review Snapshot Handoff with MERGE_BASE instead.
 - Every fix dispatch carries the implementer contract: the fix subagent
   re-runs the tests covering its change and reports the results. Name the
   covering test files in the dispatch — a one-line fix does not need the
@@ -385,7 +416,7 @@ Done!
   dispatch prompt ("treat it as Minor at most") — the plan's example code is
   a starting point, not evidence that its weaknesses were chosen
 - Dispatch a task reviewer without a diff file — generate it first
-  (`scripts/review-package BASE HEAD`) and name the printed path in the
+  (using Review Snapshot Handoff) and name the printed path in the
   prompt
 - Move to next task while the review has open Critical/Important issues
 - Re-dispatch a task the progress ledger already marks complete — check

@@ -461,3 +461,23 @@ test("AgentExtensionAdapter validates only the selected Agent for standalone pay
     /Agent 'gigacode' не поддерживается/,
   );
 });
+
+for (const agentId of ["qwen", "gigacode"]) {
+  test(`${agentId} rejects broken marketplace selectors before native calls`, async (t) => {
+    const root = await extensionFixture(t);
+    const marketplace = path.join(root, ".claude-plugin/marketplace.json");
+    const fixture = invocationContext(agentId);
+    const connect = () => agentAdapter.invokeExtension(fixture.context, extension(root), {
+      operation: "connect", ownerId: "codegraph",
+    });
+    await fs.rm(marketplace);
+    await assert.rejects(connect(), /marketplace\.json/u);
+    for (const plugins of [[], [{ name: "other", source: "./" }],
+      [{ name: "codegraph-agent", source: "../outside" }],
+      [{ name: "codegraph-agent", source: "./" }, { name: "codegraph-agent", source: "./" }]]) {
+      await fs.writeFile(marketplace, JSON.stringify({ plugins }));
+      await assert.rejects(connect(), /marketplace должен объявлять/u);
+    }
+    assert.deepEqual(fixture.calls, []);
+  });
+}

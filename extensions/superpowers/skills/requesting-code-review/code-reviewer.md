@@ -22,6 +22,10 @@ Subagent (general-purpose):
 
     ## Git Range to Review
 
+    **Repository:** [REPOSITORY_ID]
+    **Checkout:** [CHECKOUT_PATH]
+    **Snapshot tree:** [SNAPSHOT_TREE_SHA]
+    **Test report:** [TEST_REPORT_PATH_OR_NOT_PROVIDED]
     **Base:** [BASE_SHA]
     **Head:** [HEAD_SHA]
 
@@ -33,6 +37,14 @@ Subagent (general-purpose):
     If the caller provides a review-package path, read that package first. It
     contains the immutable range, commit list, stat and diff; do not regenerate
     the same data unless it is missing or incomplete.
+
+    Check package identity against these inputs. For an uncommitted result,
+    require its worktree review package; BASE..HEAD omits uncommitted changes.
+    Missing or mismatched inputs must be reported as Not verified, with the
+    evidence needed to finish. Never infer passing tests from code inspection.
+    Distinguish commands you ran from results reported by the implementer;
+    confirm reported results refer to the reviewed snapshot tree. Stale or
+    absent test evidence remains an explicit validation gap.
 
     ## Read-Only Review
 
@@ -108,7 +120,12 @@ Subagent (general-purpose):
 
     ### Assessment
 
-    **Ready to merge?** [Yes | No | With fixes]
+    **Ready to merge?** [Yes | No | With fixes | Not verified]
+
+    **Coverage:** [scope actually inspected; requirements or paths not verified]
+    **Validation:** [commands run here; reported evidence and its snapshot; gaps]
+    Use Not verified when missing evidence prevents a readiness conclusion.
+    This technical assessment does not grant permission to merge.
 
     **Reasoning:** [1-2 sentence technical assessment]
 
@@ -132,6 +149,9 @@ Subagent (general-purpose):
 **Placeholders:**
 - `[DESCRIPTION]` — brief summary of what was built
 - `[PLAN_OR_REQUIREMENTS]` — what it should do (plan file path, task text, or requirements)
+- `[REPOSITORY_ID]`, `[CHECKOUT_PATH]` — repository identity and absolute checkout
+- `[SNAPSHOT_TREE_SHA]` — full tree SHA in the review package
+- `[TEST_REPORT_PATH_OR_NOT_PROVIDED]` — evidence path or explicit absence
 - `[BASE_SHA]` — starting commit
 - `[HEAD_SHA]` — ending commit
 
