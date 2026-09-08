@@ -177,13 +177,16 @@ openspec store list
 Дальше выполняйте обычный `connect` из следующего раздела. Он регистрирует Store в
 OpenSpec, подключает Code Repositories, восстанавливает standalone Extensions и
 Plugin-owned Extensions для доступных Plugin packages из portable bindings. Bundled
-Plugins доступны из Orchestrator distribution. Внешние packages восстанавливаются
-из committed Store lockfile и обычным `connect` не устанавливаются:
+Plugins доступны из установленной версии Orchestrator. Если локальные внешние
+packages отсутствуют или устарели, `connect` восстановит их из зафиксированного
+Store lockfile:
 
 ```bash
-openspec-orch package sync
 openspec-orch connect
 ```
+
+Для явного восстановления packages доступен `openspec-orch package sync`.
+Обычный `connect` не выбирает новые версии зависимостей.
 
 После `connect` обязательно проверьте `doctor`, Agent gateway и
 `plugin status`. Если Store ID уже указывает на другой путь, сначала разрешите конфликт

@@ -83,20 +83,22 @@ bindings и ссылка на необъявленный Plugin также за�
 `remote` и `default_branch`, но не выполняет pull, checkout, reset или merge в
 существующем checkout. Для существующего checkout он проверяет:
 
-- каталог является корнем Git Repository, а `origin` совпадает с `remote`;
+- каталог совпадает с корнем Git Repository, а `origin` соответствует `remote`;
 - `HEAD` находится на любой именованной ветке, чтобы `connect` не менял файлы в detached HEAD;
-- в рабочем дереве нет изменений, кроме `openspec/config.yaml`, который может быть
-  изменён при создании OpenSpec pointer;
+- рабочее дерево чистое, кроме OpenSpec pointer `openspec/config.yaml` и
+  доставляемых OpenSpec commands/skills, содержимое которых совпадает с Agent pack
+  в Store;
 - текущий `HEAD` является полной 40-символьной Git revision.
 
-Если новый pointer изменил `openspec/config.yaml`, результат получает статус
-`needs_setup_pr`: это изменение нужно опубликовать обычным Git-процессом Repository.
+Если pointer или доставленные commands/skills ещё не приняты в Git, результат
+получает статус `needs_setup_pr`. Опубликуйте эти файлы через setup PR Repository.
+Повторный `connect` допускает их до принятия PR. Отличающееся содержимое Agent pack
+блокирует доставку с `AGENT_PACK_CONFLICT`; сначала согласуйте обновление со Store.
 
-Текущая ветка выводится Doctor только как информация. Doctor не сравнивает её с
-`default_branch`, не проверяет имя или pattern и не
-считают detached HEAD ошибкой read-only диагностики. Состояние `identity_mismatch`
-означает,
-что фактический `origin` не совпадает с project config.
+Doctor показывает текущую ветку справочно: не сравнивает её с `default_branch`,
+не проверяет имя или pattern и не считает detached HEAD ошибкой read-only
+диагностики. Состояние `identity_mismatch` означает, что фактический `origin`
+не совпадает с project config.
 
 Git Flow контракт не является частью `openspec-orch.yaml`. Команда заполняет роли
 веток, их имена и patterns, направления PR и protection rules в

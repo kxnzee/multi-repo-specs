@@ -29,16 +29,24 @@
 
 ## Два режима наполнения
 
-Вызовите команду внутри агента:
+Вызовите команду внутри выбранного агента. Для Claude:
+
+```text
+/spec-driven-extended:spec-driven-extended-context initialize
+/spec-driven-extended:spec-driven-extended-context update
+```
+
+Для Qwen и GigaCode:
 
 ```text
 /spec-driven-extended-context initialize
 /spec-driven-extended-context update
 ```
 
-`initialize` формирует первоначальное описание, сохраняя уже заполненное.
-`update` добавляет сведения и исправляет устаревшие записи в рамках цели.
-Без режима пустой шаблон означает initialize, наличие сведений о продукте — update.
+`initialize` создаёт первоначальное описание и сохраняет уже заполненные разделы.
+`update` дополняет сведения и исправляет устаревшие записи по цели запроса.
+Если режим не указан, агент выбирает `initialize` для пустого шаблона
+и `update`, когда сведения о продукте уже есть.
 Проверка согласованности входит в оба режима; отдельного audit больше нет.
 
 Необязательные `--change <change-id>`, `--spec <capability-path>` и
