@@ -53,6 +53,7 @@ function connectionResult(value) {
       cloned: repository.cloned,
       pointer_created: repository.pointerCreated,
       pointer_pending: repository.pointerPending,
+      ...(repository.agentPackPending ? { agent_pack_pending: true } : {}),
       status: repository.status,
     }))),
   });
@@ -217,11 +218,11 @@ export class ProjectSetupService {
     });
     onProgress("Подключение выбранных Extensions...");
     for (const lifecycle of this.#extensionLifecycles) {
-      await lifecycle.connectSelected({ start: storeProject.root });
+      await lifecycle.connectSelected({ start: storeProject.root, workspace: result.workspace });
     }
     onProgress("Проверка состояния Extensions и Plugins...");
     for (const lifecycle of this.#extensionLifecycles) {
-      await lifecycle.statusSelected({ start: storeProject.root });
+      await lifecycle.statusSelected({ start: storeProject.root, workspace: result.workspace });
     }
     return connectionResult(result);
   }

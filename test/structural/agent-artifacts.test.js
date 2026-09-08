@@ -128,24 +128,25 @@ test("repository evidence delegation keeps one question per subagent invocation"
     "utf8",
   );
   assert.match(scout, /несколько вопросов[\s\S]*`status: blocked`/u);
-  assert.match(scout, /Новый или уточнённый вопрос требует нового subagent/u);
-  assert.match(scout, /Repository-scoped CodeGraph MCP/u);
+  assert.match(scout, /Один вопрос — один новый subagent/u);
   assert.match(scout, /`codegraph_explore`[\s\S]*`projectPath`/u);
   assert.match(
     scout,
-    /\.codegraph\/[\s\S]*MCP недоступен[\s\S]*`status: blocked`[\s\S]*не используй[\s\S]*`plugin exec`[\s\S]*`grep`/iu,
+    /назначен `codegraph`, но MCP недоступен[\s\S]*`status: blocked`[\s\S]*Не запускай\s+`plugin exec`/u,
   );
+  assert.match(scout, /`unindexed`: читай точные anchors через Read/u);
+  assert.match(scout, /`codegraph`: первым запросом к исходному коду вызови `codegraph_explore`/u);
   assert.match(scout, /question_id: <переданный question_id>/u);
   assert.match(scout, /status: answered \| partial \| unanswered \| blocked/u);
-  assert.match(scout, /answer: <краткий вывод без paths, symbols и code inventory>/u);
-  assert.match(scout, /без Markdown и текста до или после него/u);
+  assert.match(scout, /В answer опиши поведение без paths, symbols,[\s\S]*code inventory/u);
+  assert.match(scout, /один\s+Markdown-блок `yaml` вокруг всего объекта/u);
   const contracts = [...scout.matchAll(/~~~yaml\n([\s\S]*?)\n~~~/gu)]
     .map(([, contract]) => parse(contract));
   assert.equal(contracts.length, 2);
   assert.ok(contracts[0].repository_evidence_request.anchors.length > 0);
   assert.deepEqual(
     Object.keys(contracts[0].repository_evidence_request),
-    ["question_id", "question", "repository_id", "checkout_path", "revision", "anchors"],
+    ["question_id", "question", "repository_id", "checkout_path", "revision", "code_navigation", "anchors"],
   );
   assert.deepEqual(
     Object.keys(contracts[1].repository_evidence),

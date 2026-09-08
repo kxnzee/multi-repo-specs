@@ -268,3 +268,11 @@ Merge нескольких Templates, interpolation, conditions, delete rules и
 миграция уже созданного Store не поддерживаются. Core сохраняет в
 `openspec-orch.yaml` только ID применённого Template, а не путь к его source; храните
 исходный Custom Template отдельно для будущих reviewable миграций.
+
+При Apply schema `spec-driven-extended` агент вызывает helper
+`spec-driven-extended-apply-context` до изменения кода. Проверка результата сверяет
+покрытие с принятым контрактом, включая default и значимые недопустимые входы.
+Meta-planning проверяет фактического родителя каждого Scenario по Delta Specs;
+успешная структурная OpenSpec validation не заменяет эту смысловую проверку.
+В Verify записывается выполненная strict validation текущего Change; Human gate
+и будущие Archive/UAT/Release остаются отдельно от evidence.

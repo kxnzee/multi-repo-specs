@@ -44,6 +44,8 @@ artifacts:
       - when the available context supports honest alternatives, offer 2-4 concise
         mutually exclusive options and allow the user to refine or reject them;
       - distinguish confirmed facts, assumptions, conflicts, and open questions;
+      - preserve the scope of negative statements: "outside this Change" does not
+        establish absence from the product or make security/audit unnecessary;
       - do not read Code Repositories, CodeGraph, implementation tests, or
         repository-specific configuration during Intake. A separate user request
         does not change the allowed sources of this artifact;
@@ -61,7 +63,10 @@ artifacts:
       - a PlantUML sequence diagram when the Change involves two or more interacting
         components, an external dependency, asynchronous messaging, or meaningful
         error branches. Otherwise retain the "Схема взаимодействия" section with a
-        concise Not applicable reason;
+        concise Not applicable reason. Evaluate each trigger independently: local
+        function calls can interact and have meaningful error branches without a
+        network. Show confirmed public success/error behavior without inventing
+        implementation participants or changing a thrown error into a return value;
       - open questions and one planning route in "Готовность к следующему шагу": ready_for_proposal,
         explore_recommended, or blocked, with its rationale and exact Explore
         questions when applicable.
@@ -362,7 +367,10 @@ artifacts:
       themselves. Preserve the original decision and revision references.
 
       Invoke **openspec-verify-change**, then fill the shared Feature Acceptance
-      evidence table with applicable OpenSpec, repository and Scenario results. Use
+      evidence table with applicable OpenSpec, repository and Scenario results.
+      Run `openspec validate <change-name> --strict --no-interactive` for this candidate
+      from the Store and record the command and result. Keep human decisions and
+      future Archive/UAT/Release actions outside executed evidence. Use
       `N/A` only with a reason and `PENDING` for an applicable check that was not run.
       Present that evidence for an explicit human decision. The Agent must keep the
       Human gate `PENDING` until a person explicitly selects `PASS` or
@@ -378,8 +386,12 @@ apply:
   requires: [tasks]
   tracks: tasks.md
   instruction: |
-    Invoke spec-driven-extended-apply-context, then read context files, work through pending
-    tasks and mark complete as you go. Apply does not create a separate receipt artifact.
+    Before any implementation edit, invoke the installed spec-driven-extended-apply-context
+    skill through the Agent's skill mechanism and require its apply_scope.scope_status:
+    ready for this Change and Repository. Reading these instructions or calling tracking
+    does not execute the helper. If unavailable or blocked, stop before editing code.
+    Return from the helper to this Apply without recursive invocation, then read context
+    files, work through pending tasks and mark complete as you go. Apply does not create a separate receipt artifact.
     Resolve exactly one existing Store task file from contextFiles.tasks; stop if
     its identity is ambiguous. After verifying the selected task's result, update
     only its checkbox using the Agent's file editor. Match the task to its full

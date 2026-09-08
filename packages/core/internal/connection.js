@@ -26,6 +26,7 @@ export class RepositoryConnection {
   get revision() { return this.#value.revision; }
   get cloned() { return this.#value.cloned; }
   get pointerCreated() { return this.#value.pointerCreated; }
+  get agentPackPending() { return this.#value.agentPackPending ?? false; }
   get pointerPending() { return this.#value.pointerPending; }
   get status() { return this.#value.status; }
 }
@@ -53,7 +54,7 @@ export class ConnectionResult {
   get executionMode() { return this.#executionMode; }
   get repositories() { return this.#repositories; }
   get status() {
-    return this.#repositories.some(({ pointerPending }) => pointerPending)
+    return this.#repositories.some(({ status }) => status === "needs_setup_pr")
       ? "needs_setup_pr"
       : "ready";
   }
@@ -61,6 +62,7 @@ export class ConnectionResult {
 
 /** Подключает текущую машину через Core domain и scoped infrastructure facades. */
 export class ConnectionService {
+  #packs;
   #git;
   #openspec;
   #pointers;
@@ -69,6 +71,7 @@ export class ConnectionService {
   #workspace;
 
   constructor({
+    agentPackService,
     gitService = git,
     openSpecService = openspec,
     pointerService = pointers,
@@ -76,6 +79,7 @@ export class ConnectionService {
     storeProjectService = storeProjects,
     workspaceService = workspace,
   } = {}) {
+    this.#packs = agentPackService;
     this.#git = gitService;
     this.#openspec = openSpecService;
     this.#pointers = pointerService;
@@ -126,11 +130,13 @@ export class ConnectionService {
       storedWorkspace,
     });
     await workspaceModel.ensureRepositoriesRoot();
+    const agentPackPlan = await this.#packs?.plan(storeProject);
     const repositories = [];
     for (const [index, repository] of project.codeRepositories.entries()) {
       const prefix = `[${index + 1}/${project.codeRepositories.length}] ${repository.id}`;
       const connected = await this.#connectRepository({
         repository,
+        agentPackPlan,
         workspaceModel,
         storeId: metadata.id,
         storeRoot,
@@ -154,6 +160,7 @@ export class ConnectionService {
 
   async #connectRepository({
     repository,
+    agentPackPlan,
     workspaceModel,
     storeId,
     storeRoot,
@@ -177,6 +184,8 @@ export class ConnectionService {
     } else onProgress("проверка существующего checkout...");
     const checkout = await this.#workspace.resolveCheckout(workspaceModel, repository);
     const repositoryGit = this.#git.forRepository(checkout);
+    await agentPackPlan?.check(checkout.root);
+    const packPaths = agentPackPlan?.files.map(({ relative }) => relative) ?? [];
     let branch = "unpinned";
     let revision = "unpinned";
     if (executionMode === CORE_EXECUTION_MODE.strict) {
@@ -186,7 +195,7 @@ export class ConnectionService {
         throw new Error(`${repository.id}: connect нельзя выполнять в detached HEAD`);
       }
       const changedPaths = await repositoryGit.statusPaths();
-      if (changedPaths.some((filePath) => filePath !== CORE_FILES.openSpecConfig)) {
+      if (changedPaths.some((filePath) => filePath !== CORE_FILES.openSpecConfig && !packPaths.includes(filePath))) {
         throw new Error(`${repository.id}: рабочее дерево должно быть чистым`);
       }
       revision = await repositoryGit.revision();
@@ -195,6 +204,9 @@ export class ConnectionService {
       }
     }
     const pointerCreated = await this.#pointers.connect(checkout, storeId);
+    await agentPackPlan?.install(checkout.root);
+    const agentPackPending = executionMode === CORE_EXECUTION_MODE.strict &&
+      packPaths.length > 0 && !await repositoryGit.isClean(packPaths);
     const pointerPending = executionMode === CORE_EXECUTION_MODE.strict &&
       !await repositoryGit.isClean([CORE_FILES.openSpecConfig]);
     onProgress("проверка OpenSpec pointer...");
@@ -214,7 +226,8 @@ export class ConnectionService {
       cloned,
       pointerCreated,
       pointerPending,
-      status: pointerPending ? "needs_setup_pr" : "ready",
+      agentPackPending,
+      status: pointerPending || agentPackPending ? "needs_setup_pr" : "ready",
     });
   }
 

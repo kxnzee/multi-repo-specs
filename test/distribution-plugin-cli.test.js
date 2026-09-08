@@ -557,6 +557,62 @@ test("candidate distribution completes Change Tracking through public MCP", asyn
   }]);
 });
 
+test("candidate distribution completes Change Tracking through public CLI from a nested Code Repository", async (t) => {
+  const { codeRoot, storeRoot } = await distributionFixture(
+    t,
+    "openspec-orch-distribution-tracking-cli-",
+  );
+  await runCli(storeRoot, "plugin", "init", "--plugin", "change-tracking");
+  await runCli(
+    storeRoot,
+    "plugin", "connect", "change-tracking", "--repo", "specs", "--repo", "frontend",
+  );
+  await execa(
+    "openspec",
+    ["new", "change", "tracker-smoke", "--schema", "spec-driven"],
+    { cwd: storeRoot },
+  );
+  const tasksPath = path.join(storeRoot, "openspec/changes/tracker-smoke/tasks.md");
+  await fs.writeFile(tasksPath, "# Tasks\n\n- [ ] 1.1 Implement tracker smoke\n");
+  await commitAll(storeRoot, "Plan tracker smoke");
+  await fs.mkdir(path.join(codeRoot, "openspec"), { recursive: true });
+  await fs.writeFile(path.join(codeRoot, "openspec/config.yaml"), "store: specs\n");
+  await commitAll(codeRoot, "Connect OpenSpec Store");
+  const baseRevision = (await execa("git", ["rev-parse", "HEAD"], { cwd: codeRoot })).stdout;
+
+  const nestedRoot = path.join(codeRoot, "src");
+  await fs.mkdir(nestedRoot, { recursive: true });
+  const command = ["plugin", "exec", "--repo", "specs", "change-tracking", "attempt"];
+  await assert.rejects(runCli(storeRoot, ...command, "start", "tracker-smoke", "1"),
+    /ATTEMPT_CONTEXT_INVALID/);
+  await assert.rejects(runCli(nestedRoot, ...command, "start", "tracker-smoke", "1.1"),
+    /ATTEMPT_TASK_NOT_FOUND/);
+  await runCli(nestedRoot, ...command, "start", "tracker-smoke", "1");
+
+  await fs.writeFile(path.join(codeRoot, "index.js"), "export const ready = 'tracked';\n");
+  await commitAll(codeRoot, "Implement tracker smoke");
+  const implementationRevision = (
+    await execa("git", ["rev-parse", "HEAD"], { cwd: codeRoot })
+  ).stdout;
+  await fs.writeFile(tasksPath, "# Tasks\n\n- [x] 1.1 Implement tracker smoke\n");
+  await runCli(nestedRoot, ...command, "complete", "tracker-smoke", "1");
+  const implementationMap = parse(await fs.readFile(
+    path.join(storeRoot, "openspec/changes/tracker-smoke/implementation-map.yaml"),
+    "utf8",
+  ));
+  assert.deepEqual(implementationMap.attempts.map((attempt) => ({
+    repository: attempt.repository_id,
+    task: attempt.task.id,
+    base: attempt.base_revision,
+    implementation: attempt.implementation_revision,
+  })), [{
+    repository: "frontend",
+    task: "1",
+    base: baseRevision,
+    implementation: implementationRevision,
+  }]);
+});
+
 
 test("candidate distribution installs optional spec-reader with its skill payload", async (t) => {
   const { storeRoot } = await distributionFixture(t, "openspec-orch-spec-reader-");

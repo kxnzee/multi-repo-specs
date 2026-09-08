@@ -95,7 +95,7 @@ export function createQwenCompatibleAdapter({ scopeMarkers = QWEN_SCOPE_MARKERS 
           ];
       } else if (request.operation === "status") {
         const output = await runNative(context, extension, ["extensions", "list"]);
-        assertExtensionEnabled(output, resolvedNativeId, request.scope, scopeMarkers);
+        assertExtensionEnabled(output, resolvedNativeId, activationScope, scopeMarkers);
         return output;
       } else if (request.operation === "remove") {
         args = ["extensions", "uninstall", resolvedNativeId];

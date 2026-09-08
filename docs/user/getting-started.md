@@ -177,13 +177,16 @@ openspec store list
 Дальше выполняйте обычный `connect` из следующего раздела. Он регистрирует Store в
 OpenSpec, подключает Code Repositories, восстанавливает standalone Extensions и
 Plugin-owned Extensions для доступных Plugin packages из portable bindings. Bundled
-Plugins доступны из Orchestrator distribution. Внешние packages восстанавливаются
-из committed Store lockfile и обычным `connect` не устанавливаются:
+Plugins доступны из установленной версии Orchestrator. Если локальные внешние
+packages отсутствуют или устарели, `connect` восстановит их из зафиксированного
+Store lockfile:
 
 ```bash
-openspec-orch package sync
 openspec-orch connect
 ```
+
+Для явного восстановления packages доступен `openspec-orch package sync`.
+Обычный `connect` не выбирает новые версии зависимостей.
 
 После `connect` обязательно проверьте `doctor`, Agent gateway и
 `plugin status`. Если Store ID уже указывает на другой путь, сначала разрешите конфликт
@@ -201,6 +204,15 @@ openspec-orch doctor
 В strict mode отсутствующие Code Repositories клонируются в `<workspace>/src/`.
 Существующие checkout не обновляются и должны иметь configured remote, чистое рабочее
 дерево и именованную текущую ветку; её имя не сравнивается с `default_branch`.
+
+`connect` доставляет из Store OpenSpec-команды и skills выбранного Agent в каждый
+Code Repository, а workflow Extensions подключает по ролям из их `targets`.
+Новые команды, skills и OpenSpec pointer нужно принять через setup PR;
+до этого результат — `needs_setup_pr`. Повторный `connect` допускает эти
+непринятые файлы, если их содержимое совпадает с pack в Store. Настройки Agent и
+пользовательские commands/skills не копируются. Отличающиеся файлы OpenSpec
+останавливают доставку с `AGENT_PACK_CONFLICT`: сначала согласуйте их обновление
+со Store. `disconnect` отключает native Extensions, сохраняя доставленные файлы.
 
 В strict mode для другой раскладки один раз передайте workspace:
 

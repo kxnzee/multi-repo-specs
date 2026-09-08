@@ -10,7 +10,11 @@
 | `<what was checked>` | `<reference or observed result without secrets>` | `PASS` / `FAIL` / `N/A` / `PENDING` |
 
 Use `N/A` only when a check is not applicable and record the reason. An applicable
-check that was not run is `PENDING`.
+check that was not run is `PENDING`. Include the executed strict OpenSpec validation
+of this Change (`openspec validate <change-name> --strict --no-interactive`) with
+its observed result; rerun validation for the current candidate.
+Keep human decisions and future Archive/UAT/Release actions outside this table.
+Do not claim all applicable checks passed while any evidence row is FAIL or PENDING.
 
 ## Human gate
 

@@ -13,7 +13,7 @@ import {
 /** Builds one two-Extension lifecycle while keeping native behavior injectable. */
 function lifecycleFixture(invoke = async (_context, selected, request) => (
   `${selected.id}:${request.operation}`
-)) {
+), { targets = ["store"] } = {}) {
   const calls = [];
   const declarations = Object.freeze([
     new ExtensionDeclaration("first"),
@@ -29,6 +29,7 @@ function lifecycleFixture(invoke = async (_context, selected, request) => (
         return declarations.find(({ id }) => id === extensionId);
       },
       extensionDeclarations: declarations,
+      codeRepositories: [{ id: "frontend", role: "code" }],
     }),
     store: Object.freeze({ id: "specs" }),
   });
@@ -42,7 +43,7 @@ function lifecycleFixture(invoke = async (_context, selected, request) => (
         calls.push({ operation: "validate", extension: extension.id });
       },
       async invokeExtension(context, extension, request) {
-        calls.push({ context, extension: extension.id, operation: request.operation });
+        calls.push({ context, targetId: extension.target.id, extension: extension.id, operation: request.operation });
         return invoke(context, extension, request);
       },
     }),
@@ -52,6 +53,7 @@ function lifecycleFixture(invoke = async (_context, selected, request) => (
         has() { return true; },
         resolve(declaration) {
           return Object.freeze({
+            targets,
             id: declaration.id,
             name: declaration.id,
             root: path.resolve(`/distribution/${declaration.id}`),
@@ -63,10 +65,14 @@ function lifecycleFixture(invoke = async (_context, selected, request) => (
     }),
     processService: Object.freeze({
       forRepository(value) {
-        assert.equal(value, checkout);
-        return scopedProcess;
+        return value === checkout ? scopedProcess : { cwd: value.root };
       },
     }),
+    stateService: { forStore: () => ({ read: async () => ({ workspace: path.resolve("/workspace") }) }) },
+    workspaceService: {
+      resolve: async ({ requestedWorkspace }) => ({ root: requestedWorkspace ?? path.resolve("/workspace") }),
+      resolveCheckout: async (model) => ({ root: path.join(model.root, "src/frontend") }),
+    },
     start: checkout.root,
     storeProjectService: Object.freeze({
       async resolve(start) {
@@ -143,4 +149,24 @@ test("ExtensionLifecycle addresses connect, status, disconnect and remove by Ext
   assert.equal(await lifecycle.disconnect("second"), "second:disconnect");
   assert.equal(await lifecycle.remove("second"), "second:remove");
   await assert.rejects(lifecycle.connect("missing"), /EXTENSION_NOT_DECLARED: missing/);
+});
+
+
+test("ExtensionLifecycle installs, diagnoses and removes every declared target", async () => {
+  const { lifecycle, calls } = lifecycleFixture(undefined, { targets: ["store", "code"] });
+  await lifecycle.connect("first");
+  assert.deepEqual(calls.filter((x) => x.operation === "connect").map((x) => x.targetId), ["specs", "frontend"]);
+  assert.deepEqual((await lifecycle.statuses({ extensionId: "first" })).map((x) => x.targetId), ["specs", "frontend"]);
+  calls.length = 0;
+  await lifecycle.remove("first");
+  assert.deepEqual(calls.map((x) => [x.targetId, x.operation]), [["frontend", "disconnect"], ["specs", "remove"]]);
+});
+
+test("ExtensionLifecycle uses the current connect workspace without persisting it", async () => {
+  const { lifecycle, calls } = lifecycleFixture(undefined, { targets: ["code"] });
+  const workspace = path.resolve("/temporary-workspace");
+  await lifecycle.connectSelected({ workspace });
+  await lifecycle.statusSelected({ workspace });
+  assert.equal(calls.length, 4);
+  assert.ok(calls.every(({ context }) => context.process.cwd === path.join(workspace, "src/frontend")));
 });

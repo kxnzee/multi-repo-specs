@@ -1,5 +1,6 @@
 id: spec-driven-extended
 name: spec-driven-extended Workflow
+targets: [store, code]
 manifests:
   claude: .claude-plugin/plugin.json
   qwen: qwen-extension.json
