@@ -115,7 +115,8 @@ async function loadPlugin(t, calls, { connect, exec, extensions = false, status 
 
 /** Собирает реальный Host и application service с наблюдаемыми contexts. */
 async function lifecycle(t, calls, options = {}) {
-  const { agentAdapter, initiallyLoaded = true, storeProjectService, ...pluginOptions } = options;
+  const { agentAdapter, currentRepositoryService, initiallyLoaded = true,
+    storeProjectService, ...pluginOptions } = options;
   const loadedPlugin = await loadPlugin(t, calls, pluginOptions);
   if (pluginOptions.extensions) await fs.mkdir(path.join(loadedPlugin.root, "extension"));
   const contextCalls = [];
@@ -161,7 +162,9 @@ async function lifecycle(t, calls, options = {}) {
   return {
     contextCalls,
     managerCalls,
-    service: new PluginLifecycleService({ host, managerService, storeProjectService }),
+    service: new PluginLifecycleService({
+      currentRepositoryService, host, managerService, storeProjectService,
+    }),
   };
 }
 
@@ -758,4 +761,29 @@ test("Plugin lifecycle rejects an unresolved pointer before executing or mutatin
   }
   assert.deepEqual(calls, []);
   assert.equal(await fs.readFile(fixture.configPath, "utf8"), before);
+});
+
+test("Plugin exec preserves caller identity independently of selected repositories", async (t) => {
+  const fixture = await createStoreFixture(t, { connected: true, backendConnected: true });
+  const calls = [];
+  const invocation = Object.freeze({ id: "backend", role: "code", path: path.join(fixture.storeRoot, "backend") });
+  const resolutions = [];
+  const { contextCalls, service } = await lifecycle(t, calls, {
+    currentRepositoryService: {
+      async resolve(request) {
+        resolutions.push(request);
+        return invocation;
+      },
+    },
+  });
+  const request = { start: fixture.storeRoot, pluginId: "sample", args: ["inspect"] };
+  await service.exec({ ...request, repositoryId: "frontend" });
+  await service.execMany({ ...request, repositoryIds: ["frontend", "backend"] });
+  assert.equal(resolutions.length, 2);
+  const realStoreRoot = await fs.realpath(fixture.storeRoot);
+  assert.ok(resolutions.every(({ start, storeProject }) =>
+    start === fixture.storeRoot && storeProject.root === realStoreRoot));
+  assert.deepEqual(contextCalls.map(([, { repositoryId }]) => repositoryId),
+    ["frontend", "frontend", "backend"]);
+  assert.ok(contextCalls.every(([, context]) => context.invocation === invocation));
 });

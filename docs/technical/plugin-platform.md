@@ -221,3 +221,12 @@ version, tarball или Git revision. В Store замените локальны
 Повторный `plugin connect` восстанавливает Agent Extension существующего binding, но не
 заменяет Plugin-specific `sync` или migration. Обновление Plugin проходит тем же
 reviewable Store flow; Template не должен устанавливать или обновлять Plugins.
+
+### Repository вызова CLI
+
+`plugin exec --repo <target>` выбирает цель команды, а `context.invocation`
+описывает зарегистрированный checkout вызова, в том числе из вложенного каталога.
+При нескольких целях invocation остаётся одним и тем же. Для Change Tracking
+цель — Store, а invocation должен быть назначенным Code Repository; запуск из
+Store не подменяет эту identity выбранным `--repo`. CLI и MCP используют общий
+resolver текущего Repository.

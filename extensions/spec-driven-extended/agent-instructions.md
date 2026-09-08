@@ -48,6 +48,13 @@ MCP resources. Если следующий шаг неясен, вызови `ge
 и `/opsx:<действие>` в Claude. Рекомендуя действие, используй фактически
 установленную команду выбранного провайдера.
 
+При `spec-driven-extended` Apply, в том числе при прямом `/opsx:apply` или
+`/opsx-apply`, сначала вызови skill `spec-driven-extended-apply-context` через
+механизм Agent и получи `apply_scope.scope_status: ready` для текущего Change и
+Repository. Чтение MCP instructions и вызов tracking не заменяют этот helper.
+Если skill недоступен или preflight заблокирован, остановись до изменения кода.
+Когда helper возвращается в уже запущенный Apply, повторно Apply не вызывай.
+
 Для нового Change начни с Intent, если он ещё не принят. Готовый полный Intent
 используй без повторного сбора. Первый artifact создаёт команда Intake;
 после неё следующий маршрут выбирает пользователь.

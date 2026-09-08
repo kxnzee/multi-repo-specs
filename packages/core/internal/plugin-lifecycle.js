@@ -2,6 +2,7 @@
 
 import process from "node:process";
 
+import { currentRepositories } from "./current-repository.js";
 import { isRecoverablePluginResolution } from "./plugin-resolution.js";
 import { pluginApplications } from "./plugin-application.js";
 import { rollbackOrRethrow } from "./compensation.js";
@@ -153,6 +154,7 @@ function errorMessage(error) {
 /** Координирует Store lookup, Plugin Host и запись binding. */
 export class PluginLifecycleService {
   #applications;
+  #currentRepositories;
   #host;
   #managers;
   #runner;
@@ -161,6 +163,7 @@ export class PluginLifecycleService {
 
   constructor({
     applicationService = pluginApplications,
+    currentRepositoryService = currentRepositories,
     host,
     managerService = pluginManagers,
     repositoryRunnerService = repositoryRunner,
@@ -182,10 +185,14 @@ export class PluginLifecycleService {
     if (!hasMethods(storeProjectService, ["resolve"])) {
       throw new Error("PLUGIN_LIFECYCLE_INVALID: требуется StoreProjectService");
     }
+    if (!hasMethods(currentRepositoryService, ["resolve"])) {
+      throw new Error("PLUGIN_LIFECYCLE_INVALID: требуется CurrentRepositoryService");
+    }
     if (start !== undefined && typeof start !== "string") {
       throw new Error("PLUGIN_LIFECYCLE_INVALID: start должен быть строкой");
     }
     this.#applications = applicationService;
+    this.#currentRepositories = currentRepositoryService;
     this.#host = host;
     this.#managers = managerService;
     this.#runner = repositoryRunnerService;
@@ -431,7 +438,8 @@ export class PluginLifecycleService {
   async exec({ start = process.cwd(), args, pluginId, repositoryId } = {}) {
     const storeProject = await this.#storeProjects.resolve(start);
     await this.#ensureLoaded(storeProject, pluginId);
-    return this.#host.exec({ args, pluginId, repositoryId, storeProject });
+    const invocation = await this.#currentRepositories.resolve({ start, storeProject });
+    return this.#host.exec({ args, invocation, pluginId, repositoryId, storeProject });
   }
 
   async execMany({ start = process.cwd(), args, pluginId, repositoryIds } = {}) {
@@ -441,6 +449,9 @@ export class PluginLifecycleService {
   async #invokeMany(operation, { args, start, pluginId, repositoryIds }) {
     const storeProject = await this.#storeProjects.resolve(start);
     await this.#ensureLoaded(storeProject, pluginId);
+    const invocation = operation === "exec"
+      ? await this.#currentRepositories.resolve({ start, storeProject })
+      : undefined;
     const commandOnly = operation === "exec" && !this.#host.hasRepositoryContribution(pluginId);
     const connections = commandOnly
       ? storeProject.project.selectRepositories(repositoryIds)
@@ -451,7 +462,7 @@ export class PluginLifecycleService {
       connections.map(({ repository }) => repository),
       async (repository) => Object.freeze({
         output: await this.#host[operation]({
-          ...(operation === "exec" ? { args } : {}),
+          ...(operation === "exec" ? { args, invocation } : {}),
           pluginId,
           repositoryId: repository.id,
           storeProject,

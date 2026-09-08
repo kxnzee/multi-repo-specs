@@ -87,6 +87,17 @@ planning-review разрешены только адресные repository evid
   либо явно сохранены в ненормативной границе без молчаливой потери;
 - техническое решение трассируется к Requirement, Scenario или ограничению Proposal;
 - Task трассируется к принятому поведению/решению и плану evidence;
+- для каждой Scenario-ссылки в Design, Tasks и coverage matrix найди исходный
+  заголовок в Delta Spec и его фактический родительский Requirement. Сверяй тройку
+  capability path → Requirement → Scenario, включая ID при наличии. Сходный смысл
+  названий не разрешает переподчинить Scenario другому Requirement или Repository.
+  Неверный родитель — BLOCKER с обеими точными ссылками; strict validation сама по
+  себе эту проверку не заменяет. Для каждой явной пары Requirement/Scenario из
+  проверяемого артефакта покажи сверку: `artifact/раздел | заявленный Requirement |
+  Scenario | родитель в Delta Spec (заголовок/строка) | совпадает/расхождение`.
+  Не исправляй ошибочную пару молча в coverage matrix и не объединяй её с верной
+  парой той же Scenario из другого места. Даже при другом BLOCKER противоречивую
+  пару нельзя объявлять проверенной или внутренне согласованной;
 - repository scope сопоставляется с Repository Impact, Delta Specs, Design map и Tasks;
 - Repository Impact содержит только repositories с планируемыми изменениями и не
   повторяет весь registry либо review-контур;
@@ -184,6 +195,10 @@ automation_placement: unknown.
   rule либо нерешённое решение владельца.
 - WARNING — риск или недостаток evidence требует явного принятия.
 - NOTE — улучшение, не блокирующее следующий Planning step.
+
+В итоговом YAML нарушение обязательного artifact rule означает
+`artifact_check: invalid`. При `findings.blockers > 0` верни `check_status: blocked`,
+не `ready` или `needs_revision`; текст findings, матрица и статусы не противоречат друг другу.
 
 Вернуть на русском:
 

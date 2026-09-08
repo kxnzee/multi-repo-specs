@@ -185,7 +185,7 @@ export class PluginHost {
     return this.#invoke("exec", options);
   }
 
-  async #invoke(operation, { args, pluginId, storeProject, repositoryId } = {}) {
+  async #invoke(operation, { args, invocation, pluginId, storeProject, repositoryId } = {}) {
     const loadedPlugin = this.#registry.require(pluginId);
     const { plugin } = loadedPlugin;
     const hasRepositoryContribution = plugin.hasRepositoryContribution();
@@ -228,12 +228,12 @@ export class PluginHost {
       if (typeof this.#contexts.forStoreSetup !== "function") {
         throw new Error("PLUGIN_HOST_INVALID: требуется PluginContextFactory.forStoreSetup");
       }
-      const context = await this.#contexts.forStoreSetup({ loadedPlugin, storeProject });
+      const context = await this.#contexts.forStoreSetup({ loadedPlugin, storeProject, invocation });
       return plugin.exec(context, immutableArgs);
     }
     const context = operation === "connect"
       ? await this.#contexts.forRepositorySetup({ loadedPlugin, storeProject, repositoryId })
-      : await this.#contexts.forRepository({ loadedPlugin, storeProject, repositoryId });
+      : await this.#contexts.forRepository({ loadedPlugin, storeProject, repositoryId, invocation });
     if (operation === "connect") {
       const extensions = await this.#prepareExtensions(loadedPlugin, context);
       const output = await plugin.connect(context);
