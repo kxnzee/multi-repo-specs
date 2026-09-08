@@ -2,6 +2,9 @@
 
 import process from "node:process";
 
+import { AgentPackService } from "./agent-pack.js";
+import { ConnectionService } from "./connection.js";
+
 import { isAgentExtensionAdapter } from "./agent-extension-adapter.js";
 import { bundledAgents } from "./bundled-agent.js";
 import { bundledExtensions } from "./bundled-extension.js";
@@ -135,6 +138,7 @@ export class PluginPlatform {
       storeProjectService,
     });
     this.#setup = new ProjectSetupService({
+      connectionService: new ConnectionService({ agentPackService: new AgentPackService(bundledAgentProvider) }),
       bundledTemplateProvider,
       extensionLifecycle: this.#extensionLifecycle,
       initializationService: this.#initialization,

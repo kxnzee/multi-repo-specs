@@ -5,6 +5,8 @@ import process from "node:process";
 import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
 import { agentExtensions } from "./agent-extension-adapter.js";
+import { coreState } from "./core-state.js";
+import { workspace } from "./workspace.js";
 import { processes } from "./process.js";
 import { storeProjects } from "./store-project.js";
 import { hasMethods } from "./value.js";
@@ -22,6 +24,8 @@ export class ExtensionLifecycle {
   #managers;
   #start;
   #storeProjects;
+  #state;
+  #workspace;
 
   constructor({
     agentAdapter = agentExtensions,
@@ -29,6 +33,8 @@ export class ExtensionLifecycle {
     processService = processes,
     start = process.cwd(),
     storeProjectService = storeProjects,
+    stateService = coreState,
+    workspaceService = workspace,
   } = {}) {
     if (!hasMethods(agentAdapter, ["invokeExtension", "preflight", "validateExtension"])) {
       throw new Error(
@@ -44,6 +50,8 @@ export class ExtensionLifecycle {
     if (!hasMethods(storeProjectService, ["resolve"]) || typeof start !== "string") {
       throw new Error("EXTENSION_LIFECYCLE_INVALID: требуются StoreProjectService и start");
     }
+    this.#state = stateService;
+    this.#workspace = workspaceService;
     this.#adapter = agentAdapter;
     this.#processes = processService;
     this.#managers = managerService;
@@ -55,7 +63,7 @@ export class ExtensionLifecycle {
   /** Проверяет Agent CLI и manifests всех выбранных Extensions до mutation. */
   async preflight() {
     const storeProject = await this.#storeProjects.resolve(this.#start);
-    const context = this.#context(storeProject);
+    const context = await this.#context(storeProject);
     const result = await this.#adapter.preflight(context);
     const manager = this.#managers.forStore(storeProject.checkout);
     for (const declaration of storeProject.project.extensionDeclarations) {
@@ -67,8 +75,8 @@ export class ExtensionLifecycle {
     return result;
   }
 
-  connectSelected() { return this.#invokeSelected("connect"); }
-  statusSelected() { return this.#invokeSelected("status"); }
+  connectSelected(options) { return this.#invokeSelected("connect", options); }
+  statusSelected(options) { return this.#invokeSelected("status", options); }
   disconnectSelected() { return this.#invokeSelected("disconnect"); }
 
   connect(extensionId) { return this.#invokeOne(extensionId, "connect", { preflight: true }); }
@@ -78,92 +86,106 @@ export class ExtensionLifecycle {
   /** Проверяет все выбранные Extensions, не останавливаясь после независимой ошибки. */
   diagnoseSelected() { return this.statuses(); }
 
-  /** Возвращает диагностический status всех или одной объявленной Extension. */
+  /** Diagnoses each selected Extension target independently. */
   async statuses({ extensionId } = {}) {
     const storeProject = await this.#storeProjects.resolve(this.#start);
-    const context = this.#context(storeProject);
     const manager = this.#managers.forStore(storeProject.checkout);
-    const declarations = this.#declarations(storeProject, extensionId);
     const results = [];
-    for (const declaration of declarations) {
-      let extension;
+    for (const declaration of this.#declarations(storeProject, extensionId)) {
+      let resolved;
       try {
-        extension = await this.#resolveExtension(storeProject, manager, declaration);
-        const output = await this.#invoke(context, extension, "status");
-        results.push(Object.freeze({
-          extensionId: extension.id,
-          targetId: extension.target.id,
-          state: "ready",
-          output: typeof output === "string" ? output : "",
-        }));
+        resolved = await manager.resolve(declaration);
       } catch (cause) {
-        const extensionId = extension?.id ?? declaration.id;
-        const targetId = extension?.target.id ?? storeProject.store.id;
-        const message = nativeFailure(extensionId, targetId, cause).message;
-        results.push(Object.freeze({
-          extensionId,
-          targetId,
-          state: "unavailable",
-          output: message,
-        }));
+        results.push(this.#statusFailure(declaration.id, storeProject.store.id, cause));
+        continue;
+      }
+      for (const repository of this.#targets(storeProject, resolved)) {
+        try {
+          const output = await this.#invokeTarget(storeProject, resolved, repository, "status");
+          results.push(Object.freeze({ extensionId: resolved.id, targetId: repository.id,
+            state: "ready", output: typeof output === "string" ? output : "" }));
+        } catch (cause) {
+          results.push(this.#statusFailure(resolved.id, repository.id, cause));
+        }
       }
     }
     return Object.freeze(results);
+  }
+
+  #statusFailure(extensionId, targetId, cause) {
+    return Object.freeze({ extensionId, targetId, state: "unavailable",
+      output: cause.message?.startsWith("EXTENSION_NATIVE_FAILED:")
+        ? cause.message : nativeFailure(extensionId, targetId, cause).message });
   }
 
   async #invokeOne(extensionId, operation, { preflight = false } = {}) {
     const storeProject = await this.#storeProjects.resolve(this.#start);
     const [declaration] = this.#declarations(storeProject, extensionId);
-    const context = this.#context(storeProject);
-    const extension = await this.#resolveExtension(
-      storeProject,
-      this.#managers.forStore(storeProject.checkout),
-      declaration,
-    );
-    try {
-      if (preflight) {
-        await this.#adapter.preflight(context);
-        await this.#adapter.validateExtension(extension, { agentId: storeProject.project.agent.id });
-      }
-      return await this.#invoke(context, extension, operation);
-    } catch (cause) {
-      throw nativeFailure(extension.id, storeProject.store.id, cause);
+    const resolved = await this.#managers.forStore(storeProject.checkout).resolve(declaration);
+    const targets = this.#targets(storeProject, resolved);
+    if (preflight) {
+      await this.#adapter.preflight(await this.#context(storeProject));
+      await this.#adapter.validateExtension(resolved, { agentId: storeProject.project.agent.id });
     }
+    const results = await this.#invokeTargets(storeProject, resolved, targets, operation);
+    return results.length === 1 ? results[0] : Object.freeze(results);
   }
 
-  async #invokeSelected(operation) {
+  async #invokeSelected(operation, { workspace: requestedWorkspace } = {}) {
     const storeProject = await this.#storeProjects.resolve(this.#start);
     const declarations = operation === "disconnect"
       ? [...storeProject.project.extensionDeclarations].reverse()
       : storeProject.project.extensionDeclarations;
-    const context = this.#context(storeProject);
     const manager = this.#managers.forStore(storeProject.checkout);
     const results = [];
     for (const declaration of declarations) {
-      const extension = await this.#resolveExtension(storeProject, manager, declaration);
-      try {
-        results.push(await this.#invoke(context, extension, operation));
-      } catch (cause) {
-        throw nativeFailure(extension.id, extension.target.id, cause);
-      }
+      const resolved = await manager.resolve(declaration);
+      results.push(...await this.#invokeTargets(
+        storeProject, resolved, this.#targets(storeProject, resolved), operation, requestedWorkspace,
+      ));
     }
     return Object.freeze(results);
   }
 
-  #invoke(context, extension, operation) {
-    return this.#adapter.invokeExtension(context, extension, Object.freeze({ operation }));
+  async #invokeTargets(storeProject, resolved, targets, operation, requestedWorkspace) {
+    const ordered = ["disconnect", "remove"].includes(operation) ? [...targets].reverse() : targets;
+    const results = [];
+    for (const [index, repository] of ordered.entries()) {
+      // Native uninstall can be global (Qwen); disable other workspaces first.
+      const action = operation === "remove" && index < ordered.length - 1 ? "disconnect" : operation;
+      results.push(await this.#invokeTarget(storeProject, resolved, repository, action, requestedWorkspace));
+    }
+    return results;
+  }
+
+  async #invokeTarget(storeProject, resolved, repository, operation, requestedWorkspace) {
+    try {
+      return await this.#adapter.invokeExtension(
+        await this.#context(storeProject, repository, requestedWorkspace),
+        Object.freeze({ id: resolved.id, name: resolved.name, root: resolved.root,
+          source: resolved.source, manifests: resolved.manifests, target: Object.freeze({ id: repository.id, role: repository.role }) }),
+        Object.freeze({ operation }),
+      );
+    } catch (cause) {
+      throw nativeFailure(resolved.id, repository.id, cause);
+    }
+  }
+
+  #targets(storeProject, resolved) {
+    const roles = resolved.targets ?? [REPOSITORY_ROLE.store];
+    return [
+      ...(roles.includes(REPOSITORY_ROLE.store)
+        ? [{ id: storeProject.store.id, role: REPOSITORY_ROLE.store }] : []),
+      ...(roles.includes(REPOSITORY_ROLE.code) ? storeProject.project.codeRepositories : []),
+    ];
   }
 
   async #resolveExtension(storeProject, manager, declaration) {
     const resolved = await manager.resolve(declaration);
-    return Object.freeze({
-      id: resolved.id,
-      name: resolved.name,
-      root: resolved.root,
-      source: resolved.source,
-      ...(resolved.manifests ? { manifests: resolved.manifests } : {}),
-      target: Object.freeze({ id: storeProject.store.id, role: REPOSITORY_ROLE.store }),
-    });
+    return Object.freeze({ id: resolved.id, name: resolved.name, root: resolved.root,
+          source: resolved.source, manifests: resolved.manifests, target: Object.freeze({
+      id: storeProject.store.id, role: REPOSITORY_ROLE.store,
+    }) });
   }
 
   #declarations(storeProject, extensionId) {
@@ -176,14 +198,22 @@ export class ExtensionLifecycle {
     return Object.freeze([declaration]);
   }
 
-  #context(storeProject) {
+  async #context(storeProject, repository = { role: REPOSITORY_ROLE.store }, requestedWorkspace) {
     const agent = storeProject.project.agent;
     if (!agent || typeof agent.id !== "string") {
       throw new Error("EXTENSION_AGENT_INVALID: Store должен содержать один Agent");
     }
+    let checkout = storeProject.checkout;
+    if (repository.role === REPOSITORY_ROLE.code) {
+      const storedWorkspace = (await this.#state.forStore(storeProject.checkout).read()).workspace;
+      const model = await this.#workspace.resolve({
+        storeRoot: storeProject.root, storeId: storeProject.store.id, storedWorkspace, requestedWorkspace,
+      });
+      checkout = await this.#workspace.resolveCheckout(model, repository);
+    }
     return Object.freeze({
       agent,
-      process: this.#processes.forRepository(storeProject.checkout),
+      process: this.#processes.forRepository(checkout),
     });
   }
 }

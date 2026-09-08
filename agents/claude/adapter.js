@@ -1,6 +1,7 @@
 /** @fileoverview Native Claude Plugin adapter. */
 
 import path from "node:path";
+import process from "node:process";
 
 import {
   adaptOpenSpecPack,
@@ -9,6 +10,15 @@ import {
   readNativeManifest,
   runNative,
 } from "../native-extension.js";
+
+/** Resolves the native project even through a Plugin process facade without a cwd getter. */
+async function projectDirectory(context, scope) {
+  if (scope === "user") return undefined;
+  if (typeof context.process.cwd === "string") return context.process.cwd;
+  const cwd = (await context.process.run(process.execPath, ["-p", "process.cwd()"])).trim();
+  if (!path.isAbsolute(cwd)) throw new Error("AGENT_EXTENSION_SCOPE_INVALID: project cwd недоступен");
+  return cwd;
+}
 
 /** Requires the requested Claude Plugin to be installed and enabled. */
 function assertPluginEnabled(output, qualifiedId, scope, projectPath) {
@@ -105,14 +115,29 @@ const claudeAdapter = Object.freeze({
       assertPluginEnabled(
         output,
         qualifiedId,
-        request.scope,
-        request.scope === "user" ? undefined : context.process.cwd,
+        scope,
+        await projectDirectory(context, scope),
       );
       return output;
     }
+    const projectPath = await projectDirectory(context, scope);
+    const installed = JSON.parse(await runNative(context, extension, ["plugin", "list", "--json"]));
+    if (!Array.isArray(installed)) {
+      throw new Error("AGENT_EXTENSION_STATUS_INVALID: Claude plugin list должен вернуть массив");
+    }
+    const current = installed.some((plugin) => plugin.id === qualifiedId && plugin.scope === scope &&
+      (scope === "user" || (typeof plugin.projectPath === "string" &&
+        path.resolve(plugin.projectPath) === path.resolve(projectPath))));
+    if (!current) return "";
     await runNative(context, extension, [
       "plugin", "uninstall", qualifiedId, "--scope", scope,
     ]);
+    const remaining = JSON.parse(await runNative(context, extension, ["plugin", "list", "--json"]));
+    if (!Array.isArray(remaining)) {
+      throw new Error("AGENT_EXTENSION_STATUS_INVALID: Claude plugin list должен вернуть массив");
+    }
+    // Marketplace registration is shared by installations in different projects/scopes.
+    if (remaining.some(({ id }) => id === qualifiedId)) return "";
     return runNative(context, extension, [
       "plugin", "marketplace", "remove", resolvedMarketplaceId, "--scope", scope,
     ]);

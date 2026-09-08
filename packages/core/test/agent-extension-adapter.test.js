@@ -281,7 +281,8 @@ test("Claude adapter proxies local marketplace lifecycle", async (t) => {
   const qualified = "codegraph-agent@openspec-orch-codegraph-agent";
   const fixture = invocationContext("claude", (calls) => (
     calls.at(-1)[1].includes("list")
-      ? JSON.stringify([{ id: qualified, enabled: true, projectPath: process.cwd() }])
+      ? JSON.stringify(calls.some(([, args]) => args.includes("uninstall"))
+        ? [] : [{ id: qualified, enabled: true, scope: "local", projectPath: process.cwd() }])
       : `result-${calls.length}`
   ));
   const payload = extension(root);
@@ -306,7 +307,9 @@ test("Claude adapter proxies local marketplace lifecycle", async (t) => {
     ["claude", ["plugin", "marketplace", "add", root, "--scope", "local"]],
     ["claude", ["plugin", "install", qualified, "--scope", "local"]],
     ["claude", ["plugin", "list", "--json"]],
+    ["claude", ["plugin", "list", "--json"]],
     ["claude", ["plugin", "uninstall", qualified, "--scope", "local"]],
+    ["claude", ["plugin", "list", "--json"]],
     ["claude", ["plugin", "marketplace", "remove", "openspec-orch-codegraph-agent", "--scope", "local"]],
   ]);
 });
@@ -337,7 +340,8 @@ test("Claude adapter honors explicit user scope for the gateway", async (t) => {
   const qualified = "codegraph-agent@openspec-orch-codegraph-agent";
   const fixture = invocationContext("claude", (calls) => (
     calls.at(-1)[1].includes("list")
-      ? JSON.stringify([{ id: qualified, enabled: true, scope: "user" }])
+      ? JSON.stringify(calls.some(([, args]) => args.includes("uninstall"))
+        ? [] : [{ id: qualified, enabled: true, scope: "user" }])
       : "done"
   ));
 
@@ -362,9 +366,11 @@ test("Claude adapter honors explicit user scope for the gateway", async (t) => {
       "plugin", "install", "codegraph-agent@openspec-orch-codegraph-agent", "--scope", "user",
     ]],
     ["claude", ["plugin", "list", "--json"]],
+    ["claude", ["plugin", "list", "--json"]],
     ["claude", [
       "plugin", "uninstall", "codegraph-agent@openspec-orch-codegraph-agent", "--scope", "user",
     ]],
+    ["claude", ["plugin", "list", "--json"]],
     ["claude", [
       "plugin", "marketplace", "remove", "openspec-orch-codegraph-agent", "--scope", "user",
     ]],
@@ -384,6 +390,7 @@ test("Agent status requires the exact Extension to be present and enabled", asyn
       JSON.stringify([{
         id: "codegraph-agent@openspec-orch-codegraph-agent",
         enabled: false,
+        scope: "local",
         projectPath: process.cwd(),
       }]),
       /AGENT_EXTENSION_STATUS_DISABLED.*codegraph-agent@openspec-orch-codegraph-agent/u,
@@ -479,5 +486,55 @@ for (const agentId of ["qwen", "gigacode"]) {
       await assert.rejects(connect(), /marketplace должен объявлять/u);
     }
     assert.deepEqual(fixture.calls, []);
+  });
+}
+
+
+test("Claude disconnect preserves another project's marketplace and is repeatable", async (t) => {
+  const root = await extensionFixture(t, "openspec-claude-shared-marketplace-");
+  const qualified = "codegraph-agent@openspec-orch-codegraph-agent";
+  let registrations = [process.cwd(), path.join(root, "other")].map((projectPath) => ({
+    id: qualified, scope: "local", enabled: true, projectPath,
+  }));
+  const fixture = invocationContext("claude", (calls) => {
+    const args = calls.at(-1)[1];
+    if (args.includes("uninstall")) registrations = registrations.filter((p) => p.projectPath !== process.cwd());
+    return args.includes("list") ? JSON.stringify(registrations) : "done";
+  });
+  const request = { operation: "disconnect", ownerId: "codegraph" };
+  await agentAdapter.invokeExtension(fixture.context, extension(root), request);
+  await agentAdapter.invokeExtension(fixture.context, extension(root), request);
+  assert.equal(registrations.length, 1);
+  assert.equal(fixture.calls.filter(([, args]) => args.includes("uninstall")).length, 1);
+  assert.equal(fixture.calls.some(([, args]) => args.includes("remove")), false);
+});
+
+test("Claude scopes Plugin-owned status and disconnect through a process facade without cwd", async (t) => {
+  const root = await extensionFixture(t, "openspec-claude-hidden-cwd-");
+  const qualified = "codegraph-agent@openspec-orch-codegraph-agent";
+  let installed = [{ id: qualified, scope: "local", enabled: true, projectPath: root }];
+  const calls = [];
+  const context = { agent: { id: "claude" }, process: {
+    async run(executable, args) {
+      calls.push([executable, args]);
+      if (executable === process.execPath) return `${root}\n`;
+      if (args.includes("uninstall")) installed = [];
+      return args.includes("list") ? JSON.stringify(installed) : "done";
+    },
+  } };
+  await agentAdapter.invokeExtension(context, extension(root), { operation: "status", ownerId: "codegraph" });
+  await agentAdapter.invokeExtension(context, extension(root), { operation: "disconnect", ownerId: "codegraph" });
+  assert.equal(installed.length, 0);
+  assert.equal(calls.filter(([executable]) => executable === process.execPath).length, 2);
+  assert.equal(calls.some(([, args]) => args.includes("remove")), true);
+});
+
+for (const agentId of ["qwen", "gigacode"]) {
+  test(`${agentId} default status requires activation in the current workspace`, async (t) => {
+    const root = await extensionFixture(t);
+    const fixture = invocationContext(agentId,
+      "✓ codegraph-agent (1.0.0)\n Enabled (User): true\n Enabled (Workspace): false");
+    await assert.rejects(agentAdapter.invokeExtension(fixture.context, extension(root),
+      { operation: "status", ownerId: "codegraph" }), /AGENT_EXTENSION_STATUS_SCOPE_MISSING/u);
   });
 }

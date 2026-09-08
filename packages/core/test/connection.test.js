@@ -7,6 +7,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { execa } from "execa";
+import { AgentPackPlan } from "../internal/agent-pack.js";
 
 import {
   CandidateCli,
@@ -163,9 +164,10 @@ function connectExecutor(scenario, { diagnostic } = {}) {
 }
 
 /** Собирает ConnectionService на единой подменяемой process boundary. */
-function connectionFixture(executor) {
+function connectionFixture(executor, agentPackService) {
   const processService = new ProcessService(executor);
   return new ConnectionService({
+    agentPackService,
     gitService: new GitService(processService),
     openSpecService: new OpenSpecService(processService),
     pointerService: new OpenSpecPointerService(),
@@ -174,6 +176,29 @@ function connectionFixture(executor) {
     workspaceService: new WorkspaceResolver(),
   });
 }
+
+test("connect delivers the pack, tolerates an identical pending pack and requires its setup commit", async (t) => {
+  const scenario = await connectionScenario(t, { pointer: true });
+  const fake = connectExecutor(scenario);
+  const relative = ".claude/commands/opsx/apply.md";
+  const plan = new AgentPackPlan([{ relative, contents: "OpenSpec apply" }]);
+  const service = connectionFixture(fake.executor, { plan: async () => plan });
+  const connect = () => service.connect({ start: scenario.storeRoot });
+  for (let index = 0; index < 2; index++) {
+    const result = await connect();
+    assert.equal(result.status, "needs_setup_pr");
+    assert.equal(result.repositories[0].pointerPending, false);
+    assert.equal(result.repositories[0].agentPackPending, true);
+  }
+  const checkout = path.join(scenario.workspaceRoot, "src/api");
+  await execa("git", ["-C", checkout, "add", relative]);
+  await execa("git", ["-C", checkout, "-c", "user.name=Test", "-c", "user.email=test@example.test",
+    "commit", "-m", "Accept pack"]);
+  assert.equal((await connect()).status, "ready");
+  await fs.writeFile(path.join(checkout, relative), "User customization");
+  await assert.rejects(connect(), /AGENT_PACK_CONFLICT/u);
+  assert.equal(await fs.readFile(path.join(checkout, relative), "utf8"), "User customization");
+});
 
 test("ConnectionService registers Store, clones Repository and creates pointer", async (t) => {
   const scenario = await connectionScenario(t);
@@ -273,7 +298,8 @@ test("ConnectionService relaxed mode uses local directory and does not persist w
   const checkout = path.join(scenario.workspaceRoot, "src/api");
   await fs.mkdir(checkout, { recursive: true });
   await fs.writeFile(path.join(checkout, "local.txt"), "not Git\n", "utf8");
-  const service = connectionFixture(connectExecutor(scenario).executor);
+  const plan = new AgentPackPlan([{ relative: ".agent/commands/opsx-apply.md", contents: "apply" }]);
+  const service = connectionFixture(connectExecutor(scenario).executor, { plan: async () => plan });
 
   const result = await service.connect({
     start: scenario.storeRoot,
@@ -284,6 +310,7 @@ test("ConnectionService relaxed mode uses local directory and does not persist w
   assert.equal(result.repositories[0].branch, "unpinned");
   assert.equal(result.repositories[0].revision, "unpinned");
   assert.equal(result.repositories[0].pointerPending, false);
+  assert.equal(await fs.readFile(path.join(checkout, plan.files[0].relative), "utf8"), "apply");
   assert.equal(await fs.lstat(path.join(scenario.storeRoot, ".openspec-orch/state.json"))
     .catch((error) => error.code), "ENOENT");
 });

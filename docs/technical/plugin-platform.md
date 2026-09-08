@@ -87,6 +87,12 @@ Agent manifests. Его контракт предоставляет `@openspec-o
 подмножество поддерживаемых Agents; Core отклоняет неизвестные Agent IDs и проверяет
 manifest выбранного в Store Agent перед native mutation.
 
+Необязательное поле `targets` в `extension.yaml` задаёт роли: `[store]`, `[code]`
+или `[store, code]`. По умолчанию используется `[store]`; пустые, повторяющиеся
+и неизвестные роли отклоняются. Lifecycle и диагностика выполняются для каждого
+зарегистрированного Repository выбранных ролей. Bundled workflows
+`spec-driven-extended` и `superpowers` подключаются к Store и Code Repositories.
+
 ```json
 {
   "name": "@company/workflow-extension",

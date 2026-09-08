@@ -1,91 +1,108 @@
-# Инструкции для агента
+# Работа с spec-driven-extended
 
-## Источники истины
+Этот Extension помогает вести контекст проекта и workflow `spec-driven-extended`
+в центральном OpenSpec Store. Основной агент ведёт диалог с пользователем,
+работает с артефактами и проверяет evidence. OpenSpec определяет порядок стадий
+и требования к их результатам.
 
-- Текущий репозиторий — центральный OpenSpec Store. Requirements, Changes и
-  подтверждённый долговечный context принадлежат `openspec/`; Code Repositories
-  реализуют принятые Changes и владеют локальными implementation details и evidence.
-- `openspec-orch.yaml` — реестр Project. Текущее состояние, artifact rules, следующий
-  actor, Repository scope и revision получай через Orchestrator MCP, а нормативные
-  Store artifacts — через его resources. Переиспользуй актуальный Work Context по
-  `context_revision` согласно gateway policy; не восстанавливай его из пересказа.
-- `openspec/context/` не заменяет Requirements и изменяется только через
-  `/spec-driven-extended-context`.
+## Получи контекст задачи
 
-## Формат Work Context и имена команд
+Для работы с существующим Change используй актуальный Work Context из Orchestrator
+MCP. Переиспользуй его по `context_revision` согласно gateway policy; после границы
+свежести обнови через `get_change_context`. Точные содержательные правила бери из `get_change_context`.
 
-В ответе `get_change_context` schema и пути находятся в `openspec_status`
-(`schemaName`, `planningHome`, `changeRoot`, `artifactPaths`, `actionContext`).
-Инструкции выбранного artifact находятся в `artifact_instructions` (`instruction`,
-`rules`, `template`); без аргумента `artifact` это поле равно `null`.
-`assignment_scope` возвращается при `include_assignment: true`.
-Не искать эти поля на верхнем уровне и не считать отсутствие дополнительных `rules`
-отсутствием требований schema.
+Ответ содержит:
 
-Короткие `/spec-driven-extended-*` в инструкциях обозначают локальное имя команды
-Qwen/GigaCode. В Claude установленный Plugin добавляет namespace
-`spec-driven-extended:`: например,
-`/spec-driven-extended:spec-driven-extended-context`.
-Штатные команды OpenSpec: `/opsx-<действие>` в Qwen/GigaCode и
-`/opsx:<действие>` в Claude. При рекомендации следующего действия использовать
-синтаксис выбранного провайдера и фактически установленную команду.
+- `openspec_status`: выбранную `schemaName` и пути `planningHome`, `changeRoot`,
+  `artifactPaths`, `actionContext`;
+- `artifact_instructions`: `instruction`, `rules` и `template` запрошенного artifact.
+  Без аргумента `artifact` поле равно `null`; пустые дополнительные `rules`
+  не отменяют требования `instruction`;
+- `assignment_scope`: Repository scope и revision при `include_assignment: true`.
 
-## Границы
+`openspec-orch.yaml` задаёт реестр Project. Нормативные Store artifacts читай через
+MCP resources. Если следующий шаг неясен, вызови `get_next_action` и учитывай
+возвращённого actor.
 
-Ограничения этого раздела относятся к workflow `spec-driven-extended` и
-долговечному `openspec/context/`. Для остальных schemas допустимые стадии,
-содержимое и пути артефактов определяют их актуальные instructions.
+## Выбери рабочий маршрут
 
-- Не открывай Code Repository или CodeGraph для Intent, Intake, Proposal,
-  Requirements и Scenarios. На Design, Tasks, Apply и при проверке current-state
-  conflict исследуй только один заранее сформулированный вопрос в `assignment_scope`
-  текущего Work Context либо в отдельно вызванном `get_assignment_scope`.
-- Не переноси в Store внутренние paths, symbols, модули, библиотеки, локальную
-  конфигурацию, build/test commands, code inventory или `path:line`. Код подтверждает
-  только constraint, conflict, implementation gap или unknown.
-- В Store допустимы наблюдаемое поведение, доменные правила, точные repository-id,
-  принятые системные решения и публичные контракты.
-- Неподтверждённый scope, revision или обязательное правило означает blocker. Не ищи
-  другой checkout и не расширяй scope самостоятельно.
+Сначала проверь `schemaName`. Workflow-маршруты этого Extension применяются только
+к `spec-driven-extended`. Для другой schema следуй её artifact DAG и instructions;
+не добавляй стадии или preflight этого Extension.
 
-## Маршрутизация
+| Задача | Средство Extension |
+| --- | --- |
+| Собрать или обновить долговечный context и ADR | Команда `/spec-driven-extended-context` |
+| Сформулировать Intent нового Change | Skill `spec-driven-extended-intent` |
+| Создать Intake из принятого Intent | Команда `/spec-driven-extended-intake <change-id>` |
+| Проверить Planning | Skill `spec-driven-extended-meta-planning` |
+| Подготовить Repository scope для штатного Apply | Skill `spec-driven-extended-apply-context` |
+| Подготовить test cases | Skill `spec-driven-extended-test-cases` |
 
-- `/spec-driven-extended-context` обслуживает долговечный контекст Store независимо
-  от schema. Переданный `--change` задаёт источник и scope проверки, а не выбор
-  workflow; команда не запускает его стадии. Для работы без Change schema не нужна.
-- Для действий над артефактами существующего Change сначала обеспечь актуальный `schemaName`:
-  переиспользуй переданный `get_change_context` либо вызови его один раз. Применяй
-  workflow-маршруты, skills и команды `spec-driven-extended-*` (кроме context) только
-  к `spec-driven-extended`. Для другой schema следуй её artifact DAG и instructions;
-  не добавляй стадии или preflight этого Extension.
-- Для нового `spec-driven-extended` Change без принятого Intent начни с
-  `spec-driven-extended-intent`; готовый полный
-  Intent повторно не собирай. Первый artifact создаёт
-  `/spec-driven-extended-intake <change-id>`. После Intake следующий маршрут выбирает
-  пользователь. Это правило не применяется к другим schemas.
-- Для проверки Planning используй `spec-driven-extended-meta-planning`, для Apply preflight —
-  `spec-driven-extended-apply-context`, для test cases — `spec-driven-extended-test-cases`, для
-  долговечного context и ADR — `/spec-driven-extended-context`.
-- Если маршрут не очевиден, вызови `get_next_action` и соблюдай возвращённого actor.
-  Точные содержательные правила бери из `get_change_context`, а не из памяти.
+Команды вызываются внутри Agent. Здесь приведены имена Qwen/GigaCode;
+в Claude Plugin добавляет namespace `spec-driven-extended:`, например
+`/spec-driven-extended:spec-driven-extended-context`. Skills подключаются через
+механизм skills Agent и выполняются по своему `SKILL.md`.
 
-## Подтверждения из Repository
+Штатные действия OpenSpec вызываются через `/opsx-<действие>` в Qwen/GigaCode
+и `/opsx:<действие>` в Claude. Рекомендуя действие, используй фактически
+установленную команду выбранного провайдера.
 
-- В workflow `spec-driven-extended` единственный project subagent — `spec-driven-extended-repository-evidence-scout`. Используй
-  его только на разрешённой стадии и по его собственному входному/выходному контракту.
-- Один вопрос — один новый subagent: пять вопросов — пять subagents. Scope и revision
-  для каждого вызова возьми из `assignment_scope` текущего Work Context; вызывай
-  `get_assignment_scope` отдельно только если этих данных нет или наступила граница
-  свежести.
-- Основной агент сам читает Store context, выполняет Planning review и проверяет
-  evidence. Отдельные context/planning subagents не используются.
+Для нового Change начни с Intent, если он ещё не принят. Готовый полный Intent
+используй без повторного сбора. Первый artifact создаёт команда Intake;
+после неё следующий маршрут выбирает пользователь.
 
-## Постоянные ограничения
+Команда context работает независимо от schema и не требует Change. Её аргумент
+`--change` задаёт источник и scope проверки, а не запускает workflow.
+`openspec/context/` обновляй через эту команду; требования Change остаются
+в его нормативных артефактах.
 
-- Не создавай openspec/changes/ в Code Repositories.
-- Не изменяй встроенные openspec-* skills и opsx-* commands.
-- Результат skill, MCP или subagent не является человеческим Gate.
-- Не выполняй commit, push, merge, release или Archive без явного пользовательского
-  действия или принятого командного процесса.
-- Не архивируй Change до завершения реализации затронутых repositories и ручной
-  проверки. До и после Archive выполни guidance из openspec/config.yaml.
+## Разделяй контекст Store и реализацию
+
+Store хранит Requirements, Changes и подтверждённый долговечный context в
+`openspec/`. Его содержание — наблюдаемое поведение, доменные правила, точные
+repository-id, принятые системные решения и публичные контракты.
+
+Code Repositories реализуют принятые Changes и хранят детали реализации и локальные
+evidence: внутренние paths, symbols, модули, библиотеки, конфигурацию, build/test
+commands, code inventory и ссылки `path:line`. Эти детали остаются в Repository;
+в Store переносится только подтверждённый constraint, conflict, implementation gap
+или unknown.
+
+Для Intent, Intake, Proposal, Requirements и Scenarios работай с источниками Store
+без чтения Code Repository или CodeGraph. На Design, Tasks, Apply и при проверке
+current-state conflict допускается адресное исследование кода: один заранее
+сформулированный вопрос в подтверждённом `assignment_scope`.
+
+Эти границы относятся к workflow `spec-driven-extended` и долговечному context.
+Содержание и пути артефактов других schemas задают их актуальные instructions.
+
+## Получай подтверждения из Repository
+
+Для адресного исследования используй единственный project subagent
+`spec-driven-extended-repository-evidence-scout`. Его собственная инструкция
+определяет обязательный вход, способ исследования и формат ответа.
+Перед первым вызовом прочитай [полный профиль scout](subagents/spec-driven-extended-repository-evidence-scout.md)
+из этого установленного Extension.
+Собери запрос по его входному контракту; краткое описание subagent не заменяет
+этот контракт. Перед использованием ответа сверь его структуру и question_id
+с профилем и отправленным запросом. Невалидный ответ оставляет вопрос открытым.
+
+Один вопрос — один новый subagent: пять вопросов — пять subagents. Scope и revision
+бери из актуального `assignment_scope`; отдельно вызывай `get_assignment_scope`,
+когда этих данных нет или наступила граница свежести. Основной агент сам читает
+Store context, выполняет Planning review и проверяет полученные evidence;
+отдельные context/planning subagents не используются.
+
+Если scope, revision или обязательное правило не подтверждены, зафиксируй blocker
+и укажи, чего не хватает для продолжения. Сохраняй назначенный checkout и scope.
+
+## Завершай работу в рамках процесса команды
+
+Changes создаются только в Store. Встроенные `openspec-*` skills и `opsx-*` commands
+остаются под управлением OpenSpec и не редактируются этим workflow.
+
+Результат skill, MCP или subagent не заменяет человеческий Gate. Для commit, push,
+merge, release и Archive требуется явное пользовательское действие или принятый
+командный процесс. Archive выполняется после реализации затронутых repositories
+и ручной проверки; до и после него выполни guidance из `openspec/config.yaml`.

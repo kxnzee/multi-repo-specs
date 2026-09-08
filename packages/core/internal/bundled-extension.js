@@ -89,14 +89,16 @@ export class BundledExtensionPackage {
   #catalogEntry;
   #manifests;
   #root;
+  #targets;
 
-  constructor({ catalogEntry, manifests, root } = {}, token) {
+  constructor({ catalogEntry, manifests, root, targets = ["store"] } = {}, token) {
     if (token !== PACKAGE_CONSTRUCTION) {
       invalid("используйте BundledExtensionPackage.load");
     }
     this.#catalogEntry = catalogEntry;
     this.#manifests = Object.freeze({ ...manifests });
     this.#root = root;
+    this.#targets = Object.freeze([...targets]);
     Object.freeze(this);
   }
 
@@ -125,11 +127,13 @@ export class BundledExtensionPackage {
     return new BundledExtensionPackage({
       catalogEntry,
       manifests: descriptor.manifests,
+      targets: descriptor.targets,
       root: canonicalRoot,
     }, PACKAGE_CONSTRUCTION);
   }
 
   get id() { return this.#catalogEntry.id; }
+  get targets() { return this.#targets; }
   get manifests() { return this.#manifests; }
   get name() { return this.#catalogEntry.name; }
   get root() { return this.#root; }
@@ -161,6 +165,7 @@ export class NpmExtensionPackage {
     return Object.freeze({
       id: loaded.id,
       manifests: loaded.manifests,
+      targets: loaded.targets,
       name: loaded.name,
       root: loaded.root,
       source: `${packageContract.name}@${packageContract.version}`,

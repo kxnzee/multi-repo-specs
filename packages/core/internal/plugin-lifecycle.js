@@ -179,7 +179,7 @@ export class PluginLifecycleService {
     if (!hasMethods(managerService, ["forStore"])) {
       throw new Error("PLUGIN_LIFECYCLE_INVALID: требуется PluginManagerService");
     }
-    if (!hasMethods(storeProjectService, ["find"])) {
+    if (!hasMethods(storeProjectService, ["resolve"])) {
       throw new Error("PLUGIN_LIFECYCLE_INVALID: требуется StoreProjectService");
     }
     if (start !== undefined && typeof start !== "string") {
@@ -204,7 +204,7 @@ export class PluginLifecycleService {
   }
 
   async connectMany({ start = process.cwd(), pluginId, repositoryIds } = {}) {
-    const storeProject = await this.#storeProjects.find(start);
+    const storeProject = await this.#storeProjects.resolve(start);
     await this.#ensureLoaded(storeProject, pluginId);
     this.#host.assertLoaded(pluginId);
     const changes = await this.#applications.connectMany(
@@ -256,7 +256,7 @@ export class PluginLifecycleService {
   }
 
   async #invokeSelected(operation, start) {
-    const storeProject = await this.#storeProjects.find(start);
+    const storeProject = await this.#storeProjects.resolve(start);
     const selected = storeProject.project.pluginConnections();
     const connections = operation === "disconnect" ? [...selected].reverse() : selected;
     const results = [];
@@ -291,7 +291,7 @@ export class PluginLifecycleService {
     if (!REPOSITORY_OPERATIONS.has(operation)) {
       throw new Error(`PLUGIN_REPOSITORY_SELECTION_INVALID: неизвестная operation '${operation}'`);
     }
-    const storeProject = await this.#storeProjects.find(start);
+    const storeProject = await this.#storeProjects.resolve(start);
     storeProject.project.requirePlugin(pluginId);
     if (operation !== "disconnect") await this.#ensureLoaded(storeProject, pluginId);
     if (operation === "connect") {
@@ -319,7 +319,7 @@ export class PluginLifecycleService {
   }
 
   async disconnectMany({ start = process.cwd(), pluginId, repositoryIds } = {}) {
-    const storeProject = await this.#storeProjects.find(start);
+    const storeProject = await this.#storeProjects.resolve(start);
     const selectedIds = [...new Set(repositoryIds ?? storeProject.project
       .pluginConnections({ pluginId })
       .map(({ repository }) => repository.id))];
@@ -362,7 +362,7 @@ export class PluginLifecycleService {
       );
     }
     if (connectedIds.length > 0 && remainingIds.length > 0) {
-      const currentStoreProject = await this.#storeProjects.find(storeProject.root);
+      const currentStoreProject = await this.#storeProjects.resolve(storeProject.root);
       for (const repositoryId of remainingIds) {
         await this.#host.connectExtensions({
           pluginId,
@@ -379,14 +379,14 @@ export class PluginLifecycleService {
   }
 
   async status({ start = process.cwd(), pluginId, repositoryId } = {}) {
-    const storeProject = await this.#storeProjects.find(start);
+    const storeProject = await this.#storeProjects.resolve(start);
     await this.#ensureLoaded(storeProject, pluginId);
     const value = await this.#host.status({ pluginId, repositoryId, storeProject });
     return statusResult(pluginId, repositoryId, value);
   }
 
   async statuses({ start = process.cwd(), pluginId, repositoryId } = {}) {
-    const storeProject = await this.#storeProjects.find(start);
+    const storeProject = await this.#storeProjects.resolve(start);
     const connections = storeProject.project.pluginConnections({ pluginId, repositoryId });
     const repositories = storeProject.project.repositories.filter((repository) => (
       connections.some((connection) => connection.repository.id === repository.id)
@@ -419,7 +419,7 @@ export class PluginLifecycleService {
   }
 
   async sync({ start = process.cwd(), pluginId, repositoryId } = {}) {
-    const storeProject = await this.#storeProjects.find(start);
+    const storeProject = await this.#storeProjects.resolve(start);
     await this.#ensureLoaded(storeProject, pluginId);
     return this.#host.sync({ pluginId, repositoryId, storeProject });
   }
@@ -429,7 +429,7 @@ export class PluginLifecycleService {
   }
 
   async exec({ start = process.cwd(), args, pluginId, repositoryId } = {}) {
-    const storeProject = await this.#storeProjects.find(start);
+    const storeProject = await this.#storeProjects.resolve(start);
     await this.#ensureLoaded(storeProject, pluginId);
     return this.#host.exec({ args, pluginId, repositoryId, storeProject });
   }
@@ -439,7 +439,7 @@ export class PluginLifecycleService {
   }
 
   async #invokeMany(operation, { args, start, pluginId, repositoryIds }) {
-    const storeProject = await this.#storeProjects.find(start);
+    const storeProject = await this.#storeProjects.resolve(start);
     await this.#ensureLoaded(storeProject, pluginId);
     const commandOnly = operation === "exec" && !this.#host.hasRepositoryContribution(pluginId);
     const connections = commandOnly

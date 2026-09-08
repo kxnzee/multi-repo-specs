@@ -88,6 +88,8 @@ try {
   }, null, 2)}\n`);
   runNpm([
     "install",
+    // Keep cold-cache registry transfers serial: concurrent TLS handshakes can stall this consumer.
+    "--maxsockets=1",
     "--ignore-scripts",
     "--install-links",
     "--no-audit",

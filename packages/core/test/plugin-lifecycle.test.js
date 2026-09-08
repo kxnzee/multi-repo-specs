@@ -15,6 +15,8 @@ import {
   PluginLifecycleService,
   PluginRegistry,
   PluginStatusResult,
+  OpenSpecPointerService,
+  StoreProjectService,
 } from "@openspec-orch/core";
 import { loadPluginExport } from "./helpers/plugin-materializer.js";
 
@@ -113,7 +115,7 @@ async function loadPlugin(t, calls, { connect, exec, extensions = false, status 
 
 /** Собирает реальный Host и application service с наблюдаемыми contexts. */
 async function lifecycle(t, calls, options = {}) {
-  const { agentAdapter, initiallyLoaded = true, ...pluginOptions } = options;
+  const { agentAdapter, initiallyLoaded = true, storeProjectService, ...pluginOptions } = options;
   const loadedPlugin = await loadPlugin(t, calls, pluginOptions);
   if (pluginOptions.extensions) await fs.mkdir(path.join(loadedPlugin.root, "extension"));
   const contextCalls = [];
@@ -159,7 +161,7 @@ async function lifecycle(t, calls, options = {}) {
   return {
     contextCalls,
     managerCalls,
-    service: new PluginLifecycleService({ host, managerService }),
+    service: new PluginLifecycleService({ host, managerService, storeProjectService }),
   };
 }
 
@@ -699,4 +701,61 @@ test("Plugin binding lock fails closed without changing project config", async (
 
   assert.equal(await fs.readFile(fixture.configPath, "utf8"), before);
   assert.deepEqual(calls, []);
+});
+
+/** Resolves a real config-only pointer through a controlled OpenSpec process response. */
+async function pointerLifecycle(t, calls, { responseStoreId = "specs" } = {}) {
+  const fixture = await createStoreFixture(t, { connected: true });
+  const repositoryRoot = path.join(path.dirname(fixture.storeRoot), "frontend");
+  const start = path.join(repositoryRoot, "src");
+  await fs.mkdir(start, { recursive: true });
+  await fs.mkdir(path.join(repositoryRoot, "openspec"));
+  await fs.writeFile(path.join(repositoryRoot, "openspec/config.yaml"), "store: specs\n");
+  const pointerCalls = [];
+  const storeRoot = await fs.realpath(fixture.storeRoot);
+  const storeProjectService = new StoreProjectService(configuration, new OpenSpecPointerService(
+    undefined,
+    async (executable, args, options) => {
+      pointerCalls.push({ executable, args, cwd: options.cwd });
+      return { failed: false, stderr: "", stdout: JSON.stringify({
+        root: { path: storeRoot, source: "declared", store_id: responseStoreId },
+      }) };
+    },
+  ));
+  return { ...fixture, start, pointerCalls, repositoryRoot: await fs.realpath(repositoryRoot),
+    ...await lifecycle(t, calls, { storeProjectService }) };
+}
+
+test("Plugin lifecycle resolves Code Repository pointers for direct and batch operations", async (t) => {
+  const calls = [];
+  const fixture = await pointerLifecycle(t, calls);
+  const { service, start } = fixture;
+  const before = await fs.readFile(fixture.configPath, "utf8");
+  const request = { start, pluginId: "sample", repositoryId: "frontend" };
+  assert.equal((await service.status(request)).toJSON().state, "ready");
+  assert.equal(await service.sync(request), "synced");
+  assert.equal(await service.exec({ ...request, args: ["inspect"] }), "executed");
+  const batch = { start, pluginId: "sample", repositoryIds: ["frontend"] };
+  assert.equal((await service.syncMany(batch))[0].output, "synced");
+  assert.equal((await service.execMany({ ...batch, args: ["inspect"] }))[0].output, "executed");
+  assert.equal(await fs.readFile(fixture.configPath, "utf8"), before);
+  assert.equal(fixture.pointerCalls.length, 5);
+  for (const call of fixture.pointerCalls) {
+    assert.deepEqual(call, { executable: "openspec", args: ["context", "--json"],
+      cwd: fixture.repositoryRoot });
+  }
+  assert.deepEqual(calls.map(([operation]) => operation), ["status", "sync", "exec", "sync", "exec"]);
+});
+
+test("Plugin lifecycle rejects an unresolved pointer before executing or mutating", async (t) => {
+  const calls = [];
+  const fixture = await pointerLifecycle(t, calls, { responseStoreId: "other" });
+  const before = await fs.readFile(fixture.configPath, "utf8");
+  for (const operation of ["execMany", "connectMany", "disconnectMany"]) {
+    await assert.rejects(fixture.service[operation]({
+      start: fixture.start, pluginId: "sample", repositoryIds: ["frontend"], args: ["inspect"],
+    }), /pointer не разрешён/);
+  }
+  assert.deepEqual(calls, []);
+  assert.equal(await fs.readFile(fixture.configPath, "utf8"), before);
 });

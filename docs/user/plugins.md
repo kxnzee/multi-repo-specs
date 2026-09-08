@@ -142,7 +142,10 @@ claude plugin list --json
 
 `disconnect` сначала отключает Plugin-owned Extension и затем удаляет portable binding.
 Для Qwen/GigaCode payload может остаться установленным, но disabled; Claude adapter
-удаляет local Plugin и marketplace текущего scope. `remove` удаляет ID и npm
+удаляет local Plugin текущего проекта. Общий marketplace удаляется только после
+последней регистрации этого Plugin; подключения других проектов сохраняются.
+Повторное отключение уже отсутствующей регистрации Claude проходит без ошибки.
+`remove` удаляет ID и npm
 dependency внешнего Plugin. Ни одна из этих команд не удаляет tracked
 repository data, локальный Plugin storage или созданные Plugin данные вроде
 `.codegraph/`: их миграция и очистка относятся к контракту конкретного Plugin.
@@ -319,3 +322,12 @@ Profiles `repository` и `native` создают заготовки lifecycle ca
 реализовать до `plugin init`; `native` дополнительно поддерживает package-owned argv
 runtime. Авторский contract и contract test описаны в
 [Plugin SDK](../../packages/plugin-sdk/README.md).
+
+### Запуск из Code Repository
+
+Project-scoped команды `plugin init`, `connect`, `status`, `sync`, `exec`,
+`disconnect` и `remove` разрешают Store также через `openspec/config.yaml`
+подключённого Code Repository, в том числе из его подкаталогов. OpenSpec должен
+разрешать pointer через `openspec context --json`; неразрешённый или несовпадающий
+Store останавливает команду до вызова Plugin. `--repo` по-прежнему задаёт целевой
+Repository явно и не подменяется текущим каталогом.

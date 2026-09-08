@@ -68,7 +68,7 @@ export class PluginLifecycleCommands {
     if (!progress || typeof progress.run !== "function") {
       throw new Error("PLUGIN_CLI_INVALID: требуется progress renderer");
     }
-    if (!storeProjectService || typeof storeProjectService.find !== "function") {
+    if (!storeProjectService || typeof storeProjectService.resolve !== "function") {
       throw new Error("PLUGIN_CLI_INVALID: требуется StoreProjectService");
     }
     if (!scaffoldService || typeof scaffoldService.register !== "function") {
@@ -205,7 +205,7 @@ export class PluginLifecycleCommands {
           "PLUGIN_INIT_SELECTION_REQUIRED: для --from используйте один --plugin и один source",
         );
       }
-      const storeProject = await this.#storeProjects.find();
+      const storeProject = await this.#storeProjects.resolve();
       const source = PluginSource.parse(sources[0], { cwd: process.cwd() });
       await this.#installSelections(storeProject, [{ id: pluginIds[0], source }]);
       return;
@@ -233,7 +233,7 @@ export class PluginLifecycleCommands {
       this.#output.log("Plugins не выбраны.");
       return;
     }
-    const storeProject = await this.#storeProjects.find();
+    const storeProject = await this.#storeProjects.resolve();
     await this.#installSelections(storeProject, selections);
   }
 
@@ -252,7 +252,7 @@ export class PluginLifecycleCommands {
   }
 
   async #update(pluginId, requestedSource) {
-    const storeProject = await this.#storeProjects.find();
+    const storeProject = await this.#storeProjects.resolve();
     storeProject.project.requirePlugin(pluginId);
     const source = PluginSource.parse(requestedSource, { cwd: process.cwd() });
     await this.#progress.run(
@@ -439,7 +439,7 @@ export class PluginLifecycleCommands {
   }
 
   async #remove(pluginId) {
-    const storeProject = await this.#storeProjects.find();
+    const storeProject = await this.#storeProjects.resolve();
     const result = await this.#progress.run(
       `Удаление Plugin ${pluginId}...`,
       () => this.#applications.remove(storeProject, pluginId),

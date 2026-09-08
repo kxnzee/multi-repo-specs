@@ -126,7 +126,7 @@ test("plugin init preserves --plugin/--from grammar and delegates to application
       async statuses() { return []; },
     },
     output: captured.output,
-    storeProjectService: { async find() { return storeProject; } },
+    storeProjectService: { async resolve() { return storeProject; } },
   });
 
   await program.parseAsync([
@@ -171,7 +171,7 @@ test("plugin update is explicit and preserves the existing project declaration",
       async statuses() { return []; },
     },
     output: captured.output,
-    storeProjectService: { async find() { return storeProject; } },
+    storeProjectService: { async resolve() { return storeProject; } },
   });
 
   await program.parseAsync([
@@ -196,7 +196,7 @@ test("plugin init rejects ambiguous custom source selection before Store lookup"
       async statuses() { return []; },
     },
     output: outputCollector().output,
-    storeProjectService: { async find() { finds += 1; } },
+    storeProjectService: { async resolve() { finds += 1; } },
   });
 
   await assert.rejects(
@@ -246,7 +246,7 @@ test("plugin init installs discovered catalog entries through --all", async () =
     catalog: new PluginCatalog(entries),
     lifecycleService,
     output: captured.output,
-    storeProjectService: { async find() { return storeProject; } },
+    storeProjectService: { async resolve() { return storeProject; } },
   });
 
   await program.parseAsync(["node", "openspec-orch", "plugin", "init", "--all"]);
@@ -289,7 +289,7 @@ test("plugin init uses checkbox catalog selection and requires TTY", async () =>
     async connectMany() { return []; },
     async statuses() { return []; },
   };
-  const storeProjectService = { async find() { return Object.freeze({ root: "/store" }); } };
+  const storeProjectService = { async resolve() { return Object.freeze({ root: "/store" }); } };
   const interactive = candidate({
     applicationService,
     catalog,
@@ -846,7 +846,7 @@ test("plugin remove delegates to application facade and remains idempotent", asy
     async connectMany() { return []; },
     async statuses() { return []; },
   };
-  const storeProjectService = { async find() { return storeProject; } };
+  const storeProjectService = { async resolve() { return storeProject; } };
 
   await candidate({
     applicationService,

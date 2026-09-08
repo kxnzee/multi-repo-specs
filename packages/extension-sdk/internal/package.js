@@ -67,7 +67,8 @@ export class ExtensionPackage {
 
 export class ExtensionDescriptor {
   constructor(descriptor, { agentIds } = {}) {
-    exactKeys(descriptor, ["id", "manifests", "name"], "extension descriptor");
+    exactKeys(descriptor, ["id", "manifests", "name",
+      ...(descriptor && Object.hasOwn(descriptor, "targets") ? ["targets"] : [])], "extension descriptor");
     if (typeof descriptor.id !== "string" || !EXTENSION_ID_PATTERN.test(descriptor.id)) {
       invalid("id должен быть lowercase kebab-case");
     }
@@ -83,6 +84,13 @@ export class ExtensionDescriptor {
     for (const [agentId, manifest] of Object.entries(descriptor.manifests)) {
       relativePath(manifest, `manifests.${agentId}`);
     }
+    const targets = Object.hasOwn(descriptor, "targets") ? descriptor.targets : ["store"];
+    if (!Array.isArray(targets) || targets.length === 0 ||
+        targets.some((role) => !["store", "code"].includes(role)) ||
+        new Set(targets).size !== targets.length) {
+      invalid("targets должен содержать уникальные роли store/code");
+    }
+    this.targets = Object.freeze([...targets]);
     this.id = descriptor.id;
     this.name = descriptor.name.trim();
     this.manifests = Object.freeze({ ...descriptor.manifests });

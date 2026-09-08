@@ -74,3 +74,13 @@ testExtensionContract({
   descriptor,
   packageManifest,
 });
+
+
+test("Extension descriptor keeps Store default and accepts explicit repository roles", () => {
+  const descriptor = { id: "workflow", name: "Workflow", manifests: { qwen: "qwen-extension.json" } };
+  assert.deepEqual(new ExtensionDescriptor(descriptor, { agentIds: ["qwen"] }).targets, ["store"]);
+  assert.deepEqual(new ExtensionDescriptor({ ...descriptor, targets: ["store", "code"] }, { agentIds: ["qwen"] }).targets, ["store", "code"]);
+  for (const targets of [null, [], ["user"], ["code", "code"], "code"]) {
+    assert.throws(() => new ExtensionDescriptor({ ...descriptor, targets }, { agentIds: ["qwen"] }), /targets/);
+  }
+});

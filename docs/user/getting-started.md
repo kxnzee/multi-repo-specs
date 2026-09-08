@@ -202,6 +202,15 @@ openspec-orch doctor
 Существующие checkout не обновляются и должны иметь configured remote, чистое рабочее
 дерево и именованную текущую ветку; её имя не сравнивается с `default_branch`.
 
+`connect` доставляет из Store OpenSpec-команды и skills выбранного Agent в каждый
+Code Repository, а workflow Extensions подключает по ролям из их `targets`.
+Новые команды, skills и OpenSpec pointer нужно принять через setup PR;
+до этого результат — `needs_setup_pr`. Повторный `connect` допускает эти
+непринятые файлы, если их содержимое совпадает с pack в Store. Настройки Agent и
+пользовательские commands/skills не копируются. Отличающиеся файлы OpenSpec
+останавливают доставку с `AGENT_PACK_CONFLICT`: сначала согласуйте их обновление
+со Store. `disconnect` отключает native Extensions, сохраняя доставленные файлы.
+
 В strict mode для другой раскладки один раз передайте workspace:
 
 ```bash

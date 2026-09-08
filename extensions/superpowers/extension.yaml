@@ -1,5 +1,6 @@
 id: superpowers
 name: Superpowers
+targets: [store, code]
 manifests:
   claude: .claude-plugin/plugin.json
   qwen: qwen-extension.json
