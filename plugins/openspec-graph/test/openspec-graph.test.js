@@ -344,9 +344,41 @@ test("Plugin config maps localized Delta headings to canonical operations", asyn
     ["ADDED", "MODIFIED", "REMOVED", "RENAMED"],
   );
   assert.equal(
-    archivedReport.nodes.find(({ id }) => id === "change:jit-100-promote").state,
+    archivedReport.nodes.find(({ id }) => id === "change:archive/2026-08-27-jit-100-promote").state,
     "archived",
   );
+});
+
+test("Active and repeated archived Changes keep separate nodes, deltas and impact", async (t) => {
+  const root = await storeFixture(t);
+  const name = "jit-100-promote";
+  const activePath = path.join(root, "openspec/changes", name);
+  const archiveIds = ["2026-08-27", "2026-08-28"].map((date) => `archive/${date}-${name}`);
+  for (const id of archiveIds) {
+    await fs.cp(activePath, path.join(root, "openspec/changes", id), { recursive: true });
+  }
+  await write(root, `openspec/changes/${archiveIds[0]}/proposal.md`, [
+    "## Repository Impact", "", "| Repository | Capabilities |", "| --- | --- |",
+    "| control | conference/visitors |", "",
+  ].join("\n"));
+  const report = await compileOpenSpecGraph(root, { repositories, storeId });
+  assert.equal(new Set(report.nodes.map(({ id }) => id)).size, report.nodes.length);
+  for (const [id, repository] of [[name, "web"], [archiveIds[0], "control"], [archiveIds[1], "web"]]) {
+    const impact = inspectChangeImpact(report, id);
+    assert.equal(impact.change.path, `openspec/changes/${id}`);
+    assert.equal(impact.change.state, id === name ? "active" : "archived");
+    assert.deepEqual(impact.repositories.map(({ id: nodeId }) => nodeId), [`repository:${repository}`]);
+    assert.deepEqual(impact.delta_specs.map(({ id: nodeId }) => nodeId), [
+      `delta-spec:${id}/conference/visitors`,
+    ]);
+    assert.ok(impact.edges.filter(({ relation }) => relation === "linked")
+      .every(({ via_changes: changes }) => changes.includes(id)));
+  }
+  assert.ok(report.nodes.some(({ id }) => id === "master-spec:conference/agenda"));
+  await fs.rm(activePath, { recursive: true });
+  const archivedOnly = await compileOpenSpecGraph(root, { repositories, storeId });
+  assert.throws(() => inspectChangeImpact(archivedOnly, name), /CHANGE_NOT_FOUND/);
+  for (const id of archiveIds) assert.equal(inspectChangeImpact(archivedOnly, id).change.state, "archived");
 });
 
 test("Empty Delta operation sections do not create Graph edges", async (t) => {
@@ -427,12 +459,12 @@ test("Archive preserves and aggregates the neutral Repository relation", async (
   await fs.rename(activePath, archivePath);
 
   const report = await compileOpenSpecGraph(root, { repositories, storeId });
-  const change = report.nodes.find(({ id }) => id === "change:jit-100-promote");
+  const change = report.nodes.find(({ id }) => id === "change:archive/2026-08-27-jit-100-promote");
   const link = report.edges.find(({ relation }) => relation === "linked");
   assert.equal(change.state, "archived");
   assert.equal(link.source, "repository:web");
   assert.equal(link.target, "master-spec:conference/visitors");
-  assert.deepEqual(link.via_changes, ["jit-100-promote"]);
+  assert.deepEqual(link.via_changes, ["archive/2026-08-27-jit-100-promote"]);
   assert.deepEqual(link.provenance, [
     {
       path: "openspec/changes/archive/2026-08-27-jit-100-promote/proposal.md",

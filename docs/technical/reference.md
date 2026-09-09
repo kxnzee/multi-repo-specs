@@ -146,6 +146,13 @@ Read tools:
 - `get_spec_graph_node` — узел, его связи и соседи; обязательный `node_id`;
 - `get_spec_change_impact` — Specs и Repositories, затронутые Change; обязательный `change_id`.
 
+В Graph активный Change имеет `change_id`, равный имени каталога; архивный —
+`archive/YYYY-MM-DD-name`. Этот ID используется в узлах, Delta Specs и
+`via_changes`, поэтому повторное имя не объединяет разные экземпляры.
+Для `get_spec_change_impact` копируйте точный `nodes[].change_id` из графа.
+Обычное имя выбирает активный Change; архивный запрашивается явно с датой.
+Это правило относится к Graph, а не к командам OpenSpec или Change Tracking.
+
 ### Области действия и идентификаторы
 
 MCP закреплён за working directory при запуске. `get_status`, `get_change_context`,

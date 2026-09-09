@@ -128,7 +128,7 @@ function graphTool(name, operation, identifier, description) {
           ...NON_EMPTY_STRING_SCHEMA,
           description: identifier === "node_id"
             ? "Exact graph nodes[].id including its type prefix, e.g. master-spec:shipping-cost or repository:shop."
-            : "OpenSpec Change directory name, e.g. free-shipping-threshold; without the change: graph-node prefix.",
+            : "Exact graph nodes[].change_id: active directory name or archive/YYYY-MM-DD-name; without the change: graph-node prefix.",
         } } : {}),
       },
       required: identifier ? [identifier] : [],
