@@ -22,8 +22,13 @@ Subagent (general-purpose):
 
     Read the task brief: [BRIEF_FILE]
 
-    Global constraints from the spec/design that bind this task:
+    Binding spec/design requirements and applicable active execution rules:
     [GLOBAL_CONSTRAINTS]
+    Follow the execution rules when performing this review, including any
+    permitted inspection outside the diff. They do not expand review scope or
+    become product requirements unless the task explicitly requires that.
+    If a required tool is unavailable and no stated fallback applies, report
+    Blocked to the controller.
 
     ## What the Implementer Claims They Built
 
@@ -180,8 +185,10 @@ Subagent (general-purpose):
   prints the path; same file the implementer worked from)
 - `[GLOBAL_CONSTRAINTS]` — the binding requirements copied verbatim from
   the plan's Global Constraints section or the spec: exact values, formats,
-  and stated relationships between components (not process rules — those
-  are already in this template)
+  and stated relationships between components; also copy applicable active
+  execution rules, including session-only instructions, their scope, required
+  tools, invocation order and permitted fallbacks. Do not substitute Plugin names
+  or assume the subagent inherited the parent session.
 - `[REPORT_FILE]` — REQUIRED: the file the implementer wrote its detailed
   report to
 - `[REPOSITORY_ID]`, `[CHECKOUT_PATH]` — assigned repository identity and absolute checkout
