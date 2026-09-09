@@ -261,6 +261,18 @@ test("candidate distribution exposes every Plugin through plugin exec", async (t
     "openspec-orch-distribution-cli-",
   );
 
+  const scaffoldRoot = path.join(path.dirname(storeRoot), "scaffolded-plugin");
+  await runCli(storeRoot, "plugin", "register", "sample-native", scaffoldRoot,
+    "--profile", "native", "--extension");
+  for (const relative of [".claude-plugin/plugin.json", "qwen-extension.json", "gigacode-extension.json"]) {
+    const manifest = JSON.parse(await fs.readFile(path.join(scaffoldRoot, "extension", relative), "utf8"));
+    assert.equal(manifest.name, "sample-native-agent");
+  }
+  const hook = await execa(process.execPath, [path.join(scaffoldRoot, "extension/hooks/session-start.js")]);
+  assert.equal(hook.stdout.trim(), (await fs.readFile(
+    path.join(scaffoldRoot, "extension/agent-instructions.md"), "utf8",
+  )).trim());
+
   const graphSeed = path.join(storeRoot, "openspec/graph.yaml");
   await assert.rejects(fs.access(graphSeed), { code: "ENOENT" });
   await runCli(storeRoot, "plugin", "init", "--plugin", "change-tracking");

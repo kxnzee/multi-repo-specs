@@ -71,7 +71,7 @@ test("Core, Plugin SDK and Extension SDK are independently publishable packages"
   assert.notEqual(core.private, true);
   assert.notEqual(sdk.private, true);
   assert.notEqual(extensionSdk.private, true);
-  assert.deepEqual(core.files, ["index.js", "internal", "templates"]);
+  assert.deepEqual(core.files, ["index.js", "internal"]);
   assert.deepEqual(sdk.files, ["README.md", "index.js", "internal", "testing.js"]);
   assert.deepEqual(sdk.dependencies, {
     "@openspec-orch/extension-sdk": "0.1.0",

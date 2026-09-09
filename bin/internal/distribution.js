@@ -113,6 +113,11 @@ export async function createDistributionPlatform({ start, loadInstalledPlugins =
     start,
   });
   const platform = await core.PluginPlatform.create({
+    pluginCommandOptions: {
+      scaffoldService: new core.PluginScaffoldService({
+        extensionTemplateRoot: fileURLToPath(new URL("../templates/plugin-extension/", import.meta.url)),
+      }),
+    },
     bundledAgentProvider,
     bundledExtensionProvider,
     bundledTemplateProvider,

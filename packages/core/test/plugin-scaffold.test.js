@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { execa } from "execa";
 import { PluginLoader, PluginScaffoldService } from "@openspec-orch/core";
@@ -50,7 +51,9 @@ test("PluginScaffoldService creates convention-first commands, repository and na
     await t.test(candidate.profile, async () => {
       const pluginId = `${candidate.profile}-plugin`;
       const targetRoot = path.join(temporary, pluginId);
-      const result = await new PluginScaffoldService().register({
+      const result = await new PluginScaffoldService({
+        extensionTemplateRoot: fileURLToPath(new URL("../../../bin/templates/plugin-extension/", import.meta.url)),
+      }).register({
         pluginId,
         targetRoot,
         name: `${candidate.profile} Plugin`,
@@ -197,4 +200,19 @@ test("PluginScaffoldService does not reserve distribution-owned Plugin command n
     });
     assert.equal(path.basename(result.root), pluginId);
   }
+});
+
+test("Core scaffold requires supplied Extension assets and accepts an arbitrary provider layout", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "scaffold-assets-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const targetRoot = path.join(root, "new-parent", "plugin");
+  const options = { pluginId: "custom", targetRoot, profile: "repository", extension: true };
+  await assert.rejects(new PluginScaffoldService().register(options), /PLUGIN_EXTENSION_TEMPLATE_REQUIRED/u);
+  await assert.rejects(fs.access(path.dirname(targetRoot)), { code: "ENOENT" });
+  const extensionTemplateRoot = path.join(root, "assets");
+  await fs.mkdir(path.join(extensionTemplateRoot, "custom-provider"), { recursive: true });
+  await fs.writeFile(path.join(extensionTemplateRoot, "custom-provider", "manifest.txt.template"), "__EXTENSION_NAME_JSON__\n");
+  await new PluginScaffoldService({ extensionTemplateRoot }).register(options);
+  assert.deepEqual(await fs.readdir(path.join(targetRoot, "extension")), ["custom-provider"]);
+  assert.equal(await fs.readFile(path.join(targetRoot, "extension/custom-provider/manifest.txt"), "utf8"), '"custom-agent"\n');
 });
