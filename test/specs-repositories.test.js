@@ -27,7 +27,8 @@ const graphRoot = fileURLToPath(new URL("../plugins/openspec-graph/", import.met
 async function gitRepository(root, remote, files) {
   await fs.mkdir(root, { recursive: true });
   await execa("git", ["init", "--initial-branch", "main", root]);
-  for (const [relative, contents] of Object.entries(files)) {
+  // Keep cloned fixture bytes stable even when the host enables core.autocrlf.
+  for (const [relative, contents] of Object.entries({ ".gitattributes": "* text eol=lf\n", ...files })) {
     const target = path.join(root, relative);
     await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.writeFile(target, contents);
