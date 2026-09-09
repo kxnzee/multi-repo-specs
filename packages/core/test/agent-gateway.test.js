@@ -103,7 +103,7 @@ test("CandidateCli exposes only the explicit user-level gateway lifecycle", asyn
   });
   const agentGatewayService = Object.freeze({
     listAgents() { return [{ id: "qwen", name: "Qwen Code" }]; },
-    async setup(agentId) { calls.push(["setup", agentId]); return result("ready"); },
+    async setup(agentId, options) { calls.push([options?.refresh ? "refresh" : "setup", agentId]); return result("ready"); },
     async status(agentId) { calls.push(["status", agentId]); return result("ready"); },
     async remove(agentId) { calls.push(["remove", agentId]); return result("removed"); },
   });
@@ -124,8 +124,34 @@ test("CandidateCli exposes only the explicit user-level gateway lifecycle", asyn
   assert.deepEqual(calls, [["setup", "qwen"], ["status", "qwen"], ["remove", "qwen"]]);
   assert.equal(output.filter((line) => line === "Scope: user").length, 3);
   assert.equal(output.at(-1), "Status: removed");
+  await program.parseAsync(["node", "openspec-orch", "agent", "setup", "--agent", "qwen", "--refresh"]);
+  assert.deepEqual(calls.at(-1), ["refresh", "qwen"]);
   await assert.rejects(
     program.parseAsync(["node", "openspec-orch", "agent", "setup", "--agent", "unknown"]),
     (error) => error.code === "commander.invalidArgument",
   );
+});
+
+test("gateway setup repairs stale status and refresh explicitly invokes connect", async () => {
+  const calls = [];
+  let stale = true;
+  const service = new AgentGatewayService({
+    start: "/workspace", extensionId: "gateway",
+    agentProvider: { catalog: { entries: [{ id: "qwen", name: "Qwen" }] },
+      resolve: () => ({ id: "qwen" }), adapter: {
+        async preflight() {}, async validateExtension() {},
+        async invokeExtension(_context, _extension, request) {
+          calls.push(request);
+          if (request.operation === "status" && stale) throw new Error("AGENT_EXTENSION_STATUS_STALE: gateway");
+          if (request.operation === "connect") stale = false;
+        },
+      },
+    },
+    extensionProvider: { resolve: () => ({ id: "gateway", root: "/payload" }) },
+  });
+  assert.equal((await service.setup("qwen")).status, "ready");
+  assert.deepEqual(calls.map(({ operation }) => operation), ["status", "connect", "status"]);
+  calls.length = 0;
+  await service.setup("qwen", { refresh: true });
+  assert.deepEqual(calls, [{ operation: "connect", scope: "user", refresh: true }, { operation: "status", scope: "user" }]);
 });

@@ -32,6 +32,8 @@ async function writeFakeQwen(fakeBin) {
     "const args = process.argv.slice(2);",
     "const log = process.env.OPENSPEC_ORCH_FAKE_QWEN_LOG;",
     "const installedPath = `${log}.installed.json`;",
+    "const sourcesPath = `${log}.sources.json`;",
+    'const sources = fs.existsSync(sourcesPath) ? JSON.parse(fs.readFileSync(sourcesPath, "utf8")) : {};',
     "const installed = fs.existsSync(installedPath)",
     '  ? JSON.parse(fs.readFileSync(installedPath, "utf8")) : [];',
     "fs.appendFileSync(log, `${JSON.stringify({ cwd: process.cwd(), args })}\\n`);",
@@ -43,6 +45,8 @@ async function writeFakeQwen(fakeBin) {
     '  const suffix = args[2].slice(args[2].lastIndexOf(":") + 1);',
     '  const nativeId = suffix.includes(path.sep) ? path.basename(args[2]) : suffix;',
     "  if (!installed.includes(nativeId)) installed.push(nativeId);",
+    '  sources[nativeId] = args[2].slice(0, args[2].lastIndexOf(":"));',
+    '  fs.writeFileSync(sourcesPath, JSON.stringify(sources));',
     '  fs.writeFileSync(installedPath, JSON.stringify(installed));',
     "}",
     'if (args[0] === "extensions" && args[1] === "uninstall") {',
@@ -51,7 +55,7 @@ async function writeFakeQwen(fakeBin) {
     '  fs.writeFileSync(installedPath, JSON.stringify(installed));',
     "}",
     'if (args[0] === "extensions" && args[1] === "list") {',
-    '  process.stdout.write(installed.map((id) => `✓ ${id} (1.0.0)\\n Enabled (Workspace): true\\n Enabled (User): true`).join("\\n\\n"));',
+    '  process.stdout.write(installed.map((id) => `✓ ${id} (1.0.0)\\n Path: ${sources[id]}\\n Enabled (Workspace): true\\n Enabled (User): true`).join("\\n\\n"));',
     "}",
     "",
   ].join("\n"));
@@ -109,6 +113,7 @@ test("candidate distribution bootstraps the Agent gateway once in user scope", a
       ))}:orchestrator-agent`,
       "--scope", "user", "--consent",
     ],
+    ["extensions", "list"],
     ["extensions", "list"],
     ["extensions", "list"],
     ["--version"],
@@ -481,10 +486,10 @@ test("candidate distribution serves OpenSpec Graph through public MCP only", asy
   await client.connect(transport);
 
   const listed = await client.listTools();
-  assert.equal(listed.tools.some(({ name }) => name === "query_graph"), true);
+  assert.equal(listed.tools.some(({ name }) => name === "get_spec_graph"), true);
   const report = JSON.parse((await client.callTool({
-    name: "query_graph",
-    arguments: { query: "report" },
+    name: "get_spec_graph",
+    arguments: {},
   })).content[0].text);
   assert.equal(report.summary.nodes, 2);
 });
@@ -527,6 +532,20 @@ test("candidate distribution completes Change Tracking through public MCP", asyn
     arguments: { change_id: "tracker-smoke", task_id: "1" },
   });
   assert.equal(JSON.parse(started.content[0].text).base_revision, baseRevision);
+  await fs.writeFile(tasksPath, "# Tasks\n\n- [ ] 1.1 Changed task identity\n");
+  await commitAll(storeRoot, "Revise planned task");
+  const rejected = await client.callTool({ name: "start_attempt", arguments: { change_id: "tracker-smoke", task_id: "1" } });
+  assert.equal(rejected.isError, true);
+  assert.match(rejected.content[0].text, /ATTEMPT_TASK_CHANGED/u);
+  await assert.rejects(runCli(codeRoot, "plugin", "exec", "--repo", "specs", "change-tracking", "attempt", "start", "tracker-smoke", "1"), /ATTEMPT_TASK_CHANGED/u);
+  await runCli(codeRoot, "plugin", "exec", "--repo", "specs", "change-tracking", "attempt", "cancel", "tracker-smoke", "1", "Task revised during planning");
+  const status = await client.callTool({ name: "get_status", arguments: { change_id: "tracker-smoke" } });
+  assert.equal(JSON.parse(status.content[0].text).tracking.cancelled.length, 1);
+  await fs.writeFile(tasksPath, "# Tasks\n\n- [ ] 1.1 Implement tracker smoke\n");
+  await commitAll(storeRoot, "Restore planned scope");
+  const restarted = await client.callTool({ name: "start_attempt", arguments: { change_id: "tracker-smoke", task_id: "1" } });
+  assert.equal(restarted.isError, undefined);
+
 
   await fs.writeFile(path.join(codeRoot, "index.js"), "export const ready = 'tracked';\n");
   await commitAll(codeRoot, "Implement tracker smoke");
@@ -670,4 +689,41 @@ test("public CLI initializes a fresh Store and repeats connect from the Code Rep
   assert.equal(report.summary.error, 0);
   await assert.rejects(fs.access(path.join(codeRoot, "openspec/specs")), /ENOENT/);
   await assert.rejects(fs.access(path.join(codeRoot, "openspec/changes")), /ENOENT/);
+});
+
+test("public CLI initializes the initiative Template without code workflows", async (t) => {
+  const { storeRoot } = await distributionFixture(t, "openspec-orch-initiative-");
+  for (const entry of await fs.readdir(storeRoot)) {
+    if (entry !== ".git") await fs.rm(path.join(storeRoot, entry), { recursive: true, force: true });
+  }
+  await commitAll(storeRoot, "Prepare initiative Store");
+  for (const name of ["xdg-config", "xdg-data"]) {
+    await fs.rm(path.join(path.dirname(storeRoot), name), { recursive: true, force: true });
+  }
+  await runCli(storeRoot, "init", ".", "--store", "specs", "--agent", "qwen", "--template", "initiative");
+  const config = configuration.parseProject(await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"));
+  assert.deepEqual(config.extensions, ["initiative"]);
+  assert.equal(config.template.id, "initiative");
+  assert.equal(parse(await fs.readFile(path.join(storeRoot, "openspec/config.yaml"), "utf8")).schema, "initiative");
+  await runCli(storeRoot, "extension", "connect", "initiative");
+  await fs.access(path.join(storeRoot, "openspec/schemas/initiative/templates/verify.md"));
+  await execa("openspec", ["new", "change", "shared-outcome", "--schema", "initiative"], { cwd: storeRoot });
+  const client = new Client({ name: "initiative-smoke", version: "1.0.0" });
+  try {
+    await client.connect(new StdioClientTransport({ command: process.execPath, args: [MCP_PATH],
+      cwd: storeRoot, env: { ...process.env }, stderr: "pipe" }));
+    const response = await client.callTool({ name: "get_next_action", arguments: { change_id: "shared-outcome" } });
+    assert.notEqual(response.isError, true, JSON.stringify(response.content));
+    const result = JSON.parse(response.content[0].text);
+    assert.equal(result.action, "prepare_artifact");
+    assert.equal(result.artifact, "proposal");
+    const context = await client.callTool({ name: "get_change_context", arguments: {
+      change_id: "shared-outcome", artifact: "proposal",
+    } });
+    assert.notEqual(context.isError, true, JSON.stringify(context.content));
+    assert.match(JSON.stringify(context.content), /initiative/);
+  } finally {
+    await client.close();
+  }
+
 });

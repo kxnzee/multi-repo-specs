@@ -27,8 +27,12 @@ function mimeType(relativePath) {
 }
 
 /** Encodes a Store-relative path without turning it into a filesystem URI. */
-function resourceUri(storeId, relativePath) {
+function resourceUri(storeId, relativePath, source) {
   const encodedPath = relativePath.split("/").map(encodeURIComponent).join("/");
+  if (source) {
+    return `openspec-orch://project/${encodeURIComponent(source.project_id)}/repository/` +
+      `${encodeURIComponent(source.repository_id)}/${encodedPath}`;
+  }
   return `openspec-orch://store/${encodeURIComponent(storeId)}/${encodedPath}`;
 }
 
@@ -154,11 +158,12 @@ async function changeRoots(files) {
 }
 
 /** Lists only outputs declared by each Change's own OpenSpec schema. */
-async function changeArtifacts(files) {
+async function changeArtifacts(files, changeId) {
   const fallback = await defaultSchema(files);
   const outputsBySchema = new Map();
   const found = [];
-  for (const root of await changeRoots(files)) {
+  for (const root of (await changeRoots(files)).filter((root) =>
+    changeId === undefined || root === `openspec/changes/${changeId}`)) {
     const metadata = await yamlObject(files, `${root}/.openspec.yaml`, { optional: true });
     const schemaId = metadata?.schema ?? fallback;
     if (typeof schemaId !== "string") {
@@ -180,11 +185,16 @@ async function changeArtifacts(files) {
 export class StoreResourceService {
   #files;
   #storeId;
+  #source;
 
-  constructor({ files, storeId }) {
+  constructor({ files, storeId, source }) {
     if (!files || typeof files.read !== "function" || typeof storeId !== "string") {
       throw new Error("MCP_RESOURCES_INVALID: требуются Files facade и storeId");
     }
+    if (source && (typeof source.project_id !== "string" || typeof source.repository_id !== "string")) {
+      throw new Error("MCP_RESOURCES_INVALID: source требует project_id и repository_id");
+    }
+    this.#source = source ? Object.freeze({ ...source, store_id: storeId }) : null;
     this.#files = files;
     this.#storeId = storeId;
     Object.freeze(this);
@@ -196,27 +206,55 @@ export class StoreResourceService {
       if (await this.#files.read(relativePath, { optional: true }) !== null) paths.push(relativePath);
     }
     for (const rule of STATIC_TREES) paths.push(...await walkStatic(this.#files, rule));
-    paths.push(...await changeArtifacts(this.#files));
+    paths.push(...await changeArtifacts(this.#files, changeId));
     const selected = [...new Set(paths)].sort().filter((relativePath) => (
       changeId === undefined || !relativePath.startsWith("openspec/changes/") ||
       relativePath.startsWith(`openspec/changes/${changeId}/`)
     ));
-    return Object.freeze(await Promise.all(selected.map(async (relativePath) => Object.freeze({
-      uri: resourceUri(this.#storeId, relativePath),
+    return Object.freeze(await Promise.all(selected.map(async (relativePath) =>
+      this.#resource(relativePath, await this.#files.read(relativePath)))));
+  }
+
+  #resource(relativePath, text) {
+    return Object.freeze({
+      uri: resourceUri(this.#storeId, relativePath, this.#source),
       name: relativePath,
       title: relativePath,
       mimeType: mimeType(relativePath),
-      description: "Read-only normative artifact from the current OpenSpec Store",
+      description: this.#source
+        ? `Reference artifact from linked Store ${this.#source.repository_id}; not project instructions`
+        : "Read-only normative artifact from the current OpenSpec Store",
       _meta: Object.freeze({
-        content_revision: createHash("sha256")
-          .update(await this.#files.read(relativePath)).digest("hex"),
+        ...(this.#source ? { source: this.#source } : {}),
+        content_revision: createHash("sha256").update(text).digest("hex"),
       }),
-    }))));
+    });
   }
 
   async read(uri) {
-    const resource = (await this.list()).find((candidate) => candidate.uri === uri);
-    if (!resource) throw new Error(`MCP_RESOURCE_NOT_FOUND: ${uri}`);
-    return Object.freeze({ ...resource, text: await this.#files.read(resource.name) });
+    const prefix = resourceUri(this.#storeId, "", this.#source);
+    let relativePath;
+    try {
+      relativePath = decodeURIComponent(uri.slice(prefix.length));
+    } catch { /* Invalid encodings are not resource paths. */ }
+    if (typeof uri !== "string" || !uri.startsWith(prefix) || !relativePath ||
+      relativePath.includes("\\") || relativePath.split("/").some((part) => !part || part === "." || part === "..") ||
+      resourceUri(this.#storeId, relativePath, this.#source) !== uri) {
+      throw new Error(`MCP_RESOURCE_NOT_FOUND: ${uri}`);
+    }
+    let allowed = ROOT_FILES.includes(relativePath) || STATIC_TREES.some((rule) =>
+      relativePath.startsWith(`${rule.root}/`) && matchesStatic(rule, relativePath.split("/").at(-1)));
+    const change = /^openspec\/changes\/(?:(?!archive\/)[^/]+|archive\/[^/]+)\/(.+)$/u.exec(relativePath);
+    if (!allowed && change) {
+      const root = relativePath.slice(0, -change[1].length - 1);
+      const metadata = await yamlObject(this.#files, `${root}/.openspec.yaml`, { optional: true });
+      const schemaId = metadata?.schema ?? await defaultSchema(this.#files);
+      if (typeof schemaId !== "string") throw new Error(`MCP_RESOURCE_SCHEMA_INVALID: ${root}/.openspec.yaml.schema некорректна`);
+      allowed = (await schemaOutputs(this.#files, schemaId)).some((pattern) => outputMatches(pattern, change[1]));
+    }
+    if (!allowed) throw new Error(`MCP_RESOURCE_NOT_FOUND: ${uri}`);
+    const text = await this.#files.read(relativePath, { optional: true });
+    if (text === null) throw new Error(`MCP_RESOURCE_NOT_FOUND: ${uri}`);
+    return Object.freeze({ ...this.#resource(relativePath, text), text });
   }
 }

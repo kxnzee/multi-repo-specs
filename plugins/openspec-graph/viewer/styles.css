@@ -115,7 +115,8 @@ label { display: grid; gap: 4px; color: #475569; font-size: 11px; font-weight: 5
   top: calc(100% + 7px);
   right: 0;
   z-index: 6;
-  width: 220px;
+  width: 270px;
+  max-width: calc(100vw - 32px);
   padding: 8px;
   border: 1px solid #d9e0e8;
   border-radius: 9px;
@@ -369,3 +370,7 @@ aside { min-width: 0; overflow: auto; padding: 18px; background: #f8fafc; }
 }
 .details-more-button:hover { color: #1e293b; background: #f8fafc; }
 .change-impact-list li[data-impact="direct"] { border-left: 3px solid #7c3aed; }
+
+
+.filter-dot.specs-repository, .legend-dot.specs-repository { background: #0891b2; }
+.entity-name-specs-repository { border-left-color: #0891b2; }

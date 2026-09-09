@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { assertPluginContract } from "@openspec-orch/plugin-sdk/testing";
 
 import plugin from "../index.js";
-import { CodeGraphRepository } from "../lib/repository.js";
+import { codeGraphInitTarget, CodeGraphRepository, CodeGraphRepositoryStatus } from "../lib/repository.js";
 
 const packageRoot = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const launcher = path.join(packageRoot, "bin", "codegraph.js");
@@ -191,4 +191,39 @@ test("Repository status maps native CodeGraph freshness without false ready", as
     });
     assert.deepEqual(await plugin.status(context), { state, details });
   }
+});
+
+
+test("init argv distinguishes help, flags and the optional checkout path", () => {
+  for (const args of [["init", "--help"], ["init", "/missing", "-h"],
+    ["init", "--unknown"], ["init", "one", "two"], ["help", "init"]]) {
+    assert.equal(codeGraphInitTarget(args), null);
+  }
+  assert.equal(codeGraphInitTarget(["init"]), ".");
+  assert.equal(codeGraphInitTarget(["init", "--force"]), ".");
+  assert.equal(codeGraphInitTarget(["init", "--force", "a path", "-iv"]), "a path");
+  assert.equal(codeGraphInitTarget(["init", "--", "--help"]), "--help");
+});
+
+test("launcher init help succeeds outside Git without changing files", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "codegraph-help-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  for (const args of [["init", "--help"], ["init", "-h"], ["init", "missing", "--help"]]) {
+    const { stdout } = await executeFile(process.execPath, [launcher, ...args], { cwd: root });
+    assert.match(stdout, /Usage: codegraph init/);
+    assert.deepEqual(await fs.readdir(root), []);
+  }
+});
+
+test("native CodeGraph cannot report ready with malformed counts or flags", () => {
+  for (const pendingChanges of [{}, { added: -1, modified: 0, removed: 0 },
+    { added: "0", modified: 0, removed: 0 }, { added: 0.5, modified: 0, removed: 0 }]) {
+    assert.throws(() => new CodeGraphRepositoryStatus(JSON.stringify({
+      initialized: true, index: { state: "complete" }, pendingChanges,
+    })), /CODEGRAPH_STATUS_INVALID/u);
+  }
+  assert.throws(() => new CodeGraphRepositoryStatus(JSON.stringify({
+    initialized: true, index: { state: "complete" },
+    pendingChanges: { added: 0, modified: 0, removed: 0 }, worktreeMismatch: "false",
+  })), /CODEGRAPH_STATUS_INVALID/u);
 });

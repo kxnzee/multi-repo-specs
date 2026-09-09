@@ -8,12 +8,15 @@ export function assignmentContext({
   openSpecVersion = "1.11.0",
   planningRevision = "a".repeat(40),
   repositoryChangedPaths = [],
+  planningChangedPaths = [],
+  ancestor = true,
   schemaName = "spec-driven-extended",
   tasks = [{ id: "1", description: "1.1 Implement checkout", done: false }],
 } = {}) {
   const values = new Map();
   const updates = new Map();
   let stateDocument = null;
+  let storageBusy = false;
   const repositories = new Map([
     ["specs", Object.freeze({ id: "specs", role: "store" })],
     ["frontend", Object.freeze({ id: "frontend", role: "code" })],
@@ -26,12 +29,14 @@ export function assignmentContext({
       async git(repositoryId) {
         if (!repositories.has(repositoryId)) throw new Error(`REPO_UNKNOWN: ${repositoryId}`);
         return Object.freeze({
+          async isAncestor() { return ancestor; },
           async revision() { return implementationHeads?.[repositoryId] ?? implementationHead; },
           async statusPaths() { return repositoryChangedPaths; },
         });
       },
     }),
     git: Object.freeze({
+      async statusPaths() { return planningChangedPaths; },
       async latestRevision() { return planningRevision; },
     }),
     process: Object.freeze({
@@ -74,8 +79,12 @@ export function assignmentContext({
     storage: Object.freeze({
       async read() { return stateDocument; },
       async update(operation) {
-        stateDocument = await operation(stateDocument);
-        return stateDocument;
+        if (storageBusy) throw new Error("PLUGIN_STORAGE_BUSY: concurrent update");
+        storageBusy = true;
+        try {
+          stateDocument = await operation(stateDocument);
+          return stateDocument;
+        } finally { storageBusy = false; }
       },
     }),
   });

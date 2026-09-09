@@ -36,4 +36,11 @@ export function registerChangeTrackingCommands(commands, { output = console } = 
       );
       write(`Implementation map: ${result.path}`);
     }, { scope: COMMAND_SCOPE.store });
+  attempt.command("cancel <change-id> <task-id> <reason>")
+    .description("отменить локальную attempt с сохранением причины; не изменяет task и Git")
+    .actionWithContext(async (context, changeId, taskId, reason) => {
+      const result = await new ChangeTrackingApplication(context).cancelAttempt({ changeId, taskId, reason });
+      write(`Attempt отменена: ${result.attempt.repository_id} task ${result.attempt.task.id}. Причина: ${result.reason}`);
+    }, { scope: COMMAND_SCOPE.store });
+
 }

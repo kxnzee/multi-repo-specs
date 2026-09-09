@@ -147,6 +147,7 @@ function repositoryDiagnostic(status) {
     remote: status.remote,
     remote_matches: status.remoteMatches,
     clean: status.clean,
+    error: status.error,
   }).filter(([, value]) => value !== undefined));
   if (status.state === "connected") {
     return new DiagnosticResult({
@@ -165,7 +166,7 @@ function repositoryDiagnostic(status) {
     subject,
     outcome: "error",
     code: `REPOSITORY_${status.state.toUpperCase()}`,
-    message: `Repository находится в состоянии ${status.state}`,
+    message: status.error ?? `Repository находится в состоянии ${status.state}`,
     details,
   });
 }

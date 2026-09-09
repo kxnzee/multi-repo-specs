@@ -28,6 +28,10 @@ entrypoint. Do not create separate `implement-design` or `implement-plan` workfl
   and compare its `task.id` and description with the selected task. Retry only after
   resolving the mismatch; do not invent a start after implementation or attach
   another task's attempt. If task identity changed, stop and report the conflict.
+  The user can cancel the old local attempt with CLI `attempt cancel` and an explicit
+  reason. Cancellation is recorded in `tracking.cancelled`, never as completed work.
+  Do not emulate this CLI action through other tools when it is absent from MCP.
+  After the user cancels it, refresh context before starting the revised task.
   A lookup error is not a filesystem permission error. These tools do not edit
   checkboxes: standard Apply marks the verified task in the resolved Store file,
   then refreshes `tasks[].done` before `complete_attempt`.

@@ -274,6 +274,9 @@ export class PluginHost {
   async #prepareExtensions(loadedPlugin, context) {
     const { plugin } = loadedPlugin;
     if (!this.#hasExtensionContribution(plugin)) return Object.freeze([]);
+    if (context.repository.role === "specs") {
+      throw new Error("SPECS_EXTENSIONS_UNSUPPORTED: Extensions в подключённом Store не устанавливаются");
+    }
     if (!this.#agentAdapter) {
       throw new Error(`AGENT_EXTENSION_ADAPTER_UNAVAILABLE: ${context.agent?.id ?? "unknown"}`);
     }

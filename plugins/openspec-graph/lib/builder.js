@@ -66,7 +66,7 @@ class GraphCompilation {
     return finalizeReport(this.#nodes, this.#edges, this.#diagnostics);
   }
 
-  /** Projects registered Code Repositories and their Store containment. */
+  /** Projects registered Code and Specs Repositories and their Store containment. */
   async #projectRepositories() {
     const provenance = await repositorySources(
       this.#root,
@@ -78,6 +78,7 @@ class GraphCompilation {
       this.#repositoryIds.add(repository.id);
       this.#nodes.set(repositoryNodeId, node(repositoryNodeId, "repository", repository.id, {
         repository_id: repository.id,
+        ...(repository.role === "specs" ? { role: "specs" } : {}),
         state: "registered",
       }));
       addEdge(this.#edges, edge(
@@ -447,8 +448,8 @@ export async function compileOpenSpecGraph(projectRoot, { repositories = [], sto
     fatal("storeId must be a non-empty string");
   }
   for (const repository of repositories) {
-    if (!repository || typeof repository.id !== "string" || repository.role !== "code") {
-      fatal("repositories must contain code repository handles");
+    if (!repository || typeof repository.id !== "string" || !["code", "specs"].includes(repository.role)) {
+      fatal("repositories must contain code or specs repository handles");
     }
   }
 

@@ -31,7 +31,7 @@ openspec-orch agent setup|status|remove --agent <id>
 `blocked` возвращает exit code 1.
 
 `doctor` по умолчанию печатает человекочитаемый отчёт, а с `--json` — тот же
-Diagnostic Report в JSON. Без `--repo` он проверяет все Store и Code Repositories;
+Diagnostic Report в JSON. Без `--repo` он проверяет основной Store и все Code/Specs Repositories;
 повторяемый `--repo <id>` ограничивает только Repository checks. Отчёт включает путь,
 текущую ветку, `origin`, его совпадение с project config и чистоту рабочего дерева.
 Ветка не сравнивается с `default_branch`, её имя и pattern не валидируются. Даже
@@ -94,6 +94,7 @@ Change Tracking:
 ```text
 openspec-orch plugin exec --repo <store-id> change-tracking attempt start <change-id> <task-id>
 openspec-orch plugin exec --repo <store-id> change-tracking attempt complete <change-id> <task-id>
+openspec-orch plugin exec --repo <store-id> change-tracking attempt cancel <change-id> <task-id> "Причина отмены"
 ```
 
 CLI fallback запускается из Code Repository и требует binding `change-tracking` как к
@@ -133,7 +134,7 @@ Executable `openspec-orch-mcp` обслуживает только stdio.
 
 Read tools:
 
-- `get_status` — при переданном `change_id` включает активные и завершённые attempts;
+- `get_status` — при переданном `change_id` включает активные, завершённые и локально отменённые attempts;
 - `get_setup_context`;
 - `get_change_context` — принимает опциональный `include_assignment: true`, чтобы
   вернуть `assignment_scope` в том же ответе без повторного Project envelope и второй
@@ -146,8 +147,77 @@ Read tools:
   реализации и проверки агент дополнительно проверяет по инструкциям Verify;
 - `get_assignment_scope`;
 - `get_doctor_report`;
-- `query_graph` — Plugin-owned tool, доступный в дистрибутиве и исполняемый только
-  через contribution `openspec-graph`.
+- `get_spec_graph` — полный граф выбранного Store;
+- `get_spec_graph_node` — узел, его связи и соседи; обязательный `node_id`;
+- `get_spec_change_impact` — Specs и Repositories, затронутые Change; обязательный `change_id`.
+
+### Области действия и идентификаторы
+
+MCP закреплён за working directory при запуске. `get_status`, `get_change_context`,
+`get_next_action`, `get_assignment_scope`, `get_doctor_report` и `connect_project`
+разрешают основной проект из этого каталога. Запуск из Code Repository использует
+его основной Store. `get_setup_context` описывает варианты настройки;
+`initialize_project` создаёт Store именно в закреплённом каталоге.
+`start_attempt` и `complete_attempt` работают с текущим Code Repository и задачей
+из основного Store. Чтение другого Store через Graph не переключает эти методы.
+
+Три Graph-метода принадлежат Plugin `openspec-graph`. Их необязательный
+`store_repository_id` выбирает checkout с ролью `store`/`specs` и подключённым
+`openspec-graph` из `get_status.project.repositories`. Передавайте локальный
+`repository_id` записи; вложенный `store_id` может отличаться и не является селектором.
+Без аргумента читается основной Store, в том числе из кодового checkout.
+Это выбор источника графа, а не фильтр по участвующему в Change кодовому репозиторию.
+Неподдерживаемая роль, неизвестный ID и отсутствующее подключение отклоняются.
+
+| Значение | Точный смысл |
+|---|---|
+| `store_repository_id` | Локальный ID checkout Store в реестре основного проекта |
+| `node_id` | Полный `nodes[].id` из графа, например `master-spec:shipping-cost` или `repository:shop` |
+| `change_id` | Имя каталога Change, например `free-shipping-threshold`, без префикса `change:` |
+| `artifact` | ID артефакта из `openspec_status.artifacts[].id`; `apply` запрашивает инструкции Apply |
+| `task_id` | Точная строка `artifact_instructions.tasks[].id`, не номер из Markdown |
+| `include_assignment` | Включить сведения о checkout и участии репозиториев; по умолчанию `false`, назначения не создаёт |
+| `revision` | Git revision соответствующего checkout |
+| `context_revision` / `if_context_revision` | Хэш ответа / хэш прежнего ответа для проверки свежести, не Git commit |
+
+`get_assignment_scope` перечисляет кодовые checkout. С `change_id` Graph overlay
+заполняет `assigned` по Repository Impact; `null` означает, что участие неизвестно.
+Это не назначение сотрудника и не подтверждение завершения работы.
+`current_repository` обозначает checkout запуска MCP, а `source` внешнего Graph
+и ресурса — checkout, из которого прочитаны данные. Графовые `repositories[].id`
+имеют префикс `repository:`; ID реестра `project.repositories[].repository_id` — без него.
+
+Примеры:
+
+```json
+{"tool":"get_spec_graph","arguments":{}}
+{"tool":"get_spec_graph_node","arguments":{"node_id":"repository:shop"}}
+{"tool":"get_spec_change_impact","arguments":{"change_id":"free-shipping-threshold"}}
+{"tool":"get_spec_graph","arguments":{"store_repository_id":"payments"}}
+```
+
+До пилота прежний `query_graph(query, id, repository_id)` заменён этими тремя
+методами. Старые имя и аргументы больше не принимаются. Перезапустите Agent/MCP
+и обновите собственные skills или скрипты, использовавшие старые вызовы.
+Формат Store, CLI и файлы Changes не меняются. Все схемы Graph — обычные объекты
+с явно обязательными полями, без корневого `oneOf`.
+
+
+`resources/list` включает доступные Specs Repositories. Их URI имеют вид
+`openspec-orch://project/<owner-id>/repository/<local-id>/<path>`; прежние URI
+основного Store сохраняются. `_meta.source` содержит `project_id`, `repository_id`,
+`store_id`, `revision`, `clean`, а `_meta.content_revision` — хэш содержимого.
+Allowlist файлов тот же, что у основного Store; вложенные подключения не обходятся.
+Недоступные или некорректные внешние Store вместо файлов публикуют ресурс
+`openspec-orch://project/<owner-id>/repository/<local-id>/$diagnostic`.
+Его JSON и `_meta.diagnostic` содержат `project_id`, `repository_id`,
+`expected_store_id`, `state: "unavailable"` и `message`; `_meta.content_revision`
+содержит хэш диагностики. `_meta.source` отсутствует: идентичность источника
+может быть не подтверждена. Ошибка одного внешнего Store не блокирует остальные;
+после восстановления диагностика исчезает при следующем запросе. Ошибки основного
+Store по-прежнему прерывают запрос. Внешние артефакты не становятся инструкциями
+основного проекта. `get_change_context`, `get_next_action` и tracking operations
+продолжают работать в прежнем scope основного проекта.
 
 Каждый успешный read-ответ содержит `context_revision`, scoped к имени tool, его
 эффективным аргументам и фактически прочитанному результату. Для проверки свежести
@@ -205,3 +275,8 @@ Plugin lifecycle, Agent management или network transport.
 
 Точный набор flags конкретной установленной версии всегда показывает
 `openspec-orch <command> --help`.
+
+Чтение MCP resource проверяет точный URI и allowlist выбранного файла, затем читает
+его один раз; `content_revision` вычисляется из возвращаемого текста. Для артефакта
+Change проверяется его собственная schema. Запрос контекста одного Change не разбирает
+metadata других Changes; общий список ресурсов по-прежнему сообщает об ошибочной schema.

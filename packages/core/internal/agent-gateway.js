@@ -6,7 +6,7 @@ import { ScopedProcess } from "./process.js";
 import { hasMethods } from "./value.js";
 
 const USER_SCOPE = "user";
-const RECOVERABLE_STATUS = /AGENT_EXTENSION_STATUS_(?:DISABLED|MISSING|SCOPE_MISSING):/u;
+const RECOVERABLE_STATUS = /AGENT_EXTENSION_STATUS_(?:DISABLED|MISSING|SCOPE_MISSING|STALE):/u;
 
 /** Coordinates one globally available Agent Extension without Project or Store state. */
 export class AgentGatewayService {
@@ -58,22 +58,25 @@ export class AgentGatewayService {
   }
 
   /** Installs/enables and verifies the gateway in explicit user scope. */
-  async setup(agentId) {
+  async setup(agentId, { refresh = false } = {}) {
     const runtime = this.#runtime(agentId);
     await this.#adapter.preflight(runtime.context);
     await this.#adapter.validateExtension(runtime.extension);
-    try {
-      await this.#adapter.invokeExtension(runtime.context, runtime.extension, {
-        operation: "status",
-        scope: USER_SCOPE,
-      });
-      return this.#result(agentId, "ready");
-    } catch (error) {
-      if (!RECOVERABLE_STATUS.test(error?.message ?? "")) throw error;
+    if (!refresh) {
+      try {
+        await this.#adapter.invokeExtension(runtime.context, runtime.extension, {
+          operation: "status",
+          scope: USER_SCOPE,
+        });
+        return this.#result(agentId, "ready");
+      } catch (error) {
+        if (!RECOVERABLE_STATUS.test(error?.message ?? "")) throw error;
+      }
     }
     await this.#adapter.invokeExtension(runtime.context, runtime.extension, {
       operation: "connect",
       scope: USER_SCOPE,
+      ...(refresh ? { refresh: true } : {}),
     });
     await this.#adapter.invokeExtension(runtime.context, runtime.extension, {
       operation: "status",

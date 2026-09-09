@@ -150,7 +150,7 @@ export class CandidateCli {
       .option("--no-extensions", "явно выбрать пустой список Extensions")
       .addOption(new Option("--repo <id=remote#branch>", "добавить Code Repository")
         .argParser(collectRepositories))
-      .option("--no-strict", "отключить Git pinning и automation для текущего вызова")
+      .option("--no-strict", "ослабить Git-проверки и не сохранять привязку Workspace для текущего вызова")
       .action((target = ".", options) => this.#initialize(target, options));
     program.command("doctor")
       .description("проверить готовность Store и локального окружения без изменений")
@@ -162,9 +162,9 @@ export class CandidateCli {
         repositoryIds: options.repo ?? [],
       }));
     program.command("connect")
-      .description("подключить рабочую машину и Code Repositories")
+      .description("подключить рабочую машину, Code и Specs Repositories")
       .addOption(new Option("--workspace <path>", "явный workspace").argParser(singleValue))
-      .option("--no-strict", "отключить Git pinning и automation для текущего вызова")
+      .option("--no-strict", "ослабить Git-проверки и не сохранять привязку Workspace для текущего вызова")
       .action((options) => this.#connect(options));
     program.command("disconnect")
       .description("локально отключить Agent Extensions без изменения Store config")
@@ -185,7 +185,8 @@ export class CandidateCli {
     agent.command("setup")
       .description("установить и проверить gateway в user scope")
       .addOption(agentOption())
-      .action((options) => this.#setupAgentGateway(options.agent));
+      .option("--refresh", "обновить установленный gateway штатной командой Agent и проверить файлы")
+      .action((options) => this.#setupAgentGateway(options.agent, options.refresh));
     agent.command("status")
       .description("проверить user-level gateway без изменений")
       .addOption(agentOption())
@@ -196,10 +197,10 @@ export class CandidateCli {
       .action((options) => this.#removeAgentGateway(options.agent));
   }
 
-  async #setupAgentGateway(agentId) {
+  async #setupAgentGateway(agentId, refresh) {
     const result = await this.#progress.run(
       `Настройка Agent gateway для ${agentId}...`,
-      () => this.#agentGateway.setup(agentId),
+      () => this.#agentGateway.setup(agentId, { refresh }),
       { success: `Agent gateway для ${agentId} готов` },
     );
     this.#printAgentGateway(result);
@@ -267,7 +268,7 @@ export class CandidateCli {
   }
 
   async #connect(options) {
-    this.#progress.start("Подключение Store и Code Repositories...");
+    this.#progress.start("Подключение Store и подключённые репозитории...");
     let result;
     try {
       result = await this.#setup.connect({
@@ -275,9 +276,9 @@ export class CandidateCli {
         noStrict: options.strict === false,
         onProgress: (message, status) => this.#renderConnectionProgress(message, status),
       });
-      this.#progress.succeed("Store и Code Repositories подключены");
+      this.#progress.succeed("Store и подключённые репозитории подключены");
     } catch (error) {
-      this.#progress.fail("Подключение Store и Code Repositories: ошибка");
+      this.#progress.fail("Подключение Store и подключённые репозитории: ошибка");
       throw error;
     }
     this.#printConnection(result, options);
@@ -341,6 +342,11 @@ export class CandidateCli {
       console.log(formatStatusHeading(repository.repository_id, repository.status));
       console.log(`  ✓ Checkout: ${repository.cloned ? "клонирован" : "уже существовал"}`);
       console.log(`  Путь: ${repository.path}`);
+      if (repository.role === "specs") {
+        console.log(`  Specs Store: ${repository.store_id}`);
+        console.log(`  Revision: ${repository.revision}`);
+        console.log(repository.clean ? "  Рабочее дерево чистое" : "  ⚠ Есть локальные изменения спецификаций");
+      }
       if (repository.pointer_created) {
         console.log(`  ⚠ Создан ${CORE_FILES.openSpecConfig}; требуется setup PR`);
       } else if (repository.pointer_pending) {

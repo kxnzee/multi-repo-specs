@@ -264,3 +264,24 @@ test("FileService reads and atomically writes only inside Repository checkout", 
   await createDirectoryLink(outside, path.join(root, "config", "linked"));
   await assert.rejects(service.listFiles("config"), /symlink/);
 });
+
+test("Git ancestry distinguishes descendants, orphan history and invalid revisions", async (t) => {
+  const { checkout } = await checkoutFixture(t);
+  const runner = new ProcessService().forRepository(checkout);
+  const run = (args) => runner.run("git", args);
+  await run(["init", "--initial-branch=main"]);
+  await run(["config", "user.name", "Fixture"]);
+  await run(["config", "user.email", "fixture@example.test"]);
+  await run(["commit", "--allow-empty", "-m", "base"]);
+  const git = new GitService().forRepository(checkout);
+  const base = (await git.revision()).trim();
+  await run(["commit", "--allow-empty", "-m", "implementation"]);
+  const implementation = (await git.revision()).trim();
+  assert.equal(await git.isAncestor(base, implementation), true);
+  assert.equal(await git.isAncestor(implementation, base), false);
+  await run(["checkout", "--orphan", "unrelated"]);
+  await run(["commit", "--allow-empty", "-m", "orphan"]);
+  assert.equal(await git.isAncestor(base, (await git.revision()).trim()), false);
+  await assert.rejects(git.isAncestor("--help", implementation), /GIT_REVISION_INVALID/u);
+  await assert.rejects(git.isAncestor("f".repeat(40), implementation), /git merge-base/u);
+});

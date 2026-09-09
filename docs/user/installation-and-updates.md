@@ -113,83 +113,52 @@ Local state и runtime не коммитятся в Store.
 ### Agent gateway
 
 Команды `agent` управляют только user-level gateway `orchestrator-agent`.
-Если его файлы изменились, переустановите gateway выбранного провайдера:
+Для обновления до текущей поставки используйте:
 
 ```bash
-openspec-orch agent remove --agent qwen
-openspec-orch agent setup --agent qwen
+openspec-orch agent setup --agent qwen --refresh
 openspec-orch agent status --agent qwen
 ```
 
 Для Claude замените `qwen` на `claude`, для GigaCode на `gigacode`.
-Эти команды не переустанавливают `spec-driven-extended`, `superpowers`,
-`spec-reader` или Plugin-owned Extensions.
+`setup` также обнаруживает устаревшую включённую установку и обновляет её.
+`--refresh` явно запускает подключение и проверку, даже если предыдущий status был успешен.
+Эти команды управляют только gateway, а не всеми workflow Extensions.
 
-### Workflow Extensions
+### Workflow и Plugin-owned Extensions
 
 Сначала обновите источник Extension: checkout Orchestrator для bundled payload
-или Store package для внешнего. Затем переустановите изменившийся native payload.
-Обычный `connect` восстанавливает подключения, но не гарантирует замену уже
-установленных файлов. В Qwen/GigaCode он может только включить прежнюю Extension;
-Claude может использовать cache с прежним содержимым и той же версией.
-
-Для standalone Extension в Claude из корня Store выполните:
-
-```bash
-openspec-orch extension disconnect spec-driven-extended
-openspec-orch extension connect spec-driven-extended
-openspec-orch extension status spec-driven-extended
-```
-
-Claude adapter удаляет local Plugin при `disconnect` во всех целевых repositories
-этого Store, а `connect` устанавливает его снова. Store declaration сохраняется.
-Замените ID на нужную Extension. Не используйте `extension remove` для обновления:
-он также удаляет declaration и внешнюю npm-зависимость из Store.
-
-В Qwen/GigaCode `disconnect` только отключает Extension. Для переустановки удалите
-её через native CLI выбранного провайдера, затем восстановите подключения из Store:
-
-Выберите одну команду удаления:
-
-| Провайдер | Команда |
-|---|---|
-| Qwen | `qwen extensions uninstall spec-driven-extended` |
-| GigaCode | `gigacode extensions uninstall spec-driven-extended` |
-
-Затем из корня Store выполните:
+или Store package для внешнего. Затем выполните из Store:
 
 ```bash
 openspec-orch extension connect spec-driven-extended
 openspec-orch extension status spec-driven-extended
+openspec-orch plugin connect change-tracking --repo frontend
+openspec-orch doctor
 ```
 
-Native uninstall Qwen/GigaCode может затронуть другие workspaces. Заранее сохраните
-список подключений и восстановите их через `connect` в соответствующих Stores.
+Общий `connect` использует те же adapters. Подключение обновляет установленный payload
+штатными native-командами и проверяет его файлы. Qwen/GigaCode обновляют существующую
+установку по её сохранённому native source; если он отличается от текущей поставки,
+успех возможен только при совпадении файлов. Неверный source исправляется отдельно
+через native lifecycle, а не скрытой заменой глобальной установки.
 
-Для Plugin-owned Extension сохраните portable bindings. В Claude выполните
-`claude plugin uninstall <native-id>@openspec-orch-<native-id> --scope local`
-из каждого Repository с этой Extension. В Qwen/GigaCode используйте
-`extensions uninstall <native-id>`. Native ID имеет вид `<plugin-id>-<extension-id>`,
-например `change-tracking-agent`. После удаления выполните из Store
-`openspec-orch plugin connect <plugin-id> --repo <repository-id>` для нужных bindings
-или общий `openspec-orch connect`.
+### Версии и проверка файлов
 
-### Проверка установленных файлов
+При изменении payload издатель повышает `version` в native manifests всех поддерживаемых
+провайдеров. Это относится и к инструкциям, skills, commands и hooks: Claude/Qwen могут
+не обновить cache при прежнем номере версии. `--refresh` не обходит это правило.
 
-Проверьте native список (`claude plugin list --json`, `qwen extensions list` или
-`gigacode extensions list`), scope и Repository. Сверьте файлы по показанному пути
-установки с payload принятого checkout или Store package, включая commands, skills,
-manifests и вспомогательные файлы. Учитывайте добавленные и удалённые файлы.
-Статусы `ready` и `enabled` подтверждают подключение, но не совпадение содержимого.
+Статус сравнивает shipped files с путём установки из native CLI, включая добавленные,
+изменённые и удалённые файлы. Native installation metadata, `.git` и `node_modules`
+не сравниваются. При несовпадении возвращается `AGENT_EXTENSION_STATUS_STALE`, а не
+`ready`; неизвестный формат native path не принимается за успешную проверку.
+Эта проверка общая для gateway, standalone и Plugin-owned Extensions, включая Doctor
+и MCP-диагностику. `status` не изменяет установку.
 
-В Claude установки одного Plugin могут использовать общий cache. Если другие
-projects/scopes сохраняют старую установку, согласуйте их переустановку и повторите
-сверку файлов. Сообщение native update «уже последняя версия» при неизменном номере
-версии не подтверждает обновление payload. Не удаляйте общий cache вручную.
-
-После успешной сверки выполните `openspec-orch doctor` и запустите новую Agent-сессию.
-Если файлы не совпадают, обновление ещё не завершено: сохраните native status,
-пути и различия для диагностики.
+После обновления запустите новую Agent-сессию и перезапустите долгоживущие MCP-процессы.
+Совпадение файлов на диске не доказывает, что старая сессия перечитала их.
+Не удаляйте общий native cache вручную: он может использоваться другими проектами.
 
 ## Rollback и поддержка
 

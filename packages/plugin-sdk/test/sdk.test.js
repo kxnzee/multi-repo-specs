@@ -67,7 +67,7 @@ const SAMPLE_MANIFEST = JSON.parse(await fs.readFile(new URL("package.json", SAM
 const { default: SAMPLE_PLUGIN } = await import(new URL("index.js", SAMPLE_ROOT));
 
 test("SDK exposes one immutable source for roles, scopes, patterns and CLI values", () => {
-  assert.deepEqual(REPOSITORY_ROLE, { code: "code", store: "store" });
+  assert.deepEqual(REPOSITORY_ROLE, { code: "code", store: "store", specs: "specs" });
   assert.deepEqual(COMMAND_SCOPE, { current: "current", store: "store" });
   assert.equal(COMMAND_CONTEXT.defaultScope, COMMAND_SCOPE.current);
   assert.deepEqual(COMMAND_CONTEXT.scopes, Object.values(COMMAND_SCOPE));
@@ -453,4 +453,23 @@ test("contract validation uses the public Plugin API instead of instanceof", () 
     }),
     /не предоставляет метод exec/,
   );
+});
+
+
+test("Agent routing names its schema parameter and preserves legacy external Plugins", () => {
+  const contract = (routing) => definePlugin({
+    id: "scoped-agent",
+    agent: { create: () => ({}), tools: [{
+      name: "inspect_store", description: "Inspect a selected Store",
+      inputSchema: { type: "object", properties: { store_repository_id: { type: "string" } } },
+      execute() {}, ...routing,
+    }] },
+  }).agentContribution().tools[0];
+  assert.equal(contract({ repositoryParameter: "store_repository_id" }).repositoryParameter, "store_repository_id");
+  assert.equal(contract({ repositoryScoped: true }).repositoryParameter, "repository_id");
+  assert.equal(contract({}).repositoryParameter, null);
+  for (const repositoryParameter of [true, "", "missing"]) {
+    assert.throws(() => contract({ repositoryParameter }), /repositoryParameter/);
+  }
+  assert.throws(() => contract({ repositoryParameter: "store_repository_id", repositoryScoped: true }), /repositoryParameter/);
 });

@@ -21,6 +21,9 @@ export class RepositoryConnection {
   }
 
   get id() { return this.#value.id; }
+  get role() { return this.#value.role; }
+  get storeId() { return this.#value.storeId; }
+  get clean() { return this.#value.clean; }
   get path() { return this.#value.path; }
   get branch() { return this.#value.branch; }
   get revision() { return this.#value.revision; }
@@ -130,10 +133,11 @@ export class ConnectionService {
       storedWorkspace,
     });
     await workspaceModel.ensureRepositoriesRoot();
+    if (project.specsRepositories.length > 0) await workspaceModel.ensureSpecsRoot();
     const agentPackPlan = await this.#packs?.plan(storeProject);
     const repositories = [];
-    for (const [index, repository] of project.codeRepositories.entries()) {
-      const prefix = `[${index + 1}/${project.codeRepositories.length}] ${repository.id}`;
+    for (const [index, repository] of project.attachedRepositories.entries()) {
+      const prefix = `[${index + 1}/${project.attachedRepositories.length}] ${repository.id}`;
       const connected = await this.#connectRepository({
         repository,
         agentPackPlan,
@@ -184,6 +188,21 @@ export class ConnectionService {
     } else onProgress("проверка существующего checkout...");
     const checkout = await this.#workspace.resolveCheckout(workspaceModel, repository);
     const repositoryGit = this.#git.forRepository(checkout);
+    if (repository.isSpecs()) {
+      await repositoryGit.assertIdentity();
+      const target = await this.#storeProjects.loadSpecs(checkout);
+      const [branch, revision, clean] = await Promise.all([
+        repositoryGit.currentBranch(), repositoryGit.revision(), repositoryGit.isClean(),
+      ]);
+      if (!CORE_PATTERNS.gitRevision.test(revision)) {
+        throw new Error(`${repository.id}: Git вернул некорректную ревизию`);
+      }
+      return new RepositoryConnection({
+        id: repository.id, role: repository.role, storeId: target.store.id,
+        path: checkout.root, branch, revision, clean, cloned,
+        pointerCreated: null, pointerPending: null, agentPackPending: false, status: "ready",
+      });
+    }
     await agentPackPlan?.check(checkout.root);
     const packPaths = agentPackPlan?.files.map(({ relative }) => relative) ?? [];
     let branch = "unpinned";
@@ -220,6 +239,7 @@ export class ConnectionService {
     await repositoryOpenSpec.assertContext({ storeId, storeRoot, source: "declared" });
     return new RepositoryConnection({
       id: repository.id,
+      role: repository.role,
       path: checkout.root,
       branch,
       revision,

@@ -97,3 +97,43 @@ export async function preflightNative(context) {
     );
   }
 }
+
+/** Compares shipped files with the native installation, including unchanged-version updates. */
+export async function assertInstalledPayload(extension, installedRoot) {
+  if (typeof installedRoot !== "string" || !path.isAbsolute(installedRoot)) {
+    throw new Error(`AGENT_EXTENSION_STATUS_INVALID: ${extension.id}: native CLI did not report an absolute installation path`);
+  }
+  const expectedRoot = await fs.realpath(extension.root);
+  const actualRoot = await fs.realpath(installedRoot).catch((cause) => {
+    throw new Error(`AGENT_EXTENSION_STATUS_STALE: ${extension.id}: installation is missing; publish a new native manifest version and reconnect the Extension`, { cause });
+  });
+  if (expectedRoot === actualRoot) return;
+  /** Reads only regular payload files; native installation bookkeeping is not shipped payload. */
+  async function compare(relative = "") {
+    const entries = await fs.readdir(path.join(expectedRoot, relative), { withFileTypes: true });
+    const expectedNames = new Set(entries.map(({ name }) => name));
+    for (const name of await fs.readdir(path.join(actualRoot, relative))) {
+      if ([".git", "node_modules"].includes(name) || (!relative &&
+        [".qwen-extension-install.json", ".gigacode-extension-install.json", ".gemini-extension-install.json"].includes(name))) continue;
+      if (!expectedNames.has(name)) throw new Error(`AGENT_EXTENSION_STATUS_STALE: ${extension.id}: removed file ${path.join(relative, name)} remains installed; publish a new native manifest version and reconnect the Extension`);
+    }
+    for (const entry of entries) {
+      if ([".git", "node_modules"].includes(entry.name)) continue;
+      const file = path.join(relative, entry.name);
+      const actual = path.join(actualRoot, file);
+      const stat = await fs.lstat(actual).catch((error) => {
+        if (error.code === "ENOENT") return null;
+        throw error;
+      });
+      if (entry.isSymbolicLink() || stat?.isSymbolicLink() ||
+        (entry.isDirectory() ? !stat?.isDirectory() : !entry.isFile() || !stat?.isFile())) {
+        throw new Error(`AGENT_EXTENSION_STATUS_STALE: ${extension.id}: ${file}; publish a new native manifest version and reconnect the Extension`);
+      }
+      if (entry.isDirectory()) await compare(file);
+      else if (!(await fs.readFile(path.join(expectedRoot, file))).equals(await fs.readFile(actual))) {
+        throw new Error(`AGENT_EXTENSION_STATUS_STALE: ${extension.id}: ${file}; publish a new native manifest version and reconnect the Extension`);
+      }
+    }
+  }
+  await compare();
+}

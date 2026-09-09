@@ -956,3 +956,13 @@ test("repeated init leaves config unchanged when Store completeness validation f
   await assert.rejects(service.initialize({ ...options, extensions: ["superpowers"] }), /needs_recovery/);
   assert.equal(await fs.readFile(configPath, "utf8"), before);
 });
+
+test("repeated init diagnoses missing project configuration without changing metadata", async (t) => {
+  const root = await storeFixture(t);
+  const { service } = initFixture(fakeExecutor(root).executor);
+  const options = { target: root, storeId: "payments-specs", agentId: "claude", templateRoot: TEMPLATE_ROOT };
+  await service.initialize(options);
+  await fs.rm(path.join(root, "openspec-orch.yaml"));
+  await assert.rejects(service.initialize(options), /needs_recovery:.*openspec-orch.yaml/u);
+  await assert.rejects(fs.stat(path.join(root, "openspec-orch.yaml")), { code: "ENOENT" });
+});

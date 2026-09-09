@@ -4,9 +4,11 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+import { parse } from "yaml";
+
 import { RepositoryCheckout } from "./checkout.js";
 import { configuration } from "./configuration.js";
-import { CORE_FILES } from "./constants.js";
+import { CORE_FILES, CORE_PATTERNS } from "./constants.js";
 import { lstatOrNull } from "./fs.js";
 import { pointers } from "./pointer.js";
 
@@ -100,6 +102,24 @@ export class StoreProjectService {
         .then((source) => this.#configuration.parseProject(source)),
     ]);
     return new StoreProject({ root: canonicalRoot, store, project });
+  }
+
+  /** Reads a linked Store as data; never resolves its packages or descendants. */
+  async loadSpecs(checkout) {
+    const { repository } = checkout;
+    if (!repository.isSpecs()) throw new Error("SPECS_ROLE_REQUIRED: требуется specs checkout");
+    const target = await this.load(checkout.root);
+    const config = parse(await readProjectFile(target.root, CORE_FILES.openSpecConfig));
+    if (!config || typeof config !== "object" || Array.isArray(config) || "store" in config) {
+      throw new Error(`SPECS_CONFIG_INVALID: ${repository.id}: требуется собственный OpenSpec config без pointer`);
+    }
+    if (typeof config.schema !== "string" || !CORE_PATTERNS.id.test(config.schema)) {
+      throw new Error(`SPECS_CONFIG_INVALID: ${repository.id}: openspec/config.yaml.schema некорректна`);
+    }
+    if (target.store.id !== repository.storeId || !repository.matchesRemote(target.store.remote)) {
+      throw new Error(`SPECS_IDENTITY_MISMATCH: ${repository.id}: Store metadata не совпадает с подключением`);
+    }
+    return target;
   }
 
   async find(start = process.cwd()) {

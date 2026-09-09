@@ -146,15 +146,17 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   const schemas = Object.fromEntries(listed.tools.map(({ name, inputSchema }) => (
     [name, inputSchema]
   )));
+  const shape = (schema) => JSON.parse(JSON.stringify(schema, (key, value) =>
+    key === "description" ? undefined : value));
   const identifierSchema = {
     type: "string",
     minLength: 1,
     pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$",
   };
   const nonEmptyStringSchema = { type: "string", minLength: 1 };
-  assert.deepEqual(schemas.get_status.properties.change_id, identifierSchema);
-  assert.deepEqual(schemas.get_change_context.properties.artifact, identifierSchema);
-  assert.deepEqual(schemas.get_change_context.properties.include_assignment, { type: "boolean" });
+  assert.deepEqual(shape(schemas.get_status.properties.change_id), identifierSchema);
+  assert.deepEqual(shape(schemas.get_change_context.properties.artifact), identifierSchema);
+  assert.deepEqual(shape(schemas.get_change_context.properties.include_assignment), { type: "boolean" });
   for (const name of [
     "get_status",
     "get_setup_context",
@@ -164,21 +166,21 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     "get_doctor_report",
     "optional_read",
   ]) {
-    assert.deepEqual(schemas[name].properties.if_context_revision, nonEmptyStringSchema, name);
+    assert.deepEqual(shape(schemas[name].properties.if_context_revision), nonEmptyStringSchema, name);
   }
   assert.equal(schemas.initialize_project.properties.if_context_revision, undefined);
   for (const name of ["start_attempt", "complete_attempt"]) {
     const { description, ...taskSchema } = schemas[name].properties.task_id;
     assert.match(description, /artifact_instructions.tasks/u);
     assert.match(description, /do not use a Markdown/u);
-    assert.deepEqual({ ...schemas[name].properties, task_id: taskSchema }, {
+    assert.deepEqual(shape({ ...schemas[name].properties, task_id: taskSchema }), {
       change_id: identifierSchema,
       task_id: nonEmptyStringSchema,
     });
   }
-  assert.deepEqual(schemas.initialize_project.properties.store_id, identifierSchema);
+  assert.deepEqual(shape(schemas.initialize_project.properties.store_id), identifierSchema);
   assert.deepEqual(
-    schemas.initialize_project.properties.repositories.items.properties,
+    shape(schemas.initialize_project.properties.repositories.items.properties),
     {
       repository_id: identifierSchema,
       remote: nonEmptyStringSchema,
@@ -459,6 +461,11 @@ test("Store resources follow each Change schema without mixing workflow artifact
     "openspec/context/03-architecture.md",
     "openspec/specs/payments/spec.md",
   ]);
+  content.set("openspec/changes/broken/.openspec.yaml", "schema: []\n");
+  directories.add("openspec/changes/broken");
+  const scoped = await resourcesService.list({ changeId: "extended-pay" });
+  assert.ok(scoped.some(({ name }) => name.endsWith("extended-pay/proposal.md")));
+  assert.equal((await resourcesService.read("openspec-orch://store/specs/openspec/changes/extended-pay/proposal.md")).text, "# Proposal\n");
   const masterSpec = listed.find(({ name }) => name === "openspec/specs/payments/spec.md");
   assert.equal((await resourcesService.read(masterSpec.uri)).text, "# Payments\n");
   await assert.rejects(
@@ -509,4 +516,21 @@ test("Store resources reject unsafe schema artifact paths", async () => {
   );
   content.set("openspec/schemas/unsafe/schema.yaml", "artifacts: [null]\n");
   await assert.rejects(new StoreResourceService({ files, storeId: "specs" }).list(), /MCP_RESOURCE_SCHEMA_INVALID/);
+});
+
+test("reading one static resource does not enumerate or read unrelated files", async () => {
+  const calls = [];
+  const service = new StoreResourceService({ storeId: "specs", files: {
+    async read(name) { calls.push(name); return "# Spec"; },
+    async listFiles() { throw new Error("unexpected enumeration"); },
+    async listDirectories() { throw new Error("unexpected enumeration"); },
+  } });
+  for (const uri of ["openspec-orch://store/other/openspec/specs/pay/spec.md",
+    "openspec-orch://store/specs/openspec/changes/archive/proposal.md",
+    "openspec-orch://store/specs/openspec/specs/../private/spec.md"]) {
+    await assert.rejects(service.read(uri), /MCP_RESOURCE_NOT_FOUND/u);
+  }
+  const result = await service.read("openspec-orch://store/specs/openspec/specs/pay/spec.md");
+  assert.equal(result.text, "# Spec");
+  assert.deepEqual(calls, ["openspec/specs/pay/spec.md"]);
 });

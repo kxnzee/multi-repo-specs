@@ -60,6 +60,7 @@ function normalizeRepository(value) {
   const repository = {
     id: value.id,
     role: value.roles[0],
+    ...(value.store_id !== undefined ? { storeId: value.store_id } : {}),
     remote: value.remote,
     defaultBranch: value.default_branch,
     ...(value.description !== undefined ? { description: value.description } : {}),
@@ -160,6 +161,7 @@ export class CoreConfiguration {
       repositories: config.repositories.map((repository) => ({
         id: repository.id,
         roles: [repository.role],
+        ...(repository.storeId !== undefined ? { store_id: repository.storeId } : {}),
         remote: repository.remote,
         default_branch: repository.defaultBranch,
         ...(repository.description !== undefined ? { description: repository.description } : {}),

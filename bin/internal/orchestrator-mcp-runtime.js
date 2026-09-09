@@ -1,5 +1,7 @@
 /** @fileoverview Distribution composition for the built-in Orchestrator Agent API. */
 
+import { createHash } from "node:crypto";
+
 import {
   createRepositoryCheckout,
   currentRepositories,
@@ -37,6 +39,7 @@ function projectJson(storeProject, invocation) {
       repositories: Object.freeze(project.repositories.map((repository) => Object.freeze({
         repository_id: repository.id,
         role: repository.role,
+        ...(repository.storeId ? { store_id: repository.storeId } : {}),
         ...(repository.description !== undefined ? { description: repository.description } : {}),
         plugins: repository.plugins,
       }))),
@@ -295,16 +298,93 @@ export class OrchestratorMcpRuntime {
     if (!entry) throw new Error(`MCP_TOOL_NOT_FOUND: ${name}`);
     const tool = entry.contribution.tools.find(({ name: candidate }) => candidate === name);
     tool.validate(args);
-    const application = await this.#agentApplication(state, entry);
+    const repositoryParameter = tool.repositoryParameter ?? (tool.repositoryScoped ? "repository_id" : null);
+    const application = await this.#agentApplication(
+      state, entry, repositoryParameter ? args[repositoryParameter] : undefined,
+    );
     return tool.execute(application, args);
   }
 
   async listResources() {
-    return this.#resourceService(await this.#state()).list();
+    const state = await this.#state();
+    const result = [...await this.#resourceService(state).list()];
+    for (const repository of state.storeProject.project.specsRepositories ?? []) {
+      const listing = await this.#specsResourceListing(state, repository.id);
+      result.push(...listing.resources);
+    }
+    return Object.freeze(result);
   }
 
   async readResource(uri) {
-    return this.#resourceService(await this.#state()).read(uri);
+    const state = await this.#state();
+    const prefix = `openspec-orch://project/${encodeURIComponent(state.storeProject.store.id)}/repository/`;
+    if (typeof uri === "string" && uri.startsWith(prefix)) {
+      const alias = uri.slice(prefix.length).split("/")[0];
+      const repository = (state.storeProject.project.specsRepositories ?? [])
+        .find(({ id }) => encodeURIComponent(id) === alias);
+      if (!repository) throw new Error(`MCP_RESOURCE_NOT_FOUND: ${uri}`);
+      if (uri === `${prefix}${alias}/$diagnostic`) {
+        const listing = await this.#specsResourceListing(state, repository.id);
+        return listing.read(uri);
+      }
+      const service = await this.#specsResourceService(state, repository.id);
+      return service.read(uri);
+    }
+    return this.#resourceService(state).read(uri);
+  }
+
+  /** Isolates a broken external source and exposes its failure as a readable diagnostic. */
+  async #specsResourceListing(state, repositoryId) {
+    try {
+      const service = await this.#specsResourceService(state, repositoryId);
+      return { resources: await service.list(), read: (uri) => service.read(uri) };
+    } catch (error) {
+      const repository = state.storeProject.project.requireRepository(repositoryId);
+      const projectId = state.storeProject.store.id;
+      const diagnostic = Object.freeze({
+        project_id: projectId, repository_id: repositoryId,
+        expected_store_id: repository.storeId, state: "unavailable", message: error.message,
+      });
+      const text = `${JSON.stringify(diagnostic, null, 2)}\n`;
+      const resource = Object.freeze({
+        uri: `openspec-orch://project/${encodeURIComponent(projectId)}/repository/` +
+          `${encodeURIComponent(repositoryId)}/$diagnostic`,
+        name: `${repositoryId}: unavailable`,
+        title: `Linked Store ${repositoryId} is unavailable`,
+        description: error.message,
+        mimeType: "application/json",
+        _meta: Object.freeze({ diagnostic,
+          content_revision: createHash("sha256").update(text).digest("hex"),
+        }),
+      });
+      return { resources: [resource], read: async (uri) => {
+        if (uri !== resource.uri) throw new Error(`MCP_RESOURCE_NOT_FOUND: ${uri}`);
+        return Object.freeze({ ...resource, text });
+      } };
+    }
+  }
+
+  /** Resolves only an explicitly registered linked checkout, without child runtime setup. */
+  async #specsResourceService(state, repositoryId) {
+    const repository = state.storeProject.project.requireRepository(repositoryId);
+    const [status] = await this.#repositoryStatuses.inspect({
+      start: state.storeProject.root, repositoryIds: [repositoryId],
+    });
+    if (!status?.connected || status.state !== "connected") {
+      throw new Error(`SPECS_RESOURCE_UNAVAILABLE: ${repositoryId}: ${status?.error ?? status?.state ?? "missing"}`);
+    }
+    const checkout = createRepositoryCheckout(repository, status.path);
+    const repositoryGit = this.#git.forRepository(checkout);
+    await repositoryGit.assertIdentity();
+    const target = await this.#storeProjects.loadSpecs(checkout);
+    return new StoreResourceService({
+      files: this.#files.forRepository(checkout),
+      storeId: target.store.id,
+      source: {
+        project_id: state.storeProject.store.id, repository_id: repository.id,
+        revision: await repositoryGit.revision(), clean: await repositoryGit.isClean(),
+      },
+    });
   }
 
   async #assignmentScopes(state) {
@@ -355,12 +435,13 @@ export class OrchestratorMcpRuntime {
   }
 
   /** Resolves one optional Plugin-owned Agent application through the generic lifecycle. */
-  async #agentApplication(state, { contribution, pluginId }) {
+  async #agentApplication(state, { contribution, pluginId }, repositoryId) {
     return this.#optionalApplication(
       state,
       pluginId,
       contribution.requireBinding,
       (context) => contribution.create(context),
+      repositoryId,
     );
   }
 
@@ -376,25 +457,26 @@ export class OrchestratorMcpRuntime {
     });
   }
 
-  #isConnected(state, pluginId) {
-    return state.storeProject.project.storeRepository.hasPlugin(pluginId);
-  }
-
-  async #optionalApplication(state, pluginId, requireBinding, create) {
+  async #optionalApplication(state, pluginId, requireBinding, create, repositoryId) {
+    const selected = repositoryId === undefined ? state.storeProject.project.storeRepository
+      : state.storeProject.project.requireRepository(repositoryId);
     const declaration = state.storeProject.project.pluginDeclaration(pluginId);
     if (!declaration) return null;
-    if (requireBinding && !this.#isConnected(state, pluginId)) return null;
+    if ((requireBinding || repositoryId !== undefined) && !selected.hasPlugin(pluginId)) {
+      if (repositoryId !== undefined) throw new Error(`PLUGIN_NOT_CONNECTED: ${pluginId}: ${repositoryId}`);
+      return null;
+    }
     try {
       const installation = await state.manager.resolve(declaration);
       const setupContext = installation.loadedPlugin.plugin.hasRepositoryContribution()
         ? this.#contexts.forRepositorySetup.bind(this.#contexts)
         : this.#contexts.forStoreSetup.bind(this.#contexts);
-      const context = await (requireBinding
+      const context = await (requireBinding || repositoryId !== undefined
         ? this.#contexts.forRepository.bind(this.#contexts)
         : setupContext)({
         loadedPlugin: installation.loadedPlugin,
         storeProject: state.storeProject,
-        repositoryId: state.storeProject.store.id,
+        repositoryId: selected.id,
         invocation: state.invocation,
       });
       return create(context);

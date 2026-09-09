@@ -97,6 +97,15 @@ export class RepositoryGit {
     return refs.split(/\r?\n/u).some(Boolean);
   }
 
+  /** Tests ancestry without accepting failures as unrelated history. */
+  async isAncestor(ancestor, descendant) {
+    for (const revision of [ancestor, descendant]) {
+      if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(revision)) throw new Error("GIT_REVISION_INVALID: expected commit hash");
+    }
+    const base = await this.#run(["merge-base", "--all", ancestor, descendant], { acceptedExitCodes: [0, 1] });
+    return base.trim().split(/\r?\n/u).includes(ancestor);
+  }
+
   async hasCommit(revision) {
     try {
       await this.#run(["cat-file", "-e", `${revision}^{commit}`]);

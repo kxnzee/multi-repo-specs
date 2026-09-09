@@ -102,13 +102,27 @@ export async function runGraphView(
     () => new OpenSpecGraphApplication(context).compile(),
     { success: "OpenSpec Graph скомпилирован" },
   );
-  const sourceRoot = context.invocation?.role === REPOSITORY_ROLE.store
+  const sourceRoot = context.repository?.id === context.invocation?.id &&
+    context.invocation?.role === REPOSITORY_ROLE.store
     ? context.invocation.path
     : undefined;
   const viewer = await startViewer(report, {
     port: options.port ?? OPEN_SPEC_GRAPH_CONFIG.viewer.defaultPort,
     readSource: (relativePath) => context.files.read(relativePath),
     sourceRoot,
+    linkedStores: context.repository?.role === REPOSITORY_ROLE.store
+      ? context.project.repositories.filter(({ role }) => role === REPOSITORY_ROLE.specs)
+        .map(({ id }) => ({ id })) : [],
+    loadRepository: async (id) => {
+      const selected = await context.repositories.context(id);
+      if (selected.repository.role !== REPOSITORY_ROLE.specs) {
+        throw new Error("OPENSPEC_GRAPH_SPECS_REQUIRED");
+      }
+      return {
+        graph: await new OpenSpecGraphApplication(selected).compile(),
+        readSource: (relativePath) => selected.files.read(relativePath),
+      };
+    },
   });
   output.log("OpenSpec Graph");
   output.log(`  nodes: ${report.summary.nodes}`);
@@ -139,7 +153,7 @@ export function registerGraphCommands(
       if (options.json) output.log(JSON.stringify(report, null, 2));
       else printInspection(report, (message) => output.log(message));
       assertSuccessful(report);
-    }, { scope: COMMAND_SCOPE.store });
+    }, { scope: COMMAND_SCOPE.current });
 
   commands.command("view")
     .description("compile the current Store and serve the local read-only graph UI")
@@ -148,5 +162,5 @@ export function registerGraphCommands(
       context,
       options,
       { output, progress },
-    ), { scope: COMMAND_SCOPE.store });
+    ), { scope: COMMAND_SCOPE.current });
 }

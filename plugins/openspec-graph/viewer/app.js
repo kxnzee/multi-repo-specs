@@ -1,4 +1,4 @@
-/* global cancelAnimationFrame, clearTimeout, document, fetch, navigator, performance, requestAnimationFrame, setTimeout, vis */
+/* global cancelAnimationFrame, clearTimeout, document, location, fetch, navigator, performance, requestAnimationFrame, setTimeout, vis */
 
 import { inspectChangeImpact } from "/graph-query.js";
 
@@ -8,6 +8,7 @@ const labelZoomThreshold = 0.72;
 
 const colors = {
   store: { background: "#4f46e5", border: "#3730a3", highlight: "#818cf8" },
+  "specs-repository": { background: "#0891b2", border: "#0e7490", highlight: "#22d3ee" },
   repository: { background: "#2563eb", border: "#1d4ed8", highlight: "#60a5fa" },
   "master-spec": { background: "#059669", border: "#047857", highlight: "#34d399" },
   change: { background: "#7c3aed", border: "#6d28d9", highlight: "#a78bfa" },
@@ -17,7 +18,8 @@ const archivedColor = { background: "#cbd5e1", border: "#64748b", highlight: "#9
 
 const typeNames = {
   store: "Store",
-  repository: "Репозиторий",
+  repository: "Кодовый репозиторий",
+  "specs-repository": "Спековый репозиторий",
   "master-spec": "Мастер-спека",
   change: "Изменение",
   "delta-spec": "Дельта-спека",
@@ -47,19 +49,31 @@ const stateNames = {
   missing: "Отсутствует в registry",
 };
 
-const [graph, viewerConfig] = await Promise.all([
-  fetch("/graph.json").then((response) => {
-    if (!response.ok) throw new Error(`Graph request failed: ${response.status}`);
-    return response.json();
-  }),
-  fetch("/viewer-config.json").then((response) => {
-    if (!response.ok) throw new Error(`Viewer config request failed: ${response.status}`);
-    return response.json();
-  }),
-]);
+/** Loads graph data and source actions through the same Store selection. */
+async function loadViewer(query) {
+  const response = await fetch("/viewer-state.json" + query);
+  if (!response.ok) throw new Error(`Viewer request failed: ${response.status}`);
+  const { graph, config } = await response.json();
+  return [graph, config];
+}
+
+/** Loads attached graphs once; expansion only changes canvas visibility. */
+async function loadStoreGraphs() {
+  const initial = await loadViewer(location.search);
+  const teams = (initial[1].navigation ?? []).filter(({ id }) => id);
+  if (!teams.length) return initial;
+  const query = "?" + teams.map(({ id }) => "expand=" + encodeURIComponent(id)).join("&");
+  return loadViewer(query);
+}
+
+const [graph, viewerConfig] = await loadStoreGraphs();
+const linkedStores = new Map((viewerConfig.navigation ?? [])
+  .filter(({ id }) => id).map((team) => [team.id, team]));
+const expandedStores = new Set();
+
 const sourceActions = viewerConfig.sources ?? {};
 const evidenceActions = viewerConfig.evidence ?? {};
-const overviewScale = graph.nodes.length > 800 ? 0.3 : graph.nodes.length > 300 ? 0.38 : 0.48;
+const overviewScale = graph.nodes.length > 800 ? 0.3 : graph.nodes.length > 300 ? 0.38 : graph.nodes.length > 30 ? 0.48 : 0.85;
 
 const graphNodes = new Map(graph.nodes.map((node) => [node.id, node]));
 const graphEdges = new Map(graph.edges.map((edge) => [edge.id, edge]));
@@ -72,10 +86,15 @@ for (const value of graph.diagnostics ?? []) {
     diagnosticsByElement.get(elementId).push(value);
   }
 }
-const filterableNodeTypes = ["repository", "master-spec", "change", "delta-spec"];
-const defaultVisibleNodeTypes = new Set(["repository", "master-spec", "change"]);
+/** Separates repository roles in the UI without changing graph report node types. */
+function nodeCategory(node) {
+  return node?.type === "repository" && node.role === "specs" ? "specs-repository" : node?.type;
+}
+
+const filterableNodeTypes = ["specs-repository", "repository", "master-spec", "change", "delta-spec"];
+const defaultVisibleNodeTypes = new Set(["specs-repository", "repository", "master-spec", "change"]);
 const defaultNodeIds = new Set(graph.nodes
-  .filter(({ type, state }) => defaultVisibleNodeTypes.has(type) && state !== "archived")
+  .filter((node) => !node.team_id && defaultVisibleNodeTypes.has(nodeCategory(node)) && node.state !== "archived")
   .map(({ id }) => id));
 const deltaIdsByChange = new Map(graph.nodes
   .filter(({ type }) => type === "change")
@@ -113,7 +132,7 @@ function friendlyNodeLabel(node) {
   if (!node) return "Неизвестный узел";
   if (node.type === "store") return node.store_id ?? node.label;
   if (node.type === "repository") return node.repository_id ?? node.label;
-  if (node.type === "change") return node.change_id ?? node.label;
+  if (node.type === "change") return node.original_change_id ?? node.change_id ?? node.label;
   const label = humanizePath(node.capability ?? node.label);
   return node.state === "archived" ? `${label} · Архив` : label;
 }
@@ -121,7 +140,7 @@ function friendlyNodeLabel(node) {
 /** Wraps one complete graph-entity name so slashes remain visually grouped. */
 function createEntityName(node, { compact = false, title = false } = {}) {
   const name = document.createElement("span");
-  const type = filterableNodeTypes.includes(node?.type) ? node.type : "store";
+  const type = filterableNodeTypes.includes(nodeCategory(node)) ? nodeCategory(node) : "store";
   name.className = `entity-name entity-name-${type}`;
   if (compact) name.classList.add("entity-name-compact");
   if (title) name.classList.add("entity-name-title");
@@ -252,8 +271,8 @@ function viewerNode(node) {
   return {
     id: node.id,
     label: ["repository", "change"].includes(node.type) ? visibleNodeLabel(node) : "",
-    group: node.type,
-    title: `${typeNames[node.type]}: ${friendlyNodeLabel(node)} · ${node.status}`
+    group: nodeCategory(node),
+    title: `${typeNames[nodeCategory(node)]}: ${friendlyNodeLabel(node)} · ${node.status}`
       + (node.state ? ` · ${stateNames[node.state] ?? node.state}` : ""),
     hidden: !visible,
     physics: visible,
@@ -347,6 +366,8 @@ const network = new vis.Network(graphContainer, { nodes, edges }, {
   },
   groups: {
     store: { shape: "dot", size: 0, color: colors.store },
+    "specs-repository": { shape: "diamond", size: 30, color: colors["specs-repository"],
+      font: { color: "#155e75", size: 22, face: "Inter, system-ui, sans-serif" } },
     repository: {
       shape: "dot",
       size: 28,
@@ -380,10 +401,11 @@ const network = new vis.Network(graphContainer, { nodes, edges }, {
 
 const store = graph.nodes.find(({ type }) => type === "store");
 const typeCounts = new Map();
-for (const node of graph.nodes) typeCounts.set(node.type, (typeCounts.get(node.type) ?? 0) + 1);
+for (const node of graph.nodes) typeCounts.set(nodeCategory(node), (typeCounts.get(nodeCategory(node)) ?? 0) + 1);
 document.getElementById("summary").textContent = [
   store ? `Store ${friendlyNodeLabel(store)}` : undefined,
-  `${typeCounts.get("repository") ?? 0} репозиториев`,
+  `Кодовые репозитории: ${typeCounts.get("repository") ?? 0}`,
+  `Спековые репозитории: ${typeCounts.get("specs-repository") ?? 0}`,
   `${typeCounts.get("master-spec") ?? 0} мастер-спек`,
   `${typeCounts.get("change") ?? 0} изменений`,
   `${graph.summary?.errors ?? 0} ошибок`,
@@ -483,11 +505,11 @@ function appendFileDetail(list, data) {
   if (!data.path) return;
   const source = sourceActions[data.id];
   if (!source) {
-    addDetail(list, "Файл", data.path);
+    addDetail(list, "Путь", data.path);
     return;
   }
   const term = document.createElement("dt");
-  term.textContent = "Файл";
+  term.textContent = "Путь";
   const description = document.createElement("dd");
   description.append(createFileControl({ path: data.path }, source));
   list.append(term, description);
@@ -495,7 +517,7 @@ function appendFileDetail(list, data) {
 
 /** Creates a stable key matching the viewer server evidence allowlist. */
 function evidenceKey(location) {
-  return JSON.stringify([location.path, location.line, location.field]);
+  return (location.team_id ? location.team_id + "::" : "") + JSON.stringify([location.path, location.line, location.field]);
 }
 
 /** Formats one complete machine-readable source location. */
@@ -679,7 +701,8 @@ function renderNode(nodeId) {
   const changeImpact = data.type === "change" ? impactForChange(data.id) : undefined;
   details.className = "";
   details.replaceChildren();
-  selectionKind.textContent = typeNames[data.type];
+  selectionKind.textContent = typeNames[nodeCategory(data)];
+  if (data.team_id) selectionKind.textContent += " · " + data.team_id;
   const title = document.createElement("h3");
   title.className = "details-title";
   title.append(createEntityName(data, { title: true }));
@@ -692,7 +715,10 @@ function renderNode(nodeId) {
   const list = document.createElement("dl");
   list.className = "details-grid";
   if (data.type === "store") addDetail(list, "ID Store", data.store_id);
-  if (data.type === "repository") addDetail(list, "ID репозитория", data.repository_id);
+  if (data.type === "repository") {
+    addDetail(list, "ID репозитория", data.repository_id);
+    addDetail(list, "Роль", data.role === "specs" ? "specs" : "code");
+  }
   if (data.type === "change") addDetail(list, "ID изменения", data.change_id);
   addDetail(list, "Проверка", data.status);
   if (changeImpact) {
@@ -768,7 +794,8 @@ function enabledNodeTypes() {
 
 /** Applies lifecycle filters to Changes and their Delta Specs in every navigation path. */
 function nodeIsEnabled(node, enabledTypes) {
-  if (!node || !enabledTypes.has(node.type)) return false;
+  if (!node || !enabledTypes.has(nodeCategory(node))) return false;
+  if (node.team_id && !expandedStores.has(node.team_id)) return false;
   if (!["change", "delta-spec"].includes(node.type)) return true;
   return stateFilters.some(({ checked, value }) => checked && value === node.state);
 }
@@ -849,7 +876,7 @@ function refreshNodeAppearance() {
   const focusing = selectedNodeId !== undefined;
   nodes.update(graph.nodes.map((node) => {
     const archived = node.state === "archived";
-    let color = archived ? archivedColor : colors[node.type];
+    let color = archived ? archivedColor : colors[nodeCategory(node)];
     let borderWidth = node.type === "master-spec" ? 1 : 2;
     if (directImpactIds.has(node.id)) {
       color = { background: "#059669", border: "#7c3aed", highlight: "#34d399" };
@@ -886,6 +913,8 @@ function refreshVisibility({ fit = false } = {}) {
 
 /** Opens a spacious overview instead of compressing every node into the viewport. */
 function showOverview({ animate = false } = {}) {
+  labelsExpanded = overviewScale >= labelZoomThreshold;
+  refreshNodeAppearance();
   const positions = network.getPositions([...visibleNodeIds]);
   const visiblePositions = Object.values(positions);
   if (visiblePositions.length === 0) return;
@@ -1046,6 +1075,7 @@ for (const filter of [...typeFilters, ...stateFilters, deltaFilter]) {
 }
 document.getElementById("reset-view").addEventListener("click", () => {
   search.value = "";
+  expandedStores.clear();
   for (const filter of typeFilters) filter.checked = defaultVisibleNodeTypes.has(filter.value);
   for (const filter of stateFilters) filter.checked = filter.value === "active";
   deltaFilter.checked = false;
@@ -1090,8 +1120,14 @@ network.on("zoom", ({ scale }) => {
 
 /** Returns semantic children that should keep their offset from a dragged parent. */
 function structuralChildren(nodeId) {
-  const nodeType = graphNodes.get(nodeId)?.type;
+  const node = graphNodes.get(nodeId);
+  const nodeType = node?.type;
   const children = new Set();
+  if (node?.role === "specs" && !node.team_id) {
+    for (const member of graph.nodes) {
+      if (member.team_id === node.repository_id) children.add(member.id);
+    }
+  }
   for (const edge of graph.edges) {
     if (
       nodeType === "repository"
@@ -1200,8 +1236,24 @@ network.on("selectEdge", ({ edges: selected, nodes: selectedNodes }) => {
   if (selectedNodes.length === 0) renderEdge(selected[0]);
 });
 
+/** Toggles one attached Store without changing positions, filters or viewport. */
+function toggleStore(node) {
+  if (node?.role !== "specs" || node.team_id) return;
+  const team = linkedStores.get(node.repository_id);
+  if (!team) return;
+  if (team.error) {
+    layoutStatus.textContent = `Не удалось открыть ${team.id}: ${team.error}`;
+    return;
+  }
+  if (expandedStores.has(team.id)) expandedStores.delete(team.id);
+  else expandedStores.add(team.id);
+  network.unselectAll();
+  clearFocus();
+}
+
 network.on("click", ({ nodes: selectedNodes, edges: selectedEdges }) => {
-  if (selectedNodes.length === 0 && selectedEdges.length === 0) clearFocus();
+  if (selectedNodes.length) toggleStore(graphNodes.get(selectedNodes[0]));
+  else if (!selectedEdges.length) clearFocus();
 });
 
 syncLayerCount();

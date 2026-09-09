@@ -71,6 +71,14 @@ export class Project {
     return Object.freeze(this.#repositories.filter((repository) => repository.isCode()));
   }
 
+  get specsRepositories() {
+    return Object.freeze(this.#repositories.filter((repository) => repository.isSpecs()));
+  }
+
+  get attachedRepositories() {
+    return Object.freeze(this.#repositories.filter((repository) => !repository.isStore()));
+  }
+
   toConfig() {
     const repositories = this.#repositories.map((repository) => repository.toConfig());
     return deepFreeze({
@@ -223,6 +231,11 @@ export class Project {
     }
     if (this.#repositories.filter((repository) => repository.isStore()).length !== 1) {
       throw new Error("PROJECT_INVALID: Project должен содержать ровно один Store Repository");
+    }
+    for (const repository of this.specsRepositories) {
+      if (repository.matchesRemote(this.storeRepository.remote)) {
+        throw new Error(`PROJECT_INVALID: specs ${repository.id} ссылается на собственный Store`);
+      }
     }
     const registered = new Set(this.#plugins.map(({ id }) => id));
     for (const repository of this.#repositories) {

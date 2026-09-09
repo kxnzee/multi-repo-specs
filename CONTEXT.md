@@ -1,7 +1,7 @@
 # OpenSpec Orchestrator
 
 Контекст описывает язык координации одной Jira Story между центральным OpenSpec
-Store и независимыми Code Repositories.
+Store, независимыми Code Repositories и подключёнными Store других команд.
 
 ## Language
 
@@ -18,6 +18,11 @@ _Avoid_: Jira Story, кодовая ветка
 Отдельный Git-репозиторий, которому принадлежат OpenSpec Changes, Master Specs и
 проектный контекст.
 _Avoid_: Code Repository, репозиторий приложения
+
+**Specs Repository**:
+Store другого проекта, подключённый к текущему проекту как источник спецификаций
+и командного контекста. Для собственной команды он остаётся её основным Store.
+_Avoid_: дочерний проект с наследованием настроек, Code Repository
 
 **Code Repository**:
 Git-репозиторий с реализацией одного компонента, но без локальной копии нормативного

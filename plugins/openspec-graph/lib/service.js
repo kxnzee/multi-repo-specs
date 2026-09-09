@@ -63,7 +63,16 @@ export class OpenSpecGraphService {
 
   /** Compiles the current Store and folds strict OpenSpec validation into diagnostics. */
   async compile() {
-    const report = await this.#project();
+    const compiled = await this.#project();
+    const report = this.#context.repository?.role === REPOSITORY_ROLE.specs
+      ? Object.freeze({ ...compiled, source: Object.freeze({
+        project_id: this.#context.project.id,
+        repository_id: this.#context.repository.id,
+        store_id: this.#context.targetStore.id,
+        revision: await this.#context.git.revision(),
+        clean: await this.#context.git.isClean(),
+      }) })
+      : compiled;
     try {
       await this.#context.process.run(
         "openspec",
@@ -84,8 +93,13 @@ export class OpenSpecGraphService {
   }
 
   async #project() {
-    const repositories = this.#context.project.repositories
-      .filter(({ role }) => role === REPOSITORY_ROLE.code)
+    if (this.#context.repository?.role === REPOSITORY_ROLE.specs && !this.#context.targetStore) {
+      throw new Error("OPENSPEC_GRAPH_CONTEXT_INVALID: specs requires targetStore support in Core");
+    }
+    const target = this.#context.targetStore ?? this.#context.project;
+    const repositories = target.repositories
+      .filter(({ role }) => role === REPOSITORY_ROLE.code ||
+        role === REPOSITORY_ROLE.specs)
       .map(({ id, role }) => ({ id, role }));
     const output = await this.#context.process.run(
       process.execPath,
@@ -94,7 +108,7 @@ export class OpenSpecGraphService {
         "compile",
         ".",
         "--store-id",
-        this.#context.project.id,
+        target.id,
         "--repositories-json",
         JSON.stringify(repositories),
       ],

@@ -19,6 +19,10 @@ export class ChangeTrackingApplication {
     return this.#service.complete({ changeId, taskId });
   }
 
+  cancelAttempt(args) {
+    return this.#service.cancel(args);
+  }
+
   getStatus(changeId) {
     return this.#service.status(changeId);
   }

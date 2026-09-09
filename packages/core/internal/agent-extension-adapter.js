@@ -88,6 +88,7 @@ export class AgentExtensionAdapter {
     this.#assertExtension(extension);
     if (
       !OPERATIONS.has(request?.operation) ||
+      (request.refresh !== undefined && (typeof request.refresh !== "boolean" || request.operation !== "connect")) ||
       (request.scope !== undefined && request.scope !== "user") ||
       (request.ownerId !== undefined && (
         typeof request.ownerId !== "string" || request.ownerId.trim().length === 0

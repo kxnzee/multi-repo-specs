@@ -11,6 +11,7 @@ const ID_LIST_SCHEMA = z.array(ID_SCHEMA).default([]);
 const IDENTITY_SCHEMA = z.strictObject({ id: ID_SCHEMA });
 const REPOSITORY_FIELDS = {
   id: ID_SCHEMA,
+  store_id: ID_SCHEMA.optional(),
   roles: z.array(z.enum(Object.values(REPOSITORY_ROLE))).length(1),
   remote: z.string().min(1),
   default_branch: z.string().min(1),

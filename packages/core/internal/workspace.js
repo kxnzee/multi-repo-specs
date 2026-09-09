@@ -29,13 +29,25 @@ export class Workspace {
   }
 
   checkoutPath(repository) {
-    if (!repository.isCode()) {
+    if (!repository.isCode() && !repository.isSpecs()) {
       throw new Error(
         `WORKSPACE_ROLE_UNSUPPORTED: Repository ${repository.id} с role ${repository.role} ` +
           "не размещается в каталоге Code Repositories",
       );
     }
-    return path.join(this.repositoriesRoot, repository.id);
+    return path.join(repository.isSpecs() ? this.specsRoot : this.repositoriesRoot, repository.id);
+  }
+
+  get specsRoot() {
+    return path.join(this.#root, CORE_SETTINGS.workspace.specsDirectory);
+  }
+
+  async ensureSpecsRoot() {
+    const stat = await ensureDirectory(this.specsRoot);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      throw new Error(`WORKSPACE_INVALID: ${this.specsRoot} должен быть обычным каталогом`);
+    }
+    return this.specsRoot;
   }
 
   async ensureRepositoriesRoot() {
@@ -105,8 +117,10 @@ export class WorkspaceResolver {
 
   async resolveCheckout(workspace, repository) {
     const candidate = workspace.checkoutPath(repository);
+    const parent = await lstatOrNull(path.dirname(candidate));
     const stat = await lstatOrNull(candidate);
-    if (!stat?.isDirectory() || stat.isSymbolicLink()) {
+    if (!parent?.isDirectory() || parent.isSymbolicLink() ||
+        !stat?.isDirectory() || stat.isSymbolicLink()) {
       throw Object.assign(
         new Error(`REPOSITORY_CHECKOUT_UNAVAILABLE: ${candidate}`),
         { code: "REPOSITORY_CHECKOUT_UNAVAILABLE" },

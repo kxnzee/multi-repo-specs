@@ -1,0 +1,7 @@
+id: initiative
+name: Initiative workflow
+targets: [store]
+manifests:
+  claude: .claude-plugin/plugin.json
+  qwen: qwen-extension.json
+  gigacode: gigacode-extension.json

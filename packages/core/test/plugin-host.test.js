@@ -303,3 +303,29 @@ test("PluginHost fails before context creation or callback for unsupported lifec
   assert.equal(contextCalls, 0);
   assert.deepEqual(calls, []);
 });
+
+
+test("PluginHost rejects specs Extensions before Plugin or provider mutations", async (t) => {
+  const calls = [];
+  const plugin = definePlugin({
+    id: "sample", supports: ["specs"],
+    repository: {
+      connect() { calls.push("connect"); },
+      status() { return { state: "ready" }; },
+    },
+    extensions() { calls.push("extensions"); return []; },
+  });
+  const loaded = await loadPluginExport(t, plugin);
+  const host = new PluginHost({
+    registry: new PluginRegistry([loaded]),
+    contextFactory: {
+      async forRepositorySetup() {
+        return Object.freeze({ repository: Object.freeze({ id: "team", role: "specs" }) });
+      },
+      async forRepository() { throw new Error("unexpected bound context"); },
+    },
+  });
+  await assert.rejects(host.connect({ pluginId: "sample", repositoryId: "team", storeProject: {} }),
+    /SPECS_EXTENSIONS_UNSUPPORTED/);
+  assert.deepEqual(calls, []);
+});

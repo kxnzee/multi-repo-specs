@@ -7,15 +7,16 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
 
-import { CodeGraphRepository } from "../lib/repository.js";
+import { codeGraphInitTarget, CodeGraphRepository } from "../lib/repository.js";
 
 const require = createRequire(import.meta.url);
 const packageRoot = path.dirname(require.resolve("@colbymchenry/codegraph/package.json"));
 const entrypoint = path.join(packageRoot, "npm-shim.js");
 const args = process.argv.slice(2);
 
-if (args[0] === "init") {
-  await new CodeGraphRepository(args[1]).excludeGeneratedIndex();
+const initTarget = codeGraphInitTarget(args);
+if (initTarget !== null) {
+  await new CodeGraphRepository(initTarget).excludeGeneratedIndex();
 }
 const child = spawn(process.execPath, [entrypoint, ...args], {
   stdio: "inherit",

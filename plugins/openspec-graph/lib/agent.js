@@ -93,33 +93,53 @@ export const openSpecGraphAgentContribution = Object.freeze({
     }
     return result;
   },
-  tools: Object.freeze([{
-    name: "query_graph",
-    description: "Compile the Store graph and run a report, node or Change-impact query.",
+  tools: Object.freeze([
+    graphTool("get_spec_graph", "report", null,
+      "Read the complete OpenSpec graph: specs, Changes, repositories, relationships and diagnostics."),
+    graphTool("get_spec_graph_node", "node", "node_id",
+      "Read one OpenSpec graph node, its edges and neighbors. Copy node_id from get_spec_graph.nodes[].id."),
+    graphTool("get_spec_change_impact", "change_impact", "change_id",
+      "Read the specs and repositories affected by one OpenSpec Change and the supporting relationships."),
+  ]),
+});
+
+/** Keeps each public operation's inputs explicit while sharing Store selection. */
+function graphTool(name, operation, identifier, description) {
+  return Object.freeze({
+    name,
+    repositoryParameter: "store_repository_id",
+    description: description + " Reads the main Store by default, including when invoked from a Code Repository. " +
+      "For another Store, select its local store/specs repository ID from get_status.project.repositories.",
     inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string", enum: ["report", "node", "change_impact"] },
-        id: NON_EMPTY_STRING_SCHEMA,
-      },
-      required: ["query"],
-      additionalProperties: false,
-      oneOf: [
-        { properties: { query: { const: "report" } } },
-        {
-          properties: { query: { enum: ["node", "change_impact"] } },
-          required: ["id"],
+        store_repository_id: {
+          ...NON_EMPTY_STRING_SCHEMA,
+          description: "Optional Store checkout to read. Copy repository_id from get_status.project.repositories " +
+            "with role store or specs and plugin openspec-graph. Omit for the main Store. " +
+            "This is the local registry ID, not the nested store_id, a code repository ID, or a graph filter.",
         },
-      ],
+        ...(identifier ? { [identifier]: {
+          ...NON_EMPTY_STRING_SCHEMA,
+          description: identifier === "node_id"
+            ? "Exact graph nodes[].id including its type prefix, e.g. master-spec:shipping-cost or repository:shop."
+            : "OpenSpec Change directory name, e.g. free-shipping-threshold; without the change: graph-node prefix.",
+        } } : {}),
+      },
+      required: identifier ? [identifier] : [],
+      additionalProperties: false,
     },
     annotations: READ_ONLY_ANNOTATIONS,
     validate(args) {
-      if (args.query !== "report" && (typeof args.id !== "string" || args.id.length === 0)) {
-        throw new Error("MCP_TOOL_INPUT_INVALID: id должен быть непустой строкой");
+      for (const field of ["store_repository_id", ...(identifier ? [identifier] : [])]) {
+        if (field === "store_repository_id" && args[field] === undefined) continue;
+        if (typeof args[field] !== "string" || args[field].trim().length === 0) {
+          throw new Error(`MCP_TOOL_INPUT_INVALID: ${field} должен быть непустой строкой`);
+        }
       }
     },
     execute(application, args) {
-      return requireApplication(application).query(args.query, args.id);
+      return requireApplication(application).query(operation, identifier ? args[identifier] : undefined);
     },
-  }]),
-});
+  });
+}

@@ -38,14 +38,12 @@ test("public MCP executable completes stdio handshake and calls Core Doctor", as
   await client.connect(transport);
   const tools = await client.listTools();
   assert.equal(tools.tools.some(({ name }) => name === "get_doctor_report"), true);
-  const graphTool = tools.tools.find(({ name }) => name === "query_graph");
-  assert.deepEqual(graphTool.inputSchema.oneOf, [
-    { properties: { query: { const: "report" } } },
-    {
-      properties: { query: { enum: ["node", "change_impact"] } },
-      required: ["id"],
-    },
-  ]);
+  const graphTool = tools.tools.find(({ name }) => name === "get_spec_graph");
+  assert.equal(graphTool.inputSchema.type, "object");
+  assert.deepEqual(graphTool.inputSchema.required, []);
+  for (const keyword of ["oneOf", "anyOf", "allOf"]) {
+    assert.equal(Object.hasOwn(graphTool.inputSchema, keyword), false);
+  }
   assert.equal(tools.tools.some(({ name }) => name === "record_result_receipt"), false);
   assert.equal(tools.tools.some(({ name }) => name === "start_attempt"), true);
   assert.equal(tools.tools.some(({ name }) => name === "complete_attempt"), true);
@@ -378,7 +376,7 @@ test("runtime does not advertise a bound Graph Plugin whose runtime is unavailab
     reason: "Plugin is not connected or unavailable; inspect Doctor",
   });
   await assert.rejects(
-    runtime.invokeAgentTool("query_graph", { query: "report" }),
+    runtime.invokeAgentTool("get_spec_graph", {}),
     /not connected or unavailable/u,
   );
 

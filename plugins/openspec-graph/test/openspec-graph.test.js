@@ -149,7 +149,7 @@ test("Package exposes a Store-only Plugin with graph commands and no sync", asyn
     id: "openspec-graph",
     commands: ["inspect", "view"],
   });
-  assert.deepEqual(plugin.supports, ["store"]);
+  assert.deepEqual(plugin.supports, ["store", "specs"]);
   assert.equal(plugin.canExec(), true);
   assert.equal(plugin.canSync(), false);
   assert.equal(plugin.hasExtensionContribution(), false);
@@ -644,19 +644,32 @@ test("Plugin owns its Agent tool, context overlay and unavailable fallback", asy
   });
 
   assert.equal(contribution.requireBinding, true);
-  assert.equal(tool.definition.name, "query_graph");
-  assert.deepEqual(tool.definition.inputSchema.oneOf, [
-    { properties: { query: { const: "report" } } },
-    {
-      properties: { query: { enum: ["node", "change_impact"] } },
-      required: ["id"],
-    },
+  assert.deepEqual(contribution.tools.map(({ name }) => name), [
+    "get_spec_graph", "get_spec_graph_node", "get_spec_change_impact",
   ]);
-  assert.throws(() => tool.validate({ query: "node" }), /id должен быть непустой строкой/u);
-  assert.deepEqual(await tool.execute(application, { query: "report" }), {
+  for (const candidate of contribution.tools) {
+    for (const keyword of ["oneOf", "anyOf", "allOf"]) {
+      assert.equal(Object.hasOwn(candidate.definition.inputSchema, keyword), false);
+    }
+    assert.equal(candidate.repositoryParameter, "store_repository_id");
+    for (const value of [null, "", " ", 12]) {
+      assert.throws(() => candidate.validate({ store_repository_id: value }), /store_repository_id/);
+    }
+  }
+  for (const [index, field] of [[1, "node_id"], [2, "change_id"]]) {
+    const candidate = contribution.tools[index];
+    assert.deepEqual(candidate.definition.inputSchema.required, [field]);
+    for (const value of [undefined, null, "", " ", 12]) {
+      assert.throws(() => candidate.validate({ [field]: value }), new RegExp(field));
+    }
+    assert.doesNotThrow(() => candidate.validate({ [field]: "example" }));
+  }
+  assert.deepEqual(tool.definition.inputSchema.required, []);
+  assert.doesNotThrow(() => tool.validate({}));
+  assert.deepEqual(await tool.execute(application, {}), {
     repositories: [{ id: "repository:web" }],
   });
-  assert.throws(() => tool.execute(null, { query: "report" }), /CAPABILITY_UNAVAILABLE/u);
+  assert.throws(() => tool.execute(null, {}), /CAPABILITY_UNAVAILABLE/u);
 
   const status = await contribution.enhance({
     operation: "getStatus",
@@ -906,4 +919,96 @@ test("Graph rejects a symlinked openspec ancestor before reading outside Store",
   await fs.rename(path.join(root, "openspec"), outside);
   await fs.symlink(outside, path.join(root, "openspec"), process.platform === "win32" ? "junction" : "dir");
   await assert.rejects(compileOpenSpecGraph(root, { storeId, repositories }), /symlink|ordinary directory/);
+});
+
+test("viewer navigates linked Stores with isolated sources and recoverable failures", async (t) => {
+  const graph = { nodes: [{ id: "master-spec:shared", type: "master-spec", path: "openspec/specs/shared/spec.md" }], edges: [], diagnostics: [], summary: { errors: 0, warnings: 0 } };
+  let handler;
+  let broken = true;
+  let failOnce = false;
+  let source = "parent";
+  const calls = [];
+  const viewer = await startGraphViewer(graph, {
+    readSource: async () => source,
+    linkedStores: [{ id: "payments" }, { id: "platform" }, { id: "offline" }],
+    async loadRepository(id) {
+      calls.push(id);
+      if ((broken || failOnce) && id === "offline") {
+        failOnce = false;
+        throw new Error("Store <unavailable>");
+      }
+      return { graph: { ...graph, source: { repository_id: id } }, readSource: async () => id };
+    },
+    createServer(callback) {
+      handler = callback;
+      return { once() {}, listen(_port, _host, resolve) { resolve(); },
+        address() { return { port: 12345 }; }, close(resolve) { resolve(); } };
+    },
+  });
+  t.after(() => viewer.close());
+  /** Executes a scoped viewer request without a socket. */
+  async function request(url) {
+    let status;
+    let body;
+    await handler({ method: "GET", url }, { writeHead(value) { status = value; }, end(value) { body = value; } });
+    return { status, body };
+  }
+  const parent = JSON.parse((await request("/viewer-config.json")).body);
+  assert.equal(parent.navigation.length, 3);
+  assert.deepEqual(calls, []);
+  const selected = JSON.parse((await request("/graph.json?repository=payments")).body);
+  assert.equal(selected.source.repository_id, "payments");
+  const config = JSON.parse((await request("/viewer-config.json?repository=payments")).body);
+  assert.equal(config.navigation[0].href, "/");
+  assert.equal((await request(config.sources["master-spec:shared"].preview_url)).body, "payments");
+  assert.equal((await request(parent.sources["master-spec:shared"].preview_url)).body, "parent");
+  assert.equal((await request("/source/unknown?repository=payments")).status, 404);
+  const before = calls.length;
+  assert.equal((await request("/graph.json?repository=unknown")).status, 404);
+  assert.equal(calls.length, before);
+  const expandedUrl = "/graph.json?expand=payments&expand=platform";
+  const combined = JSON.parse((await request(expandedUrl)).body);
+  assert.equal(combined.nodes.length, 3);
+  assert.equal(new Set(combined.nodes.map(({ id }) => id)).size, 3);
+  const combinedConfig = JSON.parse((await request("/viewer-config.json?expand=payments&expand=platform")).body);
+  assert.equal((await request(combinedConfig.sources["master-spec:payments::shared"].preview_url)).body, "payments");
+  assert.equal((await request(combinedConfig.sources["master-spec:platform::shared"].preview_url)).body, "platform");
+  assert.equal((await request("/source/master-spec%3Apayments%3A%3Ashared")).status, 404);
+  assert.equal((await request("/graph.json?expand=unknown")).status, 404);
+  assert.deepEqual(calls, ["payments", "platform"]);
+  source = "edited after snapshot";
+  assert.equal((await request(parent.sources["master-spec:shared"].preview_url)).body, "parent");
+  const failed = await request("/?repository=offline");
+  assert.equal(failed.status, 500);
+  assert.match(failed.body, /Store &lt;unavailable&gt;/);
+  assert.match(failed.body, /href="\/"/);
+  const partial = JSON.parse((await request("/graph.json?expand=payments&expand=offline")).body);
+  assert.equal(partial.nodes.some(({ team_id }) => team_id === "payments"), true);
+  const partialConfig = JSON.parse((await request("/viewer-config.json?expand=offline")).body);
+  assert.match(partialConfig.navigation.find(({ id }) => id === "offline").error, /unavailable/);
+  broken = false;
+  failOnce = true;
+  const failedState = JSON.parse((await request("/viewer-state.json?expand=offline")).body);
+  assert.equal(failedState.graph.nodes.some(({ team_id }) => team_id === "offline"), false);
+  assert.match(failedState.config.navigation.find(({ id }) => id === "offline").error, /unavailable/);
+  const failedCalls = calls.filter((id) => id === "offline").length;
+  const recoveredState = JSON.parse((await request("/viewer-state.json?expand=offline")).body);
+  assert.equal(recoveredState.graph.nodes.some(({ team_id }) => team_id === "offline"), true);
+  assert.equal(recoveredState.config.navigation.find(({ id }) => id === "offline").error, undefined);
+  assert.equal(calls.filter((id) => id === "offline").length, failedCalls + 1);
+  assert.equal((await request("/graph.json?repository=offline")).status, 200);
+});
+
+test("node and impact queries retain report validation diagnostics", async () => {
+  const { OpenSpecGraphApplication } = await import("../lib/application.js");
+  const report = { state: "invalid", summary: { errors: 1 },
+    diagnostics: [{ code: "OPENSPEC_VALIDATION_FAILED", severity: "error" }],
+    nodes: [{ id: "change:pay", type: "change", change_id: "pay" }], edges: [] };
+  const app = new OpenSpecGraphApplication({}, { service: { async compile() { return report; } } });
+  for (const [query, id] of [["node", "change:pay"], ["change_impact", "pay"]]) {
+    const result = await app.query(query, id);
+    assert.equal(result.state, "invalid");
+    assert.deepEqual(result.diagnostics, report.diagnostics);
+    assert.deepEqual(result.summary, report.summary);
+  }
 });

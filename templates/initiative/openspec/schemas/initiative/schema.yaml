@@ -1,0 +1,57 @@
+name: initiative
+version: 1
+description: Initiative planning and acceptance — proposal → specs → verify
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: Purpose, scope and participating teams
+    template: proposal.md
+    instruction: |
+      Write the initiative proposal in the user's language. Reuse confirmed context
+      and existing specifications; ask only about unresolved decisions that affect
+      the outcome. Describe the problem, desired result, boundaries and assumptions.
+      Use the actual repository IDs from this Store's openspec-orch.yaml in the
+      Repository Impact table. Participants may be code or specs repositories.
+      Capabilities refer to Delta Specs of this Change in this Store, not paths in
+      a team's Store. Do not infer team acceptance or create downstream Changes.
+      Apply project context and local rules; the template is a starting point and
+      can be expanded with the user's sections. Do not invent budgets or approvals.
+    requires: []
+  - id: specs
+    generates: specs/**/*.md
+    description: Shared requirements and observable acceptance scenarios
+    template: spec.md
+    instruction: |
+      Write Delta Specs for the capabilities declared in proposal.md, using
+      ADDED, MODIFIED, REMOVED or RENAMED Requirements as appropriate. For MODIFIED,
+      read the existing Master Spec and include the complete requirement and all
+      retained scenarios. Use SHALL or MUST and WHEN/THEN scenarios for observable
+      outcomes, including important failure cases. Keep canonical OpenSpec headings.
+      Formulate acceptance criteria here during planning, not after delivery.
+      Preserve team implementation choices; do not require code design or tasks.
+      Inspect only relevant linked Store sources, retaining their identity and
+      revision. Missing checkouts or evidence are gaps, not proof of absence.
+    requires: [proposal]
+  - id: verify
+    generates: verify.md
+    description: Evidence-backed assessment of the shared outcome
+    template: verify.md
+    instruction: |
+      Verify the initiative against its Delta Specs and proposal. Separate a
+      planning review from acceptance of delivered results. For each requirement
+      and scenario record the evidence source, its Store/repository, revision,
+      finding and unresolved gaps. Outcomes are confirmed, contradicted or
+      unverified; completion of documents or team checkboxes is not proof of
+      delivery. Missing evidence means unverified, never a fabricated success.
+      If the work is only planned, say that delivery acceptance remains open.
+      Do not run code implementation, claim team approval, release or archive
+      automatically. Follow local review rules and record actual human decisions.
+    requires: [specs]
+apply:
+  requires: [verify]
+  tracks: null
+  instruction: |
+    This initiative profile has no code Apply or implementation task list.
+    Report the verification findings and outstanding decisions. Do not generate
+    code or mark delivery accepted merely because all artifacts exist. Follow
+    explicit user requests and project rules for any subsequent action.
