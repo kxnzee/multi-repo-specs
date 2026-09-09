@@ -72,6 +72,7 @@ async function viewer(graph = graphFixture(), config = {}) {
     }
   }
   const datasets = [];
+  const viewportCalls = [];
   const handlers = new Map();
   const timers = new Map();
   let nextTimer = 0;
@@ -88,8 +89,8 @@ async function viewer(graph = graphFixture(), config = {}) {
     on(name, callback) { handlers.set(name, callback); }
     once() {}
     unselectAll() {}
-    fit() {}
-    moveTo() {}
+    fit(options) { viewportCalls.push({ operation: "fit", ...options }); }
+    moveTo(options) { viewportCalls.push({ operation: "moveTo", ...options }); }
     moveNode(id, x, y) { datasets[0].update([{ id, x, y }]); }
     getScale() { return 1; }
     getPosition(id) { const node = datasets[0].get(id); return { x: node.x ?? 0, y: node.y ?? 0 }; }
@@ -118,7 +119,7 @@ async function viewer(graph = graphFixture(), config = {}) {
   await vm.runInNewContext(`(async () => {${app.replace(/^import .*;$/mu, "")}\n})()`, context);
   const [nodes, edges] = datasets;
   return {
-    nodes, edges, elements,
+    nodes, edges, elements, viewportCalls,
     visible: (id) => !nodes.get(id).hidden,
     toggle(value, checked) {
       const filter = [...filters.values()].flat().find((item) => item.value === value);
@@ -352,4 +353,16 @@ test("dragging a Store moves its hidden and visible contents without moving anot
     assert.ok(Math.abs(ui.nodes.get(id).x - position.x - (moved ? 250 : 0)) < 1e-8);
     assert.ok(Math.abs(ui.nodes.get(id).y - position.y - (moved ? -60 : 0)) < 1e-8);
   }
+});
+
+
+test("Reset fits only visible nodes instead of centering at a fixed scale", async () => {
+  const ui = await viewer(graphFixture());
+  ui.reset();
+  const fit = ui.viewportCalls.findLast(({ operation }) => operation === "fit");
+  assert.ok(fit);
+  assert.deepEqual([...fit.nodes].sort(), [...ui.nodes.items.values()]
+    .filter(({ hidden }) => !hidden).map(({ id }) => id).sort());
+  assert.equal(fit.nodes.includes("change:archived"), false);
+  assert.ok(fit.maxZoomLevel <= 0.85);
 });

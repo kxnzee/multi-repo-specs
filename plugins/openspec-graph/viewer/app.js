@@ -911,33 +911,24 @@ function refreshVisibility({ fit = false } = {}) {
   else fitNodes([...visibleNodeIds], { maxZoomLevel: 0.92 });
 }
 
-/** Opens a spacious overview instead of compressing every node into the viewport. */
+/** Fits the visible overview while retaining its preferred maximum scale. */
 function showOverview({ animate = false } = {}) {
   labelsExpanded = overviewScale >= labelZoomThreshold;
   refreshNodeAppearance();
-  const positions = network.getPositions([...visibleNodeIds]);
-  const visiblePositions = Object.values(positions);
-  if (visiblePositions.length === 0) return;
-  const xValues = visiblePositions.map(({ x }) => x);
-  const yValues = visiblePositions.map(({ y }) => y);
-  network.moveTo({
-    position: {
-      x: (Math.min(...xValues) + Math.max(...xValues)) / 2,
-      y: (Math.min(...yValues) + Math.max(...yValues)) / 2,
-    },
-    scale: overviewScale,
-    animation: animate ? { duration: 280, easingFunction: "easeOutQuad" } : false,
-  });
+  fitNodes([...visibleNodeIds], { maxZoomLevel: overviewScale, animate });
 }
 
 /** Fits nodes with a stable viewport margin for labels and the legend. */
-function fitNodes(nodeIds, { maxZoomLevel = 0.92 } = {}) {
+function fitNodes(nodeIds, { maxZoomLevel = 0.92, animate = true } = {}) {
   if (nodeIds.length === 0) return;
   requestAnimationFrame(() => {
     network.fit({ nodes: nodeIds, animation: false, maxZoomLevel });
+    const scale = network.getScale() * 0.75;
+    labelsExpanded = scale >= labelZoomThreshold;
+    refreshNodeAppearance();
     network.moveTo({
-      scale: network.getScale() * 0.86,
-      animation: { duration: 260, easingFunction: "easeOutQuad" },
+      scale,
+      animation: animate ? { duration: 260, easingFunction: "easeOutQuad" } : false,
     });
   });
 }
