@@ -151,6 +151,18 @@ Store ID и файлы конфигурации. Git origin, ветка и чи�
 которые ещё не знают `description`, отклонят его как неизвестное поле: перед
 добавлением поля обновите Orchestrator у участников проекта.
 
+## Preflight и выполнение Apply
+
+В `spec-driven-extended` skill Apply Context проверяет Planning и repository scope
+и возвращает `apply_scope`. Формирование `task_evidence`, проверка результата перед
+checkbox и итоговый `repository_completion` относятся к `apply.instruction` схемы.
+Штатный Apply получает эти правила из OpenSpec вместе с задачами; preflight
+не выполняет реализацию и не формирует отчёт о её завершении.
+
+При обновлении существующего Store перенесите изменение `apply.instruction`
+в его локальную схему с сохранением собственных правил: обновление Extension
+не заменяет скопированную схему Store автоматически.
+
 ## Правила при делегировании
 
 В Superpowers родитель передаёт исполнителю и reviewer применимые инструкции
