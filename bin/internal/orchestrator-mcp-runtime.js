@@ -45,11 +45,6 @@ function projectJson(storeProject, invocation) {
   });
 }
 
-/** Describes one optional Plugin overlay. */
-function capability(provider, available, reason = null) {
-  return Object.freeze({ provider, available, ...(reason ? { reason } : {}) });
-}
-
 /** Resolves current state for every request so a long-lived Agent never sees stale Project data. */
 export class OrchestratorMcpRuntime {
   #agentContributions;
@@ -132,19 +127,11 @@ export class OrchestratorMcpRuntime {
 
   async getStatus({ change_id: changeId } = {}) {
     const state = await this.#state();
-    const tracking = await this.#optionalAgentApplication(state, "change-tracking");
     const openSpec = this.#openSpec.forRepository(state.storeProject.checkout);
     const result = Object.freeze({
       ...projectJson(state.storeProject, state.invocation),
-      capabilities: Object.freeze({
-        tracking: capability(
-          "change-tracking",
-          tracking !== null,
-          tracking ? null : "Plugin is not initialized or unavailable; inspect Doctor",
-        ),
-      }),
+      capabilities: Object.freeze({}),
       openspec: await openSpec.listChanges(),
-      tracking: tracking && changeId ? await tracking.getStatus(changeId) : null,
     });
     return this.#enhance(state, "getStatus", { change_id: changeId }, result);
   }
@@ -191,14 +178,26 @@ export class OrchestratorMcpRuntime {
     return this.#setup.connect();
   }
 
-  async startAttempt({ change_id: changeId, task_id: taskId } = {}) {
-    const tracking = await this.#trackingApplication(await this.#state());
-    return tracking.startAttempt({ changeId, taskId });
+  startAttempt(input = {}) {
+    return this.#invokeAgentOperation("start_attempt", input);
   }
 
-  async completeAttempt({ change_id: changeId, task_id: taskId } = {}) {
-    const tracking = await this.#trackingApplication(await this.#state());
-    return tracking.completeAttempt({ changeId, taskId });
+  completeAttempt(input = {}) {
+    return this.#invokeAgentOperation("complete_attempt", input);
+  }
+
+  /** Dispatches a governed operation to its single registered implementation. */
+  async #invokeAgentOperation(name, input) {
+    const state = await this.#state();
+    const entries = this.#agentContributions.filter(({ contribution, pluginId }) => (
+      state.storeProject.project.pluginDeclaration(pluginId) &&
+      Object.hasOwn(contribution.operations ?? {}, name)
+    ));
+    if (entries.length > 1) throw new Error(`MCP_OPERATION_AMBIGUOUS: ${name}`);
+    const [entry] = entries;
+    if (!entry) throw new Error(`CAPABILITY_UNAVAILABLE: no handler for ${name}`);
+    const application = await this.#agentApplication(state, entry);
+    return entry.contribution.operations[name](application, input);
   }
 
   async getChangeContext({ change_id: changeId, artifact, include_assignment: includeAssignment } = {}) {
@@ -206,7 +205,6 @@ export class OrchestratorMcpRuntime {
     const repositoryOpenSpec = this.#openSpec.forRepository(state.storeProject.checkout);
     const resources = await this.#resourceService(state).list({ changeId });
     const changePrefix = `openspec/changes/${changeId}/`;
-    const tracking = await this.#optionalAgentApplication(state, "change-tracking");
     const result = Object.freeze({
       ...projectJson(state.storeProject, state.invocation),
       change_id: changeId,
@@ -217,7 +215,6 @@ export class OrchestratorMcpRuntime {
         : null,
       resources: Object.freeze(resources.filter(({ name }) => name.startsWith(changePrefix))),
       shared_resources: Object.freeze(resources.filter(({ name }) => !name.startsWith("openspec/changes/"))),
-      tracking: tracking ? await tracking.getStatus(changeId) : null,
       ...(includeAssignment ? {
         assignment_scope: await this.#assignmentScope(state),
       } : {}),
@@ -419,11 +416,6 @@ export class OrchestratorMcpRuntime {
     );
   }
 
-  async #optionalAgentApplication(state, pluginId) {
-    const entry = this.#agentContributions.find((candidate) => candidate.pluginId === pluginId);
-    return entry ? this.#agentApplication(state, entry) : null;
-  }
-
   #resourceService(state) {
     return new StoreResourceService({
       files: this.#files.forRepository(state.storeProject.checkout),
@@ -458,16 +450,6 @@ export class OrchestratorMcpRuntime {
       if (error?.code === "PLUGIN_RUNTIME_UNAVAILABLE") return null;
       throw error;
     }
-  }
-
-  async #trackingApplication(state) {
-    const tracking = await this.#optionalAgentApplication(state, "change-tracking");
-    if (!tracking) {
-      throw new Error(
-        "CAPABILITY_UNAVAILABLE: change-tracking is not initialized; inspect Doctor",
-      );
-    }
-    return tracking;
   }
 
   async #state() {

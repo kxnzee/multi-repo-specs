@@ -200,16 +200,17 @@ const TOOL_DEFINITIONS = Object.freeze([
   defineTool({
     name: "start_attempt",
     applicationMethod: "startAttempt",
-    description: "Start local evidence for one canonical OpenSpec Apply task from the main Store, in " +
-      "the Code Repository containing the fixed MCP working directory. Requires a Code " +
-      "Repository; does not execute the task or select a repository.",
+    description: "Start an attempt for one canonical OpenSpec Apply task from the main Store through " +
+      "the registered operation handler in the fixed MCP working-directory context. " +
+      "Does not execute the task or select a repository.",
     inputSchema: ATTEMPT_SCHEMA,
     annotations: WRITE_ANNOTATIONS,
   }),
   defineTool({
     name: "complete_attempt",
     applicationMethod: "completeAttempt",
-    description: "Map one completed OpenSpec Apply task from the main Store to the clean Git revision of the Code Repository containing the fixed MCP working directory. " +
+    description: "Record completion of one OpenSpec Apply task from the main Store through the " +
+      "registered operation handler in the fixed MCP working-directory context. " +
       "Use the canonical task_id from start_attempt. Does not mark the task checkbox; " +
       "the task must already be marked done by Apply.",
     inputSchema: ATTEMPT_SCHEMA,

@@ -278,3 +278,15 @@ Native Agent adapters проверяют актуальность файлов �
 из `agent setup --refresh`. Обновление использует native lifecycle и не удаляет
 установку с её настройками. Издатель повышает native manifest version при изменении
 payload. Неизменившийся cache после native update остаётся ошибкой `STATUS_STALE`.
+
+### Абстрактные операции MCP
+
+MCP владеет контрактами `start_attempt` и `complete_attempt`. Change Tracking
+регистрирует обработчики через `agent.operations`; общий runtime выбирает их по
+имени операции без знания ID плагина. Другой Plugin может реализовать тот же
+контракт. Два объявленных в Project провайдера одной операции вызывают ошибку
+неоднозначности; отсутствие провайдера означает недоступную возможность.
+
+Git, evidence и проверка условий завершения остаются в Change Tracking. Поля
+`tracking` и `capabilities.tracking` он добавляет через `agent.enhance`, как остальные
+плагины добавляют свои данные. Имена, аргументы и JavaScript-методы MCP сохранены.
