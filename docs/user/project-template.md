@@ -74,6 +74,10 @@ openspec-orch init /absolute/path/to/store \
 
 ## Выбор schema
 
+Рекомендации по выбору между расширенным OpenSpec и Superspec, включая конкретные
+случаи использования, приведены в разделе
+[«Выбор процесса и старт»](change-scenarios.md#выбор-процесса-и-старт).
+
 `skip_specs: true` разрешает отсутствие Delta Specs в OpenSpec, но не отменяет
 требования других инструментов. При изменении Code Repositories без capabilities
 таблица Repository Impact несовместима с текущим контрактом Graph: пустая ячейка
