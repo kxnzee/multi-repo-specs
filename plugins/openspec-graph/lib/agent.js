@@ -38,12 +38,17 @@ function enhanceStatus(result, application) {
 /** Projects one already-resolved Graph impact onto generic assignment data. */
 function projectAssignmentScope(result, graphImpact, currentRepository) {
   const repositoryIds = graphImpact?.repositories.map(({ id }) => id.replace(/^repository:/u, ""));
-  const assignedRepositoryIds = repositoryIds === undefined ? null : new Set(repositoryIds);
+  const invalidImpact = graphImpact?.diagnostics?.some(({ code, source }) => (
+    (code.startsWith("REPOSITORY_IMPACT_") || code === "GRAPH_UNKNOWN_REPOSITORY")
+    && source?.path === `${graphImpact.change?.path}/proposal.md`
+  ));
+  const assignedRepositoryIds = repositoryIds?.length && !invalidImpact
+    ? new Set(repositoryIds) : null;
   return Object.freeze({
     ...result,
-    assigned: repositoryIds === undefined
+    assigned: assignedRepositoryIds === null
       ? null
-      : currentRepository?.role === "code" && repositoryIds.includes(
+      : currentRepository?.role === "code" && assignedRepositoryIds.has(
         currentRepository.repository_id,
       ),
     assignments: Object.freeze(result.assignments.map((assignment) => Object.freeze({

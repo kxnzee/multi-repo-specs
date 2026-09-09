@@ -12,6 +12,7 @@ import { assertPluginContract } from "@openspec-orch/plugin-sdk/testing";
 
 import plugin from "../index.js";
 import { openSpecGraphAgentContribution } from "../lib/agent.js";
+import { OpenSpecGraphApplication } from "../lib/application.js";
 import { compileOpenSpecGraph } from "../lib/builder.js";
 import { runGraphView } from "../lib/commands.js";
 import { archivedChangeId } from "../lib/compiler-input.js";
@@ -134,6 +135,60 @@ async function storeFixture(t) {
   await write(root, "openspec/changes/empty-change/proposal.md", "# Tooling-only Change\n");
   return root;
 }
+
+test("Assignment scope distinguishes unknown Impact from confirmed nonparticipation", async (t) => {
+  const root = await storeFixture(t);
+  const changeId = "jit-100-promote";
+  const proposalPath = `openspec/changes/${changeId}/proposal.md`;
+  const header = "## Repository Impact\n\n| Repository | Capabilities |\n| --- | --- |\n";
+  const valid = `${header}| web | conference/visitors |\n`;
+  const application = new OpenSpecGraphApplication({}, {
+    service: { compile: () => compileOpenSpecGraph(root, { repositories, storeId }) },
+  });
+  const result = {
+    assigned: null,
+    current_repository: { repository_id: "web", role: "code" },
+    assignments: repositories.map(({ id }) => ({ repository_id: id, assigned: null })),
+  };
+  for (const [name, proposal, expected] of [
+    ["missing table", "# Proposal\n", [null, null]],
+    ["invalid table", "## Repository Impact\n- web\n", [null, null]],
+    ["empty table", header, [null, null]],
+    ["partially invalid table", `${valid}| control | |\n`, [null, null]],
+    ["duplicate section", `${valid}\n${valid}`, [null, null]],
+    ["duplicate mapping", `${valid}| web | conference/visitors |\n`, [null, null]],
+    ["unknown repository", `${valid}| unknown | conference/visitors |\n`, [null, null]],
+    ["unknown capability", `${header}| web | unknown |\n`, [null, null]],
+    ["valid table", valid, [false, true]],
+  ]) {
+    await t.test(name, async () => {
+      await write(root, proposalPath, proposal);
+      // A broken neighbor shares the same repository; its diagnostics remain visible.
+      await write(root, "openspec/changes/neighbor/proposal.md", `${header}| web | unknown |\n`);
+      const direct = await openSpecGraphAgentContribution.enhance({
+        application, operation: "getAssignmentScope", input: { change_id: changeId }, result,
+      });
+      const embedded = await openSpecGraphAgentContribution.enhance({
+        application, operation: "getChangeContext",
+        input: { change_id: changeId, include_assignment: true },
+        result: { current_repository: result.current_repository, assignment_scope: result },
+      });
+      assert.deepEqual(direct.assignments.map(({ assigned }) => assigned), expected);
+      assert.equal(direct.assigned, expected[1]);
+      assert.deepEqual(embedded.assignment_scope.assignments, direct.assignments);
+      assert.equal(embedded.assignment_scope.assigned, direct.assigned);
+      assert.ok(direct.graph_impact.diagnostics.length);
+    });
+  }
+  await fs.rm(path.join(root, proposalPath));
+  for (const selected of [changeId, "empty-change"]) {
+    const scope = await openSpecGraphAgentContribution.enhance({
+      application, operation: "getAssignmentScope", input: { change_id: selected }, result,
+    });
+    assert.equal(scope.assigned, null);
+    assert.deepEqual(scope.assignments.map(({ assigned }) => assigned), [null, null]);
+  }
+});
 
 /** Returns all diagnostic codes in deterministic report order. */
 function codes(report) {

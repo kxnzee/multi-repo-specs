@@ -256,9 +256,12 @@ Changes не входят в этот набор; Plugin overlays могут и�
 files не публикуются.
 
 В `get_assignment_scope` поле `assigned` равно `true` или `false`, когда scope
-подтверждён подключённым OpenSpec Graph, и `null`, когда Graph недоступен. В последнем
-случае Agent подтверждает repository-id по строгой таблице Repository Impact из
-Proposal, доступного как MCP resource; `null` не означает отсутствие назначения.
+подтверждён подключённым OpenSpec Graph по непустой корректной таблице Repository
+Impact текущего Change. Если Graph недоступен, таблица отсутствует или содержит
+ошибки, возвращается `null`: участие неизвестно, а не исключено. Диагностика
+сохраняется в `graph_impact`; ошибки Repository Impact других Changes не меняют
+назначения текущего. Agent проверяет Proposal, доступный как MCP resource,
+и уточняет отсутствующие или некорректные назначения перед реализацией.
 Такая же семантика действует для вложенного `assignment_scope`, если
 `get_change_context` вызван с `include_assignment: true`.
 
