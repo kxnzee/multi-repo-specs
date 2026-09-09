@@ -14,9 +14,13 @@ argument-hint: "[change-id]"
 
 При вызове из штатного Apply верни preflight вызывающему workflow и не запускай
 Apply повторно: его schema instruction уже привела сюда. При прямом запуске
-передай проверенный scope в штатный Apply один раз.
+вызови установленный штатный OpenSpec Apply через механизм skills/commands Agent
+один раз, передав Change и проверенный scope. Текстовое обещание продолжить, MCP
+Apply Context и tracking не заменяют этот вызов. До передачи управления не пиши
+код, не отмечай Tasks и не начинай implementation attempt.
 
-Это единый project entrypoint Apply. Он проверяет только OpenSpec Planning и текущий
+Это preflight helper, а не точка входа в реализацию. Единственная точка входа —
+штатный OpenSpec Apply. Helper проверяет только OpenSpec Planning и текущий
 Repository; Plugin-specific поведение остаётся вне этого skill.
 
 ## Общая предварительная проверка
@@ -61,11 +65,10 @@ section. Для Store-level координации передать исходн
 брать из вложенного `assignment_scope`; отдельный `get_assignment_scope` допустим только
 при отсутствии этих данных или после границы свежести. Не очищать чужие изменения.
 
-CodeGraph разрешён только внутри подтверждённого current repository. Если индекс
-есть, а MCP недоступен, остановиться согласно CodeGraph Extension. Адресный
-read/search допустим при отсутствии индекса либо когда сам MCP сообщил stale или
-unavailable. Индекс другой revision не подтверждает текущий код. Не запускать
-sync автоматически и не считать навигационный индекс evidence реализации.
+Исследование кода разрешено только внутри подтверждённого current repository.
+Соблюдай применимые правила навигации из активных инструкций проекта, включая
+обязательный первый инструмент и допустимый fallback. Не расширяй scope и не
+изменяй состояние инструментов автоматически. Навигация не доказывает реализацию.
 
 Перед checkbox сформировать:
 
@@ -120,7 +123,7 @@ apply_scope:
   change: <change-id>
   repository: <repository-id|null>
   repository_impact: direct | review | extra | not_applicable
-  code_navigation: codegraph | fallback | not_applicable
+  code_navigation: <применённый способ исследования или not_applicable>
   selected_tasks: []
   scope_status: ready | blocked
 ~~~

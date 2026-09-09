@@ -46,7 +46,7 @@ artifacts:
       - distinguish confirmed facts, assumptions, conflicts, and open questions;
       - preserve the scope of negative statements: "outside this Change" does not
         establish absence from the product or make security/audit unnecessary;
-      - do not read Code Repositories, CodeGraph, implementation tests, or
+      - do not read Code Repositories, implementation tests, or
         repository-specific configuration during Intake. A separate user request
         does not change the allowed sources of this artifact;
       - do not create the file until the intake is complete enough for the user to
@@ -344,6 +344,22 @@ artifacts:
     description: Universal human Feature Acceptance after implementation
     template: verify.md
     instruction: |
+      Account for every Scenario in the accepted Specs for this Change using the
+      template's shared scenario verification contract. Reference Scenario IDs or
+      exact source locations without copying their descriptions. Record the verified
+      candidate, requirements revision and verification conditions; link existing
+      records instead of duplicating them. A linked report may replace per-scenario
+      rows only when it identifies every result and the same candidate.
+      PASS requires executed evidence of expected behavior; violations are FAIL,
+      missing or stale evidence is PENDING, and N/A requires justified inapplicability.
+      Reconcile the full Scenario list before acceptance; omissions cannot pass.
+      Include cross-repository interactions when required by the accepted scenarios.
+      Map requirement-related findings from other verification tools to these results;
+      their summary or warning severity does not override the acceptance criteria.
+      Planning review alone cannot establish delivered Scenario PASS. Preserve the
+      schema's lifecycle and the project's human acceptance rules.
+      Write verify.md in Russian using the template's Russian headings. Preserve
+      command syntax, identifiers, status values and the contract markers.
       Treat this artifact as a separate post-implementation gate: its availability in
       the artifact graph is not proof that an Apply candidate exists and can never
       justify PASS by itself.

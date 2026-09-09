@@ -2,7 +2,10 @@
 
 When the user explicitly asks to implement an OpenSpec Change from the current Code
 Repository, use the standard OpenSpec Apply workflow as the only implementation
-entrypoint. Do not create separate `implement-design` or `implement-plan` workflows.
+entrypoint. Invoke the installed standard Apply through the Agent's native
+skill/command mechanism before starting implementation. Reading MCP Apply Context,
+calling an Apply preflight helper or starting tracking does not invoke standard
+Apply. Do not create separate `implement-design` or `implement-plan` workflows.
 
 - Reuse the current Work Context when it already matches the same Change, Apply artifact
   and freshness boundary. Otherwise call `get_change_context` once with

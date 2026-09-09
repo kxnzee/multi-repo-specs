@@ -48,12 +48,15 @@ MCP resources. Если следующий шаг неясен, вызови `ge
 и `/opsx:<действие>` в Claude. Рекомендуя действие, используй фактически
 установленную команду выбранного провайдера.
 
-При `spec-driven-extended` Apply, в том числе при прямом `/opsx:apply` или
-`/opsx-apply`, сначала вызови skill `spec-driven-extended-apply-context` через
-механизм Agent и получи `apply_scope.scope_status: ready` для текущего Change и
-Repository. Чтение MCP instructions и вызов tracking не заменяют этот helper.
-Если skill недоступен или preflight заблокирован, остановись до изменения кода.
-Когда helper возвращается в уже запущенный Apply, повторно Apply не вызывай.
+При запросе на реализацию существующего Change сначала вызови установленный
+штатный OpenSpec Apply через механизм skills/commands Agent (`/opsx:apply` или
+`/opsx-apply`). Получение MCP Apply Context и tracking не заменяют этот вызов.
+Внутри `spec-driven-extended` Apply до изменения кода вызови skill
+`spec-driven-extended-apply-context` и получи `apply_scope.scope_status: ready`
+для текущего Change и Repository. Это preflight helper, а не самостоятельный
+workflow реализации. При прямом вызове helper должен передать управление штатному
+Apply через механизм Agent; когда он вызван из Apply, вернуться без повторного
+запуска Apply. Если skill недоступен или preflight заблокирован, остановись до кода.
 
 Для нового Change начни с Intent, если он ещё не принят. Готовый полный Intent
 используй без повторного сбора. Первый artifact создаёт команда Intake;
@@ -77,7 +80,7 @@ commands, code inventory и ссылки `path:line`. Эти детали ост
 или unknown.
 
 Для Intent, Intake, Proposal, Requirements и Scenarios работай с источниками Store
-без чтения Code Repository или CodeGraph. На Design, Tasks, Apply и при проверке
+без исследования Code Repository. На Design, Tasks, Apply и при проверке
 current-state conflict допускается адресное исследование кода: один заранее
 сформулированный вопрос в подтверждённом `assignment_scope`.
 
@@ -92,7 +95,10 @@ current-state conflict допускается адресное исследов�
 Перед первым вызовом прочитай [полный профиль scout](subagents/spec-driven-extended-repository-evidence-scout.md)
 из этого установленного Extension.
 Собери запрос по его входному контракту; краткое описание subagent не заменяет
-этот контракт. Перед использованием ответа сверь его структуру и question_id
+этот контракт. Передай в `code_navigation` применимые инструкции навигации из
+активного контекста проекта полностью: первый шаг, параметры инструментов,
+ограничения и fallback. Не рассчитывай, что subagent унаследует контекст родителя.
+Перед использованием ответа сверь его структуру и question_id
 с профилем и отправленным запросом. Невалидный ответ оставляет вопрос открытым.
 
 Один вопрос — один новый subagent: пять вопросов — пять subagents. Scope и revision

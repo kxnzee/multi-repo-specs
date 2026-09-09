@@ -1,48 +1,95 @@
-# Feature Acceptance
+# Приёмка изменения
 
-**Change:** `<change-name>`
+**Изменение:** `<change-name>`
+
+<!-- SCENARIO_VERIFICATION_CONTRACT_V1_START -->
+## Объект проверки
+
+- **Требования:** `<ссылка на принятые Specs и их версию>`
+- **Проверяемый результат:** `<ссылка на candidate с составом репозиториев и версиями либо указание, что поставленного результата ещё нет>`
+- **Условия проверки:** `<среда, существенные настройки и заглушки>`
+
+Ссылайся на существующую запись проверяемого результата, не создавай второй реестр
+версий. Результаты проверок должны относиться именно к этому варианту реализации.
+
+## Покрытие сценариев
+
+| Scenario ID или точная ссылка | Подтверждение выполненной проверки | Результат |
+| --- | --- | --- |
+| `<ID или ссылка на сценарий в Specs>` | `<ссылка на результат проверки и наблюдаемый итог>` | `PASS` / `FAIL` / `N/A` / `PENDING` |
+
+Сверь полный список сценариев принятых Specs в области этого Change с отчётом.
+Каждый сценарий должен быть учтён; текст сценария остаётся в Specs, не копируй его.
+Можно сослаться на общий отчёт вместо повторения строк, если в нём однозначно видны
+результат каждого сценария и проверенный вариант реализации. Пропущенный сценарий
+не считается проверенным. Если сценариев нет, укажи основание и проверь принятые
+критерии результата; пустая таблица сама по себе не подтверждает успех.
+
+- `PASS` — выполненная проверка подтверждает ожидаемое поведение на указанном
+  варианте реализации. Наличие теста, отметка задачи или заявление агента без
+  результата проверки недостаточны.
+- `FAIL` — проверка выявила нарушение принятого требования.
+- `PENDING` — проверка не выполнена, подтверждение отсутствует или относится
+  к другому варианту реализации. Недоступное свидетельство не означает `N/A`.
+- `N/A` — сценарий неприменим к принятой области проверки; обязательна причина.
+  Так нельзя исключать невыполненное требование из принятого результата.
+
+Для межрепозиторного сценария подтверди совместную работу участвующих версий.
+Отдельные успешные тесты репозиториев не заменяют проверку их взаимодействия.
+При изменении реализации, требований или применимости свидетельств пересмотри
+результаты затронутых сценариев; прежний `PASS` не переносится автоматически.
+
+При ревью только планирования отмечай исполнение ещё не проверенных сценариев
+как `PENDING`; качество документов не доказывает поставленный результат.
+Нельзя объявлять результат принятым при пропусках, `FAIL` или `PENDING`.
+Замечания о нарушении требований отражай в результатах сценариев, а рекомендации,
+не влияющие на принятый контракт, перечисляй отдельно. Решение о приёмке принимает
+человек по правилам проекта; отметки `PASS` не заменяют это решение.
+<!-- SCENARIO_VERIFICATION_CONTRACT_V1_END -->
 
 <!-- FEATURE_ACCEPTANCE_CONTRACT_V1_START -->
-## Evidence
+## Дополнительные проверки
 
-| Check or Scenario | Evidence | Result |
+| Проверка | Подтверждение | Результат |
 | --- | --- | --- |
-| `<what was checked>` | `<reference or observed result without secrets>` | `PASS` / `FAIL` / `N/A` / `PENDING` |
+| `<что проверено>` | `<ссылка или наблюдаемый результат без секретных данных>` | `PASS` / `FAIL` / `N/A` / `PENDING` |
 
-Use `N/A` only when a check is not applicable and record the reason. An applicable
-check that was not run is `PENDING`. Include the executed strict OpenSpec validation
-of this Change (`openspec validate <change-name> --strict --no-interactive`) with
-its observed result; rerun validation for the current candidate.
-Keep human decisions and future Archive/UAT/Release actions outside this table.
-Do not claim all applicable checks passed while any evidence row is FAIL or PENDING.
+Используй `N/A`, только если проверка неприменима, и укажи причину. Если применимая
+проверка не выполнена, укажи `PENDING`. Выполни строгую валидацию текущего изменения
+командой `openspec validate <change-name> --strict --no-interactive` и запиши результат.
+При изменении проверяемого варианта повтори валидацию.
+Не включай в таблицу решение человека и будущие действия по архивированию,
+пользовательскому приёмочному тестированию (UAT) и выпуску.
+Не объявляй все применимые проверки успешными, пока хотя бы одна имеет результат
+`FAIL` или `PENDING`.
 
-## Human gate
+## Решение о приёмке
 
-- **Decision:** `PENDING` / `PASS` / `FAIL`
-- **Comment:** `<reason or evidence reference>`
+- **Решение:** `PENDING` / `PASS` / `FAIL`
+- **Комментарий:** `<обоснование или ссылка на результаты проверок>`
 
-The Agent prepares evidence but does not choose the gate decision. Without an explicit
-human decision, keep the gate `PENDING`. `PASS` requires every applicable row to be
-`PASS` or justified `N/A`. After implementation changes, collect current evidence and
-obtain a new decision.
+Агент собирает подтверждения, но решение о приёмке принимает человек. Пока человек
+явно не принял решение, сохраняй `PENDING`. Для `PASS` все применимые проверки должны
+иметь результат `PASS`, а неприменимые — `N/A` с обоснованием. После изменения
+реализации собери актуальные подтверждения и получи новое решение.
 
-Feature Acceptance does not perform Archive, UAT or Release. `PASS` is required
-before the team archives the Change through a Store PR. Archive does not authorize
-Release; UAT and a separate Release decision remain required.
+Приёмка не выполняет архивирование, UAT или выпуск. Перед архивированием изменения
+через PR в Store требуется `PASS`. Архивирование не разрешает выпуск: для него
+по-прежнему нужны UAT и отдельное решение.
 <!-- FEATURE_ACCEPTANCE_CONTRACT_V1_END -->
 
-## Superspec Process Compliance
+## Соблюдение процесса Superspec
 
-| Check | Evidence / warning | Result |
+| Проверка | Подтверждение или предупреждение | Результат |
 | --- | --- | --- |
-| Delta Specs sync and Design/Specs coherence | `<evidence>` | `PASS` / `WARN` / `FAIL` |
-| Clean implementation state | `<evidence>` | `PASS` / `FAIL` |
-| RED → GREEN TDD evidence | `<evidence>` | `PASS` / `WARN` / `FAIL` |
-| Task reviews and final review | `<evidence>` | `PASS` / `WARN` / `FAIL` |
-| Required Superpowers workflow | `<evidence>` | `PASS` / `WARN` / `FAIL` |
+| Синхронизация Delta Specs и согласованность Design со Specs | `<подтверждение>` | `PASS` / `WARN` / `FAIL` |
+| Чистое состояние рабочей копии реализации | `<подтверждение>` | `PASS` / `FAIL` |
+| Подтверждение цикла TDD: RED → GREEN | `<подтверждение>` | `PASS` / `WARN` / `FAIL` |
+| Ревью задач и итоговое ревью | `<подтверждение>` | `PASS` / `WARN` / `FAIL` |
+| Соблюдение обязательного процесса Superpowers | `<подтверждение>` | `PASS` / `WARN` / `FAIL` |
 
 - [ ] `PASS`
 - [ ] `PASS_WITH_WARNINGS`
 - [ ] `FAIL`
 
-**Warnings / failures:** `<details>`
+**Предупреждения и проблемы:** `<описание>`
