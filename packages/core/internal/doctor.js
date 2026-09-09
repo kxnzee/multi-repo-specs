@@ -143,7 +143,7 @@ function repositoryDiagnostic(status) {
   const details = Object.fromEntries(Object.entries({
     state: status.state,
     path: status.path,
-    branch: status.branch || "detached HEAD",
+    branch: status.branch,
     remote: status.remote,
     remote_matches: status.remoteMatches,
     clean: status.clean,
@@ -201,7 +201,7 @@ function groupDiagnostic(id, subject, outcome, message) {
 }
 
 /** Maps the read-only npm supply report into one stable Doctor check. */
-function packageDiagnostic(report, strict) {
+function packageDiagnostic(report) {
   const total = report.packages.length;
   const details = {
     state: report.state,
@@ -230,13 +230,13 @@ function packageDiagnostic(report, strict) {
       details,
     });
   }
-  if (strict && report.mutable > 0) {
+  if (report.mutable > 0) {
     return new DiagnosticResult({
       id: "packages",
       subject: "Store packages",
       outcome: "warning",
       code: "PACKAGE_SOURCE_MUTABLE",
-      message: "Strict-поставка должна использовать immutable npm, tarball или Git source",
+      message: "Источник пакета изменяемый; для воспроизводимости используйте фиксированную версию или commit",
       details,
     });
   }
@@ -339,7 +339,7 @@ export class DoctorService {
 
   async #inspectPackages(storeProject) {
     const report = await this.#packages.forStore(storeProject.checkout).inspect();
-    return [packageDiagnostic(report, storeProject.project?.strict === true)];
+    return [packageDiagnostic(report)];
   }
 
   async #inspectOpenSpec(storeProject) {

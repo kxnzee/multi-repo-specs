@@ -66,12 +66,12 @@ function normalizeRepository(value) {
     ...(value.description !== undefined ? { description: value.description } : {}),
     plugins: value.plugins ?? [],
   };
-  if (repository.defaultBranch.startsWith("-")) {
+  if (repository.defaultBranch?.startsWith("-")) {
     throw new Error(
       `CONFIG_INVALID: некорректные Git-параметры для repository-id ${repository.id}`,
     );
   }
-  assertRepositoryRemote(repository.remote, repository.id);
+  if (repository.remote !== undefined) assertRepositoryRemote(repository.remote, repository.id);
   return repository;
 }
 
@@ -140,7 +140,6 @@ export class CoreConfiguration {
     assertProjectContract(value.extensions, value.plugins, repositories);
     return new Project({
       version: value.version,
-      strict: value.strict,
       template: value.template,
       agent: value.agent,
       extensions: value.extensions,
@@ -153,7 +152,6 @@ export class CoreConfiguration {
     const config = project.toConfig();
     const source = stringify({
       version: config.version,
-      strict: config.strict,
       template: config.template,
       agent: config.agent,
       extensions: config.extensions,

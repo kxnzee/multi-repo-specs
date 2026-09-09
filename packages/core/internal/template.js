@@ -87,7 +87,7 @@ function templateTargetOverlapError() {
   return new Error(
     "INIT_TARGET_INVALID: Store target пересекается с Project Template. " +
       "Не запускайте openspec-orch init для checkout Orchestrator или Template; " +
-      "перейдите в отдельный чистый Git Store либо передайте его путь: " +
+      "перейдите в отдельный каталог Store либо передайте его путь: " +
       "openspec-orch init <store-path> --store <store-id> --agent <agent-id>",
   );
 }

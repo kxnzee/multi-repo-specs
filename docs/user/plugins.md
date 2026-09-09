@@ -341,7 +341,7 @@ Read-ответ включает `context_revision`. Пока Change, artifact, 
 Для первого запуска через MCP откройте Agent из корня заранее подготовленного Store,
 а не из checkout Orchestrator или Code Repository. Проверьте фиксированный `cwd`
 через `get_setup_context`, затем вызовите `initialize_project`. Полный payload,
-ограничения strict mode и следующий `connect_project` приведены в разделе
+ограничения каталога запуска и следующий `connect_project` приведены в разделе
 [«Альтернатива: инициализация через MCP»](getting-started.md#альтернатива-инициализация-через-mcp).
 
 ## Внешний Plugin

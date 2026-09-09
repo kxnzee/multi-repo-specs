@@ -33,6 +33,15 @@ machine-readable version pin выбранный tag или commit фиксиру
 
 ## Обновление Orchestrator
 
+Режимы strict/relaxed удалены: уберите `--no-strict` из команд и скриптов.
+Старое поле `strict` в Project v1 пока принимается без влияния на поведение и
+исчезает при следующей записи конфигурации. Ответы больше не содержат
+`execution_mode`; `connect` сообщает `files_changed` вместо `needs_setup_pr`.
+Git revisions обычного MCP-контекста больше не вычисляются; для связи задач с
+коммитами используйте Change Tracking. Новый Store может не содержать `remote`
+и `default_branch` у роли `store`: такой конфиг требует обновлённого Orchestrator
+у всех участников. Не понижайте runtime без проверки совместимости конфигурации.
+
 1. Проверьте в release notes поддерживаемые версии Node/OpenSpec/Agents,
    изменения Store и список Agent payload, которые нужно переустановить.
 2. Сохраните текущий tag/commit для отката.

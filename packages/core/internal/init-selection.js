@@ -7,7 +7,7 @@ import { checkbox, confirm, input, select } from "@inquirer/prompts";
 import { bundledAgents } from "./bundled-agent.js";
 import { bundledTemplates } from "./bundled-template.js";
 import { configuration } from "./configuration.js";
-import { CORE_EXECUTION_MODE, CORE_PATTERNS } from "./constants.js";
+import { CORE_PATTERNS } from "./constants.js";
 import { extensionCatalog } from "./extension-catalog.js";
 import { INIT_SELECTION_UI } from "./init-selection-config.js";
 import { REQUIRED_CHECKBOX_THEME } from "./prompt-config.js";
@@ -106,7 +106,6 @@ export class InitSelectionService {
         extensionIds: options.extension ?? [],
         extensionsSpecified: options.extensions === false || options.extension !== undefined,
         repositories: options.repo ?? [],
-        noStrict: options.strict === false,
       });
     }
     if (!this.#stdin?.isTTY || !this.#stdout?.isTTY) {
@@ -139,9 +138,6 @@ export class InitSelectionService {
           })
         : []);
     const repositories = options.repo ?? await this.#repositories();
-    const noStrict = options.strict === false
-      ? true
-      : !await this.#confirm({ message: messages.strictMode, default: true });
     const normalized = this.#normalize({
       storeId,
       agentId,
@@ -149,7 +145,6 @@ export class InitSelectionService {
       extensionIds,
       extensionsSpecified: true,
       repositories,
-      noStrict,
     });
     const accepted = await this.#confirm({
       message: `${this.#summary(normalized)}. Продолжить инициализацию?`,
@@ -165,7 +160,6 @@ export class InitSelectionService {
     extensionIds,
     extensionsSpecified,
     repositories,
-    noStrict,
   }) {
     const requiredExtensionIds = this.#requiredExtensionIds(template);
     const selectedExtensionIds = [...new Set([...requiredExtensionIds, ...extensionIds])];
@@ -177,7 +171,6 @@ export class InitSelectionService {
       extensions,
       extensionsSpecified,
       repositories: Object.freeze([...repositories]),
-      noStrict,
     });
   }
 
@@ -210,7 +203,6 @@ export class InitSelectionService {
       `Agent: ${selection.agentId}`,
       `Extensions: ${selection.extensions.join(", ") || "нет"}`,
       `Code Repositories: ${selection.repositories.map(({ id }) => id).join(", ") || "нет"}`,
-      `Mode: ${selection.noStrict ? CORE_EXECUTION_MODE.relaxed : CORE_EXECUTION_MODE.strict}`,
     ].join("; ");
   }
 

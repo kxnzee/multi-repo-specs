@@ -60,7 +60,7 @@ Agent-only Plugin без Repository contribution получает Store-scoped c
 
 Repository contribution может объявить `supports: ["store", "specs"]`. Core
 не расширяет поддержку существующих Plugins автоматически. Вызов для `specs`
-проверяет Git identity и Store metadata до создания контекста. Plugin-owned
+проверяет Store ID и файлы metadata до создания контекста. Plugin-owned
 Extensions на этой роли отклоняются до repository `connect`; standalone
 Extensions по-прежнему имеют только targets `store` и `code`.
 
@@ -96,7 +96,7 @@ repositories: [{ id, role }] }` именно целевого Store; для `cod
 `files`, `git` и `process` привязаны к выбранному checkout. Чтобы команда работала
 с выбранным `store` или `specs`, используйте `scope: "current"`: `scope: "store"`
 продолжает требовать роль `store`.
-Получение `repositories.git(id)` для `specs` проверяет Git origin и метаданные
+Получение `repositories.git(id)` для `specs` проверяет ID и файлы метаданных
 целевого Store так же, как создание прямого PluginContext для этого подключения.
 `await repositories.context(id)` создаёт контекст того же Plugin для репозитория
 из реестра основного проекта. Вызов перечитывает конфигурацию основного Store,

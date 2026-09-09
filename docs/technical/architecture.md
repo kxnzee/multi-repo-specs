@@ -92,10 +92,9 @@ Requirements, Master Specs и Changes существуют только в Store
 
 ## Init
 
-`init` принимает существующий обычный каталог — чистый Git root с branch и
-`origin`. Для нового Project он:
+`init` принимает существующий обычный каталог; Git не обязателен. Для нового Project он:
 
-1. проверяет Store ID, Agent, Template, Repository registry и strict/relaxed mode;
+1. проверяет Store ID, Agent, Template и Repository registry;
 2. строит безопасный план применения Template;
 3. устанавливает штатный OpenSpec Agent pack и адаптирует provider-specific layout;
 4. создаёт Store через OpenSpec;
@@ -103,8 +102,7 @@ Requirements, Master Specs и Changes существуют только в Store
 6. записывает `openspec-orch.yaml` с пустым списком Plugins;
 7. проверяет обязательные файлы и каталоги результата.
 
-Операция fail-closed для неизвестных IDs, dirty или неверного Git root, path
-traversal, symlink, collisions, неполного Agent pack и попытки перезаписать
+Операция fail-closed для неизвестных IDs, path traversal, symlink, collisions, неполного Agent pack и попытки перезаписать
 отличающийся файл. Повторный `init` проверяет существующий Project и может обновить
 явно выбранные standalone Extension declarations, но не применяет Template повторно
 и не мигрирует уже скопированные assets.
@@ -118,26 +116,21 @@ traversal, symlink, collisions, неполного Agent pack и попытки 
 3. проверяет native CLI выбранного Agent;
 4. регистрирует Store и проверяет OpenSpec context;
 5. определяет workspace;
-6. проверяет или в strict mode клонирует Code/Specs Repositories;
+6. использует существующие каталоги или клонирует отсутствующие Code/Specs Repositories;
 7. создаёт и проверяет OpenSpec pointers и доставляет Agent pack только в Code Repositories;
 8. подключает выбранные standalone Extensions;
 9. догружает и восстанавливает lifecycle Plugin-owned Extensions;
 10. проверяет итоговое состояние Extensions и Plugins.
 
 Specs Repositories размещаются в `linked-specs/<id>`. Для них connect проверяет
-Git identity и соответствие Store metadata ожидаемому `store_id`, читает дочерний
-реестр как данные и возвращает локальные revision/clean. Он не разворачивает
+соответствие Store metadata ожидаемому `store_id` и читает дочерний реестр как данные. Он не разворачивает
 репозитории, пакеты или окружение команды и не регистрирует внешний Store.
 
 Существующий checkout не получает `pull`, `checkout`, `reset`, merge или другую
-скрытую Git mutation. Для Code Repository strict `connect` проверяет remote identity, clean state,
-полную revision и именованную ветку; последнее нужно только потому, что
-`connect` может создать pointer-файл. Имя ветки и её совпадение с `default_branch`
-не проверяются. Read-only Doctor использует внутренний Repository Status,
-показывает ветку только как информацию и не считает detached HEAD ошибкой Repository
-health.
-Relaxed mode не клонирует и не pin-ит Git state; явно переданный workspace действует
-только в текущем вызове.
+скрытую Git mutation. Существующий каталог определяется по Project registry и
+Workspace без Git identity. Чистота Git проверяется только в Change Tracking при
+фиксации исходного снимка и завершённой реализации. Workspace сохраняется после
+успешного подключения. Конфликты pointer и Agent pack блокируются независимо от Git.
 
 Bundled Plugins загружаются из distribution. Внешние Plugins и standalone Extensions
 живут в одном npm-проекте `.openspec-orch/packages`: manifest и lockfile переносимы,
@@ -205,7 +198,7 @@ Public surface состоит из:
 - base read tools для status, setup/change context, next action, assignment и Doctor;
 - optional read tools, поставляемые owning Plugins, включая Graph query;
 - controlled setup tools `initialize_project` и `connect_project` только для
-  strict fixed-cwd flow;
+  fixed-cwd flow;
 - task evidence tools `start_attempt` и `complete_attempt`;
 - read-only Store resources для Project/OpenSpec config, context, Master Specs и
   outputs, объявленных schema конкретного Change.

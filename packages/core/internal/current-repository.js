@@ -8,32 +8,16 @@ import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
 import { coreState } from "./core-state.js";
 import { lstatOrNull } from "./fs.js";
-import { git } from "./git.js";
+import { isContainedPath } from "./path.js";
 import { StoreProject } from "./store-project.js";
 import { workspace } from "./workspace.js";
 
-/** Находит ближайший Git root без выполнения команды в недоверенном cwd. */
-async function findGitRoot(start) {
-  let candidate = path.resolve(start);
-  const initial = await lstatOrNull(candidate);
-  if (!initial) return null;
-  if (!initial.isDirectory()) candidate = path.dirname(candidate);
-  while (true) {
-    if (await lstatOrNull(path.join(candidate, ".git"))) return fs.realpath(candidate);
-    const parent = path.dirname(candidate);
-    if (parent === candidate) return null;
-    candidate = parent;
-  }
-}
-
 /** Определяет текущий Store или Code Repository по проверенному Project registry. */
 export class CurrentRepositoryService {
-  #git;
   #state;
   #workspace;
 
-  constructor({ gitService = git, stateService = coreState, workspaceService = workspace } = {}) {
-    this.#git = gitService;
+  constructor({ stateService = coreState, workspaceService = workspace } = {}) {
     this.#state = stateService;
     this.#workspace = workspaceService;
     Object.freeze(this);
@@ -43,9 +27,10 @@ export class CurrentRepositoryService {
     if (!(storeProject instanceof StoreProject)) {
       throw new Error("CURRENT_REPOSITORY_INVALID: требуется StoreProject");
     }
-    const repositoryRoot = await findGitRoot(start);
-    if (!repositoryRoot) return null;
-    if (repositoryRoot === storeProject.root) {
+    const stat = await lstatOrNull(path.resolve(start));
+    if (!stat) return null;
+    const currentPath = await fs.realpath(path.resolve(start));
+    if (isContainedPath(storeProject.root, currentPath, { allowRoot: true })) {
       return Object.freeze({
         id: storeProject.store.id,
         role: REPOSITORY_ROLE.store,
@@ -68,8 +53,7 @@ export class CurrentRepositoryService {
           if (error.code === "REPOSITORY_CHECKOUT_UNAVAILABLE") return null;
           throw error;
         });
-      if (!checkout || checkout.root !== repositoryRoot) continue;
-      await this.#git.forRepository(checkout).assertIdentity();
+      if (!checkout || !isContainedPath(checkout.root, currentPath, { allowRoot: true })) continue;
       return Object.freeze({ id: repository.id, role: REPOSITORY_ROLE.code, path: checkout.root });
     }
     return null;

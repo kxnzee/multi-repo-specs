@@ -8,7 +8,7 @@ import { collectValues, createCliProgress, singleValue } from "@openspec-orch/pl
 import { Command, Option } from "commander";
 
 import { configuration } from "./configuration.js";
-import { CORE_EXECUTION_MODE, CORE_FILES } from "./constants.js";
+import { CORE_FILES } from "./constants.js";
 import { doctor } from "./doctor.js";
 import { ProjectSetupService } from "./project-setup.js";
 import { hasMethods } from "./value.js";
@@ -150,7 +150,6 @@ export class CandidateCli {
       .option("--no-extensions", "явно выбрать пустой список Extensions")
       .addOption(new Option("--repo <id=remote#branch>", "добавить Code Repository")
         .argParser(collectRepositories))
-      .option("--no-strict", "ослабить Git-проверки и не сохранять привязку Workspace для текущего вызова")
       .action((target = ".", options) => this.#initialize(target, options));
     program.command("doctor")
       .description("проверить готовность Store и локального окружения без изменений")
@@ -164,7 +163,6 @@ export class CandidateCli {
     program.command("connect")
       .description("подключить рабочую машину, Code и Specs Repositories")
       .addOption(new Option("--workspace <path>", "явный workspace").argParser(singleValue))
-      .option("--no-strict", "ослабить Git-проверки и не сохранять привязку Workspace для текущего вызова")
       .action((options) => this.#connect(options));
     program.command("disconnect")
       .description("локально отключить Agent Extensions без изменения Store config")
@@ -255,13 +253,11 @@ export class CandidateCli {
     const { result, selection } = operation;
     if (result.alreadyInitialized) {
       console.log(`Store ${result.storeId} уже инициализирован.`);
-      console.log(`Execution mode: ${result.executionMode}`);
       console.log(buildConnectHint(result.target, result.storeId));
       return;
     }
     console.log(`Store ${result.storeId}: ${result.target}`);
     console.log(`Agent: ${selection.agentId}`);
-    console.log(`Execution mode: ${result.executionMode}`);
     printPaths("Создано", result.created);
     if (result.updated.length > 0) printPaths("Дополнено", result.updated);
     console.log(buildConnectHint(result.target, result.storeId));
@@ -273,7 +269,6 @@ export class CandidateCli {
     try {
       result = await this.#setup.connect({
         workspace: options.workspace,
-        noStrict: options.strict === false,
         onProgress: (message, status) => this.#renderConnectionProgress(message, status),
       });
       this.#progress.succeed("Store и подключённые репозитории подключены");
@@ -331,12 +326,7 @@ export class CandidateCli {
   #printConnection(result, options) {
     console.log(`Store: ${result.store_id} (${result.store_root})`);
     console.log(`Workspace: ${result.workspace}`);
-    console.log(`Execution mode: ${result.execution_mode}`);
-    if (options.workspace && result.execution_mode === CORE_EXECUTION_MODE.strict) {
-      console.log("Workspace сохранён локально для следующих команд OpenSpec Orchestrator.");
-    } else if (options.workspace) {
-      console.log("Workspace использован только для текущего relaxed-вызова и не сохранён локально.");
-    }
+    if (options.workspace) console.log("Workspace сохранён локально для следующих команд.");
     console.log("Локальная регистрация Store проверена OpenSpec.");
     for (const repository of result.repositories) {
       console.log(formatStatusHeading(repository.repository_id, repository.status));
@@ -344,16 +334,14 @@ export class CandidateCli {
       console.log(`  Путь: ${repository.path}`);
       if (repository.role === "specs") {
         console.log(`  Specs Store: ${repository.store_id}`);
-        console.log(`  Revision: ${repository.revision}`);
-        console.log(repository.clean ? "  Рабочее дерево чистое" : "  ⚠ Есть локальные изменения спецификаций");
       }
       if (repository.pointer_created) {
-        console.log(`  ⚠ Создан ${CORE_FILES.openSpecConfig}; требуется setup PR`);
+        console.log(`  ⚠ Создан ${CORE_FILES.openSpecConfig}; проверьте и сохраните файл`);
       } else if (repository.pointer_pending) {
-        console.log(`  ⚠ ${CORE_FILES.openSpecConfig} ещё не принят; требуется setup PR`);
+        console.log(`  ⚠ ${CORE_FILES.openSpecConfig} ещё не принят; проверьте и сохраните файл`);
       }
       if (repository.agent_pack_pending) {
-        console.log("  ⚠ OpenSpec commands/skills ещё не приняты; требуется setup PR");
+        console.log("  ⚠ OpenSpec commands/skills ещё не приняты; проверьте и сохраните файл");
       }
     }
     console.log(formatStatusHeading("Локальное подключение", result.status));

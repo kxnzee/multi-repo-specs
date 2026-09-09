@@ -17,10 +17,9 @@ openspec-orch init [path]
   [--template <id-or-path>]
   [--extension <id>]... [--no-extensions]
   [--repo <id=remote#branch>]...
-  [--no-strict]
 
 openspec-orch doctor [--repo <id>]... [--json]
-openspec-orch connect [--workspace <path>] [--no-strict]
+openspec-orch connect [--workspace <path>]
 openspec-orch disconnect
 
 openspec-orch agent setup|status|remove --agent <id>
@@ -32,11 +31,8 @@ openspec-orch agent setup|status|remove --agent <id>
 
 `doctor` по умолчанию печатает человекочитаемый отчёт, а с `--json` — тот же
 Diagnostic Report в JSON. Без `--repo` он проверяет основной Store и все Code/Specs Repositories;
-повторяемый `--repo <id>` ограничивает только Repository checks. Отчёт включает путь,
-текущую ветку, `origin`, его совпадение с project config и чистоту рабочего дерева.
-Ветка не сравнивается с `default_branch`, её имя и pattern не валидируются. Даже
-detached HEAD остаётся read-only состоянием `connected`. Другой `origin` даёт
-`identity_mismatch` и блокирует Doctor.
+повторяемый `--repo <id>` ограничивает только Repository checks. Отчёт включает путь и доступность файлов Repository. Git origin, ветка и чистота
+не влияют на доступность. Для linked Store проверяются его Store ID и конфигурация.
 
 Во время обычного вызова Doctor показывает текущую группу проверок в stderr:
 в TTY — анимированный индикатор ожидания, при перенаправлении — отдельные строки
@@ -109,7 +105,6 @@ CodeGraph использует общий `plugin connect/status/sync/exec/disco
 
 ```yaml
 version: 1
-strict: true
 template: {id: default}
 agent: {id: qwen}
 extensions:
@@ -177,8 +172,11 @@ MCP закреплён за working directory при запуске. `get_status
 | `artifact` | ID артефакта из `openspec_status.artifacts[].id`; `apply` запрашивает инструкции Apply |
 | `task_id` | Точная строка `artifact_instructions.tasks[].id`, не номер из Markdown |
 | `include_assignment` | Включить сведения о checkout и участии репозиториев; по умолчанию `false`, назначения не создаёт |
-| `revision` | Git revision соответствующего checkout |
+| `revision` | В обычном контексте `null`; Git revisions получает только Change Tracking |
 | `context_revision` / `if_context_revision` | Хэш ответа / хэш прежнего ответа для проверки свежести, не Git commit |
+
+В provenance Graph/resources поля `revision` и `clean` равны `null`: эти ответы
+не выполняют Git-проверок. `content_revision` по-прежнему вычисляется по содержимому.
 
 `get_assignment_scope` перечисляет кодовые checkout. С `change_id` Graph overlay
 заполняет `assigned` по Repository Impact; `null` означает, что участие неизвестно.
@@ -229,12 +227,12 @@ TTL-кэшем и не разрешает переиспользовать paylo
 
 Controlled setup tools:
 
-- `initialize_project` — только cwd MCP и strict mode; принимает обязательные
+- `initialize_project` — только cwd MCP; принимает обязательные
   `store_id`, `agent_id`, опциональный bundled `template_id` и массив
   `repositories` только для Code Repositories с полями `repository_id`, `remote`,
   `default_branch`; центральный Store задаётся только через `store_id` и в этот массив
   не включается;
-- `connect_project` — без workspace и relaxed overrides.
+- `connect_project` — без произвольного workspace.
 
 Перед `initialize_project` клиент должен вызвать `get_setup_context` и подтвердить
 возвращённый `cwd`: tool не принимает другой target. Пользовательский сценарий

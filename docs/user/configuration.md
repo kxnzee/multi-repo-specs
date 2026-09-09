@@ -5,7 +5,6 @@
 
 ```yaml
 version: 1
-strict: true
 template:
   id: default
 agent:
@@ -36,7 +35,6 @@ repositories:
 | Поле | Смысл |
 |---|---|
 | `version` | Версия transport contract; сейчас только `1` |
-| `strict` | Режим `connect` по умолчанию; если поле отсутствует, используется `true` |
 | `template.id` | Применённый Project Template |
 | `agent.id` | `claude`, `qwen` или `gigacode` |
 | `extensions` | Упорядоченный массив standalone Extension ID; по умолчанию пустой |
@@ -45,8 +43,8 @@ repositories:
 | `repositories[].id` | Уникальный Repository ID в lowercase kebab-case |
 | `repositories[].roles` | Ровно одна роль: `[store]`, `[code]` или `[specs]` |
 | `repositories[].store_id` | Обязательный только для `specs` ожидаемый ID подключённого Store |
-| `repositories[].remote` | Ожидаемый Git `origin` Repository |
-| `repositories[].default_branch` | Ветка, которую strict `connect` checkout-ит при clone отсутствующего Repository |
+| `repositories[].remote` | Источник клонирования Code/Specs; необязателен для основного Store |
+| `repositories[].default_branch` | Ветка, которую `connect` checkout-ит при clone отсутствующего Repository |
 | `repositories[].description` | Необязательное краткое описание назначения, технологий и границ ответственности; непустая строка |
 | `repositories[].plugins` | Уникальные bindings только объявленных Plugins; по умолчанию пустой массив |
 
@@ -78,8 +76,8 @@ bindings и ссылка на необъявленный Plugin также за�
 `id` — локальное имя подключения, `store_id` — ID из
 `.openspec-store/store.yaml` команды. Подключаемый репозиторий должен содержать
 совместимые Store metadata, `openspec-orch.yaml` и собственный
-`openspec/config.yaml` без pointer. Его Git origin, Store remote и ожидаемый
-`store_id` проверяются. Подключение с remote собственного Store отклоняется.
+`openspec/config.yaml` без pointer. Проверяется ожидаемый `store_id`,
+но не Git origin. Подключение с remote собственного Store отклоняется.
 Разные Store могут иметь одинаковый внутренний ID: их различают remote и
 локальные имена подключений.
 
@@ -99,9 +97,8 @@ openspec-orch plugin exec --repo payments openspec-graph view
 
 Checkout размещается в `<workspace>/linked-specs/payments`. Этот каталог отделён
 от основного Store, который часто называется `specs`, и от `src` с кодом.
-Strict `connect` клонирует отсутствующий checkout; relaxed требует существующий.
-В обоих режимах для `specs` проверяется Git identity, возвращаются настоящая
-revision и `clean`. Detached HEAD и локальные изменения допустимы: подключение
+`connect` клонирует отсутствующий checkout. Для существующего каталога проверяются
+Store ID и файлы конфигурации. Git origin, ветка и чистота не проверяются; подключение
 читает текущий checkout и не записывает в него pointer, Agent pack или Extensions.
 Повторное подключение не выполняет pull. Актуальность относительно remote
 нужно обеспечить обычным Git-процессом команды.
@@ -154,47 +151,36 @@ revision и `clean`. Detached HEAD и локальные изменения до
 которые ещё не знают `description`, отклонят его как неизвестное поле: перед
 добавлением поля обновите Orchestrator у участников проекта.
 
-## Strict и relaxed mode
+## Git и локальные изменения
 
-В strict mode `connect` может клонировать отсутствующий Code Repository из
-`remote` и `default_branch`, но не выполняет pull, checkout, reset или merge в
-существующем checkout. Для существующего checkout он проверяет:
+Orchestrator работает в одном режиме. Флаги `--strict` / `--no-strict` отсутствуют.
+Старое поле `strict` в Project v1 принимается, игнорируется и не сохраняется при
+следующей записи конфигурации. Версия Project при этом не меняется.
 
-- каталог совпадает с корнем Git Repository, а `origin` соответствует `remote`;
-- `HEAD` находится на любой именованной ветке, чтобы `connect` не менял файлы в detached HEAD;
-- рабочее дерево чистое, кроме OpenSpec pointer `openspec/config.yaml` и
-  доставляемых OpenSpec commands/skills, содержимое которых совпадает с Agent pack
-  в Store;
-- текущий `HEAD` является полной 40-символьной Git revision.
+`init`, `connect`, чтение контекста, Graph, MCP resources, Extensions и package
+lifecycle не требуют чистого Git, origin или именованной ветки. Основной Store
+может быть обычным каталогом; его `remote` и `default_branch` необязательны.
+У Code/Specs эти поля задают источник и ветку только для клонирования отсутствующего
+каталога. Существующие каталоги не обновляются через pull, checkout, reset или merge.
 
-Если pointer или доставленные commands/skills ещё не приняты в Git, результат
-получает статус `needs_setup_pr`. Опубликуйте эти файлы через setup PR Repository.
-Повторный `connect` допускает их до принятия PR. Отличающееся содержимое Agent pack
-блокирует доставку с `AGENT_PACK_CONFLICT`; сначала согласуйте обновление со Store.
+Чистота нужна только Change Tracking: `attempt start` требует чистый Code и
+закоммиченные файлы выбранного Change в Store; первичный `attempt complete` — чистый
+Code, новый commit и продолжение истории от base revision. `attempt cancel` и
+очистка локального состояния после уже записанного результата Git не проверяют.
+Ошибка чтения Git при Tracking не считается чистым состоянием.
 
-Doctor показывает текущую ветку справочно: не сравнивает её с `default_branch`,
-не проверяет имя или pattern и не считает detached HEAD ошибкой read-only
-диагностики. Состояние `identity_mismatch` означает, что фактический `origin`
-не совпадает с project config.
+Запись пользовательских файлов защищают проверки путей и конфликтов содержимого.
+`AGENT_PACK_CONFLICT` сохраняется. `connect` возвращает `files_changed`, если в этом
+вызове созданы pointer или Agent pack; повторное подключение совпадающих файлов
+возвращает `ready` независимо от коммитов. Поля `pointer_pending` и
+`agent_pack_pending` теперь обозначают создание файлов в этом вызове, а не состояние PR.
 
-Git Flow контракт не является частью `openspec-orch.yaml`. Команда заполняет роли
-веток, их имена и patterns, направления PR и protection rules в
-`openspec/process/release-process.md`. Соблюдение обеспечивают Git-хостинг, CI
-и review,
-а не Core и не MCP.
+Явный `--workspace` сохраняется после успешного подключения и используется в
+следующих вызовах. Изменяемый источник пакета остаётся предупреждением Doctor;
+проверки lockfile и наличия runtime выполняются независимо от Git.
 
-Для роли `code` relaxed mode требует заранее подготовленные каталоги
-`<workspace>/src/<repository-id>`, не клонирует их и не проверяет Git identity,
-ветку, чистоту или revision. В результате branch и revision имеют значение
-`unpinned`. Проверка OpenSpec context и создание pointer выполняются в обоих режимах.
-
-Для нового Store `openspec-orch init --no-strict` сохраняет `strict: false` в
-`openspec-orch.yaml`. Для `connect` флаг `--no-strict` является только разовым
-переопределением текущего вызова. Если project default уже равен `false`, обычный
-`connect` также остаётся relaxed.
-
-Strict connect запоминает явно переданный `--workspace` в local state. Relaxed
-connect использует workspace только в текущем вызове и не сохраняет его.
+Git Flow, ветки и направления PR принадлежат процессу команды, описанному в
+`openspec/process/release-process.md`.
 
 ## Tracked и local state
 

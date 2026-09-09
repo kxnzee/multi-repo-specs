@@ -58,10 +58,6 @@ export const CORE_CONTRACT_VERSIONS = Object.freeze({
   store: 1,
 });
 
-export const CORE_EXECUTION_MODE = Object.freeze({
-  relaxed: "relaxed",
-  strict: "strict",
-});
 
 export const CORE_PATTERNS = Object.freeze({
   gitRevision: /^[0-9a-f]{40}$/,

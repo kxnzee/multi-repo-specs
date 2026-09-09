@@ -138,7 +138,7 @@ function runtime(s, repositoryParameter = "store_repository_id") {
   });
 }
 
-test("mixed connect clones exactly one level, preserves team files and reports local snapshots", async (t) => {
+test("mixed connect clones exactly one level, preserves team files and preserves local files", async (t) => {
   const s = await scenario(t);
   const first = await s.connection.connect({ start: s.ownerRoot });
   assert.deepEqual(first.repositories.map(({ role }) => role), ["code", "specs", "specs"]);
@@ -147,7 +147,7 @@ test("mixed connect clones exactly one level, preserves team files and reports l
     assert.equal(linked.path, path.join(s.root, "linked-specs", linked.id));
     assert.equal(linked.storeId, `team-${linked.id}`);
     assert.equal(linked.pointerCreated, null);
-    assert.equal(linked.clean, true);
+    assert.equal(linked.clean, undefined);
     assert.equal(await fs.readFile(path.join(linked.path, "openspec/config.yaml"), "utf8"), "schema: spec-driven\n");
     for (const absent of [".qwen", ".openspec-orch", "src", "linked-specs"]) {
       await assert.rejects(fs.stat(path.join(linked.path, absent)), { code: "ENOENT" });
@@ -159,10 +159,10 @@ test("mixed connect clones exactly one level, preserves team files and reports l
   const target = path.join(s.root, "linked-specs/payments");
   await execa("git", ["-C", target, "switch", "--detach", "HEAD"]);
   await fs.writeFile(path.join(target, "local.md"), "local reference");
-  const relaxed = await s.connection.connect({ start: s.ownerRoot, noStrict: true });
-  assert.equal(relaxed.repositories[1].clean, false);
-  assert.equal(relaxed.repositories[1].branch, "");
-  assert.equal(relaxed.repositories[1].revision.length, 40);
+  const reconnected = await s.connection.connect({ start: s.ownerRoot });
+  assert.equal(reconnected.repositories[1].clean, undefined);
+  assert.equal(reconnected.repositories[1].branch, undefined);
+  assert.equal(reconnected.repositories[1].revision, undefined);
   // Existing employee context still belongs to the team, not the manager.
   assert.equal((await storeProjects.resolve(target)).store.id, "team-payments");
 });
@@ -194,8 +194,8 @@ test("Graph and MCP use each team's registry and separate identical resource nam
   for (const resource of copies) {
     const read = await agent.readResource(resource.uri);
     assert.match(read.text, new RegExp(resource._meta.source.repository_id));
-    assert.equal(read._meta.source.revision.length, 40);
-    assert.equal(read._meta.source.clean, true);
+    assert.equal(read._meta.source.revision, null);
+    assert.equal(read._meta.source.clean, null);
     assert.equal(read._meta.source.store_id, `team-${read._meta.source.repository_id}`);
   }
   const own = await agent.invokeAgentTool("get_spec_graph", {});
@@ -216,20 +216,20 @@ test("Graph and MCP use each team's registry and separate identical resource nam
   }
 });
 
-test("linked identity fails closed even in relaxed mode and status exposes invalid metadata", async (t) => {
+test("linked Store ID fails closed without Git checks and status exposes invalid metadata", async (t) => {
   const s = await scenario(t);
   await s.connection.connect({ start: s.ownerRoot });
   const target = path.join(s.root, "linked-specs/payments");
   const configPath = path.join(s.ownerRoot, "openspec-orch.yaml");
   const original = await fs.readFile(configPath, "utf8");
   await fs.writeFile(configPath, original.replace("store_id: team-payments", "store_id: different-team"));
-  await assert.rejects(s.connection.connect({ start: s.ownerRoot, noStrict: true }), /SPECS_IDENTITY_MISMATCH/);
+  await assert.rejects(s.connection.connect({ start: s.ownerRoot }), /SPECS_IDENTITY_MISMATCH/);
   await fs.writeFile(configPath, original);
   await fs.writeFile(path.join(target, "openspec/config.yaml"), "store: specs\n");
   await assert.rejects(s.connection.connect({ start: s.ownerRoot }), /SPECS_CONFIG_INVALID/);
   await fs.writeFile(path.join(target, "openspec/config.yaml"), "schema: spec-driven\n");
   await fs.writeFile(path.join(target, ".openspec-store/store.yaml"), "version: 1\nid: wrong\nremote: https://example.test/wrong.git\n");
-  await assert.rejects(s.connection.connect({ start: s.ownerRoot, noStrict: true }), /Store ID/);
+  await assert.rejects(s.connection.connect({ start: s.ownerRoot }), /Store ID/);
   const [status] = await repositoryStatuses.inspect({ start: s.ownerRoot, repositoryIds: ["payments"] });
   assert.equal(status.state, "invalid_specs");
   assert.equal(status.connected, false);
@@ -237,7 +237,7 @@ test("linked identity fails closed even in relaxed mode and status exposes inval
   assert.equal(resources.some(({ _meta }) => _meta.source?.repository_id === "payments"), false);
   assert.equal(resources.some(({ _meta }) => _meta.source?.repository_id === "platform"), true);
   await execa("git", ["-C", target, "remote", "set-url", "origin", "https://example.test/wrong.git"]);
-  await assert.rejects(s.connection.connect({ start: s.ownerRoot, noStrict: true }), /origin/);
+  await assert.rejects(s.connection.connect({ start: s.ownerRoot }), /Store ID/);
 });
 
 test("linked checkout refuses a symlink container before cloning", async (t) => {
@@ -356,7 +356,7 @@ test("registry Git and direct specs context reject the same replaced Store", asy
   await execa("git", ["-C", target, "remote", "set-url", "origin", "https://example.test/wrong.git"]);
   for (const resolve of [() => context.repositories.context("payments"), () => context.repositories.git("payments"),
     () => factory.forRepository({ ...options, repositoryId: "payments" })]) {
-    await assert.rejects(resolve(), /origin/);
+    await assert.doesNotReject(resolve());
   }
   await execa("git", ["-C", target, "remote", "set-url", "origin", "https://example.test/team-payments.git"]);
   await fs.writeFile(path.join(target, ".openspec-store/store.yaml"), "version: 1\nid: wrong\nremote: https://example.test/team-payments.git\n");

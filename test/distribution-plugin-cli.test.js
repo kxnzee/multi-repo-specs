@@ -662,12 +662,14 @@ test("candidate distribution installs optional spec-reader with its skill payloa
   await assert.rejects(fs.access(path.join(storeRoot, "docs/business")), { code: "ENOENT" });
 });
 
-test("public CLI initializes a fresh Store and repeats connect from the Code Repository", async (t) => {
+test("public CLI initializes and connects non-Git directories without losing user files", async (t) => {
   const { storeRoot, codeRoot } = await distributionFixture(t, "openspec-orch-first-run-");
   for (const entry of await fs.readdir(storeRoot)) {
     if (entry !== ".git") await fs.rm(path.join(storeRoot, entry), { recursive: true, force: true });
   }
-  await commitAll(storeRoot, "Prepare empty Store for first-run smoke");
+  await fs.rm(path.join(storeRoot, ".git"), { recursive: true });
+  await fs.rm(path.join(codeRoot, ".git"), { recursive: true });
+  await fs.writeFile(path.join(storeRoot, "user-notes.md"), "Keep my notes");
   for (const name of ["xdg-config", "xdg-data"]) {
     await fs.rm(path.join(path.dirname(storeRoot), name), { recursive: true, force: true });
   }
@@ -678,13 +680,14 @@ test("public CLI initializes a fresh Store and repeats connect from the Code Rep
   assert.deepEqual(configuration.parseProject(config).extensions, ["spec-driven-extended", "superpowers"]);
   await runCli(storeRoot, ...args);
   assert.equal(await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"), config);
-  await commitAll(storeRoot, "Initialize Store");
+  assert.equal(configuration.parseProject(config).storeRepository.remote, undefined);
+  assert.doesNotMatch(config, /^strict:/mu);
   await runCli(storeRoot, "connect");
   const pointer = await fs.readFile(path.join(codeRoot, "openspec/config.yaml"), "utf8");
   await runCli(codeRoot, "connect");
   assert.equal(await fs.readFile(path.join(codeRoot, "openspec/config.yaml"), "utf8"), pointer);
   assert.equal(await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"), config);
-  await commitAll(codeRoot, "Connect to central Store");
+  assert.equal(await fs.readFile(path.join(storeRoot, "user-notes.md"), "utf8"), "Keep my notes");
   const report = JSON.parse((await runCli(codeRoot, "doctor", "--json")).stdout);
   assert.equal(report.summary.error, 0);
   await assert.rejects(fs.access(path.join(codeRoot, "openspec/specs")), /ENOENT/);

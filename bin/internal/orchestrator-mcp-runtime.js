@@ -6,7 +6,6 @@ import {
   createRepositoryCheckout,
   currentRepositories,
   files,
-  git,
   openspec,
   pluginContexts,
   repositoryStatuses,
@@ -31,7 +30,6 @@ function projectJson(storeProject, invocation) {
     store_id: storeProject.store.id,
     current_repository: invocationJson(invocation),
     project: Object.freeze({
-      strict: project.strict,
       template_id: project.template.id,
       agent_id: project.agent.id,
       extensions: project.extensions,
@@ -59,7 +57,6 @@ export class OrchestratorMcpRuntime {
   #currentRepositories;
   #doctor;
   #files;
-  #git;
   #managers;
   #openSpec;
   #repositoryStatuses;
@@ -73,7 +70,6 @@ export class OrchestratorMcpRuntime {
     currentRepositoryService = currentRepositories,
     doctorService,
     fileService = files,
-    gitService = git,
     managerService,
     openSpecService = openspec,
     repositoryStatusService = repositoryStatuses,
@@ -119,7 +115,6 @@ export class OrchestratorMcpRuntime {
     this.#currentRepositories = currentRepositoryService;
     this.#doctor = doctorService;
     this.#files = fileService;
-    this.#git = gitService;
     this.#managers = managerService;
     this.#openSpec = openSpecService;
     this.#repositoryStatuses = repositoryStatusService;
@@ -161,11 +156,9 @@ export class OrchestratorMcpRuntime {
       doctor: (await this.#doctor.inspect({ start: this.#start })).toJSON(),
       constraints: Object.freeze({
         fixed_cwd: true,
-        strict_only: true,
         arbitrary_workspace: false,
         disconnect_exposed: false,
         target_role: "store",
-        separate_git_repository: true,
         forbidden_targets: Object.freeze([
           "orchestrator_checkout",
           "template_source",
@@ -263,17 +256,6 @@ export class OrchestratorMcpRuntime {
   /** Builds reusable assignment data without repeating the Project envelope. */
   async #assignmentScope(state) {
     const assignments = await this.#assignmentScopes(state);
-    const currentCheckout = state.invocation?.role === "store"
-      ? state.storeProject.checkout
-      : state.invocation
-        ? createRepositoryCheckout(
-          state.storeProject.project.requireRepository(state.invocation.id),
-          state.invocation.path,
-        )
-        : null;
-    const revision = currentCheckout
-      ? await this.#git.forRepository(currentCheckout).revision()
-      : null;
     return Object.freeze({
       assigned: null,
       assignments,
@@ -281,7 +263,7 @@ export class OrchestratorMcpRuntime {
         repository_id: state.invocation.id,
         role: state.invocation.role,
         path: state.invocation.path,
-        revision,
+        revision: null,
       }) : null,
     });
   }
@@ -374,15 +356,13 @@ export class OrchestratorMcpRuntime {
       throw new Error(`SPECS_RESOURCE_UNAVAILABLE: ${repositoryId}: ${status?.error ?? status?.state ?? "missing"}`);
     }
     const checkout = createRepositoryCheckout(repository, status.path);
-    const repositoryGit = this.#git.forRepository(checkout);
-    await repositoryGit.assertIdentity();
     const target = await this.#storeProjects.loadSpecs(checkout);
     return new StoreResourceService({
       files: this.#files.forRepository(checkout),
       storeId: target.store.id,
       source: {
         project_id: state.storeProject.store.id, repository_id: repository.id,
-        revision: await repositoryGit.revision(), clean: await repositoryGit.isClean(),
+        revision: null, clean: null,
       },
     });
   }
@@ -397,17 +377,11 @@ export class OrchestratorMcpRuntime {
       repositoryIds,
     });
     return Object.freeze(await Promise.all(statuses.map(async (status) => {
-      const revision = status.connected
-        ? await this.#git.forRepository(createRepositoryCheckout(
-          state.storeProject.project.requireRepository(status.id),
-          status.path,
-        )).revision()
-        : null;
       return Object.freeze({
         repository_id: status.id,
         assigned: null,
         checkout: status.path,
-        revision,
+        revision: null,
         connected: status.connected,
         clean: status.clean ?? null,
         state: status.state,

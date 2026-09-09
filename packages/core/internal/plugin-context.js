@@ -360,7 +360,6 @@ export class PluginContextFactory {
     const agent = project.agent;
     const projectSnapshot = deepFreeze({
       id: storeProject.store.id,
-      strict: project.strict,
       store: repositories.require(project.storeRepository.id),
       repositories: repositories.list(),
       agent,
@@ -386,11 +385,10 @@ export class PluginContextFactory {
     });
   }
 
-  /** Applies the same linked identity checks to direct contexts and registry Git access. */
+  /** Loads linked Store metadata for direct contexts and registry access. */
   async #targetProject(storeProject, checkout) {
     if (checkout.repository.isStore()) return storeProject;
     if (!checkout.repository.isSpecs()) return null;
-    await this.#git.forRepository(checkout).assertIdentity();
     return storeProjects.loadSpecs(checkout);
   }
 

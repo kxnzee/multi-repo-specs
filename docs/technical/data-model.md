@@ -69,6 +69,6 @@ Repository Impact того же Change. Каждая derived связь сохр
 
 Graph — вычисляемая проекция текущих файлов; persisted index отсутствует.
 Для роли `specs` отчёт и результаты запросов содержат `source` с `project_id`,
-`repository_id`, `store_id`, `revision` и `clean`. Revision описывает локальный
-HEAD, а не гарантированно последнюю версию remote; при `clean: false` граф
-включает локальные изменения.
+`repository_id`, `store_id`, `revision` и `clean`. Поля `revision` и `clean` равны
+`null`: Graph не читает Git и всегда включает текущее содержимое файлов.
+MCP `content_revision` вычисляется по содержимому, а не по HEAD.

@@ -135,8 +135,8 @@ const TOOL_DEFINITIONS = Object.freeze([
   defineTool({
     name: "initialize_project",
     applicationMethod: "initializeProject",
-    description: "Idempotently initialize the fixed MCP cwd in strict mode only when it is a " +
-      "separate clean central Store Git repository. Never target an Orchestrator, Template, " +
+    description: "Idempotently initialize the fixed MCP cwd when it is a " +
+      "separate central Store directory. Never target an Orchestrator, Template, " +
       "or Code Repository checkout. Pass the central Store only as store_id; repositories " +
       "contains optional Code Repositories only.",
     inputSchema: Object.freeze({
@@ -191,7 +191,7 @@ const TOOL_DEFINITIONS = Object.freeze([
     name: "connect_project",
     applicationMethod: "connectProject",
     description: "Connect the main Store project resolved from the fixed MCP working directory in " +
-      "strict mode. May clone registered code/specs repositories and install configured " +
+      "the fixed workspace. May clone registered code/specs repositories and install configured " +
       "project assets and integrations. Does not recursively connect dependencies of specs " +
       "repositories.",
     inputSchema: EMPTY_SCHEMA,
@@ -350,7 +350,7 @@ function applicationArguments(definition, args) {
   return applicationArgs;
 }
 
-/** Validates the structured strict-init surface. */
+/** Validates the structured init surface. */
 function assertInitialization(args, inputSchema) {
   if (args.repositories === undefined) return;
   if (!Array.isArray(args.repositories)) {

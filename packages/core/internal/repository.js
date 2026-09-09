@@ -25,8 +25,8 @@ export class Repository {
   constructor({ id, role, remote, defaultBranch, description, storeId, plugins = [] }) {
     if (typeof id !== "string" || id.length === 0) invalid("id обязателен");
     if (!REPOSITORY_ROLES.has(role)) invalid(`неизвестная role '${role}'`);
-    if (typeof remote !== "string" || remote.length === 0) invalid(`remote ${id} обязателен`);
-    if (typeof defaultBranch !== "string" || defaultBranch.length === 0) {
+    if ((role !== REPOSITORY_ROLE.store || remote !== undefined) && (typeof remote !== "string" || remote.length === 0)) invalid(`remote ${id} обязателен`);
+    if ((role !== REPOSITORY_ROLE.store || defaultBranch !== undefined) && (typeof defaultBranch !== "string" || defaultBranch.length === 0)) {
       invalid(`defaultBranch ${id} обязателен`);
     }
     if (!Array.isArray(plugins) || plugins.some((pluginId) => typeof pluginId !== "string")) {

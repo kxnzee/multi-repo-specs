@@ -210,7 +210,7 @@ test("InitializationService creates Store through domain and public facade contr
   });
 
   assert.equal(result.alreadyInitialized, false);
-  assert.equal(result.executionMode, "strict");
+  assert.equal(result.executionMode, undefined);
   assert.equal(Object.isFrozen(result), true);
   assert.equal(result.agent.id, "claude");
   assert.equal(result.created[0], ".openspec-store/store.yaml");
@@ -257,7 +257,7 @@ test("InitializationService creates Store through domain and public facade contr
   assert.equal(await fs.readFile(path.join(root, "CLAUDE.md"), "utf8"), "Custom Store instructions\n");
 });
 
-test("InitializationService preserves relaxed mode for an existing v1 Store", async (t) => {
+test("InitializationService omits execution modes when restoring an existing v1 Store", async (t) => {
   const root = await storeFixture(t);
   const fake = fakeExecutor(root);
   const { service, configurationService } = initFixture(fake.executor);
@@ -266,7 +266,6 @@ test("InitializationService preserves relaxed mode for an existing v1 Store", as
     storeId: "payments-specs",
     agentId: "claude",
     templateRoot: TEMPLATE_ROOT,
-    noStrict: true,
   });
   const configPath = path.join(root, "openspec-orch.yaml");
   await execa("git", ["-C", root, "add", "."]);
@@ -280,7 +279,7 @@ test("InitializationService preserves relaxed mode for an existing v1 Store", as
     templateRoot: TEMPLATE_ROOT,
   });
   const project = configurationService.parseProject(await fs.readFile(configPath, "utf8"));
-  assert.equal(result.executionMode, "relaxed");
+  assert.equal(result.executionMode, undefined);
   assert.deepEqual(result.updated, []);
   assert.deepEqual(project.agent, { id: "claude" });
 });
@@ -367,18 +366,20 @@ test("custom Template is applied once and its source is not needed for repeated 
   );
 });
 
-test("InitializationService fails before OpenSpec for dirty or conflicting Store", async (t) => {
+test("InitializationService accepts non-Git user files but rejects conflicting Store files", async (t) => {
   const dirtyRoot = await storeFixture(t);
   await fs.writeFile(path.join(dirtyRoot, "user-change.txt"), "dirty\n", "utf8");
   const dirtyFake = fakeExecutor(dirtyRoot);
   const dirtyService = initFixture(dirtyFake.executor).service;
-  await assert.rejects(dirtyService.initialize({
+  await fs.rm(path.join(dirtyRoot, ".git"), { recursive: true, force: true });
+  await dirtyService.initialize({
     target: dirtyRoot,
     storeId: "payments-specs",
     agentId: "claude",
     templateRoot: TEMPLATE_ROOT,
-  }), /чистое рабочее дерево/);
-  assert.deepEqual(dirtyFake.calls, []);
+  });
+  assert.equal(await fs.readFile(path.join(dirtyRoot, "user-change.txt"), "utf8"), "dirty\n");
+  assert.ok(dirtyFake.calls.length > 0);
 
   const registeredRoot = await storeFixture(t);
   const registeredFake = fakeExecutor(registeredRoot, { registered: true });
@@ -472,7 +473,6 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
     "company-tools",
     "--repo",
     "frontend=https://example.test/frontend.git#main",
-    "--no-strict",
   ]);
 
   assert.equal(calls[0].target, "project");
@@ -486,7 +486,6 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
   ]);
   assert.equal(calls[0].replaceExtensions, true);
   assert.equal(calls[0].repositories[0].id, "frontend");
-  assert.equal(calls[0].noStrict, true);
 });
 
 test("CandidateCli resolves an explicit bundled Template ID before initialization", async () => {
@@ -670,9 +669,8 @@ test("CandidateCli interactive init skips an Extension prompt with no selectable
 
   await cli.createProgram().parseAsync(["node", "openspec-orch", "init", "project"]);
 
-  assert.equal(confirmations.length, 2);
-  assert.equal(confirmations[0].message, "Использовать strict mode?");
-  assert.match(confirmations[1].message, /Store: payments-specs.*Agent: qwen.*Продолжить/u);
+  assert.equal(confirmations.length, 1);
+  assert.match(confirmations[0].message, /Store: payments-specs.*Agent: qwen.*Продолжить/u);
   assert.equal(calls.length, 1);
   assert.deepEqual({ ...calls[0], repositories: undefined }, {
     target: "project",
@@ -686,7 +684,6 @@ test("CandidateCli interactive init skips an Extension prompt with no selectable
     ],
     replaceExtensions: true,
     repositories: undefined,
-    noStrict: false,
   });
   assert.equal(calls[0].repositories.length, 1);
   assert.equal(calls[0].repositories[0].id, "frontend");
@@ -702,7 +699,6 @@ test("CandidateCli starts init progress after interactive selection and closes i
     extensions: [],
     extensionsSpecified: true,
     repositories: [],
-    noStrict: false,
   };
   const successEvents = [];
   const successfulCli = new CandidateCli({
@@ -848,7 +844,6 @@ test("init selects Template before Extensions and locks its required Extensions"
     "Выберите Agent",
     "Выберите standalone Extensions",
     "Code Repositories: id=remote#branch через пробел (необязательно)",
-    "Использовать strict mode?",
     "Итоговое подтверждение",
   ]);
   assert.deepEqual(selection.extensions, [
@@ -936,11 +931,11 @@ test("CandidateCli interactive init cancels before mutation and non-TTY requires
     checkboxPrompt: async () => [],
     confirmPrompt: async () => {
       confirmCalls += 1;
-      return confirmCalls === 1;
+      return false;
     },
   }).parseAsync(["node", "openspec-orch", "init", "project"]);
 
-  assert.equal(confirmCalls, 2);
+  assert.equal(confirmCalls, 1);
   assert.deepEqual(calls, []);
 });
 

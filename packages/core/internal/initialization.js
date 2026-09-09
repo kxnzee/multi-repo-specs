@@ -10,25 +10,16 @@ import { bundledAgents } from "./bundled-agent.js";
 import { configuration } from "./configuration.js";
 import {
   CORE_CONTRACT_VERSIONS,
-  CORE_EXECUTION_MODE,
   CORE_FILES,
   CORE_PATTERNS,
 } from "./constants.js";
 import { lstatOrNull } from "./fs.js";
-import { git } from "./git.js";
 import { openspec } from "./openspec.js";
 import { Project } from "./project.js";
 import { Repository } from "./repository.js";
-import { CORE_SETTINGS } from "./settings.js";
 import { StoreTarget } from "./store-target.js";
 import { projectTemplates } from "./template.js";
 import { deepFreeze, hasMethods } from "./value.js";
-
-/** Сравнивает Git remotes без незначимых завершающих slash. */
-function sameGitRemote(left, right) {
-  const normalize = (value) => value.trim().replace(CORE_PATTERNS.trailingSlashes, "");
-  return normalize(left) === normalize(right);
-}
 
 /** Проверяет обязательный обычный init file. */
 async function inspectRequiredFile(projectRoot, relativePath, issues) {
@@ -44,7 +35,6 @@ export class InitializationService {
   #configuration;
   #agentAdapter;
   #agents;
-  #git;
   #openspec;
   #templates;
 
@@ -52,7 +42,6 @@ export class InitializationService {
     agentAdapter,
     agentProvider = bundledAgents,
     configurationService = configuration,
-    gitService = git,
     openSpecService = openspec,
     templateService = projectTemplates,
   } = {}) {
@@ -65,7 +54,6 @@ export class InitializationService {
     this.#agentAdapter = resolvedAdapter;
     this.#agents = agentProvider;
     this.#configuration = configurationService;
-    this.#git = gitService;
     this.#openspec = openSpecService;
     this.#templates = templateService;
     Object.freeze(this);
@@ -80,14 +68,12 @@ export class InitializationService {
     replaceExtensions,
     templateRoot,
     repositories = [],
-    noStrict = false,
   } = {}) {
     this.#assertId(storeId, "Store ID");
     this.#assertId(agentId, "Agent ID");
     if (templateId !== undefined) this.#assertId(templateId, "Template ID");
     const agent = this.#agents.resolve(agentId);
     const storeTarget = await this.#resolveTarget(storeId, target);
-    const strict = noStrict ? false : CORE_SETTINGS.execution.strictByDefault;
     if (await lstatOrNull(path.join(storeTarget.root, CORE_FILES.alternateOpenSpecConfig))) {
       throw new Error(
         `${CORE_FILES.alternateOpenSpecConfig} нужно перенести в ` +
@@ -126,7 +112,6 @@ export class InitializationService {
       extensions: extensions ?? [],
       templateRoot,
       codeRepositories,
-      strict,
     });
   }
 
@@ -195,7 +180,6 @@ export class InitializationService {
     return this.#result({
       storeTarget,
       alreadyInitialized: true,
-      strict: currentProject.strict,
       created: [],
       updated,
       agent,
@@ -209,7 +193,6 @@ export class InitializationService {
     extensions,
     templateRoot,
     codeRepositories,
-    strict,
   }) {
     if (await lstatOrNull(path.join(storeTarget.root, CORE_FILES.orchestratorConfig))) {
       throw new Error(`Инициализации мешает существующий ${CORE_FILES.orchestratorConfig}`);
@@ -224,10 +207,8 @@ export class InitializationService {
     }
     await templatePlan.assertAgentPackPathsAvailable();
     const unchangedPreExisting = await templatePlan.inspectPreExistingFiles();
-    const gitIdentity = await this.#inspectGit(storeTarget);
     const project = new Project({
       version: CORE_CONTRACT_VERSIONS.project,
-      strict,
       template: { id: templatePlan.id },
       agent: { id: agent.id },
       extensions,
@@ -236,8 +217,6 @@ export class InitializationService {
         new Repository({
           id: storeTarget.id,
           role: REPOSITORY_ROLE.store,
-          remote: gitIdentity.remote,
-          defaultBranch: gitIdentity.defaultBranch,
           plugins: [],
         }),
         ...codeRepositories,
@@ -256,7 +235,7 @@ export class InitializationService {
         agent: templatePlan.agent,
         targetRoot: storeTarget.root,
       });
-      await openSpec.setupStore(gitIdentity.remote);
+      await openSpec.setupStore();
     } catch (error) {
       const metadataCreated = Boolean(
         await lstatOrNull(path.join(storeTarget.root, CORE_FILES.storeMetadata)),
@@ -282,7 +261,6 @@ export class InitializationService {
     return this.#result({
       storeTarget,
       alreadyInitialized: false,
-      strict,
       created: [
         CORE_FILES.storeMetadata,
         ...[...installed.created, CORE_FILES.orchestratorConfig].sort(),
@@ -292,28 +270,10 @@ export class InitializationService {
     });
   }
 
-  async #inspectGit(storeTarget) {
-    const repositoryGit = this.#git.forStoreTarget(storeTarget);
-    const gitRoot = await repositoryGit.repositoryRoot();
-    if (gitRoot !== storeTarget.root) {
-      throw new Error("openspec-orch init нужно запускать из корня центрального Git-репозитория");
-    }
-    if (!await repositoryGit.isClean()) {
-      throw new Error("openspec-orch init требует чистое рабочее дерево Git");
-    }
-    const remote = await repositoryGit.originUrl();
-    const defaultBranch = await repositoryGit.currentBranch();
-    if (!defaultBranch) throw new Error("openspec-orch init нельзя запускать в detached HEAD");
-    return { remote, defaultBranch };
-  }
-
   async #assertComplete({ storeTarget, metadata, project, agent }) {
     const issues = [];
-    if (project.storeRepository.id !== storeTarget.id) {
+    if (metadata.id !== storeTarget.id || project.storeRepository.id !== storeTarget.id) {
       issues.push(`Store ID в ${CORE_FILES.orchestratorConfig} не совпадает с Store metadata`);
-    }
-    if (!metadata.remote || !sameGitRemote(project.storeRepository.remote, metadata.remote)) {
-      issues.push(`URL role: store в ${CORE_FILES.orchestratorConfig} не совпадает с Store metadata`);
     }
     const commandsStat = await lstatOrNull(path.join(storeTarget.root, agent.commandsDirectory));
     if (!commandsStat?.isDirectory() || commandsStat.isSymbolicLink()) {
@@ -346,7 +306,6 @@ export class InitializationService {
   #result({
     storeTarget,
     alreadyInitialized,
-    strict,
     created,
     updated,
     agent,
@@ -355,7 +314,6 @@ export class InitializationService {
       target: storeTarget.root,
       storeId: storeTarget.id,
       alreadyInitialized,
-      executionMode: strict ? CORE_EXECUTION_MODE.strict : CORE_EXECUTION_MODE.relaxed,
       created: [...created],
       updated: [...updated],
       agent: agent.snapshot(),

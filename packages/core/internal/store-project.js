@@ -50,9 +50,6 @@ export class StoreProject {
         `Store ID в ${CORE_FILES.orchestratorConfig} не совпадает с Store metadata`,
       );
     }
-    if (!store.remote || !project.storeRepository.matchesRemote(store.remote)) {
-      throw new Error("URL role: store не совпадает с Store metadata");
-    }
     this.#root = path.normalize(root);
     this.#store = store;
     this.#project = project;
@@ -116,7 +113,7 @@ export class StoreProjectService {
     if (typeof config.schema !== "string" || !CORE_PATTERNS.id.test(config.schema)) {
       throw new Error(`SPECS_CONFIG_INVALID: ${repository.id}: openspec/config.yaml.schema некорректна`);
     }
-    if (target.store.id !== repository.storeId || !repository.matchesRemote(target.store.remote)) {
+    if (target.store.id !== repository.storeId) {
       throw new Error(`SPECS_IDENTITY_MISMATCH: ${repository.id}: Store metadata не совпадает с подключением`);
     }
     return target;

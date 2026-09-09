@@ -55,7 +55,7 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
       }),
     })]),
     getStatus(args) { calls.push(["get_status", args]); return { state: "ready" }; },
-    getSetupContext() { return { strict_only: true }; },
+    getSetupContext() { return { fixed_cwd: true }; },
     getChangeContext() { return { change_id: "pay" }; },
     getNextAction() { return { action: "apply_change", actor: "agent" }; },
     getAssignmentScope() { return { assigned: true }; },
@@ -131,7 +131,7 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   );
   assert.match(
     listed.tools.find(({ name }) => name === "initialize_project").description,
-    /separate clean central Store Git repository/u,
+    /separate central Store directory/u,
   );
   assert.match(
     listed.tools.find(({ name }) => name === "initialize_project").description,

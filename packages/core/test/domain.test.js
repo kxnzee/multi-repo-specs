@@ -39,7 +39,6 @@ function projectConfig() {
   ];
   return {
     version: 1,
-    strict: true,
     template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
@@ -150,4 +149,14 @@ test("Project keeps stable Plugin IDs without package versions", () => {
     () => createProject({ ...projectConfig(), version: 2 }),
     /поддерживается только version 1/,
   );
+});
+
+
+test("Store repository can omit clone settings, while attached repositories require them", () => {
+  const store = createRepository({ id: "specs", role: "store" });
+  assert.equal(store.remote, undefined);
+  assert.equal(store.defaultBranch, undefined);
+  for (const role of ["code", "specs"]) {
+    assert.throws(() => createRepository({ id: "attached", role, storeId: role === "specs" ? "team" : undefined }), /remote/);
+  }
 });

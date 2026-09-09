@@ -277,7 +277,7 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
       repository_id: "frontend",
       assigned: null,
       checkout: "/workspace/src/frontend",
-      revision: "a".repeat(40),
+      revision: null,
       connected: true,
       clean: true,
       state: "connected",
@@ -286,28 +286,26 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
       repository_id: "specs",
       role: "store",
       path: "/workspace/specs",
-      revision: "a".repeat(40),
+      revision: null,
     },
   });
   assert.deepEqual(next, { action: "prepare_artifact", actor: "agent", artifact: "design" });
-  assert.equal(assignment.current_assignment.revision, "a".repeat(40));
+  assert.equal(assignment.current_assignment.revision, null);
   assert.equal(assignment.assigned, null);
   assert.deepEqual(assignment.assignments, [{
     repository_id: "frontend",
     assigned: null,
     checkout: "/workspace/src/frontend",
-    revision: "a".repeat(40),
+    revision: null,
     connected: true,
     clean: true,
     state: "connected",
   }]);
   assert.deepEqual(setup.constraints, {
     fixed_cwd: true,
-    strict_only: true,
     arbitrary_workspace: false,
     disconnect_exposed: false,
     target_role: "store",
-    separate_git_repository: true,
     forbidden_targets: [
       "orchestrator_checkout",
       "template_source",
