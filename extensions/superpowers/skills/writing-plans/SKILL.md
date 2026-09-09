@@ -18,12 +18,15 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 **Save plans to:** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
 - (User preferences for plan location override this default)
 
-## OpenSpec artifact mode
+## Calling Workflow
 
-When called for an OpenSpec Plan artifact, use its resolved output path, template
-and accepted repository scope. Finish the Plan and return to OpenSpec. Do not
-offer or start execution, create worktrees, commit Store files or mark coarse
-Tasks complete. The execution-choice section below applies only to standalone plans.
+When another workflow supplies a plan template, output path, accepted scope or
+execution handoff, preserve them instead of replacing them with this skill's
+defaults. Include the supplied execution entrypoint in the saved plan so a new
+executor can follow it without the planning session's context. Finish the plan
+and return to the caller; do not offer or start execution unless the caller asks.
+The default header and execution choices below apply when the caller supplies
+no corresponding instruction.
 
 ## Scope Check
 
@@ -60,7 +63,8 @@ independently testable deliverable.
 
 ## Plan Document Header
 
-**Every plan MUST start with this header:**
+**Use this default header unless the calling workflow supplies its own template
+or execution entrypoint. Preserve the supplied entrypoint in that case:**
 
 ```markdown
 # [Feature Name] Implementation Plan
@@ -162,7 +166,8 @@ If you find issues, fix them inline. No need to re-review — just fix and move 
 
 ## Execution Handoff
 
-After saving the plan, offer execution choice:
+For standalone plans, or when the calling workflow explicitly requests this
+handoff, offer the following execution choice after saving the plan:
 
 **"Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Two execution options:**
 

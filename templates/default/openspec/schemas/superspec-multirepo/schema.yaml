@@ -117,6 +117,11 @@ artifacts:
       Invoke **superpowers:writing-plans** using tasks.md, Delta Specs and optional
       design.md as input. Override its default output location: write the result only
       to this Change's plan.md and do not create docs/superpowers/plans/.
+      Pass the Plan template and this execution handoff to the skill: the saved
+      Plan must identify this Change and direct a new executor to invoke the installed
+      native OpenSpec Apply through the Agent's skill/command mechanism. Preserve
+      this entrypoint instead of the skill's default direct-executor header.
+      Superpowers execution runs within Apply according to the current schema.
 
       Separate the plan by exact Code Repository ID. For each repository include the
       goal, dependencies, ordered 2-5 minute TDD steps, exact paths, commands and
