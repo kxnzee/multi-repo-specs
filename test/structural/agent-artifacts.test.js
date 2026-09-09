@@ -238,7 +238,7 @@ test("Core, SDK and unrelated Plugins do not know Change Tracking contracts", as
 });
 
 test("OpenSpec Graph integration remains owned by its Plugin", async () => {
-  const forbidden = /openspec-graph|OpenSpecGraph|query_graph|graph_impact/iu;
+  const forbidden = /openspec-graph|OpenSpecGraph|query_graph|get_spec_graph|get_spec_change_impact|graph_impact/iu;
   for (const file of [
     ...await files(CORE_ROOT),
     ...await files(SDK_ROOT),

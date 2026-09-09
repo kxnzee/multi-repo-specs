@@ -14,12 +14,17 @@
 | Package lock | `.openspec-orch/packages/package-lock.json` | да | npm |
 | External runtime | `.openspec-orch/packages/node_modules/` | нет | npm |
 
-Project содержит один Store Repository, Code Repositories, один Template, один Agent,
+Project содержит один Store Repository, Code/Specs Repositories, один Template, один Agent,
 Extensions и Plugin declarations/bindings. Schema Change хранится самим OpenSpec в
 `.openspec.yaml`; она не является полем Project.
 
 `openspec-orch.yaml` поддерживает только `version: 1`. Неизвестная версия
 отклоняется.
+
+Для Specs Repository локальный `id` идентифицирует подключение, а `store_id`
+фиксирует ожидаемую идентичность внешнего Store. Binding относится к локальному
+`id` в основном проекте. Роль относительна: этот же репозиторий имеет роль `store`
+в собственном проекте. Реестр внешнего Store читается без рекурсивного подключения.
 
 ## Change Tracking
 
@@ -29,6 +34,13 @@ Extensions и Plugin declarations/bindings. Schema Change хранится са�
 Repository, OpenSpec task, schema, planning revision и base revision. В Git эта
 запись не попадает. Для одного Change, Repository и task одновременно существует не
 более одной активной attempt.
+
+`attempt cancel` снимает только выбранную активную попытку и сохраняет
+`{ attempt, reason, cancelled_at }` в `cancelled_attempts` локального Plugin storage.
+Он не создаёт implementation evidence. Формат локального состояния v2 содержит
+`contract_version`, `active_attempts`, `cancelled_attempts`; состояние v1 читается
+совместимо и преобразуется при успешной записи. Read-only status не выполняет миграцию.
+Отмена и завершение сериализованы той же локальной блокировкой storage.
 
 После стандартной отметки task как выполненного `attempt complete` добавляет в
 Change-local `implementation-map.yaml` base и implementation revisions. Task ID и
@@ -56,3 +68,7 @@ Repository Impact того же Change. Каждая derived связь сохр
 `{ path, line, field }`.
 
 Graph — вычисляемая проекция текущих файлов; persisted index отсутствует.
+Для роли `specs` отчёт и результаты запросов содержат `source` с `project_id`,
+`repository_id`, `store_id`, `revision` и `clean`. Revision описывает локальный
+HEAD, а не гарантированно последнюю версию remote; при `clean: false` граф
+включает локальные изменения.

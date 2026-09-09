@@ -152,6 +152,11 @@ export class InitializationService {
     if (metadata.id !== storeTarget.id) {
       throw new Error(`Store уже инициализирован с ID ${metadata.id}, а не ${storeTarget.id}`);
     }
+    const issues = [];
+    await inspectRequiredFile(storeTarget.root, CORE_FILES.orchestratorConfig, issues);
+    if (issues.length > 0) {
+      throw new Error(`needs_recovery: создана Store metadata; ${issues.join("; ")}. Файлы проекта не изменены`);
+    }
     const project = this.#configuration.parseProject(
       await fs.readFile(path.join(storeTarget.root, CORE_FILES.orchestratorConfig), "utf8"),
     );

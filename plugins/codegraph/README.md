@@ -27,6 +27,8 @@ openspec-orch plugin exec --all codegraph status --json
 Перед индексированием Plugin добавляет `.codegraph/` в локальный
 `.git/info/exclude`; tracked `.gitignore` не меняется. Отдельная global установка
 CodeGraph не нужна: runtime принадлежит package.
+Passthrough `init` принимает флаги перед путём, например `init --force .`.
+`init --help` выводит справку native CLI без изменения `.git/info/exclude`.
 
 ## Agent Extension
 

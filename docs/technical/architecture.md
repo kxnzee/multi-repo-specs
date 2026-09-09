@@ -1,7 +1,7 @@
 # Архитектура
 
 OpenSpec Orchestrator — локальный composition layer между центральным OpenSpec Store,
-несколькими Code Repositories, выбранным Agent и независимыми Plugins. Он
+несколькими Code/Specs Repositories, выбранным Agent и независимыми Plugins. Он
 подготавливает окружение и маршрутизирует интеграции, но не владеет Requirements,
 workflow Change, реализацией, проверкой, Release или Archive.
 
@@ -76,7 +76,7 @@ sandbox.
 ## Project и Repository resolution
 
 `openspec-orch.yaml` в Store — переносимый Project v1 registry. Он содержит один
-Store Repository, Code Repositories, выбранные Template и Agent, standalone
+Store Repository, Code/Specs Repositories, выбранные Template и Agent, standalone
 Extensions, Plugin declarations и repository bindings.
 
 Project-scoped операция разрешает Store двумя способами:
@@ -118,14 +118,19 @@ traversal, symlink, collisions, неполного Agent pack и попытки 
 3. проверяет native CLI выбранного Agent;
 4. регистрирует Store и проверяет OpenSpec context;
 5. определяет workspace;
-6. проверяет или в strict mode клонирует Code Repositories;
-7. создаёт и проверяет OpenSpec pointers;
+6. проверяет или в strict mode клонирует Code/Specs Repositories;
+7. создаёт и проверяет OpenSpec pointers и доставляет Agent pack только в Code Repositories;
 8. подключает выбранные standalone Extensions;
 9. догружает и восстанавливает lifecycle Plugin-owned Extensions;
 10. проверяет итоговое состояние Extensions и Plugins.
 
+Specs Repositories размещаются в `linked-specs/<id>`. Для них connect проверяет
+Git identity и соответствие Store metadata ожидаемому `store_id`, читает дочерний
+реестр как данные и возвращает локальные revision/clean. Он не разворачивает
+репозитории, пакеты или окружение команды и не регистрирует внешний Store.
+
 Существующий checkout не получает `pull`, `checkout`, `reset`, merge или другую
-скрытую Git mutation. Strict `connect` проверяет remote identity, clean state,
+скрытую Git mutation. Для Code Repository strict `connect` проверяет remote identity, clean state,
 полную revision и именованную ветку; последнее нужно только потому, что
 `connect` может создать pointer-файл. Имя ветки и её совпадение с `default_branch`
 не проверяются. Read-only Doctor использует внутренний Repository Status,

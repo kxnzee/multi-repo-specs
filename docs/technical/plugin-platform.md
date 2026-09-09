@@ -55,13 +55,30 @@ bundled, так и у объявленных в Project внешних Plugins. 
 response overlays остаются в owning Plugin package.
 Agent-only Plugin без Repository contribution получает Store-scoped context с
 исходным `invocation`, не требуя поддержки role `store`. Для Repository contribution
-сохраняется проверка поддерживаемой role, а `requireBinding` требует Store binding.
+сохраняется проверка поддерживаемой role, а `requireBinding` требует Store binding
+для вызовов без явного выбора Repository.
+
+Repository contribution может объявить `supports: ["store", "specs"]`. Core
+не расширяет поддержку существующих Plugins автоматически. Вызов для `specs`
+проверяет Git identity и Store metadata до создания контекста. Plugin-owned
+Extensions на этой роли отклоняются до repository `connect`; standalone
+Extensions по-прежнему имеют только targets `store` и `code`.
+
+Agent tool объявляет `repositoryParameter: "store_repository_id"` (или другое
+предметное имя) и одноимённое строковое поле в собственной `inputSchema`. SDK
+проверяет наличие строкового поля; описание поля должно объяснять область действия
+и значение по умолчанию. Для внешних Plugins сохранён `repositoryScoped: true`
+как прежний способ выбрать поле `repository_id`; одновременно два способа запрещены. Runtime выбирает Repository из
+основного проекта, проверяет binding и поддержку роли и передаёт контекст в
+`agent.create`. Без поля сохраняется основной Store. Явный селектор всегда
+требует binding, даже если `agent.requireBinding` выключен. Overlays общего
+контекста остаются привязанными к основному Store.
 
 ## PluginContext
 
 Core создаёт новый scoped context для каждого invocation:
 
-- immutable `project`, `repositories`, `repository` и `invocation`;
+- immutable `project`, `repositories`, `repository`, `targetStore` и `invocation`;
 - `files` для безопасных relative paths и атомарного read-modify-write через `update`;
 - read-only `git` operations;
 - OpenSpec version check;
@@ -71,6 +88,27 @@ Core создаёт новый scoped context для каждого invocation:
 
 Plugin не получает checkout paths через Repository handles и не должен искать их
 самостоятельно.
+
+`project` и `repositories` всегда описывают основной проект. `repository` —
+выбранное подключение. `targetStore` для `store` и `specs` содержит `{ id,
+repositories: [{ id, role }] }` именно целевого Store; для `code` равен `null`.
+Его repository handles являются описаниями и не разворачивают checkout команды.
+`files`, `git` и `process` привязаны к выбранному checkout. Чтобы команда работала
+с выбранным `store` или `specs`, используйте `scope: "current"`: `scope: "store"`
+продолжает требовать роль `store`.
+Получение `repositories.git(id)` для `specs` проверяет Git origin и метаданные
+целевого Store так же, как создание прямого PluginContext для этого подключения.
+`await repositories.context(id)` создаёт контекст того же Plugin для репозитория
+из реестра основного проекта. Вызов перечитывает конфигурацию основного Store,
+проверяет binding, поддержку роли, checkout и идентичность `specs`; пути checkout
+не раскрываются. Пакеты и зависимости выбранного Store не устанавливаются.
+
+`storage` остаётся общим для Plugin в основном проекте. Если Plugin хранит
+состояние нескольких привязок, он разделяет его по `repository.id` внутри своего
+payload. Пакеты и состояние чужого проекта не используются как runtime текущего.
+Новым Plugins, использующим `specs`/`targetStore`/`repositoryParameter`, нужна версия
+поставки с этими контрактами; старый SDK их не предоставляет. Роль не ограничивает
+возможности доверенного in-process Plugin как sandbox.
 
 ## Extensions
 
@@ -230,3 +268,13 @@ reviewable Store flow; Template не должен устанавливать и�
 цель — Store, а invocation должен быть назначенным Code Repository; запуск из
 Store не подменяет эту identity выбранным `--repo`. CLI и MCP используют общий
 resolver текущего Repository.
+
+Git facade предоставляет read-only `isAncestor(ancestor, descendant)` для полных
+commit hashes. Он возвращает `false` для несвязанной истории; ошибки Git и неизвестные
+commits не превращаются в отрицательный результат проверки.
+
+Native Agent adapters проверяют актуальность файлов при `status` и после `connect`.
+Параметр `refresh: true` допустим только для `connect`; user-level CLI передаёт его
+из `agent setup --refresh`. Обновление использует native lifecycle и не удаляет
+установку с её настройками. Издатель повышает native manifest version при изменении
+payload. Неизменившийся cache после native update остаётся ошибкой `STATUS_STALE`.

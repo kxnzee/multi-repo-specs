@@ -3,7 +3,7 @@
 import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { promisify } from "node:util";
+import { parseArgs, promisify } from "node:util";
 
 const executeFile = promisify(execFile);
 const INDEX_EXCLUDE = ".codegraph/";
@@ -86,6 +86,14 @@ export class CodeGraphRepositoryStatus {
       Object.freeze(this);
       return;
     }
+    if (["added", "modified", "removed"].some((key) =>
+      !Number.isSafeInteger(pending[key]) || pending[key] < 0)) {
+      throw new Error("CODEGRAPH_STATUS_INVALID: pendingChanges requires non-negative integer counts");
+    }
+    if ((value.index.reindexRecommended !== undefined && typeof value.index.reindexRecommended !== "boolean") ||
+      (value.worktreeMismatch !== null && value.worktreeMismatch !== undefined && (typeof value.worktreeMismatch !== "object" || Array.isArray(value.worktreeMismatch)))) {
+      throw new Error("CODEGRAPH_STATUS_INVALID: invalid index freshness metadata");
+    }
     const changed = ["added", "modified", "removed"].some((key) => pending[key] > 0);
     this.#state = changed || value.worktreeMismatch || value.index.reindexRecommended
       ? "stale"
@@ -95,5 +103,28 @@ export class CodeGraphRepositoryStatus {
 
   toPluginStatus() {
     return Object.freeze({ state: this.#state, details: this.#details });
+  }
+}
+
+
+/** Resolves init's optional path; help and invalid argv are delegated without filesystem writes. */
+export function codeGraphInitTarget(args) {
+  if (args[0] !== "init") return null;
+  try {
+    const { values, positionals } = parseArgs({
+      args: args.slice(1), allowPositionals: true,
+      options: {
+        index: { type: "boolean", short: "i" },
+        force: { type: "boolean", short: "f" },
+        verbose: { type: "boolean", short: "v" },
+        help: { type: "boolean", short: "h" },
+        color: { type: "boolean" },
+        "no-color": { type: "boolean" },
+      },
+    });
+    if (values.help || positionals.length > 1) return null;
+    return positionals[0] ?? ".";
+  } catch {
+    return null;
   }
 }

@@ -18,8 +18,15 @@ export class OpenSpecGraphApplication {
   async query(query, id) {
     const report = await this.compile();
     if (query === "report") return report;
-    if (query === "node") return inspectGraphNode(report, id);
-    if (query === "change_impact") return inspectChangeImpact(report, id);
+    const result = query === "node" ? inspectGraphNode(report, id)
+      : query === "change_impact" ? inspectChangeImpact(report, id) : null;
+    if (result) return Object.freeze({
+      ...result,
+      state: report.state,
+      diagnostics: report.diagnostics,
+      summary: report.summary,
+      ...(report.source ? { source: report.source } : {}),
+    });
     throw new Error(`GRAPH_QUERY_INVALID: ${query}`);
   }
 }

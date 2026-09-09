@@ -3,7 +3,7 @@
 export const CHANGE_TRACKING_CONTRACT = Object.freeze({
   implementationMapVersion: 1,
   implementationMapFile: "implementation-map.yaml",
-  attemptStorageVersion: 1,
+  attemptStorageVersion: 2,
 });
 
 export const CHANGE_TRACKING_PATTERNS = Object.freeze({

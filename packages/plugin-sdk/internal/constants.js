@@ -5,6 +5,7 @@ export const PLUGIN_API_VERSION = 1;
 export const REPOSITORY_ROLE = Object.freeze({
   code: "code",
   store: "store",
+  specs: "specs",
 });
 
 export const COMMAND_SCOPE = Object.freeze({

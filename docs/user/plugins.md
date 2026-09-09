@@ -18,7 +18,7 @@ Repository binding. Repository contribution начинает работать п
 
 | Plugin | Scope | Назначение |
 |---|---|---|
-| `openspec-graph` | Store | Проверяет граф Store, Changes, Specs и Repository Impact |
+| `openspec-graph` | Store и Specs Repository | Проверяет граф Store, Changes, Specs и Repository Impact |
 | `change-tracking` | Store и Code Repository | Связывает OpenSpec tasks с revisions Code Repositories |
 | `codegraph` | Store или Code Repository | Управляет локальным CodeGraph index и Agent Extension |
 
@@ -157,6 +157,17 @@ repository data, локальный Plugin storage или созданные Plu
 
 ## OpenSpec Graph
 
+Для Store другой команды добавьте подключение с ролью `specs` в
+[конфигурацию проекта](configuration.md#подключённые-store-роль-specs), выполните
+`connect` и привяжите Graph к локальному имени подключения. Plugin устанавливается
+в основном проекте, окружение команды не разворачивается:
+
+```bash
+openspec-orch plugin connect openspec-graph --repo payments
+openspec-orch plugin exec --repo payments openspec-graph inspect --json
+```
+
+
 ```bash
 openspec-orch plugin init --plugin openspec-graph
 openspec-orch plugin connect openspec-graph --repo specs
@@ -182,7 +193,30 @@ Repositories и не доказывает ownership, реализацию или
 После изменения файлов Store, в том числе архивации, перезапустите команду `view`:
 открытый viewer показывает снимок на момент запуска, обновления страницы недостаточно.
 
+Viewer получает граф и конфигурацию одним ответом: ошибка загрузки команды остаётся
+видимой вместе с неполным графом. Неудавшуюся загрузку можно повторить обновлением
+страницы; успешно загруженные Store остаются снимками до перезапуска `view`.
+
 Полный contract: [OpenSpec Graph Plugin](../../plugins/openspec-graph/README.md).
+
+MCP предоставляет `get_spec_graph`, `get_spec_graph_node(node_id)` и
+`get_spec_change_impact(change_id)`. Все три читают основной Store; для другого
+Store передайте `store_repository_id` из реестра проекта с ролью `store`/`specs`
+и подключённым Graph. Кодовый репозиторий в этот аргумент передавать нельзя:
+для просмотра его узла используйте `node_id: "repository:<id>"`.
+[Контракт MCP и примеры](../technical/reference.md#области-действия-и-идентификаторы)
+объясняют источники, ID и замену прежнего `query_graph`.
+После обновления перезапустите Agent/MCP, чтобы загрузить новые определения.
+
+
+Подключённые `specs` сначала показаны свёрнутыми узлами. Клик по узлу раскрывает
+внутренние ноды и связи Store на том же графе; повторный клик сворачивает их.
+Используется обычная раскладка, без отдельных областей и панелей команд.
+Поиск, фильтры и масштаб сохраняются. При перетаскивании Store его внутренние
+узлы перемещаются вместе с ним, даже когда свёрнуты: раскрытие происходит на новом
+месте. «Сбросить» сворачивает все Store.
+Данные команд загружаются при открытии viewer; источники ведут в соответствующий
+Store. Вложенные зависимости не разворачиваются.
 
 ## Change Tracking
 
@@ -229,12 +263,32 @@ Governed MCP сам получает Store context, поэтому отдель�
 `openspec-orchestrator` MCP tools. Дополнительный `--add-dir` для Store не требуется.
 
 Change Tracking требует OpenSpec `>=1.11.0 <2`. `attempt start` запускается из чистого
-Code Repository для незавершённого task и сохраняет base revision только в локальном
+Code Repository для незавершённого task. Файлы текущего Change в Store должны быть
+закоммичены, чтобы planning revision соответствовала прочитанному плану; изменения
+других Changes не мешают запуску. Команда сохраняет base revision только в локальном
 Plugin storage. Незавершённая attempt не переносится на другую машину.
 
-Команда `attempt complete` повторно читает task через
+Если task или schema изменились после старта, `start` и `complete` сообщают
+`ATTEMPT_TASK_CHANGED`. Пользователь может отменить старую попытку из Code Repository:
+
+```bash
+openspec-orch plugin exec --repo specs change-tracking attempt cancel <change-id> <task-id> "Изменились требования"
+```
+
+Причина обязательна. Отмена сохраняет исходную attempt, причину и время в локальном
+Plugin storage, освобождает задачу для нового `start` и видна в `tracking.cancelled`
+через MCP. Она не меняет checkbox, Git и completed implementation map. Новый MCP
+write-метод для отмены не добавлен. Локальное состояние v1 читается и переходит в v2
+при следующей успешной записи; после такой записи старый Orchestrator его не поддерживает.
+Отмена и завершение одной attempt выполняются под общей локальной блокировкой.
+
+При восстановлении после прерывания `attempt complete` сначала проверяет, сохранён ли
+результат этой attempt в implementation map. Если сохранён, команда только очищает
+локальную активную запись и возвращает прежний результат, даже если задача уже изменилась.
+
+При первом завершении `attempt complete` повторно читает task через
 `openspec instructions apply --json`, требует чистый Code Repository, новый commit
-после старта и уже установленную стандартную галочку task, а затем добавляет итоговую
+после старта, который продолжает историю base revision, и уже установленную стандартную галочку task, а затем добавляет итоговую
 revision в `openspec/changes/<change-id>/implementation-map.yaml`. Она не создаёт
 commit и не выполняет `pull` или `push`; файл публикуется обычным Git-процессом Change.
 Если task возвращён в работу, его галочка снимается и обычный Apply запускается снова.

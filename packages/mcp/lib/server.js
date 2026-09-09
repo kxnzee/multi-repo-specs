@@ -14,21 +14,29 @@ import {
 
 const IDENTIFIER_PATTERN = "^[a-z0-9]+(?:-[a-z0-9]+)*$";
 const NON_EMPTY_STRING_SCHEMA = Object.freeze({ type: "string", minLength: 1 });
-const IF_CONTEXT_REVISION_SCHEMA = NON_EMPTY_STRING_SCHEMA;
+const IF_CONTEXT_REVISION_SCHEMA = Object.freeze({
+  ...NON_EMPTY_STRING_SCHEMA,
+  description: "context_revision from a previous response to this same tool with the same arguments. " +
+    "Returns unchanged: true if the freshly read result matches. This is a response digest, not a Git revision.",
+});
 const IDENTIFIER_SCHEMA = Object.freeze({
   ...NON_EMPTY_STRING_SCHEMA,
   pattern: IDENTIFIER_PATTERN,
 });
+const CHANGE_ID_SCHEMA = Object.freeze({
+  ...IDENTIFIER_SCHEMA,
+  description: "OpenSpec Change directory name in the main Store, without the change: graph-node prefix.",
+});
 const EMPTY_SCHEMA = Object.freeze({ type: "object", additionalProperties: false });
 const CHANGE_SCHEMA = Object.freeze({
   type: "object",
-  properties: Object.freeze({ change_id: IDENTIFIER_SCHEMA }),
+  properties: Object.freeze({ change_id: CHANGE_ID_SCHEMA }),
   additionalProperties: false,
 });
 const ATTEMPT_SCHEMA = Object.freeze({
   type: "object",
   properties: Object.freeze({
-    change_id: IDENTIFIER_SCHEMA,
+    change_id: CHANGE_ID_SCHEMA,
     task_id: Object.freeze({
       ...NON_EMPTY_STRING_SCHEMA,
       description: "Exact tasks[].id from get_change_context with artifact: apply " +
@@ -56,27 +64,41 @@ const TOOL_DEFINITIONS = Object.freeze([
   defineTool({
     name: "get_status",
     applicationMethod: "getStatus",
-    description: "Read current Project, Repository, Plugin and Change status.",
+    description: "Read the main Store project registry, current invocation repository, Plugin " +
+      "availability and Change status. Omit change_id for project status; provide it for " +
+      "Change tracking details.",
     inputSchema: CHANGE_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
   defineTool({
     name: "get_setup_context",
     applicationMethod: "getSetupContext",
-    description: "Read exact Agent and Template choices, required Extensions and fixed Store target constraints.",
+    description: "Read available Agent and Template IDs, required Extensions, and initialization " +
+      "constraints for the fixed MCP working directory. Does not initialize anything.",
     inputSchema: EMPTY_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
   defineTool({
     name: "get_change_context",
     applicationMethod: "getChangeContext",
-    description: "Read exact OpenSpec status, artifact instructions and optional Plugin overlays.",
+    description: "Read a Change in the main Store resolved from the MCP working directory. Includes " +
+      "OpenSpec artifact status, resources and optional Plugin overlays. Supply artifact " +
+      "only to request its instructions; this does not create artifacts.",
     inputSchema: Object.freeze({
       type: "object",
       properties: Object.freeze({
-        change_id: IDENTIFIER_SCHEMA,
-        artifact: IDENTIFIER_SCHEMA,
-        include_assignment: Object.freeze({ type: "boolean" }),
+        change_id: CHANGE_ID_SCHEMA,
+        artifact: Object.freeze({
+          ...IDENTIFIER_SCHEMA,
+          description: "Artifact ID from openspec_status.artifacts[].id for the selected Change, or " +
+            "apply for Apply instructions. Omit to read status without artifact " +
+            "instructions.",
+        }),
+        include_assignment: Object.freeze({
+          type: "boolean",
+          description: "Include Code Repository checkout and assignment information in this response. " +
+            "Defaults to false; does not assign work.",
+        }),
       }),
       required: ["change_id"],
       additionalProperties: false,
@@ -86,21 +108,27 @@ const TOOL_DEFINITIONS = Object.freeze([
   defineTool({
     name: "get_next_action",
     applicationMethod: "getNextAction",
-    description: "Derive the next governed action and the actor allowed to perform it.",
+    description: "Read the next suggested OpenSpec action and responsible actor for a Change in the " +
+      "main Store. Does not execute the action. Without change_id, returns available " +
+      "Changes and asks the human to choose.",
     inputSchema: CHANGE_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
   defineTool({
     name: "get_assignment_scope",
     applicationMethod: "getAssignmentScope",
-    description: "Read all Code Repository assignments, checkouts, revisions and optional overlays.",
+    description: "Read Code Repository checkouts and Git revisions in the main Store project. With " +
+      "change_id, the Graph overlay marks repositories affected by that Change; without it, " +
+      "assignment is unknown. Does not assign work or report completion.",
     inputSchema: CHANGE_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
   defineTool({
     name: "get_doctor_report",
     applicationMethod: "getDoctorReport",
-    description: "Run the same read-only Orchestrator Doctor used by CLI.",
+    description: "Run read-only Orchestrator Doctor for the project resolved from the fixed MCP " +
+      "working directory. Reports environment, repository and Plugin diagnostics; does not " +
+      "repair them.",
     inputSchema: EMPTY_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
@@ -114,9 +142,20 @@ const TOOL_DEFINITIONS = Object.freeze([
     inputSchema: Object.freeze({
       type: "object",
       properties: Object.freeze({
-        store_id: IDENTIFIER_SCHEMA,
-        agent_id: IDENTIFIER_SCHEMA,
-        template_id: IDENTIFIER_SCHEMA,
+        store_id: Object.freeze({
+          ...IDENTIFIER_SCHEMA,
+          description: "New central Store identity and registry ID. The target path is the fixed MCP " +
+            "working directory.",
+        }),
+        agent_id: Object.freeze({
+          ...IDENTIFIER_SCHEMA,
+          description: "Agent provider ID from get_setup_context. This selects workflow integration, " +
+            "not an AI model.",
+        }),
+        template_id: Object.freeze({
+          ...IDENTIFIER_SCHEMA,
+          description: "Template ID from get_setup_context. Omit to use the default Template.",
+        }),
         repositories: Object.freeze({
           type: "array",
           description: "Optional Code Repositories only. Never include the central Store; " +
@@ -124,9 +163,18 @@ const TOOL_DEFINITIONS = Object.freeze([
           items: Object.freeze({
             type: "object",
             properties: Object.freeze({
-              repository_id: IDENTIFIER_SCHEMA,
-              remote: NON_EMPTY_STRING_SCHEMA,
-              default_branch: NON_EMPTY_STRING_SCHEMA,
+              repository_id: Object.freeze({
+                ...IDENTIFIER_SCHEMA,
+                description: "New Code Repository ID in the central Store registry; distinct from store_id.",
+              }),
+              remote: Object.freeze({
+                ...NON_EMPTY_STRING_SCHEMA,
+                description: "Git clone URL of this Code Repository.",
+              }),
+              default_branch: Object.freeze({
+                ...NON_EMPTY_STRING_SCHEMA,
+                description: "Existing branch to check out when cloning this Code Repository.",
+              }),
             }),
             required: ["repository_id", "remote", "default_branch"],
             additionalProperties: false,
@@ -142,21 +190,26 @@ const TOOL_DEFINITIONS = Object.freeze([
   defineTool({
     name: "connect_project",
     applicationMethod: "connectProject",
-    description: "Idempotently connect the current strict Project; may clone registered repositories.",
+    description: "Connect the main Store project resolved from the fixed MCP working directory in " +
+      "strict mode. May clone registered code/specs repositories and install configured " +
+      "project assets and integrations. Does not recursively connect dependencies of specs " +
+      "repositories.",
     inputSchema: EMPTY_SCHEMA,
     annotations: Object.freeze({ ...WRITE_ANNOTATIONS, openWorldHint: true }),
   }),
   defineTool({
     name: "start_attempt",
     applicationMethod: "startAttempt",
-    description: "Start local evidence for one canonical OpenSpec Apply task in the current Code Repository.",
+    description: "Start local evidence for one canonical OpenSpec Apply task from the main Store, in " +
+      "the Code Repository containing the fixed MCP working directory. Requires a Code " +
+      "Repository; does not execute the task or select a repository.",
     inputSchema: ATTEMPT_SCHEMA,
     annotations: WRITE_ANNOTATIONS,
   }),
   defineTool({
     name: "complete_attempt",
     applicationMethod: "completeAttempt",
-    description: "Map one completed OpenSpec Apply task to the current clean Code Repository revision. " +
+    description: "Map one completed OpenSpec Apply task from the main Store to the clean Git revision of the Code Repository containing the fixed MCP working directory. " +
       "Use the canonical task_id from start_attempt. Does not mark the task checkbox; " +
       "the task must already be marked done by Apply.",
     inputSchema: ATTEMPT_SCHEMA,
@@ -409,6 +462,7 @@ export function createOrchestratorMcpServer(application) {
         uri: resource.uri,
         mimeType: resource.mimeType,
         text: resource.text,
+        ...(resource._meta?.source || resource._meta?.diagnostic ? { _meta: resource._meta } : {}),
       }],
     };
   });

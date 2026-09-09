@@ -4,6 +4,7 @@ import path from "node:path";
 
 import {
   adaptOpenSpecPack,
+  assertInstalledPayload,
   nativeExtensionId,
   preflightNative,
   readNativeManifest,
@@ -28,6 +29,11 @@ function findExtensionEntry(output, nativeId) {
   return plain.split(/\n\s*\n/gu).find((block) => (
     new RegExp(`^[✓✗]\\s+${escapePattern(nativeId)}\\s+\\(`, "u").test(block)
   ));
+}
+
+/** Extracts the native install path in supported CLI locales. */
+function installationPath(entry) {
+  return entry?.match(/^\s*(?:Path|Путь):\s*(.+)$/mu)?.[1].trim();
 }
 
 /** Requires the requested Extension to be enabled in the current workspace. */
@@ -85,7 +91,23 @@ export function createQwenCompatibleAdapter({ scopeMarkers = QWEN_SCOPE_MARKERS 
       if (request.operation === "connect") {
         await this.validateExtension(extension, context.agent, { nativeId: resolvedNativeId });
         const output = await runNative(context, extension, ["extensions", "list"]);
-        args = findExtensionEntry(output, resolvedNativeId)
+        const entry = findExtensionEntry(output, resolvedNativeId);
+        if (entry) {
+          let stale = request.refresh === true;
+          if (!stale) {
+            try { await assertInstalledPayload(extension, installationPath(entry)); }
+            catch (error) {
+              if (!error.message.startsWith("AGENT_EXTENSION_STATUS_STALE:")) throw error;
+              stale = true;
+            }
+          }
+          if (stale) {
+            await runNative(context, extension, ["extensions", "update", resolvedNativeId]);
+            const updated = await runNative(context, extension, ["extensions", "list"]);
+            await assertInstalledPayload(extension, installationPath(findExtensionEntry(updated, resolvedNativeId)));
+          }
+        }
+        args = entry
           ? [
             "extensions", "enable", resolvedNativeId, "--scope", activationScope,
           ]
@@ -96,13 +118,18 @@ export function createQwenCompatibleAdapter({ scopeMarkers = QWEN_SCOPE_MARKERS 
       } else if (request.operation === "status") {
         const output = await runNative(context, extension, ["extensions", "list"]);
         assertExtensionEnabled(output, resolvedNativeId, activationScope, scopeMarkers);
+        await assertInstalledPayload(extension, installationPath(findExtensionEntry(output, resolvedNativeId)));
         return output;
       } else if (request.operation === "remove") {
         args = ["extensions", "uninstall", resolvedNativeId];
       } else {
         args = ["extensions", "disable", resolvedNativeId, "--scope", activationScope];
       }
-      return runNative(context, extension, args);
+      const output = await runNative(context, extension, args);
+      if (request.operation === "connect") {
+        await this.invokeExtension(context, extension, { operation: "status", scope: request.scope, ownerId: request.ownerId });
+      }
+      return output;
     },
   });
 }

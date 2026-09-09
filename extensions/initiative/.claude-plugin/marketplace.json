@@ -1,0 +1,12 @@
+{
+  "name": "openspec-orch-initiative",
+  "owner": {
+    "name": "OpenSpec Orchestrator"
+  },
+  "plugins": [
+    {
+      "name": "initiative",
+      "source": "./"
+    }
+  ]
+}

@@ -13,6 +13,7 @@
       <div class="brand">
         <h1>Граф OpenSpec</h1>
         <p id="summary">Загрузка…</p>
+
       </div>
       <div class="toolbar">
         <label class="search-field">
@@ -29,7 +30,7 @@
           <summary>
             <span aria-hidden="true">◉</span>
             Фильтры
-            <strong id="layer-count">3/5</strong>
+            <strong id="layer-count">4/6</strong>
           </summary>
           <div class="layers-popover">
             <fieldset id="node-type-filters" class="node-type-filters">
@@ -37,7 +38,11 @@
               <div class="filter-options">
                 <label>
                   <input type="checkbox" value="repository" checked>
-                  <i class="filter-dot repository" aria-hidden="true"></i>Репозитории
+                  <i class="filter-dot repository" aria-hidden="true"></i>Кодовые репозитории
+                </label>
+                <label>
+                  <input type="checkbox" value="specs-repository" checked>
+                  <i class="filter-dot specs-repository" aria-hidden="true"></i>Спековые репозитории
                 </label>
                 <label>
                   <input type="checkbox" value="master-spec" checked>
@@ -74,7 +79,8 @@
       <section class="graph-stage" aria-label="Граф OpenSpec">
         <div id="graph"></div>
         <div class="legend" aria-label="Легенда узлов">
-          <span><i class="legend-dot repository"></i>Репозиторий</span>
+          <span><i class="legend-dot repository"></i>Кодовый репозиторий</span>
+          <span><i class="legend-dot specs-repository"></i>Спековый репозиторий</span>
           <span><i class="legend-dot master"></i>Мастер-спека</span>
           <span><i class="legend-dot change"></i>Изменение</span>
           <span><i class="legend-dot archived"></i>Архив</span>

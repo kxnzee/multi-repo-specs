@@ -5,6 +5,7 @@ import process from "node:process";
 
 import {
   adaptOpenSpecPack,
+  assertInstalledPayload,
   nativeExtensionId,
   preflightNative,
   readNativeManifest,
@@ -59,6 +60,7 @@ function assertPluginEnabled(output, qualifiedId, scope, projectPath) {
   if (plugin.enabled !== true) {
     throw new Error(`AGENT_EXTENSION_STATUS_DISABLED: ${qualifiedId}`);
   }
+  return plugin;
 }
 
 /** Claude Plugin lifecycle через локальный marketplace checkout. */
@@ -106,18 +108,21 @@ const claudeAdapter = Object.freeze({
       await runNative(context, extension, [
         "plugin", "marketplace", "add", extension.root, "--scope", scope,
       ]);
-      return runNative(context, extension, [
+      await runNative(context, extension, [
         "plugin", "install", qualifiedId, "--scope", scope,
       ]);
+      await runNative(context, extension, ["plugin", "update", qualifiedId, "--scope", scope]);
+      return this.invokeExtension(context, extension, { operation: "status", scope: request.scope, ownerId: request.ownerId });
     }
     if (request.operation === "status") {
       const output = await runNative(context, extension, ["plugin", "list", "--json"]);
-      assertPluginEnabled(
+      const installed = assertPluginEnabled(
         output,
         qualifiedId,
         scope,
         await projectDirectory(context, scope),
       );
+      await assertInstalledPayload(extension, installed.installPath);
       return output;
     }
     const projectPath = await projectDirectory(context, scope);

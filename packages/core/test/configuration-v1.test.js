@@ -100,3 +100,26 @@ test("repository descriptions reject empty and non-string values", () => {
     )), /CONFIG_INVALID/);
   }
 });
+
+
+test("specs identity survives bindings and YAML while the owning Store stays unique", () => {
+  const source = CONFIG_V1 + `  - id: payments
+    roles: [specs]
+    store_id: team-payments
+    remote: https://example.test/team-payments.git
+    default_branch: main
+    plugins: []
+`;
+  const project = configuration.parseProject(source);
+  assert.equal(project.storeRepository.id, "specs");
+  assert.deepEqual(project.codeRepositories.map(({ id }) => id), ["frontend"]);
+  assert.deepEqual(project.specsRepositories.map(({ id }) => id), ["payments"]);
+  project.connectPlugin("codegraph", ["payments"]);
+  const restored = configuration.parseProject(configuration.serializeProject(project));
+  assert.equal(restored.requireRepository("payments").storeId, "team-payments");
+  assert.equal(restored.requireRepository("payments").disconnectPlugin("codegraph").storeId, "team-payments");
+  assert.throws(() => configuration.parseProject(source.replace("https://example.test/team-payments.git", "https://example.test/specs.git")), /собственный Store/);
+  assert.equal(configuration.parseProject(source.replace("store_id: team-payments", "store_id: specs")).specsRepositories[0].storeId, "specs");
+  assert.throws(() => configuration.parseProject(source.replace("    store_id: team-payments\n", "")), /storeId/);
+  assert.throws(() => configuration.parseProject(source.replace("roles: [specs]", "roles: [code]")), /storeId/);
+});

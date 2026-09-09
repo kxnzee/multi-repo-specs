@@ -20,8 +20,9 @@ export class Repository {
   #defaultBranch;
   #plugins;
   #description;
+  #storeId;
 
-  constructor({ id, role, remote, defaultBranch, description, plugins = [] }) {
+  constructor({ id, role, remote, defaultBranch, description, storeId, plugins = [] }) {
     if (typeof id !== "string" || id.length === 0) invalid("id обязателен");
     if (!REPOSITORY_ROLES.has(role)) invalid(`неизвестная role '${role}'`);
     if (typeof remote !== "string" || remote.length === 0) invalid(`remote ${id} обязателен`);
@@ -38,6 +39,13 @@ export class Repository {
     if (description !== undefined && (typeof description !== "string" || description.trim().length === 0)) {
       invalid(`description ${id} должен быть непустой строкой`);
     }
+    if (role === REPOSITORY_ROLE.specs) {
+      if (!CORE_PATTERNS.id.test(id)) invalid("specs id должен быть lowercase kebab-case");
+      if (typeof storeId !== "string" || !CORE_PATTERNS.id.test(storeId)) {
+        invalid(`storeId ${id} обязателен для specs`);
+      }
+    } else if (storeId !== undefined) invalid("storeId допустим только для specs");
+    this.#storeId = storeId;
     this.#description = description;
     this.#id = id;
     this.#role = role;
@@ -70,6 +78,10 @@ export class Repository {
   get description() {
     return this.#description;
   }
+
+  get storeId() { return this.#storeId; }
+
+  isSpecs() { return this.#role === REPOSITORY_ROLE.specs; }
 
   isStore() {
     return this.#role === REPOSITORY_ROLE.store;
@@ -112,6 +124,7 @@ export class Repository {
       remote: this.#remote,
       defaultBranch: this.#defaultBranch,
       ...(this.#description !== undefined ? { description: this.#description } : {}),
+      ...(this.#storeId !== undefined ? { storeId: this.#storeId } : {}),
       plugins: [...this.#plugins],
     });
   }

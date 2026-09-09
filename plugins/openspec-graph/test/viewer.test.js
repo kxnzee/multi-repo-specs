@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 
+import { expandStoreGraph } from "../lib/expanded-view.js";
+
 import { inspectChangeImpact } from "../lib/query.js";
 
 /** Minimal DOM element retaining rendered content and registered event handlers. */
@@ -11,7 +13,7 @@ class Element {
   children = [];
   events = new Map();
   dataset = {};
-  classList = { add() {} };
+  classList = { add() {}, remove() {} };
   value = "";
   textContent = "";
   append(...items) { this.children.push(...items); }
@@ -53,7 +55,7 @@ function graphFixture(changeIds = { active: "active", archived: "archived" }) {
 }
 
 /** Loads the complete shipped app, replacing only browser boundaries and its absolute import. */
-async function viewer(graph = graphFixture()) {
+async function viewer(graph = graphFixture(), config = {}) {
   const html = await readFile(new URL("../viewer/index.html", import.meta.url), "utf8");
   const app = await readFile(new URL("../viewer/app.js", import.meta.url), "utf8");
   const elements = new Map([...html.matchAll(/id="([^"]+)"/gu)]
@@ -88,14 +90,18 @@ async function viewer(graph = graphFixture()) {
     unselectAll() {}
     fit() {}
     moveTo() {}
-    moveNode() {}
+    moveNode(id, x, y) { datasets[0].update([{ id, x, y }]); }
     getScale() { return 1; }
-    getPosition() { return { x: 0, y: 0 }; }
-    getPositions(ids) { return Object.fromEntries(ids.map((id) => [id, this.getPosition()])); }
+    getPosition(id) { const node = datasets[0].get(id); return { x: node.x ?? 0, y: node.y ?? 0 }; }
+    getPositions(ids) { return Object.fromEntries(ids.map((id) => [id, this.getPosition(id)])); }
   }
   const context = {
     inspectChangeImpact,
-    fetch: async (url) => ({ ok: true, json: async () => url === "/graph.json" ? graph : {} }),
+    location: { search: "" },
+    fetch: async (url) => {
+      assert.ok(url.startsWith("/viewer-state.json"));
+      return { ok: true, json: async () => ({ graph, config }) };
+    },
     performance: { now: () => 0 },
     document: {
       getElementById: (id) => elements.get(id),
@@ -107,6 +113,7 @@ async function viewer(graph = graphFixture()) {
     setTimeout: (callback, delay) => { const id = ++nextTimer; timers.set(id, { callback, delay }); return id; },
     clearTimeout: (id) => timers.delete(id),
     requestAnimationFrame: (callback) => callback(),
+    cancelAnimationFrame() {},
   };
   await vm.runInNewContext(`(async () => {${app.replace(/^import .*;$/mu, "")}\n})()`, context);
   const [nodes, edges] = datasets;
@@ -124,6 +131,14 @@ async function viewer(graph = graphFixture()) {
       for (const { callback, delay } of timers.values()) if (delay === 70) callback();
     },
     select(id) { handlers.get("selectNode")({ nodes: [id] }); },
+    click(id) { handlers.get("selectNode")({ nodes: [id] }); handlers.get("click")({ nodes: [id], edges: [] }); },
+    drag(id, dx, dy) {
+      handlers.get("dragStart")({ nodes: [id] });
+      const node = nodes.get(id);
+      nodes.update([{ id, x: node.x + dx, y: node.y + dy }]);
+      handlers.get("dragging")({ nodes: [id] });
+      handlers.get("dragEnd")({ nodes: [id] });
+    },
     reset() { elements.get("reset-view").fire("click"); },
   };
 }
@@ -184,7 +199,7 @@ test("Archive-only and no-Change views compose with type filters and reset resto
   assert.equal(ui.visible("change:archived"), true);
   ui.toggle("archived", false);
   assert.equal(ui.elements.get("delta-filter").disabled, true);
-  assert.equal(ui.elements.get("layer-count").textContent, "2/5");
+  assert.equal(ui.elements.get("layer-count").textContent, "3/6");
   assert.equal(ui.visible("change:archived"), false);
   assert.equal(ui.visible("delta-spec:archived/checkout"), false);
   assert.equal(ui.visible("master-spec:checkout"), true);
@@ -196,7 +211,7 @@ test("Archive-only and no-Change views compose with type filters and reset resto
   ui.search("missing");
   ui.reset();
   assert.equal(ui.elements.get("search").value, "");
-  assert.equal(ui.elements.get("layer-count").textContent, "3/5");
+  assert.equal(ui.elements.get("layer-count").textContent, "4/6");
   for (const state of ["active", "archived"]) {
     assert.equal(ui.visible(`change:${state}`), state === "active");
     assert.equal(ui.visible(`delta-spec:${state}/checkout`), false);
@@ -249,4 +264,92 @@ test("Change names preserve exact IDs on canvas, in tooltips, details and connec
     .filter((element) => element.className === "entity-name entity-name-change")
     .map((element) => element.textContent);
   assert.deepEqual(new Set(names), new Set(Object.values(changeIds)));
+});
+
+test("Store nodes toggle their contents in place and keep other teams and filters intact", async () => {
+  let graph = graphFixture();
+  for (const id of ["payments", "platform"]) {
+    graph.nodes.push({ id: `repository:${id}`, type: "repository", role: "specs",
+      repository_id: id, state: "registered", status: "ok" });
+    graph = expandStoreGraph(graph, id, graphFixture());
+  }
+  const ui = await viewer(graph, { navigation: [{ id: "payments" }, { id: "platform" }] });
+  assert.equal(ui.elements.has("store-navigation"), false);
+  assert.equal(ui.visible("repository:payments"), true);
+  assert.equal(ui.visible("master-spec:payments::checkout"), false);
+  assert.equal(ui.visible("master-spec:platform::checkout"), false);
+  ui.click("repository:payments");
+  assert.equal(ui.visible("master-spec:payments::checkout"), true);
+  assert.equal(ui.visible("change:payments::archived"), false);
+  assert.equal(ui.visible("master-spec:platform::checkout"), false);
+  ui.click("repository:platform");
+  ui.toggle("master-spec", false);
+  ui.click("repository:payments");
+  assert.equal(ui.visible("change:payments::active"), false);
+  assert.equal(ui.visible("change:platform::active"), true);
+  assert.equal(ui.visible("master-spec:platform::checkout"), false);
+  ui.toggle("master-spec", true);
+  assert.equal(ui.visible("master-spec:payments::checkout"), false);
+  assert.equal(ui.visible("master-spec:platform::checkout"), true);
+  ui.search("checkout");
+  assert.equal(ui.visible("master-spec:payments::checkout"), false);
+  ui.reset();
+  assert.equal(ui.visible("master-spec:platform::checkout"), false);
+  assert.equal(ui.visible("repository:platform"), true);
+});
+
+test("code and specs filters remain independent through search, selection and reset", async () => {
+  const graph = graphFixture();
+  graph.nodes.push({ id: "repository:payments", type: "repository", role: "specs",
+    repository_id: "payments", state: "registered", status: "ok" });
+  const ui = await viewer(graph);
+  assert.match(ui.elements.get("summary").textContent, /Кодовые репозитории: 1/);
+  assert.match(ui.elements.get("summary").textContent, /Спековые репозитории: 1/);
+  assert.equal(ui.nodes.get("repository:payments").group, "specs-repository");
+  assert.match(ui.nodes.get("repository:payments").title, /Спековый репозиторий/);
+  assert.notEqual(ui.nodes.get("repository:payments").color.background, ui.nodes.get("repository:web").color.background);
+  ui.toggle("specs-repository", false);
+  for (const action of [() => {}, () => ui.search("payments"), () => ui.select("repository:web")]) {
+    action();
+    assert.equal(ui.visible("repository:payments"), false);
+  }
+  ui.reset();
+  ui.toggle("repository", false);
+  assert.equal(ui.visible("repository:payments"), true);
+  assert.equal(ui.visible("repository:web"), false);
+  ui.select("repository:payments");
+  assert.equal(ui.elements.get("selection-kind").textContent, "Спековый репозиторий");
+  assert.equal(ui.visible("repository:web"), false);
+  ui.reset();
+  assert.equal(ui.visible("repository:web"), true);
+  assert.equal(ui.visible("repository:payments"), true);
+  assert.equal(ui.elements.get("layer-count").textContent, "4/6");
+});
+
+test("dragging a Store moves its hidden and visible contents without moving another team", async () => {
+  let graph = graphFixture();
+  for (const id of ["payments", "platform"]) {
+    graph.nodes.push({ id: `repository:${id}`, type: "repository", role: "specs",
+      repository_id: id, state: "registered", status: "ok" });
+    graph = expandStoreGraph(graph, id, graphFixture());
+  }
+  const ui = await viewer(graph, { navigation: [{ id: "payments" }, { id: "platform" }] });
+  const original = new Map(graph.nodes.filter(({ team_id }) => team_id).map(({ id }) => [id, { ...ui.nodes.get(id) }]));
+  ui.drag("repository:payments", 240, -130);
+  ui.click("repository:payments");
+  assert.equal(ui.visible("master-spec:payments::checkout"), true);
+  for (const [id, position] of original) {
+    const moved = id.includes("payments::");
+    assert.ok(Math.abs(ui.nodes.get(id).x - position.x - (moved ? 240 : 0)) < 1e-8);
+    assert.ok(Math.abs(ui.nodes.get(id).y - position.y - (moved ? -130 : 0)) < 1e-8);
+  }
+  ui.drag("repository:payments", 20, 30);
+  ui.click("repository:payments");
+  ui.drag("repository:payments", -10, 40);
+  ui.click("repository:payments");
+  for (const [id, position] of original) {
+    const moved = id.includes("payments::");
+    assert.ok(Math.abs(ui.nodes.get(id).x - position.x - (moved ? 250 : 0)) < 1e-8);
+    assert.ok(Math.abs(ui.nodes.get(id).y - position.y - (moved ? -60 : 0)) < 1e-8);
+  }
 });

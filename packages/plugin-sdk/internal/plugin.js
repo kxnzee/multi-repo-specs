@@ -13,11 +13,11 @@ const PLUGIN_KEYS = new Set(["agent", "id", "supports", "repository", "extension
 const REPOSITORY_KEYS = new Set(["connect", "status", "sync", "exec"]);
 const AGENT_KEYS = new Set(["create", "enhance", "requireBinding", "tools"]);
 const AGENT_TOOL_KEYS = new Set([
-  "annotations", "description", "execute", "inputSchema", "name", "validate",
+  "annotations", "description", "execute", "inputSchema", "name", "validate", "repositoryScoped", "repositoryParameter",
 ]);
 const AGENT_TOOL_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/u;
 
-/** @typedef {"store" | "code"} RepositoryRole */
+/** @typedef {"store" | "code" | "specs"} RepositoryRole */
 
 /**
  * @typedef {object} RepositoryHandle
@@ -49,6 +49,7 @@ const AGENT_TOOL_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/u;
  * @property {(pathspec?: readonly string[]) => Promise<readonly string[]>} statusPaths
  * @property {(pathspec?: readonly string[]) => Promise<boolean>} isClean
  * @property {() => Promise<string>} revision
+ * @property {(ancestor: string, descendant: string) => Promise<boolean>} isAncestor
  * @property {(pathspec: readonly string[]) => Promise<string>} latestRevision
  * @property {(revision?: string) => Promise<boolean>} isRemoteReachable
  * @property {(revision: string) => Promise<boolean>} hasCommit
@@ -124,6 +125,7 @@ const AGENT_TOOL_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/u;
 /**
  * @typedef {object} PluginContext
  * @property {Readonly<ProjectHandle>} project
+ * @property {{readonly id: string, readonly repositories: readonly RepositoryHandle[]} | null} targetStore
  * @property {RepositoryRegistry} repositories
  * @property {RepositoryHandle} [repository]
  * @property {{readonly id: string, readonly role: RepositoryRole, readonly path: string} | null}
@@ -225,7 +227,22 @@ function agentContribution(agent) {
     }
     assertCallback(tool.execute, `agent tool ${tool.name}.execute`);
     if (tool.validate !== undefined) assertCallback(tool.validate, `agent tool ${tool.name}.validate`);
+    if (tool.repositoryScoped !== undefined && typeof tool.repositoryScoped !== "boolean") {
+      invalid(`agent tool ${tool.name}.repositoryScoped должен быть boolean`);
+    }
+    if (tool.repositoryParameter !== undefined) {
+      const parameter = tool.repositoryParameter;
+      if (typeof parameter !== "string" || !AGENT_TOOL_PATTERN.test(parameter) ||
+          tool.inputSchema?.properties?.[parameter]?.type !== "string") {
+        invalid(`agent tool ${tool.name}.repositoryParameter должен указывать строковое поле inputSchema`);
+      }
+      if (tool.repositoryScoped !== undefined) {
+        invalid(`agent tool ${tool.name}: используйте только repositoryParameter или repositoryScoped`);
+      }
+    }
     return Object.freeze({
+      repositoryParameter: tool.repositoryParameter ?? (tool.repositoryScoped ? "repository_id" : null),
+      repositoryScoped: tool.repositoryScoped ?? false,
       name: tool.name,
       definition: Object.freeze({
         name: tool.name,

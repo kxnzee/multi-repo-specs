@@ -30,5 +30,6 @@ export const CORE_SETTINGS = Object.freeze({
   }),
   workspace: Object.freeze({
     repositoriesDirectory: "src",
+    specsDirectory: "linked-specs",
   }),
 });

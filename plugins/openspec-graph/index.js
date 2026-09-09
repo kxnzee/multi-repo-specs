@@ -9,7 +9,7 @@ import { OpenSpecGraphService } from "./lib/service.js";
 const plugin = definePlugin({
   id: "openspec-graph",
   agent: openSpecGraphAgentContribution,
-  supports: [REPOSITORY_ROLE.store],
+  supports: [REPOSITORY_ROLE.store, REPOSITORY_ROLE.specs],
   repository: {
     connect() {
       return "OpenSpec Graph подключён; граф компилируется командами inspect и view";

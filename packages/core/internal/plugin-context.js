@@ -9,7 +9,7 @@ import { openspec } from "./openspec.js";
 import { pluginStorage } from "./plugin-storage.js";
 import { processes } from "./process.js";
 import { coreState } from "./core-state.js";
-import { StoreProject } from "./store-project.js";
+import { StoreProject, storeProjects } from "./store-project.js";
 import { deepFreeze } from "./value.js";
 import { workspace } from "./workspace.js";
 
@@ -27,12 +27,14 @@ function assertMessage(message) {
 
 /** Read-only registry с проверкой Plugin bindings. */
 class PluginRepositoryRegistry {
+  #contextFactory;
   #gitFactory;
   #handles;
   #plugin;
   #project;
 
-  constructor(project, plugin, gitFactory) {
+  constructor(project, plugin, gitFactory, contextFactory) {
+    this.#contextFactory = contextFactory;
     if (typeof gitFactory !== "function") {
       throw new Error("PLUGIN_REPOSITORIES_INVALID: требуется Git facade factory");
     }
@@ -85,6 +87,11 @@ class PluginRepositoryRegistry {
       throw error;
     }
   }
+
+  /** Resolves a fresh bound context for this Plugin in the owning project's registry. */
+  async context(repositoryId) {
+    return this.#contextFactory(repositoryId);
+  }
 }
 
 /** Git API без раскрытия checkout root и mutation-команд. */
@@ -102,6 +109,7 @@ class PluginGitFacade {
   revision() { return this.#git.revision(); }
   latestRevision(pathspec) { return this.#git.latestRevision(pathspec); }
   isRemoteReachable(revision) { return this.#git.isRemoteReachable(revision); }
+  isAncestor(ancestor, descendant) { return this.#git.isAncestor(ancestor, descendant); }
   hasCommit(revision) { return this.#git.hasCommit(revision); }
   assertNoOperation() { return this.#git.assertNoOperation(); }
 }
@@ -220,6 +228,7 @@ export class PluginContext {
   }
 
   get project() { return this.#value.project; }
+  get targetStore() { return this.#value.targetStore ?? null; }
   get repositories() { return this.#value.repositories; }
   get repository() { return this.#value.repository; }
   get invocation() { return this.#value.invocation ?? null; }
@@ -315,8 +324,14 @@ export class PluginContextFactory {
     project.requirePlugin(plugin.id);
     const repositories = new PluginRepositoryRegistry(project, plugin, async (selected) => {
       const selectedCheckout = await this.#resolveCheckout(storeProject, selected);
+      await this.#targetProject(storeProject, selectedCheckout);
       return new PluginGitFacade(this.#git.forRepository(selectedCheckout));
-    });
+    }, async (selectedId) => this.forRepository({
+      loadedPlugin,
+      storeProject: await storeProjects.load(storeProject.root),
+      repositoryId: selectedId,
+      invocation,
+    }));
     const repositoryModel = project.requireRepository(repositoryId);
     let repository;
     if (requireBinding) {
@@ -350,7 +365,13 @@ export class PluginContextFactory {
       repositories: repositories.list(),
       agent,
     });
+    const targetProject = await this.#targetProject(storeProject, checkout);
+    const targetStore = targetProject ? deepFreeze({
+      id: targetProject.store.id,
+      repositories: targetProject.project.repositories.map(repositoryHandle),
+    }) : null;
     return new PluginContext({
+      targetStore,
       project: projectSnapshot,
       repositories,
       repository,
@@ -363,6 +384,14 @@ export class PluginContextFactory {
       agent,
       logger: new PluginLogger(plugin.id, repository.id, this.#logSink),
     });
+  }
+
+  /** Applies the same linked identity checks to direct contexts and registry Git access. */
+  async #targetProject(storeProject, checkout) {
+    if (checkout.repository.isStore()) return storeProject;
+    if (!checkout.repository.isSpecs()) return null;
+    await this.#git.forRepository(checkout).assertIdentity();
+    return storeProjects.loadSpecs(checkout);
   }
 
   async #resolveCheckout(storeProject, repository) {

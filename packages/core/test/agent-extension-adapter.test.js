@@ -89,7 +89,7 @@ test("Qwen adapter installs once and proxies workspace lifecycle", async (t) => 
     const operation = calls.at(-1)[1].join(" ");
     if (operation === "extensions list") {
       return installed
-        ? "✓ codegraph-agent (1.0.0)\n Enabled (Workspace): true"
+        ? `✓ codegraph-agent (1.0.0)\n Enabled (Workspace): true\n Path: ${root}`
         : "No extensions installed.";
     }
     if (operation.startsWith("extensions install ")) installed = true;
@@ -120,7 +120,9 @@ test("Qwen adapter installs once and proxies workspace lifecycle", async (t) => 
       "--scope", "project", "--consent",
     ]],
     ["qwen", ["extensions", "list"]],
+    ["qwen", ["extensions", "list"]],
     ["qwen", ["extensions", "enable", "codegraph-agent", "--scope", "workspace"]],
+    ["qwen", ["extensions", "list"]],
     ["qwen", ["extensions", "list"]],
     ["qwen", ["extensions", "disable", "codegraph-agent", "--scope", "workspace"]],
   ]);
@@ -131,7 +133,8 @@ test("GigaCode adapter requires its manifest and uses GigaCode CLI", async (t) =
   const root = await extensionFixture(t, "openspec-gigacode-extension-");
   await fs.rm(path.join(root, "qwen-extension.json"));
   const fixture = invocationContext("gigacode", (calls) => {
-    if (calls.at(-1)[1].join(" ") === "extensions list") return "Расширения не установлены.";
+    if (calls.at(-1)[1].join(" ") === "extensions list") return calls.length === 1
+      ? "Расширения не установлены." : `✓ codegraph-agent (1.0.0)\n Path: ${root}\n Enabled (Workspace): true`;
     return "installed";
   });
 
@@ -146,6 +149,7 @@ test("GigaCode adapter requires its manifest and uses GigaCode CLI", async (t) =
       "extensions", "install", `${root}:codegraph-agent`,
       "--scope", "project", "--consent",
     ]],
+    ["gigacode", ["extensions", "list"]],
   ]);
 
   await fs.rm(path.join(root, "gigacode-extension.json"));
@@ -175,9 +179,9 @@ for (const agentId of ["qwen", "gigacode"]) {
         const listCalls = calls.filter(([, args]) => args.join(" ") === "extensions list");
         if (listCalls.length === 1) return "No extensions installed.";
         return agentId === "gigacode"
-          ? "✓ orchestrator-agent (1.0.0)\n Включено (Пользователь): true\n" +
+          ? `✓ orchestrator-agent (1.0.0)\n Включено (Пользователь): true\n Path: ${root}\n` +
             " Включено (Рабочее пространство): true"
-          : "✓ orchestrator-agent (1.0.0)\n Enabled (User): true";
+          : `✓ orchestrator-agent (1.0.0)\n Enabled (User): true\n Path: ${root}`;
       }
       return "done";
     });
@@ -206,6 +210,7 @@ for (const agentId of ["qwen", "gigacode"]) {
         "--scope", "user", "--consent",
       ]],
       [executable, ["extensions", "list"]],
+      [executable, ["extensions", "list"]],
       [executable, ["extensions", "uninstall", "orchestrator-agent"]],
     ]);
   });
@@ -219,7 +224,7 @@ test("GigaCode localized status still requires the requested scope", async (t) =
   );
   const fixture = invocationContext(
     "gigacode",
-    "✓ orchestrator-agent (1.0.0)\n Включено (Рабочее пространство): true",
+    `✓ orchestrator-agent (1.0.0)\n Включено (Рабочее пространство): true\n Path: ${root}`,
   );
 
   await assert.rejects(
@@ -241,8 +246,8 @@ test("GigaCode accepts Russian and English user scope markers", async (t) => {
   const payload = extension(root, "orchestrator-agent");
 
   for (const output of [
-    "✓ orchestrator-agent (1.0.0)\n Enabled (User): true",
-    "✓ orchestrator-agent (1.0.0)\n Включено (Пользователь): true",
+    `✓ orchestrator-agent (1.0.0)\n Enabled (User): true\n Path: ${root}`,
+    `✓ orchestrator-agent (1.0.0)\n Включено (Пользователь): true\n Path: ${root}`,
   ]) {
     const fixture = invocationContext("gigacode", output);
     assert.equal(await agentAdapter.invokeExtension(
@@ -257,7 +262,7 @@ test("Qwen adapter does not replace an enable failure with install", async (t) =
   const root = await extensionFixture(t, "openspec-qwen-enable-failure-");
   const fixture = invocationContext("qwen", (calls) => {
     if (calls.at(-1)[1].join(" ") === "extensions list") {
-      return "✗ codegraph-agent (1.0.0)\n Enabled (Workspace): false";
+      return `✗ codegraph-agent (1.0.0)\n Enabled (Workspace): false\n Path: ${root}`;
     }
     throw new Error("workspace is not writable");
   });
@@ -282,7 +287,7 @@ test("Claude adapter proxies local marketplace lifecycle", async (t) => {
   const fixture = invocationContext("claude", (calls) => (
     calls.at(-1)[1].includes("list")
       ? JSON.stringify(calls.some(([, args]) => args.includes("uninstall"))
-        ? [] : [{ id: qualified, enabled: true, scope: "local", projectPath: process.cwd() }])
+        ? [] : [{ id: qualified, installPath: root, enabled: true, scope: "local", projectPath: process.cwd() }])
       : `result-${calls.length}`
   ));
   const payload = extension(root);
@@ -291,7 +296,7 @@ test("Claude adapter proxies local marketplace lifecycle", async (t) => {
     fixture.context,
     payload,
     { operation: "connect", ownerId: "codegraph" },
-  ), "result-2");
+  ), JSON.stringify([{ id: qualified, installPath: root, enabled: true, scope: "local", projectPath: process.cwd() }]));
   await agentAdapter.invokeExtension(
     fixture.context,
     payload,
@@ -306,6 +311,8 @@ test("Claude adapter proxies local marketplace lifecycle", async (t) => {
   assert.deepEqual(fixture.calls, [
     ["claude", ["plugin", "marketplace", "add", root, "--scope", "local"]],
     ["claude", ["plugin", "install", qualified, "--scope", "local"]],
+    ["claude", ["plugin", "update", qualified, "--scope", "local"]],
+    ["claude", ["plugin", "list", "--json"]],
     ["claude", ["plugin", "list", "--json"]],
     ["claude", ["plugin", "list", "--json"]],
     ["claude", ["plugin", "uninstall", qualified, "--scope", "local"]],
@@ -341,7 +348,7 @@ test("Claude adapter honors explicit user scope for the gateway", async (t) => {
   const fixture = invocationContext("claude", (calls) => (
     calls.at(-1)[1].includes("list")
       ? JSON.stringify(calls.some(([, args]) => args.includes("uninstall"))
-        ? [] : [{ id: qualified, enabled: true, scope: "user" }])
+        ? [] : [{ id: qualified, installPath: root, enabled: true, scope: "user" }])
       : "done"
   ));
 
@@ -365,6 +372,8 @@ test("Claude adapter honors explicit user scope for the gateway", async (t) => {
     ["claude", [
       "plugin", "install", "codegraph-agent@openspec-orch-codegraph-agent", "--scope", "user",
     ]],
+    ["claude", ["plugin", "update", qualified, "--scope", "user"]],
+    ["claude", ["plugin", "list", "--json"]],
     ["claude", ["plugin", "list", "--json"]],
     ["claude", ["plugin", "list", "--json"]],
     ["claude", [
@@ -383,7 +392,7 @@ test("Agent status requires the exact Extension to be present and enabled", asyn
 
   for (const [agentId, output, expected] of [
     ["qwen", "No extensions installed.", /AGENT_EXTENSION_STATUS_MISSING.*codegraph-agent/u],
-    ["qwen", "✗ codegraph-agent (1.0.0)", /AGENT_EXTENSION_STATUS_DISABLED.*codegraph-agent/u],
+    ["qwen", `✗ codegraph-agent (1.0.0)\n Path: ${root}`, /AGENT_EXTENSION_STATUS_DISABLED.*codegraph-agent/u],
     ["claude", "[]", /AGENT_EXTENSION_STATUS_MISSING.*codegraph-agent@openspec-orch-codegraph-agent/u],
     [
       "claude",
@@ -494,7 +503,7 @@ test("Claude disconnect preserves another project's marketplace and is repeatabl
   const root = await extensionFixture(t, "openspec-claude-shared-marketplace-");
   const qualified = "codegraph-agent@openspec-orch-codegraph-agent";
   let registrations = [process.cwd(), path.join(root, "other")].map((projectPath) => ({
-    id: qualified, scope: "local", enabled: true, projectPath,
+    id: qualified, installPath: root, scope: "local", enabled: true, projectPath,
   }));
   const fixture = invocationContext("claude", (calls) => {
     const args = calls.at(-1)[1];
@@ -512,7 +521,7 @@ test("Claude disconnect preserves another project's marketplace and is repeatabl
 test("Claude scopes Plugin-owned status and disconnect through a process facade without cwd", async (t) => {
   const root = await extensionFixture(t, "openspec-claude-hidden-cwd-");
   const qualified = "codegraph-agent@openspec-orch-codegraph-agent";
-  let installed = [{ id: qualified, scope: "local", enabled: true, projectPath: root }];
+  let installed = [{ id: qualified, installPath: root, scope: "local", enabled: true, projectPath: root }];
   const calls = [];
   const context = { agent: { id: "claude" }, process: {
     async run(executable, args) {
@@ -533,8 +542,40 @@ for (const agentId of ["qwen", "gigacode"]) {
   test(`${agentId} default status requires activation in the current workspace`, async (t) => {
     const root = await extensionFixture(t);
     const fixture = invocationContext(agentId,
-      "✓ codegraph-agent (1.0.0)\n Enabled (User): true\n Enabled (Workspace): false");
+      `✓ codegraph-agent (1.0.0)\n Enabled (User): true\n Enabled (Workspace): false\n Path: ${root}`);
     await assert.rejects(agentAdapter.invokeExtension(fixture.context, extension(root),
       { operation: "status", ownerId: "codegraph" }), /AGENT_EXTENSION_STATUS_SCOPE_MISSING/u);
+  });
+}
+
+for (const agentId of ["qwen", "gigacode", "claude"]) {
+  test(`${agentId} detects stale installed files and verifies reconnect`, async (t) => {
+    const root = await extensionFixture(t, "openspec-refresh-source-", "agent");
+    await fs.writeFile(path.join(root, "agent-instructions.md"), "current instructions");
+    const installedRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-refresh-installed-"));
+    t.after(() => fs.rm(installedRoot, { recursive: true, force: true }));
+    await fs.cp(root, installedRoot, { recursive: true });
+    await fs.writeFile(path.join(installedRoot, "agent-instructions.md"), "outdated instructions");
+    let updateWorks = false;
+    const fixture = invocationContext(agentId, async (calls) => {
+      const args = calls.at(-1)[1];
+      if (args[1] === "update" && updateWorks) await fs.cp(root, installedRoot, { recursive: true });
+      if (agentId === "claude" && args[1] === "list") return JSON.stringify([
+        { id: "agent@openspec-orch-agent", scope: "user", enabled: true, installPath: installedRoot },
+      ]);
+      if (args[1] === "list") return `✓ agent (1.0.0)\n Path: ${installedRoot}\n Enabled (User): true`;
+      return "done";
+    });
+    const payload = extension(root);
+    const status = { operation: "status", scope: "user" };
+    await assert.rejects(agentAdapter.invokeExtension(fixture.context, payload, status), /STATUS_STALE.*agent-instructions/u);
+    assert.equal(fixture.calls.length, 1, "status is read-only");
+    await assert.rejects(agentAdapter.invokeExtension(fixture.context, payload, { ...status, operation: "connect" }), /STATUS_STALE/u);
+    updateWorks = true;
+    await agentAdapter.invokeExtension(fixture.context, payload, { ...status, operation: "connect" });
+    await agentAdapter.invokeExtension(fixture.context, payload, status);
+    assert.equal(fixture.calls.some(([, args]) => args[1] === "uninstall"), false);
+    await fs.writeFile(path.join(installedRoot, "obsolete-command.md"), "removed upstream");
+    await assert.rejects(agentAdapter.invokeExtension(fixture.context, payload, status), /STATUS_STALE.*removed file/u);
   });
 }

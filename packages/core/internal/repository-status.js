@@ -18,6 +18,7 @@ export const REPOSITORY_STATUS_STATE = Object.freeze({
   notGitRepository: "not_a_git_repository",
   notGitRoot: "not_a_git_root",
   workspaceUnresolved: "workspace_unresolved",
+  invalidSpecs: "invalid_specs",
 });
 
 const REPOSITORY_STATES = new Set(Object.values(REPOSITORY_STATUS_STATE));
@@ -46,6 +47,7 @@ export class RepositoryStatus {
   get remote() { return this.#value.remote; }
   get remoteMatches() { return this.#value.remoteMatches; }
   get branch() { return this.#value.branch; }
+  get error() { return this.#value.error; }
   get clean() { return this.#value.clean; }
 }
 
@@ -92,7 +94,7 @@ export class RepositoryStatusService {
         ? storeProject.root
         : workspaceModel?.checkoutPath(repository) ?? null;
       return expectedPath
-        ? await this.#inspectRepository(repository, expectedPath)
+        ? await this.#inspectRepository(repository, expectedPath, workspaceModel)
         : new RepositoryStatus({
           repository,
           state: REPOSITORY_STATUS_STATE.workspaceUnresolved,
@@ -100,12 +102,19 @@ export class RepositoryStatusService {
     });
   }
 
-  async #inspectRepository(repository, expectedPath) {
+  async #inspectRepository(repository, expectedPath, workspaceModel) {
     const base = { repository, path: expectedPath, connected: false };
     const stat = await lstatOrNull(expectedPath);
     if (!stat) return new RepositoryStatus({ ...base, state: REPOSITORY_STATUS_STATE.missing });
     if (!stat.isDirectory() || stat.isSymbolicLink()) {
       return new RepositoryStatus({ ...base, state: REPOSITORY_STATUS_STATE.notDirectory });
+    }
+    if (repository.isSpecs()) {
+      try {
+        await this.#workspace.resolveCheckout(workspaceModel, repository);
+      } catch {
+        return new RepositoryStatus({ ...base, state: REPOSITORY_STATUS_STATE.notDirectory });
+      }
     }
     const checkout = new RepositoryCheckout(repository, expectedPath);
     const repositoryGit = this.#git.forRepository(checkout);
@@ -124,6 +133,14 @@ export class RepositoryStatusService {
       repositoryGit.isClean(),
     ]);
     const remoteMatches = repository.matchesRemote(remote);
+    if (repository.isSpecs() && remoteMatches) {
+      try {
+        await this.#storeProjects.loadSpecs(checkout);
+      } catch (error) {
+        return new RepositoryStatus({ ...base, remote, remoteMatches, branch, clean,
+          state: REPOSITORY_STATUS_STATE.invalidSpecs, error: error.message });
+      }
+    }
     return new RepositoryStatus({
       ...base,
       connected: true,

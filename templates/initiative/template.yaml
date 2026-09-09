@@ -1,0 +1,10 @@
+id: initiative
+name: Initiative planning
+agentInstructions: assets/agent-instructions.md
+requires:
+  extensions: [initiative]
+copy:
+  - from: assets/STORE.md
+    to: STORE.md
+  - from: openspec
+    to: openspec

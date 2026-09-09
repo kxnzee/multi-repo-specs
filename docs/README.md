@@ -18,6 +18,7 @@ Repository через OpenSpec pointer. Соблюдайте scope конкре�
 
 | Задача | Документ |
 |---|---|
+| Планировать общие инициативы и проверять результат | [Профиль initiative](user/initiatives.md) |
 | Понять назначение, модель и границы продукта | [Обзор](user/overview.md) |
 | Установить или обновить Orchestrator, перенести Template changes, выполнить rollback | [Установка и обновление](user/installation-and-updates.md) |
 | Создать новый Store или подключить существующий | [Начало работы](user/getting-started.md) |
@@ -58,6 +59,6 @@ Compliance. Schema выбирается отдельно для каждого C
 `docs/technical/`.
 
 Project Template является copy-only пакетом: schemas и их templates находятся в
-`templates/default/`. Agent workflow assets поставляются standalone Extensions из
+`templates/<id>/`. Agent workflow assets поставляются standalone Extensions из
 `extensions/`. Requirements, Master Specs и Changes принадлежат отдельному
 центральному Store, а не этому implementation repository.
