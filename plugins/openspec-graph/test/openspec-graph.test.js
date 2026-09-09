@@ -207,7 +207,7 @@ test("Package exposes a Store-only Plugin with graph commands and no sync", asyn
   assert.deepEqual(plugin.supports, ["store", "specs"]);
   assert.equal(plugin.canExec(), true);
   assert.equal(plugin.canSync(), false);
-  assert.equal(plugin.hasExtensionContribution(), false);
+  assert.equal(plugin.hasExtensionContribution(), true);
   assert.equal(packageManifest.files.includes("template"), false);
   await assert.rejects(
     fs.access(path.join(packageRoot, "template", "template.yaml")),

@@ -1,0 +1,8 @@
+{
+  "name": "openspec-graph-agent",
+  "version": "1.0.0",
+  "description": "OpenSpec Graph impact verification guidance",
+  "author": {
+    "name": "OpenSpec Orchestrator"
+  }
+}

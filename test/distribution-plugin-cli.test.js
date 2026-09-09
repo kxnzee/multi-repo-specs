@@ -339,6 +339,12 @@ test("candidate distribution exposes every Plugin through plugin exec", async (t
     scope: args.slice(-3),
   })), [
     {
+      cwd: await fs.realpath(storeRoot),
+      nativeId: "openspec-graph-agent",
+      operation: ["extensions", "install"],
+      scope: ["--scope", "project", "--consent"],
+    },
+    {
       cwd: await fs.realpath(codeRoot),
       nativeId: "change-tracking-agent",
       operation: ["extensions", "install"],

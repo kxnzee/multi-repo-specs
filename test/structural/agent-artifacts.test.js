@@ -213,9 +213,11 @@ test("spec-driven-extended Extension isolates its workflow without naming other 
   assert.doesNotMatch(source, /superspec-multirepo|Superspec/u);
 });
 
-test("Default Template artifacts do not depend on concrete Plugins", async () => {
-  const forbidden = /codegraph|change[ -]tracking|change-tracking|result receipt|\bcycle records?\b|\bsnapshot\b|openspec-orch graph|openspec graph/iu;
-  for (const root of [EXTENSION_ROOT, TEMPLATE_ROOT]) {
+test("Default and Initiative artifacts do not depend on concrete Plugins", async () => {
+  const forbidden = /codegraph|change[ -]tracking|change-tracking|result receipt|\bcycle records?\b|\bsnapshot\b|openspec-orch graph|openspec[ -]graph|\bget_spec_change_impact\b/iu;
+  const initiativeRoots = ["../../extensions/initiative/", "../../templates/initiative/"]
+    .map((relative) => fileURLToPath(new URL(relative, import.meta.url)));
+  for (const root of [EXTENSION_ROOT, TEMPLATE_ROOT, ...initiativeRoots]) {
     for (const file of await files(root)) {
       const source = await fs.readFile(file, "utf8");
       assert.doesNotMatch(source, forbidden, path.relative(root, file));

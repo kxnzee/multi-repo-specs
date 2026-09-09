@@ -24,7 +24,7 @@ async function payloads() {
 
 test("every shipped Qwen and GigaCode payload resolves its actual marketplace selector", async () => {
   const roots = await payloads();
-  assert.equal(roots.length, 7);
+  assert.equal(roots.length, 8);
   for (const agentId of ["qwen", "gigacode"]) {
     const { adapter, definition } = await BundledAgentPackage.load(path.join(ROOT, "agents", agentId));
     for (const root of roots) {

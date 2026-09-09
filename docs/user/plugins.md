@@ -157,6 +157,14 @@ repository data, локальный Plugin storage или созданные Plu
 
 ## OpenSpec Graph
 
+При подключении к основному Store плагин доставляет агенту собственные инструкции:
+после подготовки или изменения Proposal/Delta Specs проверять Repository Impact
+через Graph и учитывать его диагностику. Это дополнение к текущей schema и штатной
+валидации OpenSpec; workflow не зависит от имени плагина. Claude получает инструкции
+через SessionStart, Qwen и GigaCode — через context file Extension. Для уже
+подключённого плагина после обновления повторите `plugin connect` и начните новую
+сессию агента. В подключённые Store с ролью `specs` Extensions не устанавливаются.
+
 Для Store другой команды добавьте подключение с ролью `specs` в
 [конфигурацию проекта](configuration.md#подключённые-store-роль-specs), выполните
 `connect` и привяжите Graph к локальному имени подключения. Plugin устанавливается
