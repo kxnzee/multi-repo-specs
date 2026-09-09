@@ -18,7 +18,7 @@ MCP. Переиспользуй его по `context_revision` согласно 
 - `artifact_instructions`: `instruction`, `rules` и `template` запрошенного artifact.
   Без аргумента `artifact` поле равно `null`; пустые дополнительные `rules`
   не отменяют требования `instruction`;
-- `assignment_scope`: Repository scope и revision при `include_assignment: true`.
+- `assignment_scope`: Repository scope и checkout при `include_assignment: true`.
 
 `openspec-orch.yaml` задаёт реестр Project. Нормативные Store artifacts читай через
 MCP resources. Если следующий шаг неясен, вызови `get_next_action` и учитывай
@@ -101,13 +101,13 @@ current-state conflict допускается адресное исследов�
 Перед использованием ответа сверь его структуру и question_id
 с профилем и отправленным запросом. Невалидный ответ оставляет вопрос открытым.
 
-Один вопрос — один новый subagent: пять вопросов — пять subagents. Scope и revision
+Один вопрос — один новый subagent: пять вопросов — пять subagents. Scope и checkout
 бери из актуального `assignment_scope`; отдельно вызывай `get_assignment_scope`,
 когда этих данных нет или наступила граница свежести. Основной агент сам читает
 Store context, выполняет Planning review и проверяет полученные evidence;
 отдельные context/planning subagents не используются.
 
-Если scope, revision или обязательное правило не подтверждены, зафиксируй blocker
+Если scope, checkout или обязательное правило не подтверждены, зафиксируй blocker
 и укажи, чего не хватает для продолжения. Сохраняй назначенный checkout и scope.
 
 ## Завершай работу в рамках процесса команды

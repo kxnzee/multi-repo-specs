@@ -34,7 +34,7 @@ Repository; Plugin-specific поведение остаётся вне этог�
    `get_change_context` с `change_id`, `artifact: apply` и `include_assignment: true`.
    Instructions и Tasks брать из `artifact_instructions`, paths — из
    `openspec_status`, repository scope — из вложенного `assignment_scope`; не
-   вызывай `get_assignment_scope` повторно, когда эти Repository и revision уже
+   вызывай `get_assignment_scope` повторно, когда эти Repository и checkout уже
    получены, и не собирай этот контекст вручную.
 2. Проверить, что Repository Impact использует строгую таблицу
    `Repository | Capabilities`, все repository-id зарегистрированы, а capability paths
@@ -51,8 +51,9 @@ Repository; Plugin-specific поведение остаётся вне этог�
    текущий repository-id по строгой таблице Repository Impact. Не продолжать при
    расхождении или отсутствии подтверждённого scope.
 
-Для `current_assignment.role: code` требовать connected checkout и совпадение
-его полного HEAD с assignment. `assigned: false` блокирует реализацию; `null`
+Для `current_assignment.role: code` найти запись с тем же repository-id в
+`assignment_scope.assignments`, требовать `connected: true` и совпадение её
+`checkout` с `current_assignment.path`. `assigned: false` блокирует реализацию; `null`
 требует прямого подтверждения через Proposal, как описано выше. Store с
 `current_assignment.role: store` выполняет только координацию и не считается
 назначенным Code Repository. Неизвестная роль или отсутствующий assignment — blocker.
@@ -61,7 +62,7 @@ Repository; Plugin-specific поведение остаётся вне этог�
 section. Для Store-level координации передать исходный набор Tasks без фильтрации.
 ## Навигация и подтверждения
 
-До кода проверить Git root и пользовательский worktree. Repository-id и полный HEAD
+До кода подтвердить доступность назначенного checkout. Repository-id и checkout
 брать из вложенного `assignment_scope`; отдельный `get_assignment_scope` допустим только
 при отсутствии этих данных или после границы свежести. Не очищать чужие изменения.
 

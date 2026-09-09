@@ -147,7 +147,7 @@ test("repository evidence delegation keeps one question per subagent invocation"
   assert.ok(contracts[0].repository_evidence_request.anchors.length > 0);
   assert.deepEqual(
     Object.keys(contracts[0].repository_evidence_request),
-    ["question_id", "question", "repository_id", "checkout_path", "revision", "code_navigation", "anchors"],
+    ["question_id", "question", "repository_id", "checkout_path", "code_navigation", "anchors"],
   );
   assert.deepEqual(
     Object.keys(contracts[1].repository_evidence),
