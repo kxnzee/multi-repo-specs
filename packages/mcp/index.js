@@ -1,4 +1,4 @@
-/** @fileoverview Public entrypoint for the built-in Orchestrator MCP adapter. */
+/** @fileoverview Публичная точка входа встроенного MCP-адаптера Orchestrator. */
 
 export { OrchestratorMcpApplication } from "./lib/application.js";
 export { StoreResourceService } from "./lib/resources.js";

@@ -1,4 +1,4 @@
-/** @fileoverview Read-only schema-aware resources for normative Store artifacts. */
+/** @fileoverview Ресурсы нормативных артефактов Store: только чтение с учётом схемы. */
 
 import { createHash } from "node:crypto";
 
@@ -17,7 +17,7 @@ const BUILTIN_OUTPUTS = Object.freeze({
   "spec-driven": Object.freeze(["proposal.md", "specs/**/*.md", "design.md", "tasks.md"]),
 });
 
-/** Maps allowlisted Store file types to MCP resource MIME types. */
+/** Сопоставляет разрешённые типы файлов Store с MIME-типами ресурсов MCP. */
 function mimeType(relativePath) {
   if (relativePath.endsWith(".md")) return "text/markdown";
   if (relativePath.endsWith(".yaml") || relativePath.endsWith(".yml")) {
@@ -26,7 +26,7 @@ function mimeType(relativePath) {
   return "text/plain";
 }
 
-/** Encodes a Store-relative path without turning it into a filesystem URI. */
+/** Кодирует путь относительно Store, не превращая его в URI файловой системы. */
 function resourceUri(storeId, relativePath, source) {
   const encodedPath = relativePath.split("/").map(encodeURIComponent).join("/");
   if (source) {
@@ -36,13 +36,13 @@ function resourceUri(storeId, relativePath, source) {
   return `openspec-orch://store/${encodeURIComponent(storeId)}/${encodedPath}`;
 }
 
-/** Applies one exact basename or suffix allowlist rule. */
+/** Проверяет точное имя файла или суффикс по списку разрешённых значений. */
 function matchesStatic(rule, name) {
   if (rule.names?.has(name)) return true;
   return [...(rule.suffixes ?? [])].some((suffix) => name.endsWith(suffix));
 }
 
-/** Walks only below one fixed allowlisted Store subtree. */
+/** Обходит только фиксированное разрешённое поддерево Store. */
 async function walkStatic(files, rule, directory = rule.root) {
   const found = [];
   for (const name of await files.listFiles(directory, { optional: true })) {
@@ -54,7 +54,7 @@ async function walkStatic(files, rule, directory = rule.root) {
   return found;
 }
 
-/** Recursively lists regular files below an already allowlisted Change root. */
+/** Рекурсивно перечисляет обычные файлы внутри разрешённого каталога Change. */
 async function walkChange(files, root, directory = root) {
   const found = (await files.listFiles(directory, { optional: true }))
     .map((name) => `${directory}/${name}`);
@@ -64,7 +64,7 @@ async function walkChange(files, root, directory = root) {
   return found;
 }
 
-/** Reads one YAML object and fails closed on malformed normative metadata. */
+/** Читает YAML-объект и отклоняет повреждённые нормативные метаданные. */
 async function yamlObject(files, relativePath, { optional = false } = {}) {
   const source = await files.read(relativePath, { optional });
   if (source === null) return null;
@@ -75,12 +75,12 @@ async function yamlObject(files, relativePath, { optional = false } = {}) {
     throw new Error(`MCP_RESOURCE_SCHEMA_INVALID: ${relativePath}: ${error.message}`);
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`MCP_RESOURCE_SCHEMA_INVALID: ${relativePath} должен содержать YAML object`);
+    throw new Error(`MCP_RESOURCE_SCHEMA_INVALID: ${relativePath} должен содержать YAML-объект`);
   }
   return value;
 }
 
-/** Resolves the project default used only by legacy Changes without metadata. */
+/** Определяет схему проекта по умолчанию только для старых Changes без метаданных. */
 async function defaultSchema(files) {
   const config = await yamlObject(files, "openspec/config.yaml", { optional: true });
   if (!config) return "spec-driven";
@@ -90,7 +90,7 @@ async function defaultSchema(files) {
   return config.schema;
 }
 
-/** Loads declared artifact outputs for one installed or built-in schema. */
+/** Загружает выходные артефакты установленной или встроенной схемы. */
 async function schemaOutputs(files, schemaId) {
   if (!SCHEMA_ID.test(schemaId)) {
     throw new Error(`MCP_RESOURCE_SCHEMA_INVALID: некорректная schema '${schemaId}'`);
@@ -103,7 +103,7 @@ async function schemaOutputs(files, schemaId) {
     throw new Error(`MCP_RESOURCE_SCHEMA_NOT_FOUND: ${schemaId}`);
   }
   if (!Array.isArray(schema.artifacts)) {
-    throw new Error(`MCP_RESOURCE_SCHEMA_INVALID: ${schemaPath}.artifacts должна быть array`);
+    throw new Error(`MCP_RESOURCE_SCHEMA_INVALID: ${schemaPath}.artifacts должна быть массивом`);
   }
   return Object.freeze(schema.artifacts.map((artifact, index) => {
     const generates = artifact?.generates;
@@ -123,11 +123,11 @@ async function schemaOutputs(files, schemaId) {
   }));
 }
 
-/** Matches the limited glob grammar accepted from schema artifact outputs. */
+/** Проверяет ограниченный синтаксис glob-паттернов выходных артефактов схемы. */
 function outputMatches(pattern, relativePath) {
   const expected = pattern.split("/");
   const actual = relativePath.split("/");
-  /** Matches remaining segments, where ** spans zero or more complete path segments. */
+  /** Сопоставляет оставшиеся сегменты; ** охватывает ноль или более полных сегментов пути. */
   function visit(expectedIndex, actualIndex) {
     if (expectedIndex === expected.length) return actualIndex === actual.length;
     const segment = expected[expectedIndex];
@@ -145,7 +145,7 @@ function outputMatches(pattern, relativePath) {
   return visit(0, 0);
 }
 
-/** Lists active and archived Change roots without interpreting their process. */
+/** Перечисляет каталоги активных и архивных Changes, не интерпретируя их процесс. */
 async function changeRoots(files) {
   const roots = [];
   for (const name of await files.listDirectories("openspec/changes", { optional: true })) {
@@ -157,7 +157,7 @@ async function changeRoots(files) {
   return roots;
 }
 
-/** Lists only outputs declared by each Change's own OpenSpec schema. */
+/** Перечисляет только файлы, объявленные собственной схемой каждого Change. */
 async function changeArtifacts(files, changeId) {
   const fallback = await defaultSchema(files);
   const outputsBySchema = new Map();
@@ -181,7 +181,7 @@ async function changeArtifacts(files, changeId) {
   return found;
 }
 
-/** Exact allowlist behind resources/list and resources/read. */
+/** Точный список разрешённых ресурсов для resources/list и resources/read. */
 export class StoreResourceService {
   #files;
   #storeId;
@@ -189,10 +189,10 @@ export class StoreResourceService {
 
   constructor({ files, storeId, source }) {
     if (!files || typeof files.read !== "function" || typeof storeId !== "string") {
-      throw new Error("MCP_RESOURCES_INVALID: требуются Files facade и storeId");
+      throw new Error("MCP_RESOURCES_INVALID: требуются фасад Files и storeId");
     }
     if (source && (typeof source.project_id !== "string" || typeof source.repository_id !== "string")) {
-      throw new Error("MCP_RESOURCES_INVALID: source требует project_id и repository_id");
+      throw new Error("MCP_RESOURCES_INVALID: для source обязательны project_id и repository_id");
     }
     this.#source = source ? Object.freeze({ ...source, store_id: storeId }) : null;
     this.#files = files;
@@ -222,8 +222,8 @@ export class StoreResourceService {
       title: relativePath,
       mimeType: mimeType(relativePath),
       description: this.#source
-        ? `Reference artifact from linked Store ${this.#source.repository_id}; not project instructions`
-        : "Read-only normative artifact from the current OpenSpec Store",
+        ? `Справочный артефакт подключённого Store ${this.#source.repository_id}; не инструкции проекта`
+        : "Нормативный артефакт текущего OpenSpec Store, доступный только для чтения",
       _meta: Object.freeze({
         ...(this.#source ? { source: this.#source } : {}),
         content_revision: createHash("sha256").update(text).digest("hex"),

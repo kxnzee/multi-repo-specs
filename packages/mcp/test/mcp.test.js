@@ -1,4 +1,4 @@
-/** @fileoverview Protocol and resource contract for the built-in Agent gateway. */
+/** @fileoverview Контракт протокола и ресурсов встроенного Agent gateway. */
 
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
@@ -131,16 +131,16 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   );
   assert.match(
     listed.tools.find(({ name }) => name === "initialize_project").description,
-    /separate central Store directory/u,
+    /отдельный центральный Store/u,
   );
   assert.match(
     listed.tools.find(({ name }) => name === "initialize_project").description,
-    /Never target an Orchestrator, Template, or Code Repository checkout/u,
+    /Нельзя выбирать рабочую копию Orchestrator, Template или Code Repository/u,
   );
   assert.match(
     listed.tools.find(({ name }) => name === "initialize_project")
       .inputSchema.properties.repositories.description,
-    /Code Repositories only.*Never include the central Store/u,
+    /Только необязательные Code Repository.*Не включайте центральный Store/u,
   );
 
   const schemas = Object.fromEntries(listed.tools.map(({ name, inputSchema }) => (
@@ -172,7 +172,7 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   for (const name of ["start_attempt", "complete_attempt"]) {
     const { description, ...taskSchema } = schemas[name].properties.task_id;
     assert.match(description, /artifact_instructions.tasks/u);
-    assert.match(description, /do not use a Markdown/u);
+    assert.match(description, /не используйте номер задачи/u);
     assert.deepEqual(shape({ ...schemas[name].properties, task_id: taskSchema }), {
       change_id: identifierSchema,
       task_id: nonEmptyStringSchema,

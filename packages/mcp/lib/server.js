@@ -1,4 +1,4 @@
-/** @fileoverview Local stdio MCP transport with a fixed governed tool catalog. */
+/** @fileoverview Локальный stdio-транспорт MCP с фиксированным каталогом разрешённых инструментов. */
 
 import { createHash } from "node:crypto";
 
@@ -16,8 +16,8 @@ const IDENTIFIER_PATTERN = "^[a-z0-9]+(?:-[a-z0-9]+)*$";
 const NON_EMPTY_STRING_SCHEMA = Object.freeze({ type: "string", minLength: 1 });
 const IF_CONTEXT_REVISION_SCHEMA = Object.freeze({
   ...NON_EMPTY_STRING_SCHEMA,
-  description: "context_revision from a previous response to this same tool with the same arguments. " +
-    "Returns unchanged: true if the freshly read result matches. This is a response digest, not a Git revision.",
+  description: "Значение context_revision из предыдущего ответа этого инструмента с теми же аргументами. Если " +
+    "свежий результат совпадает, возвращается unchanged: true. Это хеш ответа, а не Git revision.",
 });
 const IDENTIFIER_SCHEMA = Object.freeze({
   ...NON_EMPTY_STRING_SCHEMA,
@@ -25,7 +25,7 @@ const IDENTIFIER_SCHEMA = Object.freeze({
 });
 const CHANGE_ID_SCHEMA = Object.freeze({
   ...IDENTIFIER_SCHEMA,
-  description: "OpenSpec Change directory name in the main Store, without the change: graph-node prefix.",
+  description: "Имя каталога OpenSpec Change в основном Store, без префикса узла графа change:.",
 });
 const EMPTY_SCHEMA = Object.freeze({ type: "object", additionalProperties: false });
 const CHANGE_SCHEMA = Object.freeze({
@@ -39,9 +39,9 @@ const ATTEMPT_SCHEMA = Object.freeze({
     change_id: CHANGE_ID_SCHEMA,
     task_id: Object.freeze({
       ...NON_EMPTY_STRING_SCHEMA,
-      description: "Exact tasks[].id from get_change_context with artifact: apply " +
-        "(artifact_instructions.tasks). Copy the returned string; do not use a Markdown " +
-        "task number such as 1.1 or 2.3 from description, or calculate an array index.",
+      description: "Точный tasks[].id из get_change_context с artifact: apply (artifact_instructions.tasks). " +
+        "Скопируйте полученную строку; не используйте номер задачи из description, например 1.1 или " +
+        "2.3, и не вычисляйте индекс массива.",
     }),
   }),
   required: ["change_id", "task_id"],
@@ -64,40 +64,39 @@ const TOOL_DEFINITIONS = Object.freeze([
   defineTool({
     name: "get_status",
     applicationMethod: "getStatus",
-    description: "Read the main Store project registry, current invocation repository, Plugin " +
-      "availability and Change status. Omit change_id for project status; provide it for " +
-      "Change tracking details.",
+    description: "Прочитать реестр проекта основного Store, текущий репозиторий вызова, доступность плагинов и " +
+      "состояние Change. Без change_id возвращается состояние проекта; с ним — сведения об " +
+      "отслеживании Change.",
     inputSchema: CHANGE_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
   defineTool({
     name: "get_setup_context",
     applicationMethod: "getSetupContext",
-    description: "Read available Agent and Template IDs, required Extensions, and initialization " +
-      "constraints for the fixed MCP working directory. Does not initialize anything.",
+    description: "Прочитать доступные ID Agent и Template, обязательные Extensions и ограничения инициализации " +
+      "для фиксированного рабочего каталога MCP. Ничего не инициализирует.",
     inputSchema: EMPTY_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
   defineTool({
     name: "get_change_context",
     applicationMethod: "getChangeContext",
-    description: "Read a Change in the main Store resolved from the MCP working directory. Includes " +
-      "OpenSpec artifact status, resources and optional Plugin overlays. Supply artifact " +
-      "only to request its instructions; this does not create artifacts.",
+    description: "Прочитать Change из основного Store, определённого по рабочему каталогу MCP. Возвращает " +
+      "состояние артефактов OpenSpec, ресурсы и дополнения подключённых плагинов. Передавайте " +
+      "artifact только для получения его инструкций; артефакты не создаются.",
     inputSchema: Object.freeze({
       type: "object",
       properties: Object.freeze({
         change_id: CHANGE_ID_SCHEMA,
         artifact: Object.freeze({
           ...IDENTIFIER_SCHEMA,
-          description: "Artifact ID from openspec_status.artifacts[].id for the selected Change, or " +
-            "apply for Apply instructions. Omit to read status without artifact " +
-            "instructions.",
+          description: "ID артефакта из openspec_status.artifacts[].id выбранного Change или apply для инструкций " +
+            "Apply. Без этого аргумента возвращается состояние без инструкций артефакта.",
         }),
         include_assignment: Object.freeze({
           type: "boolean",
-          description: "Include Code Repository checkout and assignment information in this response. " +
-            "Defaults to false; does not assign work.",
+          description: "Включить в ответ рабочие копии Code Repository и сведения об их участии в реализации. По " +
+            "умолчанию false; работу не назначает.",
         }),
       }),
       required: ["change_id"],
@@ -108,72 +107,72 @@ const TOOL_DEFINITIONS = Object.freeze([
   defineTool({
     name: "get_next_action",
     applicationMethod: "getNextAction",
-    description: "Read the next suggested OpenSpec action and responsible actor for a Change in the " +
-      "main Store. Does not execute the action. Without change_id, returns available " +
-      "Changes and asks the human to choose.",
+    description: "Прочитать рекомендуемое следующее действие OpenSpec и ответственного участника для Change в " +
+      "основном Store. Действие не выполняется. Без change_id возвращает доступные Changes для выбора " +
+      "пользователем.",
     inputSchema: CHANGE_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
   defineTool({
     name: "get_assignment_scope",
     applicationMethod: "getAssignmentScope",
-    description: "Read Code Repository checkouts and Git revisions in the main Store project. With " +
-      "change_id, the Graph overlay marks repositories affected by that Change; without it, " +
-      "assignment is unknown. Does not assign work or report completion.",
+    description: "Прочитать рабочие копии Code Repository в проекте основного Store. С change_id подключённые " +
+      "плагины могут уточнить участие репозиториев в этом Change; без него участие неизвестно. Git " +
+      "revision не вычисляется. Работу не назначает и о завершении не сообщает.",
     inputSchema: CHANGE_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
   defineTool({
     name: "get_doctor_report",
     applicationMethod: "getDoctorReport",
-    description: "Run read-only Orchestrator Doctor for the project resolved from the fixed MCP " +
-      "working directory. Reports environment, repository and Plugin diagnostics; does not " +
-      "repair them.",
+    description: "Запустить диагностику Orchestrator Doctor без изменений для проекта, определённого по " +
+      "фиксированному рабочему каталогу MCP. Возвращает диагностику окружения, репозиториев и " +
+      "плагинов; проблемы не исправляет.",
     inputSchema: EMPTY_SCHEMA,
     annotations: READ_ONLY_ANNOTATIONS,
   }),
   defineTool({
     name: "initialize_project",
     applicationMethod: "initializeProject",
-    description: "Idempotently initialize the fixed MCP cwd when it is a " +
-      "separate central Store directory. Never target an Orchestrator, Template, " +
-      "or Code Repository checkout. Pass the central Store only as store_id; repositories " +
-      "contains optional Code Repositories only.",
+    description: "Идемпотентно инициализировать фиксированный рабочий каталог MCP как отдельный центральный " +
+      "Store. Нельзя выбирать рабочую копию Orchestrator, Template или Code Repository. Центральный " +
+      "Store задаётся только через store_id; repositories содержит только необязательные Code " +
+      "Repository.",
     inputSchema: Object.freeze({
       type: "object",
       properties: Object.freeze({
         store_id: Object.freeze({
           ...IDENTIFIER_SCHEMA,
-          description: "New central Store identity and registry ID. The target path is the fixed MCP " +
-            "working directory.",
+          description: "Идентификатор нового центрального Store и его ID в реестре. Целевой путь — фиксированный " +
+            "рабочий каталог MCP.",
         }),
         agent_id: Object.freeze({
           ...IDENTIFIER_SCHEMA,
-          description: "Agent provider ID from get_setup_context. This selects workflow integration, " +
-            "not an AI model.",
+          description: "ID провайдера Agent из get_setup_context. Выбирает интеграцию рабочего процесса, а не модель " +
+            "ИИ.",
         }),
         template_id: Object.freeze({
           ...IDENTIFIER_SCHEMA,
-          description: "Template ID from get_setup_context. Omit to use the default Template.",
+          description: "ID Template из get_setup_context. Без этого аргумента используется Template по умолчанию.",
         }),
         repositories: Object.freeze({
           type: "array",
-          description: "Optional Code Repositories only. Never include the central Store; " +
-            "it is declared only by store_id.",
+          description: "Только необязательные Code Repository. Не включайте центральный Store: он задаётся " +
+            "исключительно через store_id.",
           items: Object.freeze({
             type: "object",
             properties: Object.freeze({
               repository_id: Object.freeze({
                 ...IDENTIFIER_SCHEMA,
-                description: "New Code Repository ID in the central Store registry; distinct from store_id.",
+                description: "ID нового Code Repository в реестре центрального Store; должен отличаться от store_id.",
               }),
               remote: Object.freeze({
                 ...NON_EMPTY_STRING_SCHEMA,
-                description: "Git clone URL of this Code Repository.",
+                description: "URL для клонирования этого Code Repository через Git.",
               }),
               default_branch: Object.freeze({
                 ...NON_EMPTY_STRING_SCHEMA,
-                description: "Existing branch to check out when cloning this Code Repository.",
+                description: "Существующая ветка, выбираемая при клонировании этого Code Repository.",
               }),
             }),
             required: ["repository_id", "remote", "default_branch"],
@@ -190,29 +189,29 @@ const TOOL_DEFINITIONS = Object.freeze([
   defineTool({
     name: "connect_project",
     applicationMethod: "connectProject",
-    description: "Connect the main Store project resolved from the fixed MCP working directory in " +
-      "the fixed workspace. May clone registered code/specs repositories and install configured " +
-      "project assets and integrations. Does not recursively connect dependencies of specs " +
-      "repositories.",
+    description: "Подключить проект основного Store, определённого по фиксированному рабочему каталогу MCP, в " +
+      "фиксированном workspace. Может клонировать зарегистрированные репозитории code/specs и " +
+      "установить настроенные материалы и интеграции проекта. Зависимости репозиториев specs " +
+      "рекурсивно не подключаются.",
     inputSchema: EMPTY_SCHEMA,
     annotations: Object.freeze({ ...WRITE_ANNOTATIONS, openWorldHint: true }),
   }),
   defineTool({
     name: "start_attempt",
     applicationMethod: "startAttempt",
-    description: "Start an attempt for one canonical OpenSpec Apply task from the main Store through " +
-      "the registered operation handler in the fixed MCP working-directory context. " +
-      "Does not execute the task or select a repository.",
+    description: "Начать попытку выполнения одной канонической задачи OpenSpec Apply из основного Store через " +
+      "зарегистрированный обработчик операции в контексте фиксированного рабочего каталога MCP. " +
+      "Задачу не выполняет и репозиторий не выбирает.",
     inputSchema: ATTEMPT_SCHEMA,
     annotations: WRITE_ANNOTATIONS,
   }),
   defineTool({
     name: "complete_attempt",
     applicationMethod: "completeAttempt",
-    description: "Record completion of one OpenSpec Apply task from the main Store through the " +
-      "registered operation handler in the fixed MCP working-directory context. " +
-      "Use the canonical task_id from start_attempt. Does not mark the task checkbox; " +
-      "the task must already be marked done by Apply.",
+    description: "Зафиксировать завершение одной задачи OpenSpec Apply из основного Store через " +
+      "зарегистрированный обработчик операции в контексте фиксированного рабочего каталога MCP. " +
+      "Используйте канонический task_id из start_attempt. Checkbox задачи не изменяется: Apply должен " +
+      "уже отметить её выполненной.",
     inputSchema: ATTEMPT_SCHEMA,
     annotations: WRITE_ANNOTATIONS,
   }),
@@ -227,7 +226,7 @@ const APPLICATION_METHODS = Object.freeze([
   "readResource",
 ]);
 
-/** Adds one common conditional-read argument without changing domain tool inputs. */
+/** Добавляет общий аргумент условного чтения без изменения доменных входных данных. */
 function readInputSchema(inputSchema) {
   return Object.freeze({
     ...inputSchema,
@@ -238,7 +237,7 @@ function readInputSchema(inputSchema) {
   });
 }
 
-/** Separates public MCP metadata from its private application dispatch. */
+/** Отделяет публичные метаданные MCP от внутреннего вызова приложения. */
 function defineTool({ agentTool = false, applicationMethod, validate = null, ...tool }) {
   const inputSchema = tool.annotations?.readOnlyHint
     ? readInputSchema(tool.inputSchema)
@@ -251,12 +250,12 @@ function defineTool({ agentTool = false, applicationMethod, validate = null, ...
   });
 }
 
-/** Produces a tool-and-input-scoped digest of one freshly resolved read result. */
+/** Вычисляет хеш свежего результата с учётом инструмента и аргументов. */
 function contextRevision(name, args, value) {
   return createHash("sha256").update(JSON.stringify([name, args, value])).digest("hex");
 }
 
-/** Adds a revision to an object result without hiding its existing public fields. */
+/** Добавляет ревизию результата, сохраняя его публичные поля. */
 function revisedValue(value, revision) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return Object.freeze({ ...value, context_revision: revision });
@@ -264,7 +263,7 @@ function revisedValue(value, revision) {
   return Object.freeze({ value, context_revision: revision });
 }
 
-/** Encodes a domain value as one compact MCP text result. */
+/** Кодирует доменное значение в компактный текстовый результат MCP. */
 function resultContent(value, { args, conditionalRevision, definition } = {}) {
   let result = value;
   if (definition?.tool.annotations.readOnlyHint) {
@@ -278,7 +277,7 @@ function resultContent(value, { args, conditionalRevision, definition } = {}) {
   });
 }
 
-/** Encodes an expected tool failure without terminating the stdio server. */
+/** Кодирует ожидаемую ошибку инструмента, не завершая stdio-сервер. */
 function errorContent(error) {
   return Object.freeze({
     isError: true,
@@ -289,7 +288,7 @@ function errorContent(error) {
   });
 }
 
-/** Validates one optional or required non-empty string argument. */
+/** Проверяет обязательный или необязательный строковый аргумент на непустое значение. */
 function assertString(args, field, { required = false } = {}) {
   if (args[field] === undefined && !required) return;
   if (typeof args[field] !== "string" || args[field].length === 0) {
@@ -297,7 +296,7 @@ function assertString(args, field, { required = false } = {}) {
   }
 }
 
-/** Requires one canonical Orchestrator/OpenSpec identifier. */
+/** Проверяет канонический идентификатор Orchestrator/OpenSpec. */
 function assertIdentifier(args, field, { required = false } = {}) {
   assertString(args, field, { required });
   if (args[field] !== undefined && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(args[field])) {
@@ -305,7 +304,7 @@ function assertIdentifier(args, field, { required = false } = {}) {
   }
 }
 
-/** Validates the string fields declared by one advertised object schema. */
+/** Проверяет строковые поля, объявленные схемой объекта MCP. */
 function assertDeclaredStrings(name, args, inputSchema) {
   const required = new Set(inputSchema.required ?? []);
   for (const [field, fieldSchema] of Object.entries(inputSchema.properties ?? {})) {
@@ -321,20 +320,20 @@ function assertDeclaredStrings(name, args, inputSchema) {
   }
 }
 
-/** Validates non-string scalar fields declared by one advertised object schema. */
+/** Проверяет нестроковые скалярные поля, объявленные схемой MCP. */
 function assertDeclaredScalars(name, args, inputSchema) {
   for (const [field, fieldSchema] of Object.entries(inputSchema.properties ?? {})) {
     if (args[field] === undefined || fieldSchema.type === "string") continue;
     if (fieldSchema.type === "boolean" && typeof args[field] !== "boolean") {
-      throw new Error(`MCP_TOOL_INPUT_INVALID: ${name}.${field} должен быть boolean`);
+      throw new Error(`MCP_TOOL_INPUT_INVALID: ${name}.${field} должен быть логическим значением (boolean)`);
     }
   }
 }
 
-/** Validates one object against the fields advertised by its MCP schema. */
+/** Проверяет объект по полям, объявленным схемой MCP. */
 function assertObjectShape(name, args, inputSchema) {
   if (!args || typeof args !== "object" || Array.isArray(args)) {
-    throw new Error(`MCP_TOOL_INPUT_INVALID: ${name} arguments должны быть object`);
+    throw new Error(`MCP_TOOL_INPUT_INVALID: ${name} аргументы должны быть объектом`);
   }
   const allowed = new Set(Object.keys(inputSchema.properties ?? {}));
   const unknown = Object.keys(args).find((key) => !allowed.has(key));
@@ -343,7 +342,7 @@ function assertObjectShape(name, args, inputSchema) {
   assertDeclaredScalars(name, args, inputSchema);
 }
 
-/** Removes transport-level conditional-read metadata before application dispatch. */
+/** Удаляет метаданные условного чтения перед вызовом приложения. */
 function applicationArguments(definition, args) {
   if (!definition.tool.annotations.readOnlyHint) return args;
   const applicationArgs = { ...args };
@@ -351,25 +350,25 @@ function applicationArguments(definition, args) {
   return applicationArgs;
 }
 
-/** Validates the structured init surface. */
+/** Проверяет структурированные аргументы инициализации. */
 function assertInitialization(args, inputSchema) {
   if (args.repositories === undefined) return;
   if (!Array.isArray(args.repositories)) {
-    throw new Error("MCP_TOOL_INPUT_INVALID: repositories должен быть array");
+    throw new Error("MCP_TOOL_INPUT_INVALID: repositories должен быть массивом");
   }
   const repositorySchema = inputSchema.properties.repositories.items;
   const repositoryFields = Object.keys(repositorySchema.properties);
   const ids = new Set();
   for (const repository of args.repositories) {
     if (!repository || typeof repository !== "object" || Array.isArray(repository)) {
-      throw new Error("MCP_TOOL_INPUT_INVALID: repository должен быть object");
+      throw new Error("MCP_TOOL_INPUT_INVALID: repository должен быть объектом");
     }
     const keys = Object.keys(repository);
     if (
       keys.length !== repositoryFields.length ||
       keys.some((key) => !repositoryFields.includes(key))
     ) {
-      throw new Error("MCP_TOOL_INPUT_INVALID: repository contract несовместим");
+      throw new Error("MCP_TOOL_INPUT_INVALID: контракт repository несовместим");
     }
     assertObjectShape("repository", repository, repositorySchema);
     if (repository.repository_id === args.store_id) {
@@ -385,14 +384,14 @@ function assertInitialization(args, inputSchema) {
   }
 }
 
-/** Validates inputs even when a client ignores the advertised JSON Schema. */
+/** Проверяет аргументы, даже если клиент игнорирует опубликованную JSON Schema. */
 function assertArguments(definition, args) {
   const { tool, validate } = definition;
   assertObjectShape(tool.name, args, tool.inputSchema);
   if (validate) validate(args, tool.inputSchema);
 }
 
-/** Creates a transport-independent server for tests and stdio delivery. */
+/** Создаёт независимый от транспорта сервер для тестов и работы через stdio. */
 export function createOrchestratorMcpServer(application) {
   if (
     !application ||
@@ -400,7 +399,7 @@ export function createOrchestratorMcpServer(application) {
     typeof application.invokeAgentTool !== "function" ||
     !Array.isArray(application.agentTools)
   ) {
-    throw new Error("MCP_SERVER_INVALID: application contract incomplete");
+    throw new Error("MCP_SERVER_INVALID: контракт приложения неполон");
   }
   const agentDefinitions = application.agentTools.map((tool) => defineTool({
     ...tool,
@@ -414,7 +413,7 @@ export function createOrchestratorMcpServer(application) {
   ]);
   const names = definitions.map(({ tool }) => tool.name);
   if (new Set(names).size !== names.length) {
-    throw new Error("MCP_SERVER_INVALID: повторяющийся tool name");
+    throw new Error("MCP_SERVER_INVALID: повторяющееся имя инструмента");
   }
   const tools = Object.freeze(definitions.map(({ tool }) => tool));
   const definitionByName = new Map(definitions.map((definition) => [definition.tool.name, definition]));
@@ -470,7 +469,7 @@ export function createOrchestratorMcpServer(application) {
   return server;
 }
 
-/** Starts the only supported transport: local stdio. */
+/** Запускает единственный поддерживаемый транспорт: локальный stdio. */
 export async function serveOrchestratorMcpStdio(application) {
   const server = createOrchestratorMcpServer(application);
   await server.connect(new StdioServerTransport());

@@ -1,4 +1,4 @@
-/** @fileoverview Protocol-independent application boundary for the Agent gateway. */
+/** @fileoverview Независимая от протокола граница приложения Agent gateway. */
 
 const RUNTIME_METHODS = Object.freeze([
   "getStatus",
@@ -16,7 +16,7 @@ const RUNTIME_METHODS = Object.freeze([
   "readResource",
 ]);
 
-/** Thin adapter: policy and workflow remain in Core and Plugin application services. */
+/** Тонкий адаптер: правила и процесс остаются в прикладных сервисах Core и плагинов. */
 export class OrchestratorMcpApplication {
   #runtime;
 
@@ -26,7 +26,7 @@ export class OrchestratorMcpApplication {
       RUNTIME_METHODS.some((method) => typeof runtime[method] !== "function") ||
       !Array.isArray(runtime.agentTools)
     ) {
-      throw new Error("MCP_APPLICATION_INVALID: runtime contract incomplete");
+      throw new Error("MCP_APPLICATION_INVALID: контракт runtime неполон");
     }
     this.#runtime = runtime;
     Object.freeze(this);
