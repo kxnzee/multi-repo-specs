@@ -2,11 +2,11 @@
 
 import path from "node:path";
 
-import { configuration } from "../configuration.js";
-import { CORE_FILES, CORE_SERVICE_PATHS } from "../constants.js";
-import { files } from "../files.js";
-import { ensureDirectory } from "../fs.js";
-import { locks } from "../lock.js";
+import { configuration } from "../configuration/configuration.js";
+import { CORE_FILES, CORE_SERVICE_PATHS } from "../configuration/constants.js";
+import { files } from "../infrastructure/files.js";
+import { ensureDirectory } from "../infrastructure/fs.js";
+import { locks } from "../infrastructure/lock.js";
 import { storeProjects } from "./store-project.js";
 
 /** Координирует lock, повторную загрузку и публикацию одного Store Project. */

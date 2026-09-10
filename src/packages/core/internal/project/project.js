@@ -1,10 +1,10 @@
 /** @fileoverview Доменный агрегат Project поверх нормализованного config. */
 
-import { CORE_CONTRACT_VERSIONS, CORE_FILES, CORE_PATTERNS } from "../constants.js";
+import { CORE_CONTRACT_VERSIONS, CORE_FILES, CORE_PATTERNS } from "../configuration/constants.js";
 import { ExtensionDeclaration } from "../extensions/extension-declaration.js";
 import { PluginDeclaration } from "../plugin-runtime/plugin-declaration.js";
 import { Repository } from "./repository.js";
-import { deepFreeze } from "../value.js";
+import { deepFreeze } from "../runtime/value.js";
 
 /** Project владеет Repository registry и Plugin bindings. */
 export class Project {

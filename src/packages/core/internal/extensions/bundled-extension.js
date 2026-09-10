@@ -7,7 +7,7 @@ import { parse } from "yaml";
 import { ExtensionDescriptor, ExtensionPackage } from "@openspec-orch/extension-sdk";
 
 import { ExtensionCatalog, ExtensionCatalogEntry } from "./extension-catalog.js";
-import { isContainedPath } from "../path.js";
+import { isContainedPath } from "../infrastructure/path.js";
 
 const PACKAGE_CONSTRUCTION = Symbol("BundledExtensionPackage construction");
 

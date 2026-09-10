@@ -2,7 +2,7 @@
 
 import { pluginManagers } from "./plugin-manager.js";
 import { PluginSource } from "./plugin-source.js";
-import { rollbackOrRethrow } from "../compensation.js";
+import { rollbackOrRethrow } from "../runtime/compensation.js";
 import { storeProjectMutations } from "../project/store-project-mutation.js";
 import { StoreProject } from "../project/store-project.js";
 

@@ -7,10 +7,10 @@ import process from "node:process";
 import { parse } from "yaml";
 
 import { RepositoryCheckout } from "./checkout.js";
-import { configuration } from "../configuration.js";
-import { CORE_FILES, CORE_PATTERNS } from "../constants.js";
-import { lstatOrNull } from "../fs.js";
-import { pointers } from "../pointer.js";
+import { configuration } from "../configuration/configuration.js";
+import { CORE_FILES, CORE_PATTERNS } from "../configuration/constants.js";
+import { lstatOrNull } from "../infrastructure/fs.js";
+import { pointers } from "../runtime/pointer.js";
 
 const REQUIRED_ROOT_FILES = Object.freeze([
   CORE_FILES.storeMetadata,

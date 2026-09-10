@@ -2,8 +2,8 @@
 
 import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
-import { CORE_PATTERNS } from "../constants.js";
-import { deepFreeze } from "../value.js";
+import { CORE_PATTERNS } from "../configuration/constants.js";
+import { deepFreeze } from "../runtime/value.js";
 
 const REPOSITORY_ROLES = new Set(Object.values(REPOSITORY_ROLE));
 

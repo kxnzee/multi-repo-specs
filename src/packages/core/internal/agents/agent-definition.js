@@ -2,9 +2,9 @@
 
 import path from "node:path";
 
-import { CORE_PATTERNS } from "../constants.js";
-import { isPortableRelativePath } from "../path.js";
-import { deepFreeze, hasExactKeys, isPlainObject } from "../value.js";
+import { CORE_PATTERNS } from "../configuration/constants.js";
+import { isPortableRelativePath } from "../infrastructure/path.js";
+import { deepFreeze, hasExactKeys, isPlainObject } from "../runtime/value.js";
 
 /** Завершает проверку Agent definition стабильной ошибкой. */
 function invalid(message) {

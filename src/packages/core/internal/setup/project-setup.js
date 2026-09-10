@@ -3,14 +3,14 @@
 import path from "node:path";
 import process from "node:process";
 
-import { bundledTemplates, isBundledTemplateProvider } from "./templates/bundled-template.js";
+import { bundledTemplates, isBundledTemplateProvider } from "../templates/bundled-template.js";
 import { connection } from "./connection.js";
 import { initialization } from "./initialization.js";
 import { initSelections } from "./init-selection.js";
-import { packageSupplies } from "./packages/package-supply.js";
-import { storeProjects } from "./project/store-project.js";
-import { assertTemplateTargetSeparated } from "./templates/template.js";
-import { hasMethods } from "./value.js";
+import { packageSupplies } from "../packages/package-supply.js";
+import { storeProjects } from "../project/store-project.js";
+import { assertTemplateTargetSeparated } from "../templates/template.js";
+import { hasMethods } from "../runtime/value.js";
 
 /** Distinguishes one explicit local Template path from a bundled Template ID. */
 function isLocalTemplateRequest(request) {

@@ -11,8 +11,8 @@ import {
   REPOSITORY_ROLE,
 } from "@openspec-orch/plugin-sdk";
 
-import { CORE_CLI_COMMANDS, CORE_PACKAGES, CORE_PACKAGE_VERSIONS } from "../constants.js";
-import { lstatOrNull } from "../fs.js";
+import { CORE_CLI_COMMANDS, CORE_PACKAGES, CORE_PACKAGE_VERSIONS } from "../configuration/constants.js";
+import { lstatOrNull } from "../infrastructure/fs.js";
 import { PLUGIN_SCAFFOLD_CONFIG, PLUGIN_SCAFFOLD_PROFILE } from "./plugin-scaffold-config.js";
 
 const REPOSITORY_ROLES = new Set(Object.values(REPOSITORY_ROLE));

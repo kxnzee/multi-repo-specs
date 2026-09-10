@@ -2,7 +2,7 @@
 
 import { PLUGIN_PATTERNS } from "@openspec-orch/plugin-sdk";
 
-import { CORE_PATTERNS } from "../constants.js";
+import { CORE_PATTERNS } from "../configuration/constants.js";
 import { loadTemplateDefinition } from "./template.js";
 
 /** Завершает проверку bundled Template стабильной ошибкой. */

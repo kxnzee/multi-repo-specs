@@ -2,8 +2,8 @@
 
 import { execa } from "execa";
 
-import { ScopedProcess } from "../process.js";
-import { hasMethods } from "../value.js";
+import { ScopedProcess } from "../infrastructure/process.js";
+import { hasMethods } from "../runtime/value.js";
 
 const USER_SCOPE = "user";
 const RECOVERABLE_STATUS = /AGENT_EXTENSION_STATUS_(?:DISABLED|MISSING|SCOPE_MISSING|STALE):/u;

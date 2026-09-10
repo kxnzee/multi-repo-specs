@@ -2,8 +2,8 @@
 
 import { execa } from "execa";
 
-import { CORE_SETTINGS } from "./settings.js";
-import { StoreTarget } from "./project/store-target.js";
+import { CORE_SETTINGS } from "../configuration/settings.js";
+import { StoreTarget } from "../project/store-target.js";
 
 const COMMAND_ENV = Object.freeze({
   GIT_OPTIONAL_LOCKS: "0",

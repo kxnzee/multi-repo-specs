@@ -2,7 +2,7 @@
 
 import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
-import { deepFreeze } from "../value.js";
+import { deepFreeze } from "../runtime/value.js";
 
 /** Завершает создание Store стабильной доменной ошибкой. */
 function invalid(message) {

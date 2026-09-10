@@ -4,13 +4,13 @@ import process from "node:process";
 
 import { checkbox, confirm, input, select } from "@inquirer/prompts";
 
-import { bundledAgents } from "./agents/bundled-agent.js";
-import { bundledTemplates } from "./templates/bundled-template.js";
-import { configuration } from "./configuration.js";
-import { CORE_PATTERNS } from "./constants.js";
-import { extensionCatalog } from "./extensions/extension-catalog.js";
+import { bundledAgents } from "../agents/bundled-agent.js";
+import { bundledTemplates } from "../templates/bundled-template.js";
+import { configuration } from "../configuration/configuration.js";
+import { CORE_PATTERNS } from "../configuration/constants.js";
+import { extensionCatalog } from "../extensions/extension-catalog.js";
 import { INIT_SELECTION_UI } from "./init-selection-config.js";
-import { REQUIRED_CHECKBOX_THEME } from "./prompt-config.js";
+import { REQUIRED_CHECKBOX_THEME } from "../configuration/prompt-config.js";
 
 const { localTemplateToken, messages } = INIT_SELECTION_UI;
 

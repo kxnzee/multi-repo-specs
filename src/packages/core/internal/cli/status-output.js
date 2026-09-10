@@ -4,7 +4,7 @@ import {
   DOCTOR_PRESENTATIONS,
   DOCTOR_STATUS_PRESENTATIONS,
   STATUS_PRESENTATIONS,
-} from "./status-output-config.js";
+} from "../configuration/status-output-config.js";
 
 /** Returns a stable icon and readable label for a machine state. */
 export function presentState(state) {

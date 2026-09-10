@@ -12,8 +12,8 @@ import {
   REPOSITORY_ROLE,
 } from "@openspec-orch/plugin-sdk";
 
-import { lstatOrNull, requireSafePath } from "../fs.js";
-import { isContainedPath } from "../path.js";
+import { lstatOrNull, requireSafePath } from "../infrastructure/fs.js";
+import { isContainedPath } from "../infrastructure/path.js";
 
 const defaultImport = (specifier) => import(specifier);
 const importedPackages = new WeakMap();

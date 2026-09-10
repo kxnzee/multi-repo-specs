@@ -5,7 +5,7 @@ import { Command, Option } from "commander";
 import path from "node:path";
 import process from "node:process";
 
-import { formatStatusDetails, formatStatusHeading } from "../status-output.js";
+import { formatStatusDetails, formatStatusHeading } from "../cli/status-output.js";
 import { storeProjects } from "../project/store-project.js";
 
 export class ExtensionCommands {

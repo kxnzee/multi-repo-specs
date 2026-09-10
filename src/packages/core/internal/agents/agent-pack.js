@@ -3,8 +3,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { lstatOrNull } from "../fs.js";
-import { isContainedPath } from "../path.js";
+import { lstatOrNull } from "../infrastructure/fs.js";
+import { isContainedPath } from "../infrastructure/path.js";
 
 /** Checks every existing path component, including parent directories. */
 async function safePath(root, relative, { create = false } = {}) {

@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 
 import { atomicWriter } from "./atomic-writer.js";
-import { CORE_SERVICE_PATHS } from "./constants.js";
+import { CORE_SERVICE_PATHS } from "../configuration/constants.js";
 import { ensureDirectory, lstatOrNull } from "./fs.js";
 import { locks } from "./lock.js";
 import { isPortableRelativePath } from "./path.js";

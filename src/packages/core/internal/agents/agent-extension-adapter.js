@@ -2,7 +2,7 @@
 
 import path from "node:path";
 
-import { hasMethods } from "../value.js";
+import { hasMethods } from "../runtime/value.js";
 
 const OPERATIONS = new Set(["connect", "disconnect", "remove", "status"]);
 

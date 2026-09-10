@@ -8,7 +8,7 @@ import { parse } from "yaml";
 
 import { AgentDefinition } from "./agent-definition.js";
 import { AgentExtensionAdapter, isAgentExtensionAdapter } from "./agent-extension-adapter.js";
-import { isContainedPath } from "../path.js";
+import { isContainedPath } from "../infrastructure/path.js";
 
 /** Завершает проверку bundled Agent стабильной ошибкой. */
 function invalid(message, options) {

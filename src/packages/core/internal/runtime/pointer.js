@@ -5,11 +5,11 @@ import path from "node:path";
 
 import { execa } from "execa";
 
-import { atomicWriter } from "./atomic-writer.js";
-import { CORE_FILES, CORE_PATTERNS } from "./constants.js";
-import { ensureDirectory, lstatOrNull } from "./fs.js";
-import { parseOpenSpecJson } from "./openspec/openspec.js";
-import { ScopedProcess } from "./process.js";
+import { atomicWriter } from "../infrastructure/atomic-writer.js";
+import { CORE_FILES, CORE_PATTERNS } from "../configuration/constants.js";
+import { ensureDirectory, lstatOrNull } from "../infrastructure/fs.js";
+import { parseOpenSpecJson } from "../openspec/openspec.js";
+import { ScopedProcess } from "../infrastructure/process.js";
 
 /** Создаёт и проверяет config-only pointer без доступа к Master Specs. */
 export class OpenSpecPointerService {

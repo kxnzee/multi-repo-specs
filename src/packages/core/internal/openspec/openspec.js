@@ -4,10 +4,10 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { CORE_FILES, CORE_PATTERNS } from "../constants.js";
+import { CORE_FILES, CORE_PATTERNS } from "../configuration/constants.js";
 import { nextOpenSpecAction, requiresApplyInstructions } from "./openspec-next-action.js";
-import { processes } from "../process.js";
-import { CORE_SETTINGS } from "../settings.js";
+import { processes } from "../infrastructure/process.js";
+import { CORE_SETTINGS } from "../configuration/settings.js";
 import {
   collectOpenSpecDiagnostics,
   parseOpenSpecDocument,

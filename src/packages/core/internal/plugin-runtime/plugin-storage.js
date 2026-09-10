@@ -5,11 +5,11 @@ import path from "node:path";
 
 import { PLUGIN_PATTERNS } from "@openspec-orch/plugin-sdk";
 
-import { atomicWriter } from "../atomic-writer.js";
-import { CORE_CONTRACT_VERSIONS, CORE_SERVICE_PATHS } from "../constants.js";
-import { ensureDirectory, lstatOrNull } from "../fs.js";
-import { locks } from "../lock.js";
-import { deepFreeze } from "../value.js";
+import { atomicWriter } from "../infrastructure/atomic-writer.js";
+import { CORE_CONTRACT_VERSIONS, CORE_SERVICE_PATHS } from "../configuration/constants.js";
+import { ensureDirectory, lstatOrNull } from "../infrastructure/fs.js";
+import { locks } from "../infrastructure/lock.js";
+import { deepFreeze } from "../runtime/value.js";
 
 /** Возвращает независимое immutable JSON-значение или отклоняет не-JSON data. */
 function ownJson(value) {

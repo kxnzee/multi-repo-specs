@@ -2,7 +2,7 @@
 
 import path from "node:path";
 
-import { CORE_PATTERNS } from "./constants.js";
+import { CORE_PATTERNS } from "../configuration/constants.js";
 import { lstatOrNull } from "./fs.js";
 import { processes } from "./process.js";
 

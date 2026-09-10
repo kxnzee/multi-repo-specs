@@ -5,21 +5,21 @@ import path from "node:path";
 
 import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
-import { atomicWriter } from "./atomic-writer.js";
-import { bundledAgents } from "./agents/bundled-agent.js";
-import { configuration } from "./configuration.js";
+import { atomicWriter } from "../infrastructure/atomic-writer.js";
+import { bundledAgents } from "../agents/bundled-agent.js";
+import { configuration } from "../configuration/configuration.js";
 import {
   CORE_CONTRACT_VERSIONS,
   CORE_FILES,
   CORE_PATTERNS,
-} from "./constants.js";
-import { lstatOrNull } from "./fs.js";
-import { openspec } from "./openspec/openspec.js";
-import { Project } from "./project/project.js";
-import { Repository } from "./project/repository.js";
-import { StoreTarget } from "./project/store-target.js";
-import { projectTemplates } from "./templates/template.js";
-import { deepFreeze, hasMethods } from "./value.js";
+} from "../configuration/constants.js";
+import { lstatOrNull } from "../infrastructure/fs.js";
+import { openspec } from "../openspec/openspec.js";
+import { Project } from "../project/project.js";
+import { Repository } from "../project/repository.js";
+import { StoreTarget } from "../project/store-target.js";
+import { projectTemplates } from "../templates/template.js";
+import { deepFreeze, hasMethods } from "../runtime/value.js";
 
 /** Проверяет обязательный обычный init file. */
 async function inspectRequiredFile(projectRoot, relativePath, issues) {

@@ -3,21 +3,21 @@
 import process from "node:process";
 
 import { AgentPackService } from "../agents/agent-pack.js";
-import { ConnectionService } from "../connection.js";
+import { ConnectionService } from "../setup/connection.js";
 
 import { isAgentExtensionAdapter } from "../agents/agent-extension-adapter.js";
 import { bundledAgents } from "../agents/bundled-agent.js";
 import { bundledExtensions } from "../extensions/bundled-extension.js";
 import { bundledTemplates, isBundledTemplateProvider } from "../templates/bundled-template.js";
 import { BundledPluginProvider } from "./bundled-plugin.js";
-import { CandidateCli } from "../cli.js";
-import { DoctorService } from "../doctor.js";
+import { CandidateCli } from "../cli/cli.js";
+import { DoctorService } from "../diagnostics/doctor.js";
 import { ExtensionCommands } from "../extensions/extension-cli.js";
 import { ExtensionLifecycle } from "../extensions/extension-lifecycle.js";
 import { ExtensionApplicationService } from "../extensions/extension-application.js";
 import { ExtensionManagerService } from "../extensions/extension-manager.js";
-import { InitializationService } from "../initialization.js";
-import { InitSelectionService } from "../init-selection.js";
+import { InitializationService } from "../setup/initialization.js";
+import { InitSelectionService } from "../setup/init-selection.js";
 import { PluginApplicationService } from "./plugin-application.js";
 import { pluginCatalog } from "./plugin-catalog.js";
 import { PluginLifecycleCommands } from "./plugin-cli.js";
@@ -26,10 +26,10 @@ import { PluginLifecycleService } from "./plugin-lifecycle.js";
 import { PluginManagerService, pluginManagers } from "./plugin-manager.js";
 import { PackageCommands } from "../packages/package-cli.js";
 import { packageSupplies } from "../packages/package-supply.js";
-import { ProjectSetupService } from "../project-setup.js";
+import { ProjectSetupService } from "../setup/project-setup.js";
 import { RepositoryStatusService } from "../project/repository-status.js";
 import { storeProjects } from "../project/store-project.js";
-import { hasMethods } from "../value.js";
+import { hasMethods } from "../runtime/value.js";
 
 import { isRecoverablePluginResolution } from "./plugin-resolution.js";
 

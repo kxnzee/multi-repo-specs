@@ -6,10 +6,10 @@ import process from "node:process";
 
 import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
-import { coreState } from "../core-state.js";
-import { git } from "../git.js";
-import { lstatOrNull } from "../fs.js";
-import { isContainedPath } from "../path.js";
+import { coreState } from "../runtime/core-state.js";
+import { git } from "../infrastructure/git.js";
+import { lstatOrNull } from "../infrastructure/fs.js";
+import { isContainedPath } from "../infrastructure/path.js";
 import { StoreProject } from "./store-project.js";
 import { workspace } from "./workspace.js";
 

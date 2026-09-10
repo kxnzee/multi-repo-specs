@@ -7,10 +7,10 @@ import { parse } from "yaml";
 import * as z from "zod";
 
 import { AgentDefinition } from "../agents/agent-definition.js";
-import { CORE_FILES, CORE_PATTERNS } from "../constants.js";
-import { lstatOrNull } from "../fs.js";
-import { isContainedPath, isPortableRelativePath } from "../path.js";
-import { deepFreeze } from "../value.js";
+import { CORE_FILES, CORE_PATTERNS } from "../configuration/constants.js";
+import { lstatOrNull } from "../infrastructure/fs.js";
+import { isContainedPath, isPortableRelativePath } from "../infrastructure/path.js";
+import { deepFreeze } from "../runtime/value.js";
 
 const ID_SCHEMA = z.string().regex(CORE_PATTERNS.id, "ожидается lowercase kebab-case");
 

@@ -7,15 +7,15 @@ import { createRequire } from "node:module";
 import { collectValues, createCliProgress, singleValue } from "@openspec-orch/plugin-sdk";
 import { Command, Option } from "commander";
 
-import { configuration } from "./configuration.js";
-import { CORE_FILES } from "./constants.js";
-import { doctor } from "./doctor.js";
-import { ProjectSetupService } from "./project-setup.js";
-import { hasMethods } from "./value.js";
+import { configuration } from "../configuration/configuration.js";
+import { CORE_FILES } from "../configuration/constants.js";
+import { doctor } from "../diagnostics/doctor.js";
+import { ProjectSetupService } from "../setup/project-setup.js";
+import { hasMethods } from "../runtime/value.js";
 import { formatDoctorReport, formatStatusHeading } from "./status-output.js";
-import { workspace } from "./project/workspace.js";
+import { workspace } from "../project/workspace.js";
 
-const CORE_VERSION = createRequire(import.meta.url)("../package.json").version;
+const CORE_VERSION = createRequire(import.meta.url)("../../package.json").version;
 
 /** Собирает повторяемую Commander option. */
 function collectRepositories(value, previous = []) {

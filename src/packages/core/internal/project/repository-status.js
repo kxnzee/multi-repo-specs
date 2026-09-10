@@ -2,8 +2,8 @@
 
 import process from "node:process";
 
-import { coreState } from "../core-state.js";
-import { lstatOrNull } from "../fs.js";
+import { coreState } from "../runtime/core-state.js";
+import { lstatOrNull } from "../infrastructure/fs.js";
 import { repositoryRunner, repositorySelector } from "./repository-operations.js";
 import { storeProjects } from "./store-project.js";
 import { workspace } from "./workspace.js";

@@ -4,9 +4,9 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { RepositoryCheckout } from "./checkout.js";
-import { CORE_FILES } from "../constants.js";
-import { ensureDirectory, lstatOrNull } from "../fs.js";
-import { CORE_SETTINGS } from "../settings.js";
+import { CORE_FILES } from "../configuration/constants.js";
+import { ensureDirectory, lstatOrNull } from "../infrastructure/fs.js";
+import { CORE_SETTINGS } from "../configuration/settings.js";
 
 /** Канонический Workspace с единым правилом размещения Code Repositories. */
 export class Workspace {

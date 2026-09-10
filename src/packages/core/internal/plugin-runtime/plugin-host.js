@@ -4,10 +4,10 @@ import path from "node:path";
 import { promises as fs } from "node:fs";
 
 import { pluginContexts } from "./plugin-context.js";
-import { rollbackOrRethrow } from "../compensation.js";
+import { rollbackOrRethrow } from "../runtime/compensation.js";
 import { LoadedPlugin } from "./plugin-loader.js";
-import { isContainedPath } from "../path.js";
-import { hasMethods } from "../value.js";
+import { isContainedPath } from "../infrastructure/path.js";
+import { hasMethods } from "../runtime/value.js";
 
 /** Immutable registry загруженных Plugins с независимым от загрузки порядком. */
 export class PluginRegistry {

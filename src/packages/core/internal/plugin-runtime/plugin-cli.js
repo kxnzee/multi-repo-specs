@@ -10,10 +10,10 @@ import { Command, Option } from "commander";
 import { pluginApplications } from "./plugin-application.js";
 import { PluginCatalog, pluginCatalog } from "./plugin-catalog.js";
 import { PLUGIN_SCAFFOLD_CONFIG } from "./plugin-scaffold-config.js";
-import { CHECKBOX_THEME } from "../prompt-config.js";
+import { CHECKBOX_THEME } from "../configuration/prompt-config.js";
 import { pluginScaffolds } from "./plugin-scaffold.js";
 import { PluginSource } from "./plugin-source.js";
-import { formatStatusDetails, formatStatusHeading } from "../status-output.js";
+import { formatStatusDetails, formatStatusHeading } from "../cli/status-output.js";
 import { storeProjects } from "../project/store-project.js";
 
 /** Монтирует CLI-грамматику `plugin init/connect/status/sync/exec/disconnect/remove`. */

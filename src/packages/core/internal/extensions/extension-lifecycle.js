@@ -5,11 +5,11 @@ import process from "node:process";
 import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
 import { agentExtensions } from "../agents/agent-extension-adapter.js";
-import { coreState } from "../core-state.js";
+import { coreState } from "../runtime/core-state.js";
 import { workspace } from "../project/workspace.js";
-import { processes } from "../process.js";
+import { processes } from "../infrastructure/process.js";
 import { storeProjects } from "../project/store-project.js";
-import { hasMethods } from "../value.js";
+import { hasMethods } from "../runtime/value.js";
 
 /** Wraps one native failure with its portable Extension target. */
 function nativeFailure(extensionId, targetId, cause) {

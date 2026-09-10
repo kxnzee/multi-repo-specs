@@ -6,7 +6,7 @@ import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
 import { Project } from "./project.js";
 import { Repository } from "./repository.js";
-import { CORE_SETTINGS } from "../settings.js";
+import { CORE_SETTINGS } from "../configuration/settings.js";
 
 const REPOSITORY_ROLES = new Set(Object.values(REPOSITORY_ROLE));
 

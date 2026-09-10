@@ -3,11 +3,11 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { atomicWriter } from "../atomic-writer.js";
-import { CORE_SERVICE_PATHS } from "../constants.js";
-import { ensureSafeDirectoryChain, lstatOrNull } from "../fs.js";
-import { locks } from "../lock.js";
-import { npmPackageInstaller } from "../npm-package-installer.js";
+import { atomicWriter } from "../infrastructure/atomic-writer.js";
+import { CORE_SERVICE_PATHS } from "../configuration/constants.js";
+import { ensureSafeDirectoryChain, lstatOrNull } from "../infrastructure/fs.js";
+import { locks } from "../infrastructure/lock.js";
+import { npmPackageInstaller } from "../infrastructure/npm-package-installer.js";
 import {
   assertPackageLock,
   assertPackageManifest,

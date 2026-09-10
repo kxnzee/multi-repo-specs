@@ -5,7 +5,7 @@ import path from "node:path";
 
 import * as z from "zod";
 
-import { CORE_PATTERNS } from "../constants.js";
+import { CORE_PATTERNS } from "../configuration/constants.js";
 
 export const PACKAGE_KINDS = Object.freeze(["extensions", "plugins"]);
 

@@ -3,10 +3,10 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { CORE_SERVICE_PATHS } from "../constants.js";
-import { lstatOrNull } from "../fs.js";
+import { CORE_SERVICE_PATHS } from "../configuration/constants.js";
+import { lstatOrNull } from "../infrastructure/fs.js";
 import { packageLockFingerprint, packageRuntimePath } from "./package-runtime-contract.js";
-import { isContainedPath } from "../path.js";
+import { isContainedPath } from "../infrastructure/path.js";
 
 export const RUNTIME_LOCK_MARKER = ".openspec-orch-lock.sha256";
 

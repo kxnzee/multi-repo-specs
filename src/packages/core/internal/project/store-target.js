@@ -2,7 +2,7 @@
 
 import path from "node:path";
 
-import { CORE_PATTERNS } from "../constants.js";
+import { CORE_PATTERNS } from "../configuration/constants.js";
 
 /** Канонический локальный Store root до появления полной Repository identity. */
 export class StoreTarget {

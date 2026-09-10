@@ -1,7 +1,7 @@
 /** @fileoverview Recovery must attempt every independent compensation and retain failures. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { rollbackOrRethrow } from "../internal/compensation.js";
+import { rollbackOrRethrow } from "../internal/runtime/compensation.js";
 
 test("rollback continues after failure and retains the original and all cleanup errors", async () => {
   const original = new Error("publish failed");

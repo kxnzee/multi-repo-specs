@@ -4,14 +4,14 @@ import path from "node:path";
 
 import { LoadedPlugin } from "./plugin-loader.js";
 import { RepositoryCheckout } from "../project/checkout.js";
-import { files } from "../files.js";
-import { git } from "../git.js";
+import { files } from "../infrastructure/files.js";
+import { git } from "../infrastructure/git.js";
 import { openspec } from "../openspec/openspec.js";
 import { pluginStorage } from "./plugin-storage.js";
-import { processes } from "../process.js";
-import { coreState } from "../core-state.js";
+import { processes } from "../infrastructure/process.js";
+import { coreState } from "../runtime/core-state.js";
 import { StoreProject, storeProjects } from "../project/store-project.js";
-import { deepFreeze } from "../value.js";
+import { deepFreeze } from "../runtime/value.js";
 import { workspace } from "../project/workspace.js";
 
 /** Создаёт минимальный immutable Repository handle без transport и filesystem данных. */

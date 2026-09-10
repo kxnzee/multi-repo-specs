@@ -5,7 +5,7 @@ import test from "node:test";
 
 import {
   formatStatusDetails,
-} from "../internal/status-output.js";
+} from "../internal/cli/status-output.js";
 
 test("structured Plugin details render as a readable tree instead of JSON", () => {
   const details = JSON.stringify({

@@ -3,7 +3,7 @@
 import { Command } from "commander";
 
 import { packageSupplies } from "./package-supply.js";
-import { formatStatusHeading } from "../status-output.js";
+import { formatStatusHeading } from "../cli/status-output.js";
 import { storeProjects } from "../project/store-project.js";
 
 export class PackageCommands {

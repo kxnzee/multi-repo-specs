@@ -5,12 +5,12 @@ import process from "node:process";
 import { currentRepositories } from "../project/current-repository.js";
 import { isRecoverablePluginResolution } from "./plugin-resolution.js";
 import { pluginApplications } from "./plugin-application.js";
-import { rollbackOrRethrow } from "../compensation.js";
+import { rollbackOrRethrow } from "../runtime/compensation.js";
 import { PluginHost } from "./plugin-host.js";
 import { pluginManagers } from "./plugin-manager.js";
 import { repositoryRunner } from "../project/repository-operations.js";
 import { storeProjects } from "../project/store-project.js";
-import { hasMethods } from "../value.js";
+import { hasMethods } from "../runtime/value.js";
 
 const REPOSITORY_OPERATIONS = new Set(["connect", "disconnect", "exec", "sync"]);
 const SELECTED_OPERATION_METHODS = Object.freeze({

@@ -5,7 +5,7 @@ import process from "node:process";
 
 import { execa } from "execa";
 
-import { CORE_SETTINGS } from "./settings.js";
+import { CORE_SETTINGS } from "../configuration/settings.js";
 import { redactSensitive } from "./process.js";
 
 const NPM_ENV = Object.freeze({
