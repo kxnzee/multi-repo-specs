@@ -5,6 +5,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { execa } from "execa";
 
 import {
   configuration,
@@ -97,15 +98,8 @@ test("CurrentRepositoryService identifies the invoking Code directory without Gi
   const fixture = await commandWorkspace(t);
   const storeProject = await new StoreProjectService().load(fixture.storeRoot);
   await fs.rm(path.join(fixture.repositoryRoot, ".git"), { recursive: true, force: true });
-  const checked = [];
+  await fs.mkdir(path.join(fixture.workspaceRoot, ".git"));
   const service = new CurrentRepositoryService({
-    gitService: {
-      forRepository(checkout) {
-        return {
-          async assertIdentity() { checked.push(checkout.id); },
-        };
-      },
-    },
     stateService: {
       forStore() {
         return { async read() { return { workspace: fixture.workspaceRoot }; } };
@@ -122,5 +116,23 @@ test("CurrentRepositoryService identifies the invoking Code directory without Gi
     role: "code",
     path: fixture.repositoryRoot,
   });
-  assert.deepEqual(checked, []);
+});
+
+
+test("current repository recognizes external Git worktrees and rejects unrelated nested repositories", async (t) => {
+  const fixture = await commandWorkspace(t);
+  const storeProject = await new StoreProjectService().load(fixture.storeRoot);
+  const run = (...args) => execa("git", args, { cwd: fixture.repositoryRoot });
+  await run("init", "--initial-branch=main");
+  await run("-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "commit", "--allow-empty", "-m", "base");
+  const external = path.join(fixture.workspaceRoot, "external-worktree");
+  await run("worktree", "add", "-b", "task", external);
+  const service = new CurrentRepositoryService();
+  assert.deepEqual(await service.resolve({ start: external, storeProject }), {
+    id: "frontend", role: "code", path: external,
+  });
+  const unrelated = path.join(fixture.repositoryRoot, "unrelated");
+  await fs.mkdir(unrelated);
+  await execa("git", ["init", "--initial-branch=main"], { cwd: unrelated });
+  assert.equal(await service.resolve({ start: unrelated, storeProject }), null);
 });

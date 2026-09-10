@@ -513,7 +513,7 @@ test("candidate distribution serves OpenSpec Graph through public MCP only", asy
 });
 
 test("candidate distribution completes Change Tracking through public MCP", async (t) => {
-  const { codeRoot, registerCleanup, storeRoot } = await distributionFixture(
+  let { codeRoot, registerCleanup, storeRoot } = await distributionFixture(
     t,
     "openspec-orch-distribution-mcp-",
   );
@@ -533,6 +533,15 @@ test("candidate distribution completes Change Tracking through public MCP", asyn
   await fs.mkdir(path.join(codeRoot, "openspec"), { recursive: true });
   await fs.writeFile(path.join(codeRoot, "openspec/config.yaml"), "store: specs\n");
   await commitAll(codeRoot, "Connect OpenSpec Store");
+  await fs.appendFile(path.join(codeRoot, ".gitignore"), "\n.worktrees/\n");
+  await commitAll(codeRoot, "Ignore worktrees");
+  const mainRoot = codeRoot;
+  const worktree = path.join(codeRoot, ".worktrees", "attempt");
+  await execa("git", ["worktree", "add", "-b", "attempt", worktree], { cwd: mainRoot });
+  registerCleanup(() => execa("git", ["worktree", "remove", "--force", worktree], { cwd: mainRoot }));
+  codeRoot = worktree;
+  await fs.writeFile(path.join(codeRoot, "preparation.js"), "export const prepared = true;\n");
+  await commitAll(codeRoot, "Prepare attempt worktree");
   const baseRevision = (await execa("git", ["rev-parse", "HEAD"], { cwd: codeRoot })).stdout;
 
   const transport = new StdioClientTransport({
@@ -571,6 +580,8 @@ test("candidate distribution completes Change Tracking through public MCP", asyn
     await execa("git", ["rev-parse", "HEAD"], { cwd: codeRoot })
   ).stdout;
   await fs.writeFile(tasksPath, "# Tasks\n\n- [x] 1.1 Implement tracker smoke\n");
+  await assert.rejects(runCli(mainRoot, "plugin", "exec", "--repo", "specs", "change-tracking",
+    "attempt", "complete", "tracker-smoke", "1"), /ATTEMPT_CHECKOUT_CHANGED/);
   const completed = await client.callTool({
     name: "complete_attempt",
     arguments: { change_id: "tracker-smoke", task_id: "1" },
@@ -821,4 +832,22 @@ test("candidate distribution publishes partial worktree implementation and resum
   assert.deepEqual(status.tasks[1].implementations, []);
   assert.equal(await fs.readFile(localState, "utf8"), "{broken");
   assert.equal((await execa("git", ["rev-parse", "HEAD"], { cwd: codeRoot })).stdout, mainHead);
+  const record = (pr, version, summary) => runCli(codeRoot, ...command, "record", "handoff", "1",
+    "--description", "1.1 Implement handoff safely", "--pr", pr, "--commits", sha,
+    "--summary", summary, "--remaining", "", "--version", String(version));
+  const raced = await Promise.allSettled([
+    record(input.pull_request, 3, "Contributor A"), record(input.pull_request, 3, "Contributor B"),
+  ]);
+  assert.equal(raced.filter(({ status }) => status === "fulfilled").length, 1);
+  assert.match(raced.find(({ status }) => status === "rejected").reason.message, /IMPLEMENTATION_CONFLICT/);
+  await Promise.all([
+    record("https://example.test/frontend/pull/43", 0, "Additional work"),
+    record("https://example.test/frontend/pull/44", 0, "Other work"),
+  ]);
+  status = JSON.parse((await runCli(codeRoot, ...command, "status", "handoff")).stdout);
+  assert.deepEqual(status.implementations.map(({ pull_request }) => pull_request).sort(), [
+    input.pull_request, "https://example.test/frontend/pull/43", "https://example.test/frontend/pull/44",
+  ]);
+  assert.equal(status.implementations.find(({ pull_request }) => pull_request === input.pull_request).version, 4);
+
 });

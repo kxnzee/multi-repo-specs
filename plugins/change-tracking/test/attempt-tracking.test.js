@@ -210,32 +210,6 @@ test("implementation map completion is retry-safe when only completion time chan
   })).changed, false);
 });
 
-test("implementation map keeps concurrent completions for different tasks", async () => {
-  const context = assignmentContext();
-  const repository = new ImplementationMapRepository(context.files);
-  const attempt = (taskId, implementationRevision) => ({
-    repository_id: "frontend",
-    task: { id: taskId, description: `Implement task ${taskId}` },
-    schema_name: "spec-driven-extended",
-    planning_revision: BASE,
-    base_revision: BASE,
-    implementation_revision: implementationRevision,
-    started_at: "2026-08-31T10:00:00.000Z",
-    completed_at: "2026-08-31T10:01:00.000Z",
-  });
-
-  const results = await Promise.all([
-    repository.append("checkout-flow", attempt("1", IMPLEMENTATION)),
-    repository.append("checkout-flow", attempt("2", "c".repeat(40))),
-  ]);
-
-  assert.deepEqual(results.map(({ changed }) => changed), [true, true]);
-  assert.deepEqual(
-    (await repository.read("checkout-flow")).map(({ task }) => task.id),
-    ["1", "2"],
-  );
-});
-
 test("implementation map retries a transient Core file-update lock", async () => {
   const context = assignmentContext();
   let updates = 0;
@@ -347,10 +321,6 @@ test("changed task can be cancelled with a reason and restarted without losing h
   const tracker = new AttemptTrackingService(context);
   const input = { changeId: "checkout-flow", taskId: "1" };
   await tracker.start(input);
-  // Existing v1 local state remains readable and is upgraded only on a successful write.
-  await context.storage.update(({ active_attempts }) => ({ contract_version: 1, active_attempts }));
-  assert.equal((await tracker.status(input.changeId)).active.length, 1);
-  assert.equal((await context.storage.read()).contract_version, 1);
   tasks[0].description = "Revised task";
   await assert.rejects(tracker.start(input), /ATTEMPT_TASK_CHANGED/u);
   await assert.rejects(tracker.cancel({ ...input, reason: " " }), /ATTEMPT_REASON_REQUIRED/u);

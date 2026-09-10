@@ -62,9 +62,8 @@ smoke. Таймаут теста не гарантирует завершени�
 `npm ci` и `test:pack` требуют доступа к npm registry; Git-source проверки
 используют локальные временные Git repositories. `test:pack` также запускает public CLI/MCP scenarios против установленных tarballs:
 первый init, повторный connect, Doctor, Plugins, Graph и Change Tracking.
-Установка consumer использует чистый npm-кэш и `--maxsockets=1`, чтобы параллельные
-TLS-соединения с registry не задерживали smoke. Настройки npm пользователя не меняются;
-ограничение времени установки остаётся 120 секунд.
+Установка consumer использует чистый npm-кэш и стандартную параллельность npm.
+Настройки npm пользователя не меняются; ограничение времени установки — 120 секунд.
 Harness и MCP client находятся в checkout; проверяемые CLI/MCP entrypoints и их
 dependencies — в чистом consumer. Qwen остаётся заглушкой.
 `test:pack` намеренно использует

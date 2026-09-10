@@ -43,7 +43,7 @@ Apply. Do not create separate `implement-design` or `implement-plan` workflows.
   `tracking.implementations`: a done checkbox with remaining work, no implementation
   or no commits needs explanation/correction, not an automatic checkbox change.
   A no-code task can explain missing commits in summary. `legacy_error` reports
-  old local storage corruption; current links remain usable. Do not delete old state.
+  local attempt storage corruption; current links remain usable. Do not delete old state.
 - Record only explicit full SHA values from the implementation checkout, including
   worktrees. Never substitute the main checkout HEAD or infer commits from a checkbox.
   For squash/rebase, refresh the list to published commits and explain the replacement
@@ -56,7 +56,7 @@ Apply. Do not create separate `implement-design` or `implement-plan` workflows.
   For a partial handoff publish the link before completion/code merge, otherwise
   another checkout cannot discover it. No separate history commit, local attempt,
   clean-Store gate or background PR synchronization is required by this flow.
-- `start_attempt` and `complete_attempt` remain only for existing legacy attempts;
+- `start_attempt` and `complete_attempt` serve local attempts;
   do not create them for new work. Existing active attempts can be cancelled with
   CLI `attempt cancel` and an explicit reason; do not silently delete local history.
 - Do not record implementation for planning, review, exploration or read-only requests.
