@@ -2,20 +2,7 @@
 
 import { executePluginCommands } from "./command-executor.js";
 import { Extension, defineExtension } from "@openspec-orch/extension-sdk";
-import {
-  DEFINITION_ID_PATTERN,
-  REPOSITORY_ROLES,
-  assertKnownKeys as assertKnownDefinitionKeys,
-  assertPlainObject as assertPlainDefinitionObject,
-} from "./validation.js";
-
-const PLUGIN_KEYS = new Set(["agent", "id", "supports", "repository", "extensions", "registerCommands"]);
-const REPOSITORY_KEYS = new Set(["connect", "status", "sync", "exec"]);
-const AGENT_KEYS = new Set(["create", "enhance", "requireBinding", "tools"]);
-const AGENT_TOOL_KEYS = new Set([
-  "annotations", "description", "execute", "inputSchema", "name", "validate", "repositoryScoped", "repositoryParameter",
-]);
-const AGENT_TOOL_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/u;
+import { invalidPluginDefinition, normalizePluginDefinition } from "./plugin-definition.js";
 
 /** @typedef {"store" | "code" | "specs"} RepositoryRole */
 
@@ -168,114 +155,6 @@ const AGENT_TOOL_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/u;
  * @property {(commands: CommandRegistry) => void} [registerCommands]
  */
 
-/** Завершает проверку Plugin definition стабильной ошибкой SDK. */
-function invalid(message) {
-  throw new Error(`PLUGIN_DEFINITION_INVALID: ${message}`);
-}
-
-const assertPlainObject = (value, label) => assertPlainDefinitionObject(value, label, invalid);
-const assertKnownKeys = (value, allowed, label) => (
-  assertKnownDefinitionKeys(value, allowed, label, invalid)
-);
-
-/** Проверяет callback одного contribution. */
-function assertCallback(value, label) {
-  if (typeof value !== "function") invalid(`${label} должен быть функцией`);
-}
-
-/** Проверяет и копирует Repository contribution. */
-function repositoryContribution(repository) {
-  if (repository === undefined) return undefined;
-  assertPlainObject(repository, "repository");
-  assertKnownKeys(repository, REPOSITORY_KEYS, "repository");
-  assertCallback(repository.connect, "repository.connect");
-  assertCallback(repository.status, "repository.status");
-  if (repository.sync !== undefined) assertCallback(repository.sync, "repository.sync");
-  if (repository.exec !== undefined) assertCallback(repository.exec, "repository.exec");
-  return Object.freeze({
-    connect: repository.connect,
-    status: repository.status,
-    ...(repository.sync === undefined ? {} : { sync: repository.sync }),
-    ...(repository.exec === undefined ? {} : { exec: repository.exec }),
-  });
-}
-
-/** Проверяет optional data-only Extension contribution callback. */
-function extensionContribution(extensions) {
-  if (extensions === undefined) return undefined;
-  assertCallback(extensions, "extensions");
-  return extensions;
-}
-
-/** Copies and freezes Agent tool metadata without introducing a separate domain hierarchy. */
-function immutable(value) {
-  if (Array.isArray(value)) return Object.freeze(value.map(immutable));
-  if (!value || typeof value !== "object") return value;
-  return Object.freeze(Object.fromEntries(
-    Object.entries(value).map(([key, nested]) => [key, immutable(nested)]),
-  ));
-}
-
-/** Validates the small data contract used by generic Agent routing. */
-function agentContribution(agent) {
-  if (agent === undefined) return undefined;
-  assertPlainObject(agent, "agent");
-  assertKnownKeys(agent, AGENT_KEYS, "agent");
-  assertCallback(agent.create, "agent.create");
-  if (agent.enhance !== undefined) assertCallback(agent.enhance, "agent.enhance");
-  if (agent.requireBinding !== undefined && typeof agent.requireBinding !== "boolean") {
-    invalid("agent.requireBinding должен быть boolean");
-  }
-  if (!Array.isArray(agent.tools ?? [])) invalid("agent.tools должен быть массивом");
-  const tools = (agent.tools ?? []).map((tool) => {
-    assertPlainObject(tool, "agent tool");
-    assertKnownKeys(tool, AGENT_TOOL_KEYS, "agent tool");
-    if (typeof tool.name !== "string" || !AGENT_TOOL_PATTERN.test(tool.name)) {
-      invalid("agent tool name должен быть lowercase snake_case");
-    }
-    if (typeof tool.description !== "string" || !tool.description.trim()) {
-      invalid(`agent tool ${tool.name} требует description`);
-    }
-    assertCallback(tool.execute, `agent tool ${tool.name}.execute`);
-    if (tool.validate !== undefined) assertCallback(tool.validate, `agent tool ${tool.name}.validate`);
-    if (tool.repositoryScoped !== undefined && typeof tool.repositoryScoped !== "boolean") {
-      invalid(`agent tool ${tool.name}.repositoryScoped должен быть boolean`);
-    }
-    if (tool.repositoryParameter !== undefined) {
-      const parameter = tool.repositoryParameter;
-      if (typeof parameter !== "string" || !AGENT_TOOL_PATTERN.test(parameter) ||
-          tool.inputSchema?.properties?.[parameter]?.type !== "string") {
-        invalid(`agent tool ${tool.name}.repositoryParameter должен указывать строковое поле inputSchema`);
-      }
-      if (tool.repositoryScoped !== undefined) {
-        invalid(`agent tool ${tool.name}: используйте только repositoryParameter или repositoryScoped`);
-      }
-    }
-    return Object.freeze({
-      repositoryParameter: tool.repositoryParameter ?? (tool.repositoryScoped ? "repository_id" : null),
-      repositoryScoped: tool.repositoryScoped ?? false,
-      name: tool.name,
-      definition: Object.freeze({
-        name: tool.name,
-        description: tool.description.trim(),
-        inputSchema: immutable(tool.inputSchema ?? {}),
-        annotations: immutable(tool.annotations ?? {}),
-      }),
-      validate: tool.validate ?? (() => undefined),
-      execute: tool.execute,
-    });
-  });
-  if (new Set(tools.map(({ name }) => name)).size !== tools.length) {
-    invalid("agent.tools содержит повторяющийся name");
-  }
-  return Object.freeze({
-    create: agent.create,
-    enhance: agent.enhance ?? (({ result }) => result),
-    requireBinding: agent.requireBinding ?? false,
-    tools: Object.freeze(tools),
-  });
-}
-
 /** Доменная модель одного проверенного Plugin. */
 export class Plugin {
   #id;
@@ -287,44 +166,13 @@ export class Plugin {
 
   /** @param {PluginDefinition} definition Пользовательское определение Plugin. */
   constructor(definition) {
-    assertPlainObject(definition, "Plugin definition");
-    assertKnownKeys(definition, PLUGIN_KEYS, "Plugin definition");
-    if (typeof definition.id !== "string" || !DEFINITION_ID_PATTERN.test(definition.id)) {
-      invalid("id должен быть lowercase kebab-case");
-    }
-    if (definition.supports !== undefined && !Array.isArray(definition.supports)) {
-      invalid("supports должен быть массивом");
-    }
-    const supports = [...(definition.supports ?? [])];
-    if (supports.some((role) => !REPOSITORY_ROLES.has(role))) {
-      invalid("supports содержит неизвестную Repository role");
-    }
-    if (new Set(supports).size !== supports.length) {
-      invalid("supports содержит повторяющуюся role");
-    }
-
-    const repository = repositoryContribution(definition.repository);
-    const extensions = extensionContribution(definition.extensions);
-    const agent = agentContribution(definition.agent);
-    if (repository && supports.length === 0) {
-      invalid("repository contribution требует хотя бы одну supports role");
-    }
-    if (!repository && supports.length > 0) {
-      invalid("supports разрешён только вместе с repository contribution");
-    }
-    if (definition.registerCommands !== undefined) {
-      assertCallback(definition.registerCommands, "registerCommands");
-    }
-    if (!repository && !extensions && !agent && definition.registerCommands === undefined) {
-      invalid("Plugin должен объявить хотя бы один contribution");
-    }
-
-    this.#id = definition.id;
-    this.#supports = Object.freeze(supports);
-    this.#repository = repository;
-    this.#agentContribution = agent;
-    this.#extensionContribution = extensions;
-    this.#commandRegistration = definition.registerCommands;
+    const normalized = normalizePluginDefinition(definition);
+    this.#id = normalized.id;
+    this.#supports = normalized.supports;
+    this.#repository = normalized.repository;
+    this.#agentContribution = normalized.agent;
+    this.#extensionContribution = normalized.extensions;
+    this.#commandRegistration = normalized.registerCommands;
     Object.freeze(this);
   }
 
@@ -421,13 +269,13 @@ export class Plugin {
     }
     const definitions = this.#extensionContribution(context);
     if (!Array.isArray(definitions)) {
-      invalid("extensions должен вернуть массив");
+      invalidPluginDefinition("extensions должен вернуть массив");
     }
     const extensions = definitions.map((definition) => (
       definition instanceof Extension ? definition : defineExtension(definition)
     ));
     if (new Set(extensions.map(({ id }) => id)).size !== extensions.length) {
-      invalid("extensions содержит повторяющийся id");
+      invalidPluginDefinition("extensions содержит повторяющийся id");
     }
     return Object.freeze(extensions);
   }
