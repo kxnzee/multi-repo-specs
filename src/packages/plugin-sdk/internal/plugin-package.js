@@ -59,14 +59,16 @@ export class PluginPackage {
     assertPlainObject(manifest.openspecOrchestrator, "openspecOrchestrator", invalid);
     const metadata = manifest.openspecOrchestrator;
     const metadataKeys = Object.keys(metadata);
-    const nativeMetadata = metadataKeys.length === 2 && metadataKeys.includes("apiVersion") &&
-      metadataKeys.includes("plugin");
+    const nativeMetadata = metadataKeys.length >= 2 && metadataKeys.length <= 3 &&
+      metadataKeys.includes("apiVersion") && metadataKeys.includes("plugin") &&
+      metadataKeys.every((key) => ["apiVersion", "plugin", "runtime"].includes(key));
     if (!nativeMetadata) invalid("openspecOrchestrator должен содержать apiVersion и plugin");
     if (metadata.apiVersion !== PLUGIN_API_VERSION) {
       invalid(`поддерживается только apiVersion=${PLUGIN_API_VERSION}`);
     }
     const entrypoint = metadata.plugin;
     assertPluginPath(entrypoint);
+    if (metadata.runtime !== undefined) assertPluginPath(metadata.runtime);
     if (resolveRootExport(manifest.exports) !== entrypoint) {
       invalid("package root export должен совпадать с openspecOrchestrator.plugin");
     }

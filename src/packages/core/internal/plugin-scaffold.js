@@ -2,6 +2,7 @@
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   PluginPackage,
@@ -16,6 +17,9 @@ import { PLUGIN_SCAFFOLD_CONFIG, PLUGIN_SCAFFOLD_PROFILE } from "./plugin-scaffo
 
 const REPOSITORY_ROLES = new Set(Object.values(REPOSITORY_ROLE));
 const PLUGIN_PROFILES = new Set(PLUGIN_SCAFFOLD_CONFIG.profiles);
+const COMMON_EXTENSION_TEMPLATE_ROOT = fileURLToPath(
+  new URL("./plugin-extension-template/", import.meta.url),
+);
 /** Рекурсивно читает все файлы package-owned Plugin Extension Template. */
 async function extensionTemplatePaths(root, prefix = "") {
   const entries = await fs.readdir(root, { withFileTypes: true });
@@ -99,8 +103,10 @@ function normalize({
 }
 
 /** Материализует Agent artifacts из package-owned Plugin Extension Template. */
-async function extensionTemplateFiles({ pluginId, name }, templateRoot) {
-  if (!templateRoot) throw new Error("PLUGIN_EXTENSION_TEMPLATE_REQUIRED: extensionTemplateRoot обязателен для Extension");
+async function extensionTemplateFiles({ pluginId, name }, providerTemplateRoots) {
+  if (providerTemplateRoots.length === 0) {
+    throw new Error("PLUGIN_EXTENSION_TEMPLATE_REQUIRED: нужны шаблоны подключённых Agent для Extension");
+  }
   const extensionName = `${pluginId}-agent`;
   const values = new Map([
     ["__EXTENSION_NAME_JSON__", JSON.stringify(extensionName)],
@@ -109,19 +115,24 @@ async function extensionTemplateFiles({ pluginId, name }, templateRoot) {
     ["__PLUGIN_DISPLAY_NAME__", name],
     ["__PLUGIN_DISPLAY_NAME_JSON__", JSON.stringify(name)],
   ]);
-  const templatePaths = await extensionTemplatePaths(templateRoot);
-  return Promise.all(templatePaths.map(async (relativePath) => {
-    let contents = await fs.readFile(
-      path.join(templateRoot, `${relativePath}.template`),
-      "utf8",
-    );
+  const templates = new Map();
+  for (const templateRoot of [COMMON_EXTENSION_TEMPLATE_ROOT, ...providerTemplateRoots]) {
+    for (const relativePath of await extensionTemplatePaths(templateRoot)) {
+      if (templates.has(relativePath)) {
+        throw new Error(`PLUGIN_EXTENSION_TEMPLATE_INVALID: повторяется файл ${relativePath}`);
+      }
+      templates.set(relativePath, templateRoot);
+    }
+  }
+  return Promise.all([...templates].map(async ([relativePath, templateRoot]) => {
+    let contents = await fs.readFile(path.join(templateRoot, `${relativePath}.template`), "utf8");
     for (const [token, value] of values) contents = contents.replaceAll(token, () => value);
     return [`extension/${relativePath}`, contents];
   }));
 }
 
 /** Формирует минимальные файлы самостоятельного Plugin package. */
-async function scaffoldFiles({ pluginId, name, profile, supports, extension }, extensionTemplateRoot) {
+async function scaffoldFiles({ pluginId, name, profile, supports, extension }, extensionTemplateRoots) {
   const sdkVersion = `^${CORE_PACKAGE_VERSIONS.pluginSdk}`;
   const packagedFiles = [
     "index.js",
@@ -241,20 +252,21 @@ ${extension ? "Agent Extension находится в `extension/` и подкл�
 throw new Error("NATIVE_RUNTIME_NOT_IMPLEMENTED");
 `]]
       : []),
-    ...(extension ? await extensionTemplateFiles({ pluginId, name }, extensionTemplateRoot) : []),
+    ...(extension ? await extensionTemplateFiles({ pluginId, name }, extensionTemplateRoots) : []),
   ]);
 }
 
 /** Создаёт самостоятельный Plugin package без изменений Core. */
 export class PluginScaffoldService {
-  #extensionTemplateRoot;
+  #extensionTemplateRoots;
 
-  constructor({ extensionTemplateRoot } = {}) {
-    if (extensionTemplateRoot !== undefined &&
-        (typeof extensionTemplateRoot !== "string" || !path.isAbsolute(extensionTemplateRoot))) {
-      throw new Error("PLUGIN_EXTENSION_TEMPLATE_INVALID: extensionTemplateRoot должен быть абсолютным путём");
+  constructor({ extensionTemplateRoots = [] } = {}) {
+    if (!Array.isArray(extensionTemplateRoots) || extensionTemplateRoots.some((root) => (
+      typeof root !== "string" || !path.isAbsolute(root)
+    ))) {
+      throw new Error("PLUGIN_EXTENSION_TEMPLATE_INVALID: extensionTemplateRoots должен содержать абсолютные пути");
     }
-    this.#extensionTemplateRoot = extensionTemplateRoot;
+    this.#extensionTemplateRoots = Object.freeze([...extensionTemplateRoots]);
   }
 
   async register({ pluginId, targetRoot, name, profile, supports, extension } = {}) {
@@ -266,7 +278,7 @@ export class PluginScaffoldService {
     if (await lstatOrNull(requestedRoot)) {
       throw new Error(`PLUGIN_TARGET_EXISTS: каталог уже существует: ${requestedRoot}`);
     }
-    const plannedFiles = await scaffoldFiles(registration, this.#extensionTemplateRoot);
+    const plannedFiles = await scaffoldFiles(registration, this.#extensionTemplateRoots);
     await fs.mkdir(path.dirname(requestedRoot), { recursive: true });
     const parent = await fs.realpath(path.dirname(requestedRoot));
     const root = path.join(parent, path.basename(requestedRoot));

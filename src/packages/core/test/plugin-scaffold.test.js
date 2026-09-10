@@ -14,6 +14,10 @@ import { PluginLoader, PluginScaffoldService } from "@openspec-orch/core";
 import { createDirectoryLink } from "../fixtures/filesystem.js";
 import { PLUGIN_SDK_ROOT } from "../fixtures/plugin-materializer.js";
 
+const AGENT_EXTENSION_TEMPLATE_ROOTS = ["claude", "gigacode", "qwen"].map((id) => (
+  fileURLToPath(new URL(`../../../agents/${id}/plugin-extension/`, import.meta.url))
+));
+
 /** Делает публичный SDK доступным созданному локальному package без npm registry. */
 async function linkSdk(packageRoot) {
   const scope = path.join(packageRoot, "node_modules", "@openspec-orch");
@@ -52,7 +56,7 @@ test("PluginScaffoldService creates convention-first commands, repository and na
       const pluginId = `${candidate.profile}-plugin`;
       const targetRoot = path.join(temporary, pluginId);
       const result = await new PluginScaffoldService({
-        extensionTemplateRoot: fileURLToPath(new URL("../../../bin/templates/plugin-extension/", import.meta.url)),
+        extensionTemplateRoots: AGENT_EXTENSION_TEMPLATE_ROOTS,
       }).register({
         pluginId,
         targetRoot,
@@ -202,7 +206,7 @@ test("PluginScaffoldService does not reserve distribution-owned Plugin command n
   }
 });
 
-test("Core scaffold requires supplied Extension assets and accepts an arbitrary provider layout", async (t) => {
+test("Core scaffold requires Agent templates and combines them with shared Extension files", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "scaffold-assets-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const targetRoot = path.join(root, "new-parent", "plugin");
@@ -212,7 +216,9 @@ test("Core scaffold requires supplied Extension assets and accepts an arbitrary 
   const extensionTemplateRoot = path.join(root, "assets");
   await fs.mkdir(path.join(extensionTemplateRoot, "custom-provider"), { recursive: true });
   await fs.writeFile(path.join(extensionTemplateRoot, "custom-provider", "manifest.txt.template"), "__EXTENSION_NAME_JSON__\n");
-  await new PluginScaffoldService({ extensionTemplateRoot }).register(options);
-  assert.deepEqual(await fs.readdir(path.join(targetRoot, "extension")), ["custom-provider"]);
+  await new PluginScaffoldService({ extensionTemplateRoots: [extensionTemplateRoot] }).register(options);
+  assert.deepEqual((await fs.readdir(path.join(targetRoot, "extension"))).sort(), [
+    "agent-instructions.md", "custom-provider",
+  ]);
   assert.equal(await fs.readFile(path.join(targetRoot, "extension/custom-provider/manifest.txt"), "utf8"), '"custom-agent"\n');
 });

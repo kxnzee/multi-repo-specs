@@ -148,6 +148,9 @@ export class BundledAgentProvider {
 
   get catalog() { return this.#catalog; }
   get adapter() { return this.#adapter; }
+  get extensionTemplateRoots() {
+    return Object.freeze(this.#packages.map(({ root }) => path.join(root, "plugin-extension")));
+  }
 
   resolve(agentId) {
     const item = this.#packages.find(({ id }) => id === agentId);

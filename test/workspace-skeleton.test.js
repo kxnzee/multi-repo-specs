@@ -21,7 +21,6 @@ test("root distribution exposes the candidate entrypoint and required runtime fi
   assert.deepEqual(manifest.workspaces, ["src/packages/*", "plugins/*"]);
   assert.deepEqual(manifest.bin, {
     "openspec-orch": "./src/bin/openspec-orch.js",
-    "openspec-orch-codegraph": "./src/bin/openspec-orch-codegraph.js",
     "openspec-orch-mcp": "./src/bin/openspec-orch-mcp.js",
   });
   assert.deepEqual(manifest.files, ["src/agents", "src/bin", "extensions", "templates"]);
@@ -112,6 +111,14 @@ test("public entrypoint exposes the supported CLI", () => {
   assert.match(candidate.stdout, /doctor \[options\]/);
   assert.match(candidate.stdout, /^\s+extension\b/mu);
   assert.match(candidate.stdout, /^\s+package\b/mu);
+
+  const pluginRuntime = spawnSync(
+    process.execPath,
+    ["src/bin/openspec-orch.js", "plugin", "runtime", "codegraph", "init", "--help"],
+    { cwd: path.resolve("."), encoding: "utf8" },
+  );
+  assert.equal(pluginRuntime.status, 0, pluginRuntime.stderr);
+  assert.match(pluginRuntime.stdout, /Usage: codegraph init/u);
 
   const extension = spawnSync(process.execPath, ["src/bin/openspec-orch.js", "extension", "--help"], {
     cwd: path.resolve("."),

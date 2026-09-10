@@ -37,6 +37,7 @@ test("Package owns its CodeGraph dependency and native Plugin entrypoint", async
   assert.deepEqual(packageManifest.openspecOrchestrator, {
     apiVersion: 1,
     plugin: "./index.js",
+    runtime: "./bin/codegraph.js",
   });
   assert.deepEqual(assertPluginContract({ plugin, packageManifest }), {
     id: "codegraph",
@@ -91,14 +92,14 @@ test("Package ships one native Agent Extension for Claude, Qwen and GigaCode", a
     plugins: [{ name: "codegraph-agent", source: "./" }],
   });
   assert.deepEqual(qwen.mcpServers["openspec-orch-codegraph"], {
-    command: "openspec-orch-codegraph",
-    args: ["serve", "--mcp"],
+    command: "openspec-orch",
+    args: ["plugin", "runtime", "codegraph", "serve", "--mcp"],
     cwd: "${workspacePath}",
   });
   assert.deepEqual(gigacode.mcpServers, qwen.mcpServers);
   assert.deepEqual(claudeMcp.mcpServers["openspec-orch-codegraph"], {
-    command: "openspec-orch-codegraph",
-    args: ["serve", "--mcp"],
+    command: "openspec-orch",
+    args: ["plugin", "runtime", "codegraph", "serve", "--mcp"],
     cwd: "${CLAUDE_PROJECT_DIR}",
   });
 });

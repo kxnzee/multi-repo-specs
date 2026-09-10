@@ -36,7 +36,6 @@
   ],
   "bin": {
     "openspec-orch": "./src/bin/openspec-orch.js",
-    "openspec-orch-codegraph": "./src/bin/openspec-orch-codegraph.js",
     "openspec-orch-mcp": "./src/bin/openspec-orch-mcp.js"
   },
   "dependencies": {
