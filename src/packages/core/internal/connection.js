@@ -5,10 +5,10 @@ import process from "node:process";
 import { coreState } from "./core-state.js";
 import { lstatOrNull } from "./fs.js";
 import { git } from "./git.js";
-import { openspec } from "./openspec.js";
+import { openspec } from "./openspec/openspec.js";
 import { pointers } from "./pointer.js";
-import { storeProjects } from "./store-project.js";
-import { workspace } from "./workspace.js";
+import { storeProjects } from "./project/store-project.js";
+import { workspace } from "./project/workspace.js";
 
 /** Immutable результат подключения одного Code Repository. */
 export class RepositoryConnection {

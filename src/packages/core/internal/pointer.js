@@ -8,7 +8,7 @@ import { execa } from "execa";
 import { atomicWriter } from "./atomic-writer.js";
 import { CORE_FILES, CORE_PATTERNS } from "./constants.js";
 import { ensureDirectory, lstatOrNull } from "./fs.js";
-import { parseOpenSpecJson } from "./openspec.js";
+import { parseOpenSpecJson } from "./openspec/openspec.js";
 import { ScopedProcess } from "./process.js";
 
 /** Создаёт и проверяет config-only pointer без доступа к Master Specs. */

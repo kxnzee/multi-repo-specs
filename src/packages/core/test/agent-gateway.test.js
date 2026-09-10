@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { AgentGatewayService } from "../internal/agent-gateway.js";
+import { AgentGatewayService } from "../internal/agents/agent-gateway.js";
 import { CandidateCli } from "../internal/cli.js";
 
 test("AgentGatewayService owns explicit setup, status and removal without Project state", async () => {

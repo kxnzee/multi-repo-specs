@@ -7,9 +7,9 @@ import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
 import { parseProjectConfigSchema, parseStoreMetadataSchema } from "./config-schema.js";
 import { CORE_CONTRACT_VERSIONS, CORE_FILES, CORE_PATTERNS } from "./constants.js";
-import { Project } from "./project.js";
-import { Repository } from "./repository.js";
-import { Store } from "./store.js";
+import { Project } from "./project/project.js";
+import { Repository } from "./project/repository.js";
+import { Store } from "./project/store.js";
 
 /** Разбирает YAML и требует object верхнего уровня. */
 function parseYaml(source, label) {

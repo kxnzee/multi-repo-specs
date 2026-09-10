@@ -6,7 +6,7 @@ import path from "node:path";
 import { REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
 import { atomicWriter } from "./atomic-writer.js";
-import { bundledAgents } from "./bundled-agent.js";
+import { bundledAgents } from "./agents/bundled-agent.js";
 import { configuration } from "./configuration.js";
 import {
   CORE_CONTRACT_VERSIONS,
@@ -14,11 +14,11 @@ import {
   CORE_PATTERNS,
 } from "./constants.js";
 import { lstatOrNull } from "./fs.js";
-import { openspec } from "./openspec.js";
-import { Project } from "./project.js";
-import { Repository } from "./repository.js";
-import { StoreTarget } from "./store-target.js";
-import { projectTemplates } from "./template.js";
+import { openspec } from "./openspec/openspec.js";
+import { Project } from "./project/project.js";
+import { Repository } from "./project/repository.js";
+import { StoreTarget } from "./project/store-target.js";
+import { projectTemplates } from "./templates/template.js";
 import { deepFreeze, hasMethods } from "./value.js";
 
 /** Проверяет обязательный обычный init file. */

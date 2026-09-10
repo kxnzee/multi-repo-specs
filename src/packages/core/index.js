@@ -1,24 +1,24 @@
 /** @fileoverview Публичная граница нового Orchestrator Core. */
 
-export { AgentDefinition } from "./internal/agent-definition.js";
+export { AgentDefinition } from "./internal/agents/agent-definition.js";
 export {
   AgentCatalog,
   AgentCatalogEntry,
   BundledAgentPackage,
   BundledAgentProvider,
   bundledAgents,
-} from "./internal/bundled-agent.js";
+} from "./internal/agents/bundled-agent.js";
 export {
   AgentExtensionAdapter,
   agentExtensions,
-} from "./internal/agent-extension-adapter.js";
-export { AgentGatewayService } from "./internal/agent-gateway.js";
+} from "./internal/agents/agent-extension-adapter.js";
+export { AgentGatewayService } from "./internal/agents/agent-gateway.js";
 export { AtomicWriter, atomicWriter } from "./internal/atomic-writer.js";
 export {
   BundledPluginPackage,
   BundledPluginProvider,
   bundledPlugins,
-} from "./internal/bundled-plugin.js";
+} from "./internal/plugin-runtime/bundled-plugin.js";
 export {
   BundledTemplatePackage,
   BundledTemplateProvider,
@@ -26,19 +26,19 @@ export {
   TemplateCatalogEntry,
   bundledTemplates,
   isBundledTemplateProvider,
-} from "./internal/bundled-template.js";
+} from "./internal/templates/bundled-template.js";
 export {
   BundledExtensionPackage,
   BundledExtensionProvider,
   NpmExtensionPackage,
   bundledExtensions,
-} from "./internal/bundled-extension.js";
+} from "./internal/extensions/bundled-extension.js";
 export { CandidateCli } from "./internal/cli.js";
 export { ConnectionResult, ConnectionService, RepositoryConnection, connection } from "./internal/connection.js";
-export { RepositoryCheckout, createRepositoryCheckout } from "./internal/checkout.js";
+export { RepositoryCheckout, createRepositoryCheckout } from "./internal/project/checkout.js";
 export { CoreConfiguration, configuration } from "./internal/configuration.js";
 export { CoreState, CoreStateService, CoreStateStore, coreState } from "./internal/core-state.js";
-export { CurrentRepositoryService, currentRepositories } from "./internal/current-repository.js";
+export { CurrentRepositoryService, currentRepositories } from "./internal/project/current-repository.js";
 export {
   DiagnosticReport,
   DiagnosticResult,
@@ -49,68 +49,68 @@ export { FileService, RepositoryFiles, files } from "./internal/files.js";
 export { GitService, RepositoryGit, WorkspaceGit, git } from "./internal/git.js";
 export { InitializationService, initialization } from "./internal/initialization.js";
 export { InitSelectionService, initSelections } from "./internal/init-selection.js";
-export { OpenSpecService, RepositoryOpenSpec, openspec } from "./internal/openspec.js";
+export { OpenSpecService, RepositoryOpenSpec, openspec } from "./internal/openspec/openspec.js";
 export { OpenSpecPointerService, pointers } from "./internal/pointer.js";
 export { FailClosedLock, locks } from "./internal/lock.js";
-export { PluginContext, PluginContextFactory, pluginContexts } from "./internal/plugin-context.js";
-export { PluginDeclaration } from "./internal/plugin-declaration.js";
+export { PluginContext, PluginContextFactory, pluginContexts } from "./internal/plugin-runtime/plugin-context.js";
+export { PluginDeclaration } from "./internal/plugin-runtime/plugin-declaration.js";
 export {
   PluginBindingChange,
   PluginApplicationResult,
   PluginApplicationService,
   PluginRemovalResult,
   pluginApplications,
-} from "./internal/plugin-application.js";
-export { PluginLifecycleCommands } from "./internal/plugin-cli.js";
-export { PluginCatalog, PluginCatalogEntry, pluginCatalog } from "./internal/plugin-catalog.js";
+} from "./internal/plugin-runtime/plugin-application.js";
+export { PluginLifecycleCommands } from "./internal/plugin-runtime/plugin-cli.js";
+export { PluginCatalog, PluginCatalogEntry, pluginCatalog } from "./internal/plugin-runtime/plugin-catalog.js";
 export {
   ExtensionCatalog,
   ExtensionCatalogEntry,
   extensionCatalog,
-} from "./internal/extension-catalog.js";
-export { ExtensionDeclaration } from "./internal/extension-declaration.js";
-export { ExtensionLifecycle } from "./internal/extension-lifecycle.js";
-export { ExtensionApplicationService } from "./internal/extension-application.js";
-export { ExtensionManagerService, StoreExtensionManager } from "./internal/extension-manager.js";
-export { PluginHost, PluginRegistry } from "./internal/plugin-host.js";
+} from "./internal/extensions/extension-catalog.js";
+export { ExtensionDeclaration } from "./internal/extensions/extension-declaration.js";
+export { ExtensionLifecycle } from "./internal/extensions/extension-lifecycle.js";
+export { ExtensionApplicationService } from "./internal/extensions/extension-application.js";
+export { ExtensionManagerService, StoreExtensionManager } from "./internal/extensions/extension-manager.js";
+export { PluginHost, PluginRegistry } from "./internal/plugin-runtime/plugin-host.js";
 export {
   PluginConnectionResult,
   PluginDisconnectionResult,
   PluginLifecycleService,
   PluginStatusResult,
-} from "./internal/plugin-lifecycle.js";
-export { LoadedPlugin, PluginLoader, pluginLoader } from "./internal/plugin-loader.js";
-export { PluginInstallation } from "./internal/plugin-installation.js";
+} from "./internal/plugin-runtime/plugin-lifecycle.js";
+export { LoadedPlugin, PluginLoader, pluginLoader } from "./internal/plugin-runtime/plugin-loader.js";
+export { PluginInstallation } from "./internal/plugin-runtime/plugin-installation.js";
 export {
   PluginManagerService,
   StorePluginManager,
   pluginManagers,
-} from "./internal/plugin-manager.js";
+} from "./internal/plugin-runtime/plugin-manager.js";
 export { NpmPackageInstaller, npmPackageInstaller } from "./internal/npm-package-installer.js";
-export { ExtensionCommands } from "./internal/extension-cli.js";
-export { PackageSupplyService, StorePackageSupply, packageSupplies } from "./internal/package-supply.js";
-export { PackageCommands } from "./internal/package-cli.js";
-export { PluginPlatform } from "./internal/plugin-platform.js";
-export { PluginSource } from "./internal/plugin-source.js";
-export { PluginScaffoldService, pluginScaffolds } from "./internal/plugin-scaffold.js";
-export { PluginStorage, PluginStorageService, pluginStorage } from "./internal/plugin-storage.js";
+export { ExtensionCommands } from "./internal/extensions/extension-cli.js";
+export { PackageSupplyService, StorePackageSupply, packageSupplies } from "./internal/packages/package-supply.js";
+export { PackageCommands } from "./internal/packages/package-cli.js";
+export { PluginPlatform } from "./internal/plugin-runtime/plugin-platform.js";
+export { PluginSource } from "./internal/plugin-runtime/plugin-source.js";
+export { PluginScaffoldService, pluginScaffolds } from "./internal/plugin-runtime/plugin-scaffold.js";
+export { PluginStorage, PluginStorageService, pluginStorage } from "./internal/plugin-runtime/plugin-storage.js";
 export { ProcessService, ScopedProcess, processes, redactSensitive } from "./internal/process.js";
 export { ProjectSetupService } from "./internal/project-setup.js";
-export { Project, createProject } from "./internal/project.js";
-export { Repository, createRepository } from "./internal/repository.js";
-export { RepositoryRunner, RepositorySelector, repositoryRunner, repositorySelector } from "./internal/repository-operations.js";
-export { RepositoryStatus, RepositoryStatusService, repositoryStatuses } from "./internal/repository-status.js";
-export { Store, createStore } from "./internal/store.js";
-export { StoreProject, StoreProjectService, storeProjects } from "./internal/store-project.js";
-export { StoreTarget } from "./internal/store-target.js";
+export { Project, createProject } from "./internal/project/project.js";
+export { Repository, createRepository } from "./internal/project/repository.js";
+export { RepositoryRunner, RepositorySelector, repositoryRunner, repositorySelector } from "./internal/project/repository-operations.js";
+export { RepositoryStatus, RepositoryStatusService, repositoryStatuses } from "./internal/project/repository-status.js";
+export { Store, createStore } from "./internal/project/store.js";
+export { StoreProject, StoreProjectService, storeProjects } from "./internal/project/store-project.js";
+export { StoreTarget } from "./internal/project/store-target.js";
 export {
   ProjectTemplateService,
   TemplatePlan,
   projectTemplates,
-} from "./internal/template.js";
-export { Workspace, WorkspaceResolver, workspace } from "./internal/workspace.js";
+} from "./internal/templates/template.js";
+export { Workspace, WorkspaceResolver, workspace } from "./internal/project/workspace.js";
 
-import { PluginPlatform } from "./internal/plugin-platform.js";
+import { PluginPlatform } from "./internal/plugin-runtime/plugin-platform.js";
 
 /** Создаёт candidate CLI с уже перенесёнными Core operations. */
 export async function createCandidateProgram({

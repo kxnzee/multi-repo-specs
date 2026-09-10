@@ -4,7 +4,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { AgentPackPlan, AgentPackService } from "../internal/agent-pack.js";
+import { AgentPackPlan, AgentPackService } from "../internal/agents/agent-pack.js";
 
 /** Create an isolated checkout and remove it after the test. */
 async function fixture(t) {

@@ -13,7 +13,7 @@ import { doctor } from "./doctor.js";
 import { ProjectSetupService } from "./project-setup.js";
 import { hasMethods } from "./value.js";
 import { formatDoctorReport, formatStatusHeading } from "./status-output.js";
-import { workspace } from "./workspace.js";
+import { workspace } from "./project/workspace.js";
 
 const CORE_VERSION = createRequire(import.meta.url)("../package.json").version;
 

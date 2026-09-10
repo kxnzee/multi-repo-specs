@@ -16,7 +16,7 @@ import {
   PluginLoader, ProcessService, repositoryStatuses, storeProjects,
 } from "@openspec-orch/core";
 
-import { AgentPackPlan } from "../src/packages/core/internal/agent-pack.js";
+import { AgentPackPlan } from "../src/packages/core/internal/agents/agent-pack.js";
 import { createDirectoryLink } from "../src/packages/core/fixtures/filesystem.js";
 import { OrchestratorMcpRuntime } from "../src/bin/internal/orchestrator-mcp-runtime.js";
 import { OpenSpecGraphApplication } from "../plugins/openspec-graph/lib/application.js";

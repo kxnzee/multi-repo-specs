@@ -7,7 +7,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { execa } from "execa";
-import { AgentPackPlan } from "../internal/agent-pack.js";
+import { AgentPackPlan } from "../internal/agents/agent-pack.js";
 
 import {
   CandidateCli,

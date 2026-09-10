@@ -2,10 +2,10 @@
 
 import process from "node:process";
 
-import { openspec } from "./openspec.js";
-import { packageSupplies } from "./package-supply.js";
-import { repositoryStatuses } from "./repository-status.js";
-import { storeProjects } from "./store-project.js";
+import { openspec } from "./openspec/openspec.js";
+import { packageSupplies } from "./packages/package-supply.js";
+import { repositoryStatuses } from "./project/repository-status.js";
+import { storeProjects } from "./project/store-project.js";
 import { hasMethods } from "./value.js";
 
 const OUTCOMES = new Set(["pass", "warning", "error", "skipped"]);
