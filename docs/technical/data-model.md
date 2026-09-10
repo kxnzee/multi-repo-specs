@@ -52,21 +52,22 @@ PR URL нормализуется через URL parser без fragment; query �
 
 Обзор возвращает все канонические `tasks` с краткими ссылками на реализации и
 предупреждениями. `implementations` сохраняет также устаревшие связи для разрешения.
-Повреждение legacy storage возвращается в `legacy_error`, не блокируя корректную
+Повреждение локального attempt storage возвращается в `legacy_error`, не блокируя корректную
 карту; `active/cancelled: null` обозначает неизвестное состояние.
 
-### Implementation attempt (совместимость)
+### Локальная implementation attempt
 
 `attempt start` хранит незавершённую попытку в локальном Plugin storage: Change,
-Repository, OpenSpec task, schema, planning revision и base revision. В Git эта
+Repository, `checkout_path`, OpenSpec task, schema, planning revision и base revision. В Git эта
 запись не попадает. Для одного Change, Repository и task одновременно существует не
 более одной активной attempt.
 
 `attempt cancel` снимает только выбранную активную попытку и сохраняет
 `{ attempt, reason, cancelled_at }` в `cancelled_attempts` локального Plugin storage.
 Он не создаёт implementation evidence. Формат локального состояния v2 содержит
-`contract_version`, `active_attempts`, `cancelled_attempts`; состояние v1 читается
-совместимо и преобразуется при успешной записи. Read-only status не выполняет миграцию.
+`contract_version`, `active_attempts`, `cancelled_attempts`. Другие форматы отклоняются
+без преобразования. Повторный start и первое complete требуют исходный `checkout_path`;
+для смены копии отмените attempt с причиной. В переносимую карту путь не записывается.
 Отмена и завершение сериализованы той же локальной блокировкой storage.
 
 После стандартной отметки task как выполненного `attempt complete` добавляет в

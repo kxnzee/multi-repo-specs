@@ -61,6 +61,13 @@ export class RepositoryGit {
     return this.#run(["branch", "--show-current"]);
   }
 
+  /** Lists Git-owned checkout paths without guessing from directory nesting. */
+  async worktreePaths() {
+    return (await this.#run(["worktree", "list", "--porcelain", "-z"]))
+      .split("\0").filter((field) => field.startsWith("worktree "))
+      .map((field) => path.resolve(field.slice(9)));
+  }
+
   async statusPaths(pathspec = []) {
     const args = ["status", "--porcelain=v1", "-z", "--untracked-files=all"];
     if (pathspec.length > 0) args.push("--", ...pathspec);
@@ -107,12 +114,9 @@ export class RepositoryGit {
   }
 
   async hasCommit(revision) {
-    try {
-      await this.#run(["cat-file", "-e", `${revision}^{commit}`]);
-      return true;
-    } catch {
-      return false;
-    }
+    const resolved = await this.#run(["rev-parse", "--verify", "--quiet", `${revision}^{commit}`],
+      { acceptedExitCodes: [0, 1] });
+    return resolved.trim().length > 0;
   }
 
   gitPath(marker) {

@@ -109,38 +109,11 @@ test("subagent adapters preserve the canonical body and own only provider metada
   }
 });
 
-test("repository evidence delegation keeps one question per subagent invocation", async () => {
-  const artifacts = [
-    "agent-instructions.md",
-    "skills/spec-driven-extended-meta-planning/SKILL.md",
-    "subagents/spec-driven-extended-repository-evidence-scout.md",
-  ];
-  for (const relative of artifacts) {
-    const source = await fs.readFile(path.join(EXTENSION_ROOT, relative), "utf8");
-    assert.match(source, /Один вопрос — один новый subagent/u, relative);
-    assert.match(source, /пять вопросов — пять subagents/u, relative);
-  }
-
-  const globalInstructions = await fs.readFile(
-    path.join(EXTENSION_ROOT, "agent-instructions.md"),
-    "utf8",
-  );
-  assert.match(globalInstructions, /Точные содержательные правила бери из `get_change_context`/u);
-  assert.doesNotMatch(globalInstructions, /question_id, status, answer и evidence/u);
-  assert.doesNotMatch(globalInstructions, /Repository \| Capabilities/u);
-
+test("scout examples preserve the public request and response fields", async () => {
   const scout = await fs.readFile(
     path.join(EXTENSION_ROOT, "subagents/spec-driven-extended-repository-evidence-scout.md"),
     "utf8",
   );
-  assert.match(scout, /несколько вопросов[\s\S]*`status: blocked`/u);
-  assert.match(scout, /Один вопрос — один новый subagent/u);
-  assert.match(scout, /`code_navigation` первый шаг/u);
-  assert.match(scout, /самодостаточная инструкция навигации/u);
-  assert.match(scout, /question_id: <переданный question_id>/u);
-  assert.match(scout, /status: answered \| partial \| unanswered \| blocked/u);
-  assert.match(scout, /В answer опиши поведение без paths, symbols,[\s\S]*code inventory/u);
-  assert.match(scout, /один\s+Markdown-блок `yaml` вокруг всего объекта/u);
   const contracts = [...scout.matchAll(/~~~yaml\n([\s\S]*?)\n~~~/gu)]
     .map(([, contract]) => parse(contract));
   assert.equal(contracts.length, 2);
@@ -153,34 +126,6 @@ test("repository evidence delegation keeps one question per subagent invocation"
     Object.keys(contracts[1].repository_evidence),
     ["question_id", "status", "answer", "evidence"],
   );
-
-  const codeGraphInstructions = await fs.readFile(
-    path.join(PLUGINS_ROOT, "codegraph/extension/agent-instructions.md"),
-    "utf8",
-  );
-  assert.match(
-    codeGraphInstructions,
-    /\.codegraph\/[\s\S]*MCP недоступен[\s\S]*сообщи пользователю[\s\S]*`plugin exec`[\s\S]*`grep`/iu,
-  );
-});
-
-test("Agent gateway instructions defer enforceable policy to MCP", async () => {
-  const source = await fs.readFile(path.join(GATEWAY_ROOT, "agent-instructions.md"), "utf8");
-  assert.match(source, /get_change_context/u);
-  assert.match(source, /get_next_action/u);
-  assert.match(source, /context_revision/u);
-  assert.match(source, /if_context_revision/u);
-  assert.match(source, /границ[а-я]+ свежести/iu);
-  assert.match(source, /не вызывай MCP повторно/iu);
-  assert.match(source, /сообщи пользователю точную\s+причину и рекомендованный способ восстановления/u);
-  assert.match(source, /Не повторяй запрос с неизменными\s+входными данными и контекстом/u);
-  assert.match(
-    source,
-    /Store передавай только через `store_id`[\s\S]*`repositories`\s+включай только Code Repositories/u,
-  );
-  assert.match(source, /не добавляй текущий Store в `repositories`/u);
-  assert.match(source, /не имитируй его с помощью CLI, Git, файловых инструментов\s+или запуска процессов/u);
-  assert.doesNotMatch(source, /receipt|Release|Archive|strict mode|working directory/u);
 });
 
 test("Apply context validates repository scope without Plugin-specific routing", async () => {

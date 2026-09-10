@@ -3,6 +3,7 @@
 import path from "node:path";
 
 import { LoadedPlugin } from "./plugin-loader.js";
+import { RepositoryCheckout } from "./checkout.js";
 import { files } from "./files.js";
 import { git } from "./git.js";
 import { openspec } from "./openspec.js";
@@ -323,7 +324,13 @@ export class PluginContextFactory {
     const { project } = storeProject;
     project.requirePlugin(plugin.id);
     const repositories = new PluginRepositoryRegistry(project, plugin, async (selected) => {
-      const selectedCheckout = await this.#resolveCheckout(storeProject, selected);
+      let selectedCheckout = await this.#resolveCheckout(storeProject, selected);
+      if (selected.isCode() && invocationHandle?.id === selected.id && invocationHandle.path !== selectedCheckout.root) {
+        if (!(await this.#git.forRepository(selectedCheckout).worktreePaths()).includes(invocationHandle.path)) {
+          throw new Error("PLUGIN_CONTEXT_INVALID: invocation не является worktree выбранного Repository");
+        }
+        selectedCheckout = new RepositoryCheckout(selected, invocationHandle.path);
+      }
       await this.#targetProject(storeProject, selectedCheckout);
       return new PluginGitFacade(this.#git.forRepository(selectedCheckout));
     }, async (selectedId) => this.forRepository({

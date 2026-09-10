@@ -33,9 +33,6 @@ function emptyState() {
 /** Validates the local Plugin storage envelope owned by this flow. */
 function readState(value) {
   if (value === null) return emptyState();
-  if (value?.contract_version === 1 && Object.keys(value).sort().join("\0") === "active_attempts\0contract_version") {
-    value = { ...value, contract_version: CHANGE_TRACKING_CONTRACT.attemptStorageVersion, cancelled_attempts: [] };
-  }
   if (
     !value || typeof value !== "object" || Array.isArray(value) ||
     Object.keys(value).sort().join("\0") !== ["active_attempts", "cancelled_attempts", "contract_version"].join("\0") ||
@@ -56,8 +53,9 @@ function readState(value) {
   for (const attempt of value.active_attempts) {
     if (!attempt || typeof attempt !== "object" || Array.isArray(attempt) ||
       Object.keys(attempt).sort().join("\0") !== [
-        "base_revision", "change_id", "planning_revision", "repository_id", "schema_name", "started_at", "task",
+        "base_revision", "change_id", "checkout_path", "planning_revision", "repository_id", "schema_name", "started_at", "task",
       ].join("\0") ||
+      typeof attempt.checkout_path !== "string" || !attempt.checkout_path ||
       typeof attempt.change_id !== "string" ||
       !CHANGE_TRACKING_PATTERNS.identifier.test(attempt.change_id) ||
       typeof attempt.repository_id !== "string" ||
@@ -88,6 +86,13 @@ function matchesCompletedAttempt(record, attempt) {
   return record.task.id === attempt.task.id && record.task.description === attempt.task.description &&
     ["repository_id", "schema_name", "planning_revision", "base_revision", "started_at"]
       .every((field) => record[field] === attempt[field]);
+}
+
+/** Prevents another worktree from completing the same local task attempt. */
+function requireAttemptCheckout(attempt, invocation) {
+  if (attempt.checkout_path !== invocation.path) {
+    throw new Error(`ATTEMPT_CHECKOUT_CHANGED: продолжите attempt из ${attempt.checkout_path} или отмените её с причиной`);
+  }
 }
 
 /** Resolves an exact task without interpreting schema-specific prose or headings. */
@@ -154,6 +159,7 @@ export class AttemptTrackingService {
     const attempt = Object.freeze({
       change_id: changeId,
       repository_id: invocation.id,
+      checkout_path: invocation.path,
       task: Object.freeze({ id: task.id, description: task.description }),
       schema_name: instructions.schemaName,
       planning_revision: planningRevision,
@@ -167,6 +173,7 @@ export class AttemptTrackingService {
         attemptKey(candidate) === attemptKey(attempt)
       ));
       if (existing) {
+        requireAttemptCheckout(existing, invocation);
         if (existing.task.description !== task.description || existing.schema_name !== instructions.schemaName) {
           throw new Error("ATTEMPT_TASK_CHANGED: task или схема изменились; отмените прежнюю attempt через CLI attempt cancel с причиной перед новым start");
         }
@@ -201,6 +208,7 @@ export class AttemptTrackingService {
         result = { changed: false, path: this.#maps.pathFor(changeId), attempt: completed };
         return { ...state, active_attempts: state.active_attempts.filter((candidate) => candidate !== active) };
       }
+      requireAttemptCheckout(active, invocation);
       const instructions = await applyInstructions(this.#context.process, changeId);
       const task = findTask(instructions, taskId);
       if (!task.done) {

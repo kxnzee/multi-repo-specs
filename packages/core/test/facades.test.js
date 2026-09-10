@@ -139,7 +139,6 @@ test("GitService exposes domain operations without accepting arbitrary cwd", asy
   );
   assert.throws(() => repositoryGit.latestRevision([]), /GIT_PATHSPEC_INVALID/u);
   assert.equal(await repositoryGit.isRemoteReachable("a".repeat(40)), true);
-  assert.equal(await repositoryGit.hasCommit("a".repeat(40)), true);
   await repositoryGit.assertNoOperation();
   await fs.mkdir(path.join(root, ".git"));
   await fs.writeFile(path.join(root, ".git", "MERGE_HEAD"), "revision\n", "utf8");
@@ -265,7 +264,7 @@ test("FileService reads and atomically writes only inside Repository checkout", 
   await assert.rejects(service.listFiles("config"), /symlink/);
 });
 
-test("Git ancestry distinguishes descendants, orphan history and invalid revisions", async (t) => {
+test("Git revision checks distinguish missing commits, unrelated history and broken checkout", async (t) => {
   const { checkout } = await checkoutFixture(t);
   const runner = new ProcessService().forRepository(checkout);
   const run = (args) => runner.run("git", args);
@@ -275,6 +274,8 @@ test("Git ancestry distinguishes descendants, orphan history and invalid revisio
   await run(["commit", "--allow-empty", "-m", "base"]);
   const git = new GitService().forRepository(checkout);
   const base = (await git.revision()).trim();
+  assert.equal(await git.hasCommit(base), true);
+  assert.equal(await git.hasCommit("f".repeat(40)), false);
   await run(["commit", "--allow-empty", "-m", "implementation"]);
   const implementation = (await git.revision()).trim();
   assert.equal(await git.isAncestor(base, implementation), true);
@@ -284,4 +285,6 @@ test("Git ancestry distinguishes descendants, orphan history and invalid revisio
   assert.equal(await git.isAncestor(base, (await git.revision()).trim()), false);
   await assert.rejects(git.isAncestor("--help", implementation), /GIT_REVISION_INVALID/u);
   await assert.rejects(git.isAncestor("f".repeat(40), implementation), /git merge-base/u);
+  await fs.rm(path.join(checkout.root, ".git"), { recursive: true });
+  await assert.rejects(git.hasCommit(base), /git/);
 });

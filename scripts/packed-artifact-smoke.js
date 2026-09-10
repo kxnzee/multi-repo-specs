@@ -88,8 +88,6 @@ try {
   }, null, 2)}\n`);
   runNpm([
     "install",
-    // Keep cold-cache registry transfers serial: concurrent TLS handshakes can stall this consumer.
-    "--maxsockets=1",
     "--ignore-scripts",
     "--install-links",
     "--no-audit",
@@ -111,6 +109,7 @@ try {
   execFileSync(process.execPath, [
     "--test", "--test-concurrency=1", "--test-timeout=180000",
     path.join(root, "test/distribution-plugin-cli.test.js"),
+    path.join(root, "test/distribution-tracking.test.js"),
   ], {
     cwd: consumer,
     env: {

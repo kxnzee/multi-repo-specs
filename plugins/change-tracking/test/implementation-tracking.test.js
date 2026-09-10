@@ -3,7 +3,6 @@ import test from "node:test";
 import { parse } from "yaml";
 import { ImplementationTrackingService } from "../lib/implementation-service.js";
 import { ImplementationMapRepository } from "../lib/implementation-map-repository.js";
-import { AttemptTrackingService } from "../lib/attempt-service.js";
 import { assignmentContext } from "./assignment-context.js";
 
 const sha = "b".repeat(40);
@@ -68,19 +67,6 @@ test("validation rejects wrong task, unsafe links, unknown SHA and unknown prope
     await assert.rejects(service.record({ ...input, ...extra }));
   }
   assert.equal(await context.files.read("openspec/changes/checkout-flow/implementation-map.yaml", { optional: true }), null);
-});
-
-test("concurrent PR entries and legacy completions preserve each other in one map", async () => {
-  const { service, context } = fixture();
-  await Promise.all([service.record(input), service.record({ ...input, pull_request: "https://example.test/pr/43" })]);
-  const maps = new ImplementationMapRepository(context.files);
-  await maps.append(input.change_id, { repository_id: "frontend", task: { id: "old", description: "Previous" },
-    schema_name: "spec-driven", planning_revision: sha, base_revision: sha, implementation_revision: sha,
-    started_at: "2026-09-09T10:00:00Z", completed_at: "2026-09-09T10:00:01Z" });
-  assert.equal((await service.status(input.change_id)).length, 2);
-  assert.equal((await new AttemptTrackingService(context).status(input.change_id)).completed.length, 1);
-  await service.record({ ...input, expected_version: 1, remaining: "Review" });
-  assert.equal((await maps.read(input.change_id)).length, 1);
 });
 
 test("first handoff preserves completed attempts in the same initial map format", async () => {

@@ -23,7 +23,7 @@ export function assignmentContext({
     ["backend", Object.freeze({ id: "backend", role: "code" })],
   ]);
   return Object.freeze({
-    invocation,
+    invocation: invocation ? { path: `/workspace/${invocation.id}`, ...invocation } : null,
     repository: repositories.get("specs"),
     repositories: Object.freeze({
       async git(repositoryId) {

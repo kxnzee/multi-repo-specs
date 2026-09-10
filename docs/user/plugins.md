@@ -312,18 +312,21 @@ PR. `--commits` — полный список SHA через запятую; п�
 `legacy_error`. Поля `active` и `cancelled` тогда равны `null` (состояние неизвестно).
 Старый файл не удаляется и не переписывается автоматически.
 
-### Совместимость с прежними attempts
+### Локальные attempts
 
-`start_attempt` / `complete_attempt` и CLI `attempt` сохранены для старого процесса.
-Новый Apply их не создаёт. Старые завершённые записи остаются в `attempts`, активные
-и отменённые — в прежнем локальном storage. Карта использует единый формат
-с первой версии; переход между форматами не требуется.
+`start_attempt` / `complete_attempt` и CLI `attempt` связывают задачу с диапазоном
+ревизий одной локальной рабочей копии. Стандартный Apply использует
+`record_implementation`. Результаты attempts находятся в `attempts`, активные
+и отменённые попытки — в локальном Plugin storage.
 
 Change Tracking требует OpenSpec `>=1.11.0 <2`. `attempt start` запускается из чистого
 Code Repository для незавершённого task. Файлы текущего Change в Store должны быть
 закоммичены, чтобы planning revision соответствовала прочитанному плану; изменения
 других Changes не мешают запуску. Команда сохраняет base revision только в локальном
-Plugin storage. Незавершённая attempt не переносится на другую машину.
+Plugin storage. Незавершённая attempt привязана к `checkout_path` и не переносится на другую машину.
+Для вложенного или внешнего Git worktree используются его собственные HEAD и status.
+Повторный start и первое complete из другой копии возвращают `ATTEMPT_CHECKOUT_CHANGED`;
+продолжите в исходной копии либо отмените attempt с причиной.
 
 Если task или schema изменились после старта, `start` и `complete` сообщают
 `ATTEMPT_TASK_CHANGED`. Пользователь может отменить старую попытку из Code Repository:
@@ -335,8 +338,8 @@ openspec-orch plugin exec --repo specs change-tracking attempt cancel <change-id
 Причина обязательна. Отмена сохраняет исходную attempt, причину и время в локальном
 Plugin storage, освобождает задачу для нового `start` и видна в `tracking.cancelled`
 через MCP. Она не меняет checkbox, Git и completed implementation map. Новый MCP
-write-метод для отмены не добавлен. Локальное состояние v1 читается и переходит в v2
-при следующей успешной записи; после такой записи старый Orchestrator его не поддерживает.
+write-метод для отмены не предоставляется. Неизвестный формат локального состояния
+отклоняется без автоматического преобразования.
 Отмена и завершение одной attempt выполняются под общей локальной блокировкой.
 
 При восстановлении после прерывания `attempt complete` сначала проверяет, сохранён ли
@@ -384,7 +387,7 @@ openspec-orch agent status --agent qwen
 
 MCP предоставляет read tools для status, setup context, Change context, next action,
 assignment scope, doctor и Graph, controlled setup tools `initialize_project` и
-`connect_project` и `record_implementation`; прежние `start_attempt` и `complete_attempt` сохранены для совместимости.
+`connect_project` и `record_implementation`; `start_attempt` и `complete_attempt` обслуживают локальные attempts.
 Намеренно отсутствуют verification, Release, Archive, arbitrary Git writes, Plugin
 lifecycle, Agent management и network transport.
 

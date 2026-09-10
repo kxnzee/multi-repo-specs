@@ -4,7 +4,7 @@ import { ImplementationMapRepository } from "./implementation-map-repository.js"
 import { ImplementationTrackingService } from "./implementation-service.js";
 import { AttemptTrackingService } from "./attempt-service.js";
 
-/** Общий API карты реализации и совместимого процесса attempts для CLI/MCP. */
+/** Общий API карты реализации и локальных attempts для CLI/MCP. */
 export class ChangeTrackingApplication {
   #service;
   #implementation;

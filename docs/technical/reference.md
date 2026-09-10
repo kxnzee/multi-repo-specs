@@ -132,7 +132,8 @@ Executable `openspec-orch-mcp` обслуживает только stdio.
 
 Read tools:
 
-- `get_status` — при переданном `change_id` включает активные, завершённые и локально отменённые attempts;
+- `get_status` — при переданном `change_id` Change Tracking добавляет актуальные задачи,
+  PR-связи реализации, предупреждения и локальные/завершённые attempts;
 - `get_setup_context`;
 - `get_change_context` — принимает опциональный `include_assignment: true`, чтобы
   вернуть `assignment_scope` в том же ответе без повторного Project envelope и второй

@@ -277,11 +277,17 @@ reviewable Store flow; Template не должен устанавливать и�
 При нескольких целях invocation остаётся одним и тем же. Для Change Tracking
 цель — Store, а invocation должен быть назначенным Code Repository; запуск из
 Store не подменяет эту identity выбранным `--repo`. CLI и MCP используют общий
-resolver текущего Repository.
+resolver текущего Repository. Git worktrees определяются по регистрации Git, включая
+копии вне основного checkout; посторонний вложенный Git-репозиторий не наследует ID.
+`context.repositories.git(id)` для Repository вызова использует эту рабочую копию,
+для остальных ID — зарегистрированный основной checkout.
 
 Git facade предоставляет read-only `isAncestor(ancestor, descendant)` для полных
 commit hashes. Он возвращает `false` для несвязанной истории; ошибки Git и неизвестные
 commits не превращаются в отрицательный результат проверки.
+
+`hasCommit(revision)` возвращает `false` только при отсутствии commit; сбои запуска
+Git и повреждённый checkout остаются ошибками.
 
 Native Agent adapters проверяют актуальность файлов при `status` и после `connect`.
 Параметр `refresh: true` допустим только для `connect`; user-level CLI передаёт его
