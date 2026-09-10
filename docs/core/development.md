@@ -36,14 +36,17 @@ checkout следуйте [инструкции установки](../user/inst
 | Один сценарий | `npm run test:code -- --test-name-pattern="immutable Git revision" src/packages/core/test/package-supply.test.js` |
 | Диагностика, lint и все tests | `npm run check` |
 | Coverage нативного Node test runner | `npm run test:coverage` |
-| Установка publishable tarballs в чистый consumer | `npm run test:pack` |
-| Полная проверка, включая packed consumer | `npm run check:all` |
+| Локальная упаковка tarballs и проверка public entrypoints | `npm run test:pack` |
+| Установка tarballs в чистый consumer с внешними npm-зависимостями | `npm run test:pack:consumer` |
+| Полная локальная проверка, включая tarballs | `npm run check:all` |
 | Проверка пробелов в diff | `git diff --check` |
 
 Начните с тестов изменяемого слоя. Перед завершением code/environment changes
 выполните `npm run check` и `git diff --check`. Изменение зависимостей,
 entrypoints, exports, workspace/package composition или CI дополнительно требует
-`test:pack`. Для правок только документации проверьте затронутые команды и ссылки.
+`test:pack`. Для release validation или controlled CI дополнительно запустите
+`test:pack:consumer`. Для правок только документации проверьте затронутые команды
+и ссылки.
 
 Root-команды проверок подключают `scripts/verification/environment.js`: он ставит
 локальный `node_modules/.bin` первым в PATH и задаёт `OPENSPEC_TELEMETRY=0`,
@@ -71,18 +74,20 @@ Structural tests проверяют загружаемые manifests, ссылк
 в `test-support/` или `fixtures/` вне каталогов `test`: Node иначе считает их
 отдельными успешными тестами даже без сценариев.
 
-`npm ci` и `test:pack` требуют доступа к npm registry; Git-source проверки
-используют локальные временные Git repositories. `test:pack` устанавливает
-publishable tarballs в чистый consumer, загружает их public exports и сверяет
-версию public CLI. Поведение внешних provider CLI эта проверка не эмулирует.
-Установка consumer использует чистый npm-кэш и стандартную параллельность npm.
-Настройки npm пользователя не меняются; ограничение времени установки — 120 секунд.
-`test:pack` намеренно использует
-отдельный consumer и пустой npm cache, чтобы проверить поставляемые пакеты без
-помощи workspace symlinks. Локальный npm cache проекта эта проверка не удаляет.
-Сборка каждого tarball в packed smoke ограничена двумя минутами; установка чистого
-consumer — пятью минутами. CI запускает
-проверки на Linux, macOS и Windows с общим лимитом job 15 минут.
+`npm ci` и `test:pack:consumer` требуют доступа к npm registry; Git-source проверки
+используют локальные временные Git repositories. `test:pack` собирает все publishable
+tarballs в отдельном временном каталоге и проверяет, что в каждом есть `package.json`,
+public exports и CLI entrypoints. Для него не нужны registry, workspace symlinks или
+пользовательский npm cache.
+
+`test:pack:consumer` отдельно устанавливает эти tarballs в пустой consumer с чистым
+npm cache, загружает public exports и сверяет версию public CLI. Это проверка
+поставки вместе с независимыми npm-зависимостями, поэтому задержка registry не
+означает ошибку собранного артефакта. По умолчанию установка ограничена десятью
+минутами; для медленного контура передайте
+`PACKED_CONSUMER_INSTALL_TIMEOUT_MS=<миллисекунды>`. Поведение внешних provider CLI
+эта проверка не эмулирует. CI запускает проверки на Linux, macOS и Windows с общим
+лимитом job 15 минут.
 
 ## Карта кода
 
@@ -237,7 +242,8 @@ npm run check:all
 git diff --check
 ```
 
-`check:all` включает `test:pack`: установку tarballs в чистый consumer и проверки
-public CLI/MCP. `npm pack --dry-run` проверяет состав root tarball, но не заменяет
-проверку установки. Новый supported baseline требует isolated smoke с заявленной
-версией OpenSpec и каждым поддерживаемым Agent provider.
+`check:all` включает `test:pack`: локальную проверку tarballs. Сетевая
+`test:pack:consumer` запускается отдельно для release validation или controlled CI.
+`npm pack --dry-run` проверяет только состав root tarball и не заменяет ни одну из
+них. Новый supported baseline требует isolated smoke с заявленной версией OpenSpec
+и каждым поддерживаемым Agent provider.

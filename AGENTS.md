@@ -82,12 +82,14 @@ compilation step, application server, database or provider account.
 ## Finish and report
 
 - For code/environment changes, run `npm run check` and `git diff --check`.
-  Also run `npm run test:pack` when changing dependencies, workspaces, entrypoints,
-  exported APIs, package files or packaging/CI scripts. `npm run check:all`
-  runs both suites. Documentation-only work needs relevant command/link checks.
-- `test:pack` installs tarballs in a separate consumer and needs npm registry
-  access. Distinguish access failures from code failures; never report a blocked
-  or skipped check as passed.
+  Also run `npm run test:pack` and `npm run test:pack:consumer` when changing
+  dependencies, workspaces, entrypoints, exported APIs, package files or
+  packaging/CI scripts. `npm run check:all` includes the local package check.
+  Documentation-only work needs relevant command/link checks.
+- `test:pack` checks local tarballs and public entrypoints without registry access.
+  `test:pack:consumer` installs them in a separate consumer and needs npm registry
+  access; run it for release validation or a controlled CI job. Distinguish its
+  access failures from code failures; never report a blocked or skipped check as passed.
 - After external package changes restart long-lived MCP processes; do not bypass
   Plugin Loader restart diagnostics with cache-busting entrypoint URLs.
 - Update current docs under `docs/user/`, `docs/core/`, `docs/plugins/`,

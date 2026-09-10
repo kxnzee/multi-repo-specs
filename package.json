@@ -51,6 +51,7 @@
     "test:code": "node --import ./scripts/verification/environment.js --test --test-concurrency=1 --test-timeout=180000",
     "test:coverage": "node --import ./scripts/verification/environment.js --experimental-test-coverage --test --test-concurrency=1 --test-timeout=180000",
     "test:pack": "node --import ./scripts/verification/environment.js scripts/verification/packed-artifact-smoke.js",
+    "test:pack:consumer": "node --import ./scripts/verification/environment.js scripts/verification/packed-artifact-consumer-smoke.js",
     "check:environment": "node --import ./scripts/verification/environment.js scripts/verification/check-environment.js",
     "lint": "eslint .",
     "check": "npm run check:environment && npm run lint && npm run test:code",
