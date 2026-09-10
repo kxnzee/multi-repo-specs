@@ -6,7 +6,7 @@ import { parse, stringify } from "yaml";
 
 import { AttemptTrackingService } from "../lib/attempt-service.js";
 import { ImplementationMapRepository } from "../lib/implementation-map-repository.js";
-import { assignmentContext } from "./assignment-context.js";
+import { assignmentContext } from "../fixtures/assignment-context.js";
 
 const BASE = "a".repeat(40);
 const IMPLEMENTATION = "b".repeat(40);

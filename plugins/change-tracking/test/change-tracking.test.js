@@ -15,7 +15,7 @@ import * as publicApi from "../index.js";
 import plugin from "../index.js";
 import { AttemptTrackingService } from "../lib/attempt-service.js";
 import packageManifest from "../package.json" with { type: "json" };
-import { assignmentContext } from "./assignment-context.js";
+import { assignmentContext } from "../fixtures/assignment-context.js";
 
 const packageRoot = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 

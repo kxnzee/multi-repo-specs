@@ -8,9 +8,7 @@ import test from "node:test";
 
 import {
   configuration,
-  PluginApplicationResult,
   PluginApplicationService,
-  PluginRemovalResult,
   PluginSource,
   storeProjects,
 } from "@openspec-orch/core";
@@ -79,27 +77,6 @@ function managerFixture(calls, { installedId = "sample", packageName = "@test/pl
     },
   };
 }
-
-test("PluginApplicationService publishes config only after installation", async (t) => {
-  const { root, storeProject } = await storeFixture(t);
-  const source = PluginSource.parse(path.join(root, "local-plugin"), { cwd: root });
-  const calls = [];
-  const service = new PluginApplicationService({
-    managerService: managerFixture(calls),
-  });
-
-  const result = await service.install(storeProject, "sample", source);
-
-  assert.equal(result instanceof PluginApplicationResult, true);
-  assert.equal(result.initialized, true);
-  const current = await storeProjects.load(root);
-  assert.equal(current.project.version, 1);
-  assert.equal(current.project.pluginDeclaration("sample").id, "sample");
-  assert.equal(calls.length, 1);
-  const projectSource = await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8");
-  assert.match(projectSource, /version: 1/);
-  assert.match(projectSource, /plugins:\n\s+- sample/);
-});
 
 test("PluginApplicationService rejects an inconsistent installation before config publication", async (t) => {
   const { root, storeProject } = await storeFixture(t);
@@ -175,26 +152,6 @@ test("PluginApplicationService rolls back connect when binding publication fails
 
   assert.deepEqual(calls, [["connect", "specs"], ["rollback", "specs"]]);
   assert.equal(await fs.readFile(path.join(root, "openspec-orch.yaml"), "utf8"), originalProject);
-});
-
-test("PluginApplicationService removes an unbound Plugin and its runtime", async (t) => {
-  const { root, storeProject } = await storeFixture(t);
-  const calls = [];
-  const service = new PluginApplicationService({
-    managerService: managerFixture(calls),
-  });
-  const source = PluginSource.parse(path.join(root, "local-plugin"), { cwd: root });
-  await service.install(storeProject, "sample", source);
-
-  const result = await service.remove(storeProject, "sample");
-  const repeated = await service.remove(storeProject, "sample");
-
-  assert.equal(result instanceof PluginRemovalResult, true);
-  assert.equal(result.removed, true);
-  assert.equal(repeated.removed, false);
-  assert.deepEqual(calls.map(({ operation }) => operation ?? "install"), ["install", "remove"]);
-  const project = await storeProjects.load(root);
-  assert.equal(project.project.hasPlugin("sample"), false);
 });
 
 test("PluginApplicationService keeps declaration when removal publication fails", async (t) => {

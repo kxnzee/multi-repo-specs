@@ -10,7 +10,7 @@ import {
   PluginHost,
   PluginRegistry,
 } from "@openspec-orch/core";
-import { loadPluginExport } from "./helpers/plugin-materializer.js";
+import { loadPluginExport } from "../fixtures/plugin-materializer.js";
 import { createDirectoryLink } from "../fixtures/filesystem.js";
 
 /** Создаёт structurally valid Plugin export с наблюдаемым lifecycle. */

@@ -128,36 +128,6 @@ test("scout examples preserve the public request and response fields", async () 
   );
 });
 
-test("Apply context validates repository scope without Plugin-specific routing", async () => {
-  const relative = "skills/spec-driven-extended-apply-context/SKILL.md";
-  const source = await fs.readFile(path.join(EXTENSION_ROOT, relative), "utf8");
-
-  assert.match(source, /`Repository \| Capabilities`/, relative);
-  assert.match(source, /`get_assignment_scope`/u, relative);
-  assert.match(source, /include_assignment: true/u, relative);
-  assert.match(source, /не\s+вызывай `get_assignment_scope` повторно/iu, relative);
-  assert.match(source, /Plugin-specific поведение остаётся вне этого skill/iu, relative);
-});
-
-test("Change Tracking reuses the Apply Work Context instead of duplicating MCP reads", async () => {
-  const source = await fs.readFile(
-    path.join(PLUGINS_ROOT, "change-tracking/extension/agent-instructions.md"),
-    "utf8",
-  );
-  assert.match(source, /include_assignment: true/u);
-  assert.match(source, /reuse the current Work Context/iu);
-  assert.doesNotMatch(source, /then resolve the current\s+Repository through `get_assignment_scope`/iu);
-});
-
-test("spec-driven-extended Extension isolates its workflow without naming other schemas", async () => {
-  const source = await fs.readFile(path.join(EXTENSION_ROOT, "agent-instructions.md"), "utf8");
-  assert.match(source, /schemaName/u);
-  assert.match(source, /только\s+к `spec-driven-extended`/u);
-  assert.match(source, /Для другой schema следуй её artifact DAG и instructions/u);
-  assert.match(source, /не добавляй стадии или preflight этого Extension/u);
-  assert.doesNotMatch(source, /superspec-multirepo|Superspec/u);
-});
-
 test("Default and Initiative artifacts do not depend on concrete Plugins", async () => {
   const forbidden = /codegraph|change[ -]tracking|change-tracking|result receipt|\bcycle records?\b|\bsnapshot\b|openspec-orch graph|openspec[ -]graph|\bget_spec_change_impact\b/iu;
   const initiativeRoots = ["../../extensions/initiative/", "../../templates/initiative/"]

@@ -17,7 +17,7 @@ import {
 
 import {
   createPluginMaterializer,
-} from "./helpers/plugin-materializer.js";
+} from "../fixtures/plugin-materializer.js";
 
 /** Создаёт стандартный Workspace со Store и Code Repository для candidate Core v3. */
 async function storeFixture(t) {
@@ -108,7 +108,7 @@ test("candidate Plugin survives restarts through its complete project lifecycle"
       "--plugin",
       "sample",
       "--from",
-      sourceRoot,
+      path.relative(storeRoot, sourceRoot),
     ];
     await (await createProgram()).parseAsync(args);
     const afterInit = await createProgram();

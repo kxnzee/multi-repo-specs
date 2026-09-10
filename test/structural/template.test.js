@@ -13,7 +13,7 @@ import {
   ProjectTemplateService,
 } from "@openspec-orch/core";
 import { parse, stringify } from "yaml";
-import { auditContextLinks } from "../helpers/context-links.js";
+import { auditContextLinks } from "../../test-support/context-links.js";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/default/", import.meta.url));
 const TEMPLATES_ROOT = fileURLToPath(new URL("../../templates/", import.meta.url));

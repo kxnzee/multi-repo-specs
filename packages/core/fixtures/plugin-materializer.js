@@ -9,13 +9,13 @@ import { fileURLToPath } from "node:url";
 import { PluginLoader } from "@openspec-orch/core";
 
 export const SAMPLE_PLUGIN_ROOT = await fs.realpath(fileURLToPath(
-  new URL("../../../../test-fixtures/plugin-sdk/sample-plugin/", import.meta.url),
+  new URL("../../../test-fixtures/plugin-sdk/sample-plugin/", import.meta.url),
 ));
 export const PLUGIN_SDK_ROOT = await fs.realpath(fileURLToPath(
-  new URL("../../../plugin-sdk/", import.meta.url),
+  new URL("../../plugin-sdk/", import.meta.url),
 ));
 export const EXTENSION_SDK_ROOT = await fs.realpath(fileURLToPath(
-  new URL("../../../extension-sdk/", import.meta.url),
+  new URL("../../extension-sdk/", import.meta.url),
 ));
 export const PLUGIN_SDK_VERSION = JSON.parse(
   await fs.readFile(path.join(PLUGIN_SDK_ROOT, "package.json")),

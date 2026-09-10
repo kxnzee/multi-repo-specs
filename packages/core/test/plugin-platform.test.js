@@ -18,7 +18,7 @@ import {
   storeProjects,
 } from "@openspec-orch/core";
 
-import { loadPluginExport, SAMPLE_PLUGIN_ROOT } from "./helpers/plugin-materializer.js";
+import { loadPluginExport, SAMPLE_PLUGIN_ROOT } from "../fixtures/plugin-materializer.js";
 
 /** Создаёт реальный Store config для candidate lifecycle flow. */
 async function storeFixture(t, { declared = true } = {}) {
