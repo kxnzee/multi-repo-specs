@@ -238,7 +238,7 @@ openspec-orch agent status --agent qwen
 
 Выберите нужные возможности в [каталоге плагинов](../plugins/README.md), затем
 подключите их по [общему lifecycle](../plugins/operations.md). Создание и ведение
-Change описаны в [работе с изменениями](working-with-changes.md). Полная команда для
+Change описаны в [Template default](../templates/default.md). Полная команда для
 нового Store приведена в [быстром старте](quick-start.md).
 
 Для нового участника итоговая последовательность выглядит так:

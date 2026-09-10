@@ -39,6 +39,6 @@ openspec-orch agent status --agent qwen
 openspec new change update-copy --schema spec-driven-extended
 ```
 
-Дальше выберите [сценарий работы с Change](working-with-changes.md). Для
+Дальше выберите [сценарий работы с Change](../templates/default.md). Для
 подключения к уже существующему Store используйте [полное руководство по началу
 работы](getting-started.md).

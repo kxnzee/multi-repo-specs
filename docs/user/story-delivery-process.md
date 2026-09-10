@@ -85,14 +85,14 @@ Planning PR дополнительно и не заменяет ни одну и
    только через PR подзадач.
 
 Аналитик выбирает схему и создаёт Change по
-[сценариям Change](working-with-changes.md#выбор-процесса-и-старт). Схему
+[сценариям Change](../templates/default.md#выбор-процесса-и-старт). Схему
 существующего Change не переключают.
 
 ## 3. Planning
 
 1. Аналитик готовит Planning по правилам выбранной схемы. Состав артефактов,
    переходы между ними и правила Gate 1 описаны в
-   [сценариях Change](working-with-changes.md#сценарии-работы-с-change).
+   [сценариях Change](../templates/default.md#сценарии-работы-с-change).
 2. Аналитик создаёт от Store Story branch ветку по pattern для
    Store subtask branch и открывает Planning PR обратно в Store Story
    branch.

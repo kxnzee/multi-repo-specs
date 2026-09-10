@@ -76,7 +76,7 @@ openspec-orch init /absolute/path/to/store \
 
 Шаблон добавляет доступные схемы, но не определяет порядок работы с Change. Выбор
 схемы, переходы между этапами, проверки и последующие Archive, UAT и Release
-описаны в [сценариях Change](../user/working-with-changes.md#сценарии-работы-с-change).
+описаны в [сценариях Change](default.md#сценарии-работы-с-change).
 Один Store может содержать Changes с разными схемами; их выбор сохраняется в
 `.openspec.yaml` конкретного Change.
 
