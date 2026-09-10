@@ -56,18 +56,15 @@ Template не задаёт Git-конвенцию: команда записыв
 маршруты изменений и согласования отдельно от бизнес-контекста, в `openspec/process/`.
 Orchestrator их не валидирует.
 
-Template `default` предоставляет короткую schema `spec-driven-extended` и полную
-`superspec-multirepo`. Schema выбирается отдельно для каждого Change.
+Процесс для конкретного Change и выбор схемы описаны в
+[сценариях Change](brownfield-and-changes.md#сценарии-работы-с-change).
 
 ## Что опционально
 
-- OpenSpec Graph строит и проверяет структуру Specs и Changes по файлам Store.
-- CodeGraph индексирует код отдельного Repository и ускоряет навигацию по выбранному
-  checkout.
-- Change Tracking сохраняет историю попыток и связывает OpenSpec tasks с конкретными
-  implementation revisions Code Repositories.
-- Agent gateway предоставляет governed MCP, но не заменяет CLI и человеческие gates.
+- Плагины добавляют Graph, навигацию по коду и связь задач с ревизиями.
+- Agent gateway даёт доступ к MCP, но не заменяет CLI и человеческие решения.
 
 Начните с [установки](installation-and-updates.md) и
 [создания проекта](getting-started.md). Полный путь Jira Story описан в
-[едином процессе поставки](story-delivery-process.md).
+[едином процессе поставки](story-delivery-process.md), а состав и подключение
+плагинов - в [руководстве Plugins](plugins.md).

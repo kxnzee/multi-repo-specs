@@ -9,12 +9,12 @@ compilation step, application server, database or provider account.
 1. Read the task and inspect `git status --short --branch`. Confirm the requested
    base/PR commit, preserve existing work and use a separate branch for a new task.
    Refresh remote refs before reviewing or publishing against them.
-2. Read `README.md` and `docs/technical/development.md`. Use `docs/README.md`
-   to locate further documentation relevant to the task.
+2. Read `README.md` and `docs/technical/development.md`. Use
+   `docs/technical/README.md` to locate further developer documentation.
 3. Use Node >=22.16.0 and Git. `.nvmrc` selects the minimum version tested in CI.
    Run `npm ci` in the root, then `npm run check:environment`. OpenSpec 1.11.0
    is a locked dev dependency; global installs and `npm link` are unnecessary.
-4. Run the local CLI with `node bin/openspec-orch.js --help`. Test commands supply
+4. Run the local CLI with `node src/bin/openspec-orch.js --help`. Test commands supply
    the local OpenSpec PATH and disable telemetry/update checks without changing
    the user's global configuration.
 
@@ -22,18 +22,18 @@ compilation step, application server, database or provider account.
 
 | Area | Implementation | Tests |
 |---|---|---|
-| Distribution and CLI/MCP composition | `bin/` | `test/` |
-| Generic domain, files, Git, lifecycle, package supply | `packages/core/` | `packages/core/test/` |
-| Public Plugin contract | `packages/plugin-sdk/` | `packages/plugin-sdk/test/` |
-| Public Extension contract | `packages/extension-sdk/` | `packages/extension-sdk/test/` |
-| MCP protocol and schemas | `packages/mcp/` | `packages/mcp/test/` |
+| Distribution and CLI/MCP composition | `src/bin/` | `test/` |
+| Generic domain, files, Git, lifecycle, package supply | `src/packages/core/` | `src/packages/core/test/` |
+| Public Plugin contract | `src/packages/plugin-sdk/` | `src/packages/plugin-sdk/test/` |
+| Public Extension contract | `src/packages/extension-sdk/` | `src/packages/extension-sdk/test/` |
+| MCP protocol and schemas | `src/packages/mcp/` | `src/packages/mcp/test/` |
 | Concrete Plugin behavior | `plugins/<id>/` | owning Plugin's `test/` |
-| Provider adapters | `agents/` | `packages/core/test/`, `test/` |
+| Provider adapters | `src/agents/` | `src/packages/core/test/`, `test/` |
 | Copy-only project context and schemas | `templates/` | `test/structural/` |
 | Agent workflow payloads | `extensions/` | `test/structural/` |
 
 - Keep Core generic. Product process, provider behavior, concrete Plugin IDs and
-  Plugin commands must not become special cases in `packages/core/`.
+  Plugin commands must not become special cases in `src/packages/core/`.
 - Put reusable contracts in the owning SDK. Plugins use the public Plugin SDK,
   not Core internals; they own CLI/MCP handlers and response overlays.
 - Template owns project context and schemas. Standalone or Plugin-owned
@@ -47,9 +47,9 @@ compilation step, application server, database or provider account.
   generated payloads for unrelated tasks. Read relevant tests before changing a
   public contract.
 - Run a specific file through the root entrypoint:
-  `npm run test:code -- packages/core/test/package-supply.test.js`.
+  `npm run test:code -- src/packages/core/test/package-supply.test.js`.
   For a named case, put the option before the path:
-  `npm run test:code -- --test-name-pattern="immutable Git revision" packages/core/test/package-supply.test.js`.
+  `npm run test:code -- --test-name-pattern="immutable Git revision" src/packages/core/test/package-supply.test.js`.
 - Add regression coverage for observable behavior changes. For docs/configuration
   edits, check actual commands and links instead of merely testing the edited text.
 - Build paths with `node:path`, isolate fixtures under the OS temp directory,

@@ -220,7 +220,7 @@ openspec-orch plugin register dependency-audit /absolute/path/to/dependency-audi
 `connect/status` незавершёнными: реализуйте их до установки.
 
 Шаблоны Agent Extension принадлежат поставке и находятся в
-`bin/templates/plugin-extension/`. CLI передаёт их каталог в
+`src/bin/templates/plugin-extension/`. CLI передаёт их каталог в
 `new PluginScaffoldService({ extensionTemplateRoot })`. Core обрабатывает файлы
 шаблона, не выбирая провайдеров и не храня их манифесты.
 

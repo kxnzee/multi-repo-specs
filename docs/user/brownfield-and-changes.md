@@ -1,4 +1,4 @@
-# Доработка существующей системы и brownfield baseline
+# Изменения в существующей системе, brownfield baseline и сценарии Change
 
 Когда в работающем продукте появляется задача на доработку, сначала определите,
 какой принятый контракт она меняет. Master Spec хранит этот контракт, а Change —
@@ -232,3 +232,93 @@ Archive по правилам проекта.**
 Baseline PR и PR доработки могут относиться к одной Jira Story, но должны
 оставаться отдельно проверяемыми результатами. Уже принятый baseline повторно
 не переписывается при каждой новой задаче.
+
+## Сценарии работы с Change
+
+Точный порядок artifacts и их правила всегда берите из schema текущего Change через
+`openspec status` и `openspec instructions`. Orchestrator и Plugins не создают
+параллельный workflow.
+
+### Выбор процесса и старт
+
+Обе schemas поддерживают изменения в нескольких репозиториях. Выбирайте
+`spec-driven-extended`, когда нужно уточнить требования, согласовать решение,
+разбить работу на проверяемые задачи и принять результат. Выбирайте
+`superspec-multirepo`, когда агенту нужен обязательный подробный порядок: одобренный
+Brainstorm, Plan, изолированная рабочая копия, TDD, промежуточные review и Process
+Compliance в Verify.
+
+| Ситуация | Действие |
+|---|---|
+| Schema уже выбрана, но её порядок больше не подходит | Не переключать schema существующего Change; создать новый Change и перенести только принятый смысл |
+| В `spec-driven-extended` есть принятый Intent | Перейти к Intake; не создавать Intent повторно |
+| В `spec-driven-extended` Intent не согласован | Остановиться до Intake; не придумывать Intent внутри него |
+| Выбран `superspec-multirepo` | Провести Brainstorm и получить явное одобрение до следующих artifacts |
+| OpenSpec разблокировал один artifact | Подготовить его по актуальным instructions |
+| OpenSpec разблокировал несколько artifacts | Не угадывать порядок; человек выбирает один разрешённый artifact |
+| Artifact имеет статус `blocked` | Устранить blocker или получить решение владельца |
+
+### Intake и Planning
+
+| Ситуация | Действие |
+|---|---|
+| Intake завершён с `ready_for_proposal` | Перейти к Proposal |
+| Intake завершён с `explore_recommended` | Выполнить только указанный Explore, вернуть findings в тот же `intake.md`; не продолжать автоматически |
+| Intake завершён с `blocked` | Остановиться и получить продуктовое решение владельца |
+| Нужны факты о текущем состоянии | Исследовать только разрешённый Repository и вернуть facts в Planning, не превращая код в Requirements |
+| Техническое решение простое в `spec-driven-extended` | Подготовить обязательный краткий Design и Repository Implementation Map |
+| Design в `superspec-multirepo` доступен, но не нужен | Не создавать его только из-за доступности |
+| Есть dependency, migration, security, performance или существенный operational risk | Подготовить Design до Tasks |
+| Меняется существующее поведение | Внести полный Requirement со всеми Scenarios в `MODIFIED Requirements` |
+| Поведение удаляется или меняется только имя | Использовать `REMOVED` с Reason и Migration либо `RENAMED` с FROM и TO |
+| Меняется только refactor, tooling или docs | Зафиксировать `skip_specs: true`; не создавать фиктивный Requirement |
+| Неизвестен Repository или capability | Исправить Planning; Orchestrator не расширяет scope автоматически |
+
+Proposal и Specs являются Store-only стадиями. Repository Impact включает только
+зарегистрированные Code Repositories с планируемыми изменениями.
+
+### Apply и несколько repositories
+
+| Ситуация | Действие |
+|---|---|
+| Planning scope, Delta Specs и Tasks согласованы | Запустить штатный OpenSpec Apply из назначенного Code Repository |
+| Во время Apply найден новый Repository, capability или изменение scope | Остановить Apply, обновить Planning и повторно принять его |
+| Assignment не совпадает с Repository Impact или Tasks | Не продолжать до исправления Planning или выбора правильного Repository |
+| CodeGraph недоступен или устарел | Использовать адресное read/search в текущем Repository; не запускать sync автоматически |
+| Task имеет artifacts и прошедшие checks | Отметить Task выполненным и сохранить конкретное evidence |
+| Task заблокирован или проверка не выполнена | Оставить checkbox открытым и зафиксировать blocker |
+| Change Tracking доступен | Связать task с implementation revision; Tracking не меняет status и не выполняет проверки |
+| Scopes независимы | В `superspec-multirepo` допускается параллельная работа, если её разрешает Plan |
+| Есть зависимость или общие файлы | Выполнять работы последовательно в порядке Plan |
+
+### Verify, Archive, UAT и Release
+
+| Ситуация | Действие |
+|---|---|
+| Verify доступен, но Apply candidate не собран | Сначала завершить Apply и собрать candidate |
+| Проверка выявила дефект или падающий repository check | Вернуться в Apply, исправить и заново собрать evidence |
+| Verify выявил drift Planning artifacts | Вернуться к artifact-владельцу решения, повторить зависимые стадии и Verify |
+| Найден Scenario из принятого Requirement | Дополнить Delta Specs через Planning PR, повторить Gate 1, Apply и Verify |
+| Найдено новое требование вне scope | Передать владельцу продукта решение о расширении Story или создании нового Change |
+| Техническое evidence есть, но решения человека нет | Оставить Feature Acceptance в `PENDING` |
+| После проверки появился commit, build или deployment | Считать подтверждение устаревшим и повторить проверку candidate |
+| Verify завершён с Human Gate `PASS` | Выполнить Archive в Store branch через PR; Verify не делает Archive |
+| UAT завершён успешно | Получить отдельное Release-решение и выполнить Release по Git Flow |
+| UAT выявил дефект против архивированного Scenario | Создать корректирующий Change и заблокировать Release |
+
+### Изменение project workflow
+
+Совместимые уточнения Template переносятся в Store отдельным проверяемым PR:
+повторный `init` не обновляет уже скопированные файлы. Если меняются порядок или
+зависимости artifacts при активных Changes, сохраните старую schema под прежним ID,
+а новую выпустите под новым ID только для новых Changes.
+
+## Инварианты
+
+- Requirements, Scenarios, Change artifacts и Master Specs принадлежат Store;
+  реализация и repository checks — Code Repositories.
+- Explore и code evidence подтверждают факты, но не принимают продуктовые решения
+  и не расширяют scope.
+- Planning, Apply, Verify, Archive, UAT и Release — разные границы полномочий.
+- Archive не выполняется автоматически Orchestrator, Plugin или Agent и не разрешает
+  Release без успешного UAT и отдельного решения владельца продукта.

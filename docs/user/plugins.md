@@ -461,7 +461,7 @@ openspec-orch plugin register dependency-audit \
 Profiles `repository` и `native` создают заготовки lifecycle callbacks, которые нужно
 реализовать до `plugin init`; `native` дополнительно поддерживает package-owned argv
 runtime. Авторский contract и contract test описаны в
-[Plugin SDK](../../packages/plugin-sdk/README.md).
+[Plugin SDK](../../src/packages/plugin-sdk/README.md).
 
 ### Запуск из Code Repository
 

@@ -12,7 +12,7 @@ git clone https://github.com/kxnzee/multi-repo-specs.git
 cd multi-repo-specs
 npm ci
 npm run check:environment
-node bin/openspec-orch.js --help
+node src/bin/openspec-orch.js --help
 ```
 
 Все команды разработки запускаются из корня. `npm ci` устанавливает workspace
@@ -31,9 +31,9 @@ checkout следуйте [инструкции установки](../user/inst
 |---|---|
 | Диагностика зависимостей и CLI | `npm run check:environment` |
 | Статические правила и import boundaries | `npm run lint` |
-| Все unit, integration, distribution и structural tests | `npm run test:code` |
-| Один файл | `npm run test:code -- packages/core/test/package-supply.test.js` |
-| Один сценарий | `npm run test:code -- --test-name-pattern="immutable Git revision" packages/core/test/package-supply.test.js` |
+| Все unit, integration и structural tests | `npm run test:code` |
+| Один файл | `npm run test:code -- src/packages/core/test/package-supply.test.js` |
+| Один сценарий | `npm run test:code -- --test-name-pattern="immutable Git revision" src/packages/core/test/package-supply.test.js` |
 | Диагностика, lint и все tests | `npm run check` |
 | Coverage нативного Node test runner | `npm run test:coverage` |
 | Установка publishable tarballs в чистый consumer | `npm run test:pack` |
@@ -45,7 +45,7 @@ checkout следуйте [инструкции установки](../user/inst
 entrypoints, exports, workspace/package composition или CI дополнительно требует
 `test:pack`. Для правок только документации проверьте затронутые команды и ссылки.
 
-Root-команды проверок подключают `scripts/verification-environment.js`: он ставит
+Root-команды проверок подключают `scripts/verification/environment.js`: он ставит
 локальный `node_modules/.bin` первым в PATH и задаёт `OPENSPEC_TELEMETRY=0`,
 `DO_NOT_TRACK=1`, `OPENSPEC_NO_UPDATE_CHECK=1`. Это работает одинаково в POSIX
 shell и PowerShell, не требует ручного `export` и не влияет на обычный запуск
@@ -54,14 +54,13 @@ root npm-команды, в том числе для тестов отдельн
 
 Тесты выполняются последовательно с timeout 180 секунд на файл. При зависании сначала
 проверьте оставшийся процесс, незакрытый MCP client, HTTP server или открытый
-handle. Не маскируйте проблему через `--test-force-exit` или пропуск distribution
-smoke. Таймаут теста не гарантирует завершения процесса с handles, оставшимися
+handle. Не маскируйте проблему через `--test-force-exit`. Таймаут теста не гарантирует завершения процесса с handles, оставшимися
 после успешных assertions; общий лимит CI ограничивает и такой случай.
 Увеличение concurrency требует проверки изоляции fixtures и окружения.
 
 Добавляйте тест для конкретного наблюдаемого сбоя. Успешный путь установки и
-удаления внешнего Plugin проверяет `packages/core/test/plugin-init-e2e.test.js`,
-Extension — `packages/core/test/extension-cli-e2e.test.js`. Проверки нижних слоёв
+удаления внешнего Plugin проверяет `src/packages/core/test/plugin-init-e2e.test.js`,
+Extension — `src/packages/core/test/extension-cli-e2e.test.js`. Проверки нижних слоёв
 нужны для самостоятельных контрактов и отказов: rollback, сохранности конфигурации,
 валидации до изменения файлов и восстановления runtime. Не дублируйте успешный
 путь проверками одной лишь передачи аргументов моку.
@@ -73,36 +72,33 @@ Structural tests проверяют загружаемые manifests, ссылк
 отдельными успешными тестами даже без сценариев.
 
 `npm ci` и `test:pack` требуют доступа к npm registry; Git-source проверки
-используют локальные временные Git repositories. `test:pack` также запускает public CLI/MCP scenarios против установленных tarballs:
-первый init, повторный connect, Doctor, Plugins, Graph и Change Tracking.
-Проверки композиции и Change Tracking разделены на два файла, чтобы их суммарное
-время на Windows не расходовало лимит одного файла. Все сценарии выполняются
-последовательно; общий лимит их запуска в packed smoke — 300 секунд.
+используют локальные временные Git repositories. `test:pack` устанавливает
+publishable tarballs в чистый consumer, загружает их public exports и сверяет
+версию public CLI. Поведение внешних provider CLI эта проверка не эмулирует.
 Установка consumer использует чистый npm-кэш и стандартную параллельность npm.
 Настройки npm пользователя не меняются; ограничение времени установки — 120 секунд.
-Harness и MCP client находятся в checkout; проверяемые CLI/MCP entrypoints и их
-dependencies — в чистом consumer. Qwen остаётся заглушкой.
 `test:pack` намеренно использует
 отдельный consumer и пустой npm cache, чтобы проверить поставляемые пакеты без
 помощи workspace symlinks. Локальный npm cache проекта эта проверка не удаляет.
-Каждый npm subprocess в packed smoke ограничен двумя минутами. CI запускает
+Сборка каждого tarball в packed smoke ограничена двумя минутами; установка чистого
+consumer — пятью минутами. CI запускает
 проверки на Linux, macOS и Windows с общим лимитом job 15 минут.
 
 ## Карта кода
 
 | Путь | Назначение |
 |---|---|
-| `bin/` | Distribution entrypoints и композиция CLI/MCP |
-| `packages/core/` | Generic domain, use cases и adapters |
-| `packages/plugin-sdk/` | Public Plugin API и test kit |
-| `packages/extension-sdk/` | Public Extension API и test kit |
-| `packages/mcp/` | Governed stdio MCP |
+| `src/bin/` | Distribution entrypoints и композиция CLI/MCP |
+| `src/packages/core/` | Generic domain, use cases и adapters |
+| `src/packages/plugin-sdk/` | Public Plugin API и test kit |
+| `src/packages/extension-sdk/` | Public Extension API и test kit |
+| `src/packages/mcp/` | Governed stdio MCP |
 | `plugins/` | First-party Plugin packages |
-| `agents/` | Provider definitions и adapters |
+| `src/agents/` | Provider definitions и adapters |
 | `extensions/` | Standalone Agent payloads |
 | `templates/` | Copy-only Project Template catalog |
-| `scripts/` | Проверка окружения и package smoke |
-| `test/` | Distribution и structural tests |
+| `scripts/verification/` | Проверка окружения и package smoke |
+| `test/` | Integration и structural tests |
 
 Тесты packages и Plugins находятся в их `test/`. Правила работы агента над
 реализацией находятся в корневом [AGENTS.md](../../AGENTS.md). Payloads в
@@ -130,7 +126,7 @@ Maintenance самого репозитория не требует создан
    `openspecOrchestrator.bundledPlugins`.
 5. Проверьте `npm run check:all`.
 
-Новый Agent добавляется в `agents/<id>/`; provider-specific CLI остаётся в adapter.
+Новый Agent добавляется в `src/agents/<id>/`; provider-specific CLI остаётся в adapter.
 Bundled Extension содержит descriptor и manifests поддерживаемых Agents.
 Plugin-owned Extension возвращается через SDK с точным target.
 

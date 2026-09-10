@@ -17,7 +17,7 @@ import { auditContextLinks } from "../../test-support/context-links.js";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/default/", import.meta.url));
 const TEMPLATES_ROOT = fileURLToPath(new URL("../../templates/", import.meta.url));
-const AGENTS_ROOT = fileURLToPath(new URL("../../agents/", import.meta.url));
+const AGENTS_ROOT = fileURLToPath(new URL("../../src/agents/", import.meta.url));
 
 /** Возвращает POSIX paths всех обычных файлов ниже directory. */
 async function listFiles(directory, relative = "") {

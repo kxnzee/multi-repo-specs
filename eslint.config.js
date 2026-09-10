@@ -39,14 +39,14 @@ export default [
     rules: {
       "no-restricted-imports": ["error", {
         patterns: [{
-          group: ["**/packages/core/**", "@openspec-orch/core", "@openspec-orch/core/**"],
+          group: ["**/src/packages/core/**", "@openspec-orch/core", "@openspec-orch/core/**"],
           message: "Plugin должен использовать только публичный Plugin SDK и Core facades.",
         }],
       }],
     },
   },
   {
-    files: ["packages/core/**/*.js"],
+    files: ["src/packages/core/**/*.js"],
     rules: {
       "no-restricted-imports": ["error", {
         patterns: [
@@ -63,12 +63,12 @@ export default [
     },
   },
   {
-    files: ["packages/plugin-sdk/**/*.js"],
+    files: ["src/packages/plugin-sdk/**/*.js"],
     rules: {
       "no-restricted-imports": ["error", {
         patterns: [{
           group: [
-            "**/packages/core/**",
+            "**/src/packages/core/**",
             "**/plugins/**",
             "**/core/**",
             "@openspec-orch/core",

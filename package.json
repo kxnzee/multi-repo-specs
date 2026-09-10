@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "workspaces": [
-    "packages/*",
+    "src/packages/*",
     "plugins/*"
   ],
   "openspecOrchestrator": {
@@ -29,15 +29,15 @@
     ]
   },
   "files": [
-    "agents",
-    "bin",
+    "src/agents",
+    "src/bin",
     "extensions",
     "templates"
   ],
   "bin": {
-    "openspec-orch": "./bin/openspec-orch.js",
-    "openspec-orch-codegraph": "./bin/openspec-orch-codegraph.js",
-    "openspec-orch-mcp": "./bin/openspec-orch-mcp.js"
+    "openspec-orch": "./src/bin/openspec-orch.js",
+    "openspec-orch-codegraph": "./src/bin/openspec-orch-codegraph.js",
+    "openspec-orch-mcp": "./src/bin/openspec-orch-mcp.js"
   },
   "dependencies": {
     "@openspec-orch/core": "0.1.0",
@@ -48,10 +48,10 @@
   },
   "scripts": {
     "test": "npm run test:code",
-    "test:code": "node --import ./scripts/verification-environment.js --test --test-concurrency=1 --test-timeout=180000",
-    "test:coverage": "node --import ./scripts/verification-environment.js --experimental-test-coverage --test --test-concurrency=1 --test-timeout=180000",
-    "test:pack": "node --import ./scripts/verification-environment.js scripts/packed-artifact-smoke.js",
-    "check:environment": "node --import ./scripts/verification-environment.js scripts/check-environment.js",
+    "test:code": "node --import ./scripts/verification/environment.js --test --test-concurrency=1 --test-timeout=180000",
+    "test:coverage": "node --import ./scripts/verification/environment.js --experimental-test-coverage --test --test-concurrency=1 --test-timeout=180000",
+    "test:pack": "node --import ./scripts/verification/environment.js scripts/verification/packed-artifact-smoke.js",
+    "check:environment": "node --import ./scripts/verification/environment.js scripts/verification/check-environment.js",
     "lint": "eslint .",
     "check": "npm run check:environment && npm run lint && npm run test:code",
     "check:all": "npm run check && npm run test:pack"

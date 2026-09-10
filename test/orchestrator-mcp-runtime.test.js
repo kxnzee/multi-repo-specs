@@ -15,12 +15,12 @@ import {
   configuration, createProject, createRepository, createRepositoryCheckout, PackageSupplyService,
 } from "@openspec-orch/core";
 
-import { OrchestratorMcpRuntime } from "../bin/internal/orchestrator-mcp-runtime.js";
+import { OrchestratorMcpRuntime } from "../src/bin/internal/orchestrator-mcp-runtime.js";
 import { openSpecGraphAgentContribution } from "../plugins/openspec-graph/lib/agent.js";
-import { createPluginMaterializer } from "../packages/core/fixtures/plugin-materializer.js";
+import { createPluginMaterializer } from "../src/packages/core/fixtures/plugin-materializer.js";
 
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
-const serverPath = path.join(repositoryRoot, "bin", "openspec-orch-mcp.js");
+const serverPath = path.join(repositoryRoot, "src", "bin", "openspec-orch-mcp.js");
 const graphContributions = Object.freeze([Object.freeze({
   pluginId: "openspec-graph",
   contribution: openSpecGraphAgentContribution,

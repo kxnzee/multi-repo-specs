@@ -8,21 +8,21 @@ workflow Change, реализацией, проверкой, Release или Arch
 ## Физический состав
 
 ```text
-bin/openspec-orch.js             public CLI adapter
-bin/openspec-orch-mcp.js         public MCP stdio adapter
-bin/internal/distribution.js     shared distribution composition root
-bin/internal/                    protocol-specific runtime adapters
-packages/core/                   generic orchestration and safe infrastructure
-packages/extension-sdk/          public declarative Extension contract
-packages/plugin-sdk/             public Plugin contract
-packages/mcp/                    governed MCP protocol and Store resources
+src/bin/openspec-orch.js         public CLI adapter
+src/bin/openspec-orch-mcp.js     public MCP stdio adapter
+src/bin/internal/distribution.js shared distribution composition root
+src/bin/internal/                protocol-specific runtime adapters
+src/packages/core/               generic orchestration and safe infrastructure
+src/packages/extension-sdk/      public declarative Extension contract
+src/packages/plugin-sdk/         public Plugin contract
+src/packages/mcp/                governed MCP protocol and Store resources
 plugins/                         first-party Plugin packages
-agents/                          Agent definitions and native adapters
+src/agents/                      Agent definitions and native adapters
 extensions/                      bundled standalone Agent payloads
 templates/                       bundled copy-only Project Templates
 ```
 
-`bin/internal/distribution.js` читает root `package.json`, проверяет Node.js,
+`src/bin/internal/distribution.js` читает root `package.json`, проверяет Node.js,
 создаёт каталоги bundled Agents, Extensions, Templates и Plugins, а затем собирает
 одну `PluginPlatform`. CLI загружает Plugins по необходимости, MCP собирает contributions при старте.
 Оба используют эту же Platform и общие application

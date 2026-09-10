@@ -21,7 +21,7 @@ openspec-orch --help
 ```
 
 После смены активной версии Node.js выполните `npm link` повторно. Без global link
-CLI можно запускать через `node /absolute/path/to/repo/bin/openspec-orch.js`.
+CLI можно запускать через `node /absolute/path/to/repo/src/bin/openspec-orch.js`.
 
 Глобальный OpenSpec нужен для команд из реального Store. Для разработки самого
 Orchestrator root npm-команды используют локальный OpenSpec из devDependencies;

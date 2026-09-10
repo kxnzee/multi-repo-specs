@@ -1,0 +1,7 @@
+id: sample-extension
+name: Sample Extension
+targets: [store, code]
+manifests:
+  claude: .claude-plugin/plugin.json
+  qwen: qwen-extension.json
+  gigacode: gigacode-extension.json
