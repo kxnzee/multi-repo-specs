@@ -20,3 +20,18 @@ export const STATUS_PRESENTATIONS = Object.freeze({
   unavailable: Object.freeze({ icon: "✗", label: "недоступен" }),
   workspace_unresolved: Object.freeze({ icon: "✗", label: "workspace не определён" }),
 });
+
+const doctorPresentation = (icon, label) => Object.freeze({ icon, label });
+
+export const DOCTOR_PRESENTATIONS = Object.freeze({
+  pass: doctorPresentation("✓", "Успешно"),
+  warning: doctorPresentation("⚠", "Предупреждения"),
+  error: doctorPresentation("✗", "Ошибки"),
+  skipped: doctorPresentation("•", "Пропущено"),
+});
+
+export const DOCTOR_STATUS_PRESENTATIONS = Object.freeze({
+  ready: doctorPresentation("✓", "Готово к работе"),
+  degraded: doctorPresentation("⚠", "Готово с предупреждениями"),
+  blocked: doctorPresentation("✗", "Есть блокирующие ошибки"),
+});

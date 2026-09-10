@@ -3,6 +3,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import { NATIVE_PAYLOAD_CONFIG } from "./config.js";
+
 /** Standalone Extension сохраняет ID, Plugin contribution получает owner prefix. */
 export function nativeExtensionId(extensionId, ownerId) {
   return ownerId === undefined ? extensionId : `${ownerId}-${extensionId}`;
@@ -88,11 +90,11 @@ export async function runNative(context, extension, args) {
 /** Проверяет native CLI выбранного Agent без mutation. */
 export async function preflightNative(context) {
   try {
-    return await context.process.run(context.agent.executable, Object.freeze(["--version"]));
+    return await context.process.run(context.agent.executable, NATIVE_PAYLOAD_CONFIG.preflightArgs);
   } catch (cause) {
     throw new Error(
       `AGENT_PREFLIGHT_FAILED: ${context.agent.id}; native command: ` +
-        `${JSON.stringify([context.agent.executable, "--version"])}; ${cause.message}`,
+        `${JSON.stringify([context.agent.executable, ...NATIVE_PAYLOAD_CONFIG.preflightArgs])}; ${cause.message}`,
       { cause },
     );
   }
@@ -113,12 +115,12 @@ export async function assertInstalledPayload(extension, installedRoot) {
     const entries = await fs.readdir(path.join(expectedRoot, relative), { withFileTypes: true });
     const expectedNames = new Set(entries.map(({ name }) => name));
     for (const name of await fs.readdir(path.join(actualRoot, relative))) {
-      if ([".git", "node_modules"].includes(name) || (!relative &&
-        [".qwen-extension-install.json", ".gigacode-extension-install.json", ".gemini-extension-install.json"].includes(name))) continue;
+      if (NATIVE_PAYLOAD_CONFIG.ignoredDirectoryNames.includes(name) || (!relative &&
+        NATIVE_PAYLOAD_CONFIG.rootBookkeepingFiles.includes(name))) continue;
       if (!expectedNames.has(name)) throw new Error(`AGENT_EXTENSION_STATUS_STALE: ${extension.id}: removed file ${path.join(relative, name)} remains installed; publish a new native manifest version and reconnect the Extension`);
     }
     for (const entry of entries) {
-      if ([".git", "node_modules"].includes(entry.name)) continue;
+      if (NATIVE_PAYLOAD_CONFIG.ignoredDirectoryNames.includes(entry.name)) continue;
       const file = path.join(relative, entry.name);
       const actual = path.join(actualRoot, file);
       const stat = await fs.lstat(actual).catch((error) => {
@@ -136,4 +138,29 @@ export async function assertInstalledPayload(extension, installedRoot) {
     }
   }
   await compare();
+}
+
+/** Builds the common Agent adapter surface from named native lifecycle operations. */
+export function createNativeExtensionAdapter({ operations, validateExtension }) {
+  if (!operations || typeof validateExtension !== "function") {
+    throw new Error("AGENT_EXTENSION_ADAPTER_INVALID: required operations and validateExtension");
+  }
+  return Object.freeze({
+    adaptOpenSpecPack,
+    preflight: preflightNative,
+    validateExtension,
+    async invokeExtension(context, extension, request) {
+      const operation = operations[request.operation];
+      if (typeof operation !== "function") {
+        throw new Error(`AGENT_EXTENSION_OPERATION_INVALID: ${request.operation}`);
+      }
+      return operation(Object.freeze({
+        context,
+        extension,
+        nativeId: nativeExtensionId(extension.id, request.ownerId),
+        request,
+        validateExtension,
+      }));
+    },
+  });
 }

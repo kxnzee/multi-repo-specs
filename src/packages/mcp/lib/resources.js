@@ -4,18 +4,9 @@ import { createHash } from "node:crypto";
 
 import { parse } from "yaml";
 
-const ROOT_FILES = Object.freeze([
-  "openspec-orch.yaml", "openspec/config.yaml", "STORE.md",
-  "openspec/process/quality-gates.md", "openspec/process/release-process.md",
-]);
-const STATIC_TREES = Object.freeze([
-  Object.freeze({ root: "openspec/context", suffixes: new Set([".md", ".yaml", ".yml"]) }),
-  Object.freeze({ root: "openspec/specs", names: new Set(["spec.md"]) }),
-]);
+import { MCP_RESOURCE_CONFIG } from "./resources-config.js";
+
 const SCHEMA_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
-const BUILTIN_OUTPUTS = Object.freeze({
-  "spec-driven": Object.freeze(["proposal.md", "specs/**/*.md", "design.md", "tasks.md"]),
-});
 
 /** Сопоставляет разрешённые типы файлов Store с MIME-типами ресурсов MCP. */
 function mimeType(relativePath) {
@@ -98,7 +89,7 @@ async function schemaOutputs(files, schemaId) {
   const schemaPath = `openspec/schemas/${schemaId}/schema.yaml`;
   const schema = await yamlObject(files, schemaPath, { optional: true });
   if (!schema) {
-    const builtin = BUILTIN_OUTPUTS[schemaId];
+    const builtin = MCP_RESOURCE_CONFIG.builtinSchemaOutputs[schemaId];
     if (builtin) return builtin;
     throw new Error(`MCP_RESOURCE_SCHEMA_NOT_FOUND: ${schemaId}`);
   }
@@ -202,10 +193,10 @@ export class StoreResourceService {
 
   async list({ changeId } = {}) {
     const paths = [];
-    for (const relativePath of ROOT_FILES) {
+    for (const relativePath of MCP_RESOURCE_CONFIG.rootFiles) {
       if (await this.#files.read(relativePath, { optional: true }) !== null) paths.push(relativePath);
     }
-    for (const rule of STATIC_TREES) paths.push(...await walkStatic(this.#files, rule));
+    for (const rule of MCP_RESOURCE_CONFIG.staticTrees) paths.push(...await walkStatic(this.#files, rule));
     paths.push(...await changeArtifacts(this.#files, changeId));
     const selected = [...new Set(paths)].sort().filter((relativePath) => (
       changeId === undefined || !relativePath.startsWith("openspec/changes/") ||
@@ -242,7 +233,8 @@ export class StoreResourceService {
       resourceUri(this.#storeId, relativePath, this.#source) !== uri) {
       throw new Error(`MCP_RESOURCE_NOT_FOUND: ${uri}`);
     }
-    let allowed = ROOT_FILES.includes(relativePath) || STATIC_TREES.some((rule) =>
+    let allowed = MCP_RESOURCE_CONFIG.rootFiles.includes(relativePath) ||
+      MCP_RESOURCE_CONFIG.staticTrees.some((rule) =>
       relativePath.startsWith(`${rule.root}/`) && matchesStatic(rule, relativePath.split("/").at(-1)));
     const change = /^openspec\/changes\/(?:(?!archive\/)[^/]+|archive\/[^/]+)\/(.+)$/u.exec(relativePath);
     if (!allowed && change) {

@@ -4,26 +4,17 @@ import { promises as fs } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  AGENT_GATEWAY_EXTENSION_ID,
+  BUNDLED_ROOTS,
+  DISTRIBUTION_CONFIG,
+  MINIMUM_NODE_PARTS,
+  MINIMUM_NODE_VERSION,
+} from "./distribution-config.js";
 
 const require = createRequire(import.meta.url);
-const PACKAGE_MANIFEST = require("../../../package.json");
-const MINIMUM_NODE_VERSION = PACKAGE_MANIFEST.engines.node.replace(/^>=/u, "");
-const MINIMUM_NODE_PARTS = Object.freeze(MINIMUM_NODE_VERSION.split(".").map(Number));
 
-export const DISTRIBUTION_CONFIG = Object.freeze({
-  defaultTemplateId: PACKAGE_MANIFEST.openspecOrchestrator.defaultTemplateId,
-  plugins: Object.freeze(PACKAGE_MANIFEST.openspecOrchestrator.bundledPlugins.map((plugin) => (
-    Object.freeze({ ...plugin })
-  ))),
-  version: PACKAGE_MANIFEST.version,
-});
-
-const BUNDLED_ROOTS = Object.freeze({
-  agents: fileURLToPath(new URL("../../agents/", import.meta.url)),
-  extensions: fileURLToPath(new URL("../../../extensions/", import.meta.url)),
-  templates: fileURLToPath(new URL("../../../templates/", import.meta.url)),
-});
-const AGENT_GATEWAY_EXTENSION_ID = "orchestrator-agent";
+export { DISTRIBUTION_CONFIG } from "./distribution-config.js";
 
 /** Compares one runtime version with the distribution floor. */
 function isSupportedNodeVersion(version) {

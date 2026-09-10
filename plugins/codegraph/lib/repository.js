@@ -4,9 +4,9 @@ import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { parseArgs, promisify } from "node:util";
+import { CODEGRAPH_CONFIG } from "./config.js";
 
 const executeFile = promisify(execFile);
-const INDEX_EXCLUDE = ".codegraph/";
 
 /** Represents the Code Repository prepared for a local CodeGraph index. */
 export class CodeGraphRepository {
@@ -41,12 +41,16 @@ export class CodeGraphRepository {
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
     }
-    if (source.split(/\r?\n/u).includes(INDEX_EXCLUDE)) return;
+    if (source.split(/\r?\n/u).includes(CODEGRAPH_CONFIG.repository.indexExclude)) return;
 
     const newline = source.includes("\r\n") ? "\r\n" : "\n";
     const separator = source && !source.endsWith("\n") ? newline : "";
     await fs.mkdir(path.dirname(excludePath), { recursive: true });
-    await fs.appendFile(excludePath, `${separator}${INDEX_EXCLUDE}${newline}`, "utf8");
+    await fs.appendFile(
+      excludePath,
+      `${separator}${CODEGRAPH_CONFIG.repository.indexExclude}${newline}`,
+      "utf8",
+    );
   }
 }
 

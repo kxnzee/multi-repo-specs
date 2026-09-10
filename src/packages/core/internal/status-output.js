@@ -1,20 +1,10 @@
 /** @fileoverview Dependency-free human presentation for Core status commands. */
 
-import { STATUS_PRESENTATIONS } from "./status-output-config.js";
-
-const doctorPresentation = (icon, label) => Object.freeze({ icon, label });
-const DOCTOR_PRESENTATIONS = Object.freeze({
-  pass: doctorPresentation("✓", "Успешно"),
-  warning: doctorPresentation("⚠", "Предупреждения"),
-  error: doctorPresentation("✗", "Ошибки"),
-  skipped: doctorPresentation("•", "Пропущено"),
-});
-
-const DOCTOR_STATUS = Object.freeze({
-  ready: Object.freeze({ icon: "✓", label: "Готово к работе" }),
-  degraded: Object.freeze({ icon: "⚠", label: "Готово с предупреждениями" }),
-  blocked: Object.freeze({ icon: "✗", label: "Есть блокирующие ошибки" }),
-});
+import {
+  DOCTOR_PRESENTATIONS,
+  DOCTOR_STATUS_PRESENTATIONS,
+  STATUS_PRESENTATIONS,
+} from "./status-output-config.js";
 
 /** Returns a stable icon and readable label for a machine state. */
 export function presentState(state) {
@@ -90,7 +80,8 @@ function withoutLeadingCode(message, code) {
 
 /** Formats one complete Doctor report for a terminal without changing its JSON contract. */
 export function formatDoctorReport(report) {
-  const status = DOCTOR_STATUS[report.status] ?? Object.freeze({ icon: "•", label: report.status });
+  const status = DOCTOR_STATUS_PRESENTATIONS[report.status] ??
+    Object.freeze({ icon: "•", label: report.status });
   const summary = Object.entries(DOCTOR_PRESENTATIONS)
     .map(([outcome, { icon, label }]) => [icon, label, report.summary[outcome]]);
   const lines = [

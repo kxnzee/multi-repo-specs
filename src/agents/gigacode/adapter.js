@@ -1,18 +1,6 @@
-/** @fileoverview GigaCode использует совместимую с Qwen native CLI grammar. */
+/** @fileoverview Thin mapper for GigaCode's Qwen-compatible Extension lifecycle. */
 
-import { createQwenCompatibleAdapter } from "../qwen/adapter.js";
+import { createExtensionCliLifecycle } from "../extension-cli.js";
+import { AGENT_ADAPTER_CONFIG } from "../config.js";
 
-const gigacodeAdapter = createQwenCompatibleAdapter({
-  scopeMarkers: Object.freeze({
-    user: Object.freeze([
-      "Enabled (User): true",
-      "Включено (Пользователь): true",
-    ]),
-    workspace: Object.freeze([
-      "Enabled (Workspace): true",
-      "Включено (Рабочее пространство): true",
-    ]),
-  }),
-});
-
-export default gigacodeAdapter;
+export default createExtensionCliLifecycle(AGENT_ADAPTER_CONFIG.gigacode);
