@@ -26,7 +26,7 @@ test("every shipped Qwen and GigaCode payload resolves its actual marketplace se
   const roots = await payloads();
   assert.ok(roots.length > 0, "shipped payloads must be discovered");
   for (const agentId of ["qwen", "gigacode"]) {
-    const { adapter, definition } = await BundledAgentPackage.load(path.join(ROOT, "agents", agentId));
+    const { adapter, definition } = await BundledAgentPackage.load(path.join(ROOT, "src", "agents", agentId));
     for (const root of roots) {
       const manifest = JSON.parse(await fs.readFile(path.join(root, definition.manifest), "utf8"));
       await adapter.validateExtension({ id: manifest.name, root }, definition);
