@@ -11,8 +11,8 @@ import { execa } from "execa";
 import { configuration, createProject } from "@openspec-orch/core";
 
 export const CLI_PATH = process.env.OPENSPEC_ORCH_TEST_CLI_PATH ??
-  fileURLToPath(new URL("../../bin/openspec-orch.js", import.meta.url));
-export const MCP_PATH = process.env.OPENSPEC_ORCH_TEST_MCP_PATH ?? fileURLToPath(new URL("../../bin/openspec-orch-mcp.js", import.meta.url));
+  fileURLToPath(new URL("../bin/openspec-orch.js", import.meta.url));
+export const MCP_PATH = process.env.OPENSPEC_ORCH_TEST_MCP_PATH ?? fileURLToPath(new URL("../bin/openspec-orch-mcp.js", import.meta.url));
 
 /** Запускает candidate CLI в изолированном Store. */
 export function runCli(cwd, ...args) {

@@ -17,7 +17,7 @@ import {
 
 import { OrchestratorMcpRuntime } from "../bin/internal/orchestrator-mcp-runtime.js";
 import { openSpecGraphAgentContribution } from "../plugins/openspec-graph/lib/agent.js";
-import { createPluginMaterializer } from "../packages/core/test/helpers/plugin-materializer.js";
+import { createPluginMaterializer } from "../packages/core/fixtures/plugin-materializer.js";
 
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
 const serverPath = path.join(repositoryRoot, "bin", "openspec-orch-mcp.js");

@@ -10,7 +10,7 @@ import {
   PluginSource,
 } from "@openspec-orch/core";
 
-import { SAMPLE_PLUGIN_ROOT } from "./helpers/plugin-materializer.js";
+import { SAMPLE_PLUGIN_ROOT } from "../fixtures/plugin-materializer.js";
 
 /** Создаёт definition SDK sample Plugin из дистрибутива. */
 function samplePackage(overrides = {}) {

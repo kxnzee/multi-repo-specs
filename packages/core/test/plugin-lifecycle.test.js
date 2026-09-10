@@ -18,7 +18,7 @@ import {
   OpenSpecPointerService,
   StoreProjectService,
 } from "@openspec-orch/core";
-import { loadPluginExport } from "./helpers/plugin-materializer.js";
+import { loadPluginExport } from "../fixtures/plugin-materializer.js";
 
 /** Записывает project fixture с одним Store и одним Code Repository. */
 async function createStoreFixture(t, { backendConnected = false, connected = false } = {}) {

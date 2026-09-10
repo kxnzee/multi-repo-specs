@@ -3,7 +3,7 @@ import test from "node:test";
 import { parse } from "yaml";
 import { ImplementationTrackingService } from "../lib/implementation-service.js";
 import { ImplementationMapRepository } from "../lib/implementation-map-repository.js";
-import { assignmentContext } from "./assignment-context.js";
+import { assignmentContext } from "../fixtures/assignment-context.js";
 
 const sha = "b".repeat(40);
 const input = { change_id: "checkout-flow", task_id: "1", task_description: "Implement",

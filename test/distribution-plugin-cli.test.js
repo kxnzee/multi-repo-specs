@@ -16,7 +16,7 @@ import { configuration } from "@openspec-orch/core";
 
 import {
   CLI_PATH, MCP_PATH, runCli, writeFakeQwen, commitAll, distributionFixture,
-} from "./helpers/distribution.js";
+} from "../test-support/distribution.js";
 
 test("candidate distribution bootstraps the Agent gateway once in user scope", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-orch-agent-bootstrap-"));

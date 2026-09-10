@@ -12,7 +12,7 @@ import { execa } from "execa";
 import { PluginLoader, PluginScaffoldService } from "@openspec-orch/core";
 
 import { createDirectoryLink } from "../fixtures/filesystem.js";
-import { PLUGIN_SDK_ROOT } from "./helpers/plugin-materializer.js";
+import { PLUGIN_SDK_ROOT } from "../fixtures/plugin-materializer.js";
 
 /** Делает публичный SDK доступным созданному локальному package без npm registry. */
 async function linkSdk(packageRoot) {

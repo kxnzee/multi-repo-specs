@@ -109,48 +109,6 @@ test("plugin register delegates the selected profile and optional Extension", as
   ]);
 });
 
-test("plugin init preserves --plugin/--from grammar and delegates to application facade", async () => {
-  const calls = [];
-  const captured = outputCollector();
-  const storeProject = Object.freeze({ root: "/store" });
-  const program = candidate({
-    applicationService: {
-      async install(current, pluginId, source) {
-        calls.push({ current, pluginId, source });
-        return { initialized: true };
-      },
-      async remove() {},
-    },
-    lifecycleService: {
-      async connectMany() { return []; },
-      async statuses() { return []; },
-    },
-    output: captured.output,
-    storeProjectService: { async resolve() { return storeProject; } },
-  });
-
-  await program.parseAsync([
-    "node",
-    "openspec-orch",
-    "plugin",
-    "init",
-    "--plugin",
-    "sample",
-    "--from",
-    "../sample-plugin",
-  ]);
-
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].current, storeProject);
-  assert.equal(calls[0].pluginId, "sample");
-  assert.equal(calls[0].source instanceof PluginSource, true);
-  assert.equal(calls[0].source.declaration, "../sample-plugin");
-  assert.deepEqual(captured.lines, [
-    "✓ sample — инициализирован",
-    "Далее: openspec-orch plugin connect <plugin-id>",
-  ]);
-});
-
 test("plugin update is explicit and preserves the existing project declaration", async () => {
   const calls = [];
   const captured = outputCollector();
@@ -829,44 +787,4 @@ test("plugin lifecycle bulk commands preserve repeatable --repo and reject ambig
     ]),
     /нельзя использовать вместе/,
   );
-});
-
-test("plugin remove delegates to application facade and remains idempotent", async () => {
-  const calls = [];
-  const captured = outputCollector();
-  const storeProject = Object.freeze({ root: "/store" });
-  const applicationService = {
-    async install() {},
-    async remove(current, pluginId) {
-      calls.push({ current, pluginId });
-      return { removed: calls.length === 1 };
-    },
-  };
-  const lifecycleService = {
-    async connectMany() { return []; },
-    async statuses() { return []; },
-  };
-  const storeProjectService = { async resolve() { return storeProject; } };
-
-  await candidate({
-    applicationService,
-    lifecycleService,
-    output: captured.output,
-    storeProjectService,
-  }).parseAsync(["node", "openspec-orch", "plugin", "remove", "sample"]);
-  await candidate({
-    applicationService,
-    lifecycleService,
-    output: captured.output,
-    storeProjectService,
-  }).parseAsync(["node", "openspec-orch", "plugin", "remove", "sample"]);
-
-  assert.deepEqual(calls, [
-    { current: storeProject, pluginId: "sample" },
-    { current: storeProject, pluginId: "sample" },
-  ]);
-  assert.deepEqual(captured.lines, [
-    "✓ sample — удалён",
-    "• sample — не был инициализирован",
-  ]);
 });

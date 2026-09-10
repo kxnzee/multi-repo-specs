@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { auditContextLinks } from "../helpers/context-links.js";
+import { auditContextLinks } from "../../test-support/context-links.js";
 
 test("context links reject external targets and broken anchors while keeping same-file links valid", async (t) => {
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "context-links-")));

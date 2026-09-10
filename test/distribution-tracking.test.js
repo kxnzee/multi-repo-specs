@@ -11,7 +11,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { parse } from "yaml";
 
-import { MCP_PATH, runCli, commitAll, distributionFixture } from "./helpers/distribution.js";
+import { MCP_PATH, runCli, commitAll, distributionFixture } from "../test-support/distribution.js";
 
 test("candidate distribution completes Change Tracking through public MCP", async (t) => {
   let { codeRoot, registerCleanup, storeRoot } = await distributionFixture(
