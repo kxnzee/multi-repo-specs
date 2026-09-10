@@ -291,7 +291,8 @@ payload. Неизменившийся cache после native update остаё�
 
 ### Абстрактные операции MCP
 
-MCP владеет контрактами `start_attempt` и `complete_attempt`. Change Tracking
+MCP владеет абстрактным контрактом `record_implementation` и прежними контрактами
+`start_attempt` / `complete_attempt`. Change Tracking
 регистрирует обработчики через `agent.operations`; общий runtime выбирает их по
 имени операции без знания ID плагина. Другой Plugin может реализовать тот же
 контракт. Два объявленных в Project провайдера одной операции вызывают ошибку

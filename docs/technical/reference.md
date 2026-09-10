@@ -88,6 +88,9 @@ openspec-orch plugin exec openspec-graph view [--port <port>]
 Change Tracking:
 
 ```text
+openspec-orch plugin exec --repo <store-id> change-tracking status <change-id>
+openspec-orch plugin exec --repo <store-id> change-tracking record <change-id> <task-id> --description <text> --pr <url> --summary <text> --remaining <text> --version <number>
+# Совместимость с прежним процессом:
 openspec-orch plugin exec --repo <store-id> change-tracking attempt start <change-id> <task-id>
 openspec-orch plugin exec --repo <store-id> change-tracking attempt complete <change-id> <task-id>
 openspec-orch plugin exec --repo <store-id> change-tracking attempt cancel <change-id> <task-id> "Причина отмены"
@@ -247,6 +250,8 @@ Controlled setup tools:
 
 Task evidence tools:
 
+- `record_implementation` — сохраняет связь задачи с PR/планом, явными SHA и
+  оставшейся работой через обработчик Plugin; checkbox и Git не изменяет;
 - `start_attempt` — локально фиксирует task и base revision текущего Code Repository;
 - `complete_attempt` — требует выполненный task из OpenSpec Apply и записывает
   итоговую revision в Change-local implementation map; повторная реализация того же

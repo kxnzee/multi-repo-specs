@@ -28,7 +28,34 @@ Extensions и Plugin declarations/bindings. Schema Change хранится са�
 
 ## Change Tracking
 
-### Implementation attempt
+### Карта реализации
+
+`implementation-map.yaml` использует единый формат `contract_version: 1` с полями
+`change_id`, `attempts` и `implementations` с первой записи. Поле `implementations`
+содержит связи по ключу
+`repository_id + task.id + pull_request`: канонические `task.id/description`,
+`schema_name`, `pull_request`, `plan_url`, `commits`, `summary`, `remaining`, `version`.
+Это текущие снимки для передачи работы, а не журнал локальных событий. Детальный
+план находится в PR. Абсолютные пути checkout и копия checkbox не сохраняются.
+
+`expected_version` предотвращает потерю конкурентного обновления той же связи.
+Повтор идентичного запроса не повышает версию. CLI/MCP проверяют точное описание
+задачи и наличие явных SHA через публичный Git facade. Состояние галочки вычисляется
+при чтении; изменённое соответствие задачи возвращается как `changed_or_missing`.
+Чтение карты не изменяет файл. `record_implementation` не пишет Plugin storage.
+
+PR URL нормализуется через URL parser без fragment; query сохраняется. `plan_url`
+сохраняет адрес технического плана с fragment. Дубли после нормализации считаются
+конфликтом данных и требуют явного разрешения, а не молчаливого удаления записей.
+`previous_task_id` вместе с `expected_version` явно переносит одну связь того же PR
+к актуальной задаче; это аргумент операции, а не новое поле файла.
+
+Обзор возвращает все канонические `tasks` с краткими ссылками на реализации и
+предупреждениями. `implementations` сохраняет также устаревшие связи для разрешения.
+Повреждение legacy storage возвращается в `legacy_error`, не блокируя корректную
+карту; `active/cancelled: null` обозначает неизвестное состояние.
+
+### Implementation attempt (совместимость)
 
 `attempt start` хранит незавершённую попытку в локальном Plugin storage: Change,
 Repository, OpenSpec task, schema, planning revision и base revision. В Git эта

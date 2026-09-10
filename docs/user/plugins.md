@@ -236,41 +236,88 @@ openspec-orch plugin init --plugin change-tracking
 openspec-orch plugin connect change-tracking \
   --repo specs --repo frontend --repo backend
 
-# ручной fallback из чистого Code Repository перед работой над task:
-openspec-orch plugin exec --repo specs change-tracking attempt start <change-id> <task-id>
-# после commit и стандартной галочки Apply:
-openspec-orch plugin exec --repo specs change-tracking attempt complete <change-id> <task-id>
 ```
 
-Binding к Store нужен Store-scoped CLI-командам `attempt`. Bindings к Code Repositories
-нужны там, где будет выполняться Apply; Agent Extension устанавливается только в них.
-Governed MCP сам получает Store context, поэтому отдельный путь к Store в Agent-сессию
-передавать не нужно. После установки или подключения перезапустите Agent.
+Binding к Store нужен Store-scoped командам, bindings к Code Repositories —
+инструкциям Apply. После подключения перезапустите Agent.
 
-Обычный Agent-flow:
+### Передача частичной реализации
 
-1. Разработчик из Code Repository просит реализовать Change штатным OpenSpec Apply.
-2. Extension получает Apply-контекст активной schema и определяет текущий Repository.
-3. Перед выбранным каноническим task она вызывает `start_attempt`.
-4. После implementation commit, repository checks и стандартной галочки task вызывает
-   `complete_attempt`.
-5. В Change появляется связь task с planning, base и implementation revisions.
+Tracking хранит связи задачи с Code PR в одном файле
+`openspec/changes/<change-id>/implementation-map.yaml`. Детальные implementation
+tasks остаются в описании PR или закреплённом плане. В карте находятся ссылка на
+план, полный список SHA, краткий итог с проверками и оставшаяся работа.
 
-`task_id` для MCP и CLI берётся дословно из `artifact_instructions.tasks[].id`
-в Apply-контексте. Например, для `{ "id": "4", "description": "2.3 Обработать ошибки" }`
-передаётся `"4"`, а не `"2.3"`. Индекс самостоятельно не вычисляется. Для завершения
-используется ID начатой attempt, сверенный с актуальным описанием задачи.
-При ошибке поиска нужно обновить контекст и проверить идентичность задачи.
-`complete_attempt` не меняет checkbox: его предварительно отмечает штатный Apply.
+1. Из Code Repository запустите штатный OpenSpec Apply. До продолжения агент читает
+   `tracking.implementations` через `get_change_context` или `get_status`, открывает
+   связанный PR и план и проверяет оставшиеся шаги.
+2. Агент реализует задачу и поддерживает технический план в PR. Для передачи
+   незавершённой работы подходит частичный/draft PR; галочка OpenSpec остаётся открытой.
+3. При передаче, обновлении PR или завершении агент вызывает `record_implementation`.
+   Он передаёт точные `task_id` и `task_description` из Apply-контекста, URL PR/плана,
+   явные коммиты, итог и оставшуюся работу. ID из description не заменяет `tasks[].id`.
+4. После всех требуемых работ и проверок стандартный Apply ставит галочку. Tracking
+   читает её при запросе статуса; сам checkbox не редактирует. `task_state: done`
+   означает галочку OpenSpec, а не слияние PR или успешный Verify.
+5. Карту и галочки публикуют обычным Store PR. Для частичной передачи ссылка должна
+   попасть в доступную получателю ветку Store до завершения работы/слияния Code PR.
+   Незакоммиченная локальная карта другим участникам недоступна.
 
-Для Superspec Apply-контекст ведёт к repository section в `plan.md`; другая schema
-может вернуть другой artifact. Tracker не разбирает имена файлов и Markdown-заголовки,
-поэтому кастомная schema работает через тот же OpenSpec Apply API. Отдельных
-`implement-design` и `implement-plan` workflows нет. CLI-команды выше нужны только как
-ручной fallback.
+Новый путь не создаёт локальные attempts, не требует чистого Store и промежуточного
+коммита перед следующей задачей. Tracking не создаёт PR/коммиты и не обращается к
+Git-хостингу: автоматическое обновление выполняет агентский workflow. Если человек
+поменял галочку вручную, следующий status покажет её актуальное значение; файл карты
+при чтении не переписывается.
 
-В первой Claude-сессии подтвердите доступ только к запрошенным
-`openspec-orchestrator` MCP tools. Дополнительный `--add-dir` для Store не требуется.
+Ручной эквивалент из Code Repository (замените ID, описание, URL и SHA своими):
+
+```bash
+openspec-orch plugin exec --repo specs change-tracking status payment-retry
+openspec-orch plugin exec --repo specs change-tracking record payment-retry 4 \
+  --description "2.3 Обработать ошибки" \
+  --pr https://git.example/team/backend/pull/42 \
+  --commits <full-sha> \
+  --summary "Обработка ошибок реализована, unit-тесты прошли" \
+  --remaining "Добавить интеграционные проверки" --version 0
+```
+
+`--plan` задаёт ссылку на раздел или комментарий с планом; по умолчанию используется
+PR. `--commits` — полный список SHA через запятую; при отсутствии изменений кода
+опустите аргумент и объясните это в summary. При завершении передайте `--remaining ""`.
+Для обновления используйте `version` существующей связи как `--version`, для новой — 0.
+Конфликт версий требует перечитать карту и согласовать изменения, а не повторять
+запись вслепую. Разные PR одной задачи сохраняются отдельными связями.
+
+Передавайте SHA именно места реализации, в том числе worktree. Tracking проверяет
+существование коммитов в репозитории и не подменяет их основным HEAD. После squash
+или rebase обновите список до опубликованных SHA, объяснив замену в PR. Снятая
+галочка не удаляет прежнюю связь. Изменённое описание/схема или исчезнувшая задача
+дают `changed_or_missing` и `task_done: null`. После согласования соответствия
+повторите `record` с актуальными ID/описанием задачи, прежним `--previous-task <id>`
+и `--version` исходной связи. PR остаётся тем же. Если изменилось только описание,
+укажите тот же ID в `--previous-task`. Операция переносит выбранную связь атомарно;
+существующая связь целевой задачи не перезаписывается. Через MCP используется
+`previous_task_id`. Не перепривязывайте новую по смыслу задачу без согласования.
+
+`status` возвращает весь список `tasks`, включая задачи без PR, и список
+`implementations`. Fragment ссылки PR не входит в его идентичность; ссылку на
+комментарий/раздел сохраняйте в `plan_url`. Query URL сохраняется.
+
+Предупреждения не меняют галочки: `DONE_WITH_REMAINING_WORK` — задача закрыта, но
+есть оставшаяся работа; `DONE_WITHOUT_IMPLEMENTATION` — закрыта без связи;
+`DONE_WITHOUT_COMMITS` — связь есть, коммиты не указаны. Для задач без изменения кода
+последнее предупреждение проверяется по пояснению в summary, а не считается отказом.
+
+При повреждении прежнего локального storage карта остаётся доступна вместе с
+`legacy_error`. Поля `active` и `cancelled` тогда равны `null` (состояние неизвестно).
+Старый файл не удаляется и не переписывается автоматически.
+
+### Совместимость с прежними attempts
+
+`start_attempt` / `complete_attempt` и CLI `attempt` сохранены для старого процесса.
+Новый Apply их не создаёт. Старые завершённые записи остаются в `attempts`, активные
+и отменённые — в прежнем локальном storage. Карта использует единый формат
+с первой версии; переход между форматами не требуется.
 
 Change Tracking требует OpenSpec `>=1.11.0 <2`. `attempt start` запускается из чистого
 Code Repository для незавершённого task. Файлы текущего Change в Store должны быть
@@ -337,7 +384,7 @@ openspec-orch agent status --agent qwen
 
 MCP предоставляет read tools для status, setup context, Change context, next action,
 assignment scope, doctor и Graph, controlled setup tools `initialize_project` и
-`connect_project`, а также `start_attempt` и `complete_attempt` для task evidence.
+`connect_project` и `record_implementation`; прежние `start_attempt` и `complete_attempt` сохранены для совместимости.
 Намеренно отсутствуют verification, Release, Archive, arbitrary Git writes, Plugin
 lifecycle, Agent management и network transport.
 

@@ -47,6 +47,23 @@ const ATTEMPT_SCHEMA = Object.freeze({
   required: ["change_id", "task_id"],
   additionalProperties: false,
 });
+const IMPLEMENTATION_SCHEMA = Object.freeze({
+  type: "object",
+  properties: {
+    ...ATTEMPT_SCHEMA.properties,
+    previous_task_id: { ...NON_EMPTY_STRING_SCHEMA, description: "Только для явного перепривязывания: прежний task.id связи с тем же PR. При изменении лишь описания укажите тот же ID. Требует согласования соответствия и expected_version исходной связи." },
+    task_description: { ...NON_EMPTY_STRING_SCHEMA, description: "Точное описание выбранной задачи из актуального Apply-контекста." },
+    pull_request: { type: "string", pattern: "^https?://", description: "Ссылка на PR, включая частичный или draft PR." },
+    plan_url: { type: "string", pattern: "^https?://", description: "Ссылка на технический план в PR; по умолчанию pull_request." },
+    commits: { type: "array", uniqueItems: true, items: { type: "string", pattern: "^[a-f0-9]{40}$" },
+      description: "Полный актуальный список коммитов этой реализации. Не подставляйте HEAD другого checkout." },
+    summary: { ...NON_EMPTY_STRING_SCHEMA, description: "Что сделано и проверено; при отсутствии изменений кода укажите причину." },
+    remaining: { type: "string", description: "Что осталось и что блокирует продолжение. Пустая строка, если ничего." },
+    expected_version: { type: "integer", minimum: 0, description: "Версия связи из последнего чтения; 0 для новой связи задачи с PR." },
+  },
+  required: ["change_id", "task_id", "task_description", "pull_request", "commits", "summary", "remaining", "expected_version"],
+  additionalProperties: false,
+});
 const READ_ONLY_ANNOTATIONS = Object.freeze({
   readOnlyHint: true,
   destructiveHint: false,
@@ -215,6 +232,14 @@ const TOOL_DEFINITIONS = Object.freeze([
     inputSchema: ATTEMPT_SCHEMA,
     annotations: WRITE_ANNOTATIONS,
   }),
+  defineTool({
+    name: "record_implementation",
+    applicationMethod: "recordImplementation",
+    description: "Сохранить связь задачи с частичной или завершённой реализацией через зарегистрированный обработчик. " +
+      "Checkbox, PR и Git не изменяет. Публикация записи выполняется обычным процессом Change.",
+    inputSchema: IMPLEMENTATION_SCHEMA,
+    annotations: WRITE_ANNOTATIONS,
+  }),
 ]);
 
 export const ORCHESTRATOR_MCP_TOOLS = Object.freeze(
@@ -289,9 +314,9 @@ function errorContent(error) {
 }
 
 /** Проверяет обязательный или необязательный строковый аргумент на непустое значение. */
-function assertString(args, field, { required = false } = {}) {
+function assertString(args, field, { required = false, minLength = 1 } = {}) {
   if (args[field] === undefined && !required) return;
-  if (typeof args[field] !== "string" || args[field].length === 0) {
+  if (typeof args[field] !== "string" || args[field].length < minLength) {
     throw new Error(`MCP_TOOL_INPUT_INVALID: ${field} должен быть непустой строкой`);
   }
 }
@@ -309,7 +334,7 @@ function assertDeclaredStrings(name, args, inputSchema) {
   const required = new Set(inputSchema.required ?? []);
   for (const [field, fieldSchema] of Object.entries(inputSchema.properties ?? {})) {
     if (fieldSchema.type !== "string") continue;
-    assertString(args, field, { required: required.has(field) });
+    assertString(args, field, { required: required.has(field), minLength: fieldSchema.minLength ?? 0 });
     if (args[field] === undefined) continue;
     if (fieldSchema.pattern === IDENTIFIER_PATTERN) {
       assertIdentifier(args, field, { required: required.has(field) });
@@ -418,7 +443,7 @@ export function createOrchestratorMcpServer(application) {
   const tools = Object.freeze(definitions.map(({ tool }) => tool));
   const definitionByName = new Map(definitions.map((definition) => [definition.tool.name, definition]));
   const validator = new AjvJsonSchemaValidator();
-  const agentValidators = new Map(agentDefinitions.map(({ tool }) => [
+  const schemaValidators = new Map(definitions.map(({ tool }) => [
     tool.name, validator.getValidator(tool.inputSchema),
   ]));
   const server = new Server(
@@ -433,12 +458,11 @@ export function createOrchestratorMcpServer(application) {
       return errorContent(new Error(`MCP_TOOL_NOT_FOUND: ${request.params.name}`));
     }
     try {
-      if (definition.agentTool) {
-        const validation = agentValidators.get(definition.tool.name)(args);
-        if (!validation.valid) {
-          throw new Error(`MCP_TOOL_INPUT_INVALID: ${definition.tool.name}: ${validation.errorMessage}`);
-        }
-      } else assertArguments(definition, args);
+      if (!definition.agentTool) assertArguments(definition, args);
+      const validation = schemaValidators.get(definition.tool.name)(args);
+      if (!validation.valid) {
+        throw new Error(`MCP_TOOL_INPUT_INVALID: ${definition.tool.name}: ${validation.errorMessage}`);
+      }
       const input = applicationArguments(definition, args);
       const value = definition.agentTool
         ? await application.invokeAgentTool(definition.tool.name, input)

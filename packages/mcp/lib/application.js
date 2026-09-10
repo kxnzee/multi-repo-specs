@@ -5,6 +5,7 @@ const RUNTIME_METHODS = Object.freeze([
   "getSetupContext",
   "initializeProject",
   "connectProject",
+  "recordImplementation",
   "startAttempt",
   "completeAttempt",
   "getChangeContext",
@@ -36,6 +37,7 @@ export class OrchestratorMcpApplication {
   getSetupContext() { return this.#runtime.getSetupContext(); }
   initializeProject(input = {}) { return this.#runtime.initializeProject(input); }
   connectProject() { return this.#runtime.connectProject(); }
+  recordImplementation(input = {}) { return this.#runtime.recordImplementation(input); }
   startAttempt(input = {}) { return this.#runtime.startAttempt(input); }
   completeAttempt(input = {}) { return this.#runtime.completeAttempt(input); }
   getChangeContext(input = {}) { return this.#runtime.getChangeContext(input); }

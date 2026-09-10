@@ -78,6 +78,7 @@ test("attempt starts locally and completes once into the owning Change manifest"
   assert.deepEqual(manifest, {
     contract_version: 1,
     change_id: "checkout-flow",
+    implementations: [],
     attempts: [{
       repository_id: "frontend",
       task: { id: "1", description: "1.1 Implement checkout" },

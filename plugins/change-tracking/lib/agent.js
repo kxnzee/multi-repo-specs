@@ -10,6 +10,7 @@ function requireApplication(application) {
 export const changeTrackingAgentContribution = Object.freeze({
   create: (context) => new ChangeTrackingApplication(context),
   operations: Object.freeze({
+    record_implementation: (application, input) => requireApplication(application).recordImplementation(input),
     start_attempt: (application, { change_id: changeId, task_id: taskId }) => (
       requireApplication(application).startAttempt({ changeId, taskId })
     ),

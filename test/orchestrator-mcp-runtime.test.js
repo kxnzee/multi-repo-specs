@@ -108,6 +108,7 @@ export default definePlugin({
       invocation: context.invocation,
     }),
     operations: {
+      record_implementation: (application, args) => ({ source: "external", ...args }),
       start_attempt: (application, args) => ({ source: "external", operation: "start", ...args }),
       complete_attempt: (application, args) => ({ source: "external", operation: "complete", ...args }),
     },
@@ -156,6 +157,13 @@ export default definePlugin({
       source: "external", operation, change_id: "pay", task_id: "1",
     });
   }
+
+  const handoff = { change_id: "pay", task_id: "1", task_description: "Implement",
+    pull_request: "https://example.test/pr/42", commits: [], summary: "Draft",
+    remaining: "Implementation", expected_version: 0 };
+  const recorded = await client.callTool({ name: "record_implementation", arguments: handoff });
+  assert.notEqual(recorded.isError, true, JSON.stringify(recorded.content));
+  assert.deepEqual(JSON.parse(recorded.content[0].text), { source: "external", ...handoff });
 
   const status = await client.callTool({ name: "get_status", arguments: {} });
   assert.notEqual(status.isError, true, JSON.stringify(status.content));

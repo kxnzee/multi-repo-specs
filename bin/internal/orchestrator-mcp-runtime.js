@@ -178,6 +178,10 @@ export class OrchestratorMcpRuntime {
     return this.#setup.connect();
   }
 
+  recordImplementation(input = {}) {
+    return this.#invokeAgentOperation("record_implementation", input);
+  }
+
   startAttempt(input = {}) {
     return this.#invokeAgentOperation("start_attempt", input);
   }

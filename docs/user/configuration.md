@@ -199,7 +199,8 @@ lifecycle не требуют чистого Git, origin или именован
 У Code/Specs эти поля задают источник и ветку только для клонирования отсутствующего
 каталога. Существующие каталоги не обновляются через pull, checkout, reset или merge.
 
-Чистота нужна только Change Tracking: `attempt start` требует чистый Code и
+Новый `record_implementation` не требует чистоты Code/Store: он проверяет явные SHA.
+В прежнем процессе Change Tracking: `attempt start` требует чистый Code и
 закоммиченные файлы выбранного Change в Store; первичный `attempt complete` — чистый
 Code, новый commit и продолжение истории от base revision. `attempt cancel` и
 очистка локального состояния после уже записанного результата Git не проверяют.
@@ -230,7 +231,7 @@ Git Flow, ветки и направления PR принадлежат про�
 | `openspec-orch.yaml` | Project configuration | да |
 | `.openspec-store/store.yaml` | Identity Store | да |
 | `openspec/` | Specs, Changes, schemas и Template assets | да |
-| `openspec/changes/<change-id>/implementation-map.yaml` | Завершённые task attempts | да |
+| `openspec/changes/<change-id>/implementation-map.yaml` | Связи задач с PR и коммитами; прежние attempts | да |
 | `.openspec-orch/state.json` | Версия Core state и запомненный workspace | нет |
 | `.openspec-orch/plugins/<plugin-id>/state.json` | Versioned local state конкретного Plugin | нет |
 | `.openspec-orch/packages/package.json` | npm-зависимости и соответствие package к Plugin/Extension ID | да |

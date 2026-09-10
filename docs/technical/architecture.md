@@ -176,7 +176,9 @@ binding; repository lifecycle работает только с поддержи�
   связи, но не доказывает ownership, реализацию или deployment.
 - CodeGraph обслуживает отдельный локальный `.codegraph/` index каждого binding.
   Его модель и freshness не переносятся в Store.
-- Change Tracking хранит активную implementation attempt в локальном Plugin storage,
+- Change Tracking хранит переносимые связи задачи с PR/планом и явными SHA в
+  Change-local `implementation-map.yaml`; новый путь не использует локальные attempts.
+  Для совместимости прежний процесс хранит активную implementation attempt в локальном Plugin storage,
   а завершённую связь OpenSpec task с planning/base/implementation revisions — в
   Change-local `implementation-map.yaml`.
 
@@ -199,7 +201,8 @@ Public surface состоит из:
 - optional read tools, поставляемые owning Plugins, включая Graph query;
 - controlled setup tools `initialize_project` и `connect_project` только для
   fixed-cwd flow;
-- task evidence tools `start_attempt` и `complete_attempt`;
+- `record_implementation` для передачи частичной/завершённой реализации;
+- прежние task evidence tools `start_attempt` и `complete_attempt`;
 - read-only Store resources для Project/OpenSpec config, context, Master Specs и
   outputs, объявленных schema конкретного Change.
 
