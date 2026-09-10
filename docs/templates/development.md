@@ -1,4 +1,4 @@
-# Project Template
+# Разработка шаблонов
 
 Project Template — copy-only пакет project-local конфигурации, context, schemas и
 assets. Он не выполняет hooks или произвольный код. При первом `openspec-orch init`
@@ -44,7 +44,7 @@ Orchestrator и не заменяет schemas или Extensions. Исходни�
 ## Выбор Template и Extensions
 
 Структура и порядок наполнения контекста описаны в
-[руководстве по бизнес-контексту](project-context.md): бизнес-архитектура — в
+[руководстве по бизнес-контексту](../user/project-context.md): бизнес-архитектура — в
 `03-architecture.md`, применимые ограничения кибербезопасности — в
 `05-constraints.md`, проверяемые обязательства продукта — в Specs.
 
@@ -76,7 +76,7 @@ openspec-orch init /absolute/path/to/store \
 
 Шаблон добавляет доступные схемы, но не определяет порядок работы с Change. Выбор
 схемы, переходы между этапами, проверки и последующие Archive, UAT и Release
-описаны в [сценариях Change](brownfield-and-changes.md#сценарии-работы-с-change).
+описаны в [сценариях Change](../user/working-with-changes.md#сценарии-работы-с-change).
 Один Store может содержать Changes с разными схемами; их выбор сохраняется в
 `.openspec.yaml` конкретного Change.
 
@@ -122,7 +122,7 @@ Qwen/GigaCode и `/opsx:continue`, `/opsx:explore`, `/opsx:apply` в Claude.
 каталог Custom Template. Он не обновляет и не перезаписывает скопированные assets.
 
 Совместимые изменения инструкций Template переносятся в Store отдельным проверяемым
-PR по [процедуре миграции](installation-and-updates.md). Если меняется граф
+PR по [процедуре миграции](../user/installation-and-updates.md). Если меняется граф
 зависимостей schema, которую используют активные Changes, не заменяйте его под тем же
 ID. Оставьте прежнюю schema под прежним ID, установите новую под новым ID и выбирайте
 её только для новых Changes. Старую schema удаляйте отдельным изменением Store после

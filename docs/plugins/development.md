@@ -1,4 +1,4 @@
-# Plugin Platform
+# Разработка плагинов
 
 ## Package contract
 
@@ -258,7 +258,7 @@ openspec-orch doctor
 
 Проверьте `plugin exec` для любого profile. Если есть Agent Extension, перезапустите
 Agent и проверьте его native status. Тестируйте disconnect/remove по пользовательскому
-[операционному flow](../user/plugins.md#проверяемое-отключение-и-удаление).
+[операционному flow](../plugins/operations.md#проверяемое-отключение-и-удаление).
 
 ### 4. Зафиксируйте поставку
 

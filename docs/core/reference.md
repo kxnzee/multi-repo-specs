@@ -124,11 +124,21 @@ repositories:
 
 Должен существовать ровно один Store Repository. Plugin binding ссылается на
 верхнеуровневую declaration. Поля и local state описаны в
-[пользовательском справочнике](../user/configuration.md).
+[справочнике конфигурации](configuration.md).
 
 ## MCP
 
 Executable `openspec-orch-mcp` обслуживает только stdio.
+
+Gateway устанавливается отдельно от Project и Plugins:
+
+```bash
+openspec-orch agent setup --agent qwen
+openspec-orch agent status --agent qwen
+```
+
+Он не предоставляет lifecycle Plugins, управление Agent или сетевой transport.
+После установки или обновления перезапустите Agent и долгоживущий MCP-процесс.
 
 Read tools:
 

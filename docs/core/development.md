@@ -2,13 +2,13 @@
 
 ## Подготовка checkout
 
-Нужны Git, Node.js >=22.16.0 и npm. `.nvmrc` фиксирует минимальную версию из CI;
+Нужны Git, Node.js >=22.16.0 и npm. Минимальную версию фиксируют `package.json` и CI;
 при использовании nvm выполните `nvm install` и `nvm use`. На Windows выберите
 ту же версию в своём менеджере Node. `.npmrc` отклоняет несовместимый Node при
 установке зависимостей, `.gitattributes` задаёт окончания строк для всех ОС.
 
 ```bash
-git clone https://github.com/kxnzee/multi-repo-specs.git
+git clone <orchestrator-repository-url>
 cd multi-repo-specs
 npm ci
 npm run check:environment
@@ -200,3 +200,44 @@ bash <skill-directory>/scripts/review-package BASE --worktree OUTFILE -- src/fil
 влиять на тесты: такой результат нельзя выдавать за проверку точного снимка.
 На время подготовки снимка и передачи на ревью изменения приостанавливают.
 Отсутствие пакета незакоммиченной работы не допускает подмены через BASE..HEAD.
+
+## Поставка и совместимость
+
+Root package `openspec-orchestrator` содержит CLI entrypoints, Agent definitions,
+bundled Extensions и Templates. Core, MCP и first-party Plugins входят как точные
+внутренние dependencies. Orchestrator запускается на рабочей машине или в CI и не
+становится runtime dependency Code Repositories. Принятую версию выбирает Store.
+
+Во время пилота поставка выполняется через Git checkout, `npm ci` и `npm link`;
+её идентичность задают immutable tag и commit. После пилота root distribution и
+publishable workspaces публикуются в корпоративный npm registry. Store хранит
+точную root dependency и lockfile, внутренние packages отдельно не выбираются.
+
+| Контракт | Как обновлять |
+|---|---|
+| CLI/Core API | По release notes; breaking change требует новой major policy |
+| `openspec-orch.yaml` | Отдельным Store PR |
+| Template assets | Store PR, а не повторным `init` |
+| Project schemas | Старые ID и DAG сохраняются для активных Changes; новый DAG получает новый ID |
+| Bundled Plugins | Вместе с distribution |
+| External Plugin | Явным обновлением точного source |
+| Agent gateway и Extensions | Переустановкой native payload и восстановлением подключений |
+| Plugin data | Миграцией владельца Plugin |
+
+Release notes фиксируют tag, commit, package version, поддерживаемые Node/OpenSpec/Agents,
+класс миграции, изменённые контракты, проверки и rollback. Неизвестные config и storage
+versions отклоняются fail-closed. `init` создаёт Store и один раз применяет Template;
+переносимые миграции проходят review в ветке Store, machine-local - после merge на
+каждой машине. Code Repositories меняются только по отдельному принятому Change.
+
+Перед выпуском выполните:
+
+```bash
+npm run check:all
+git diff --check
+```
+
+`check:all` включает `test:pack`: установку tarballs в чистый consumer и проверки
+public CLI/MCP. `npm pack --dry-run` проверяет состав root tarball, но не заменяет
+проверку установки. Новый supported baseline требует isolated smoke с заявленной
+версией OpenSpec и каждым поддерживаемым Agent provider.

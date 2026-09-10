@@ -6,7 +6,7 @@ Jira управляет работой людей, OpenSpec — требован
 поставкой кода.
 
 Термины `Jira Story`, `Store Story branch`, `Code PR`, `Subtask Store PR` и
-`Story Store PR` определены в [глоссарии](glossary.md).
+`Story Store PR` определены в [конце этого документа](#термины).
 
 ## Единая Git Flow конвенция
 
@@ -85,14 +85,14 @@ Planning PR дополнительно и не заменяет ни одну и
    только через PR подзадач.
 
 Аналитик выбирает схему и создаёт Change по
-[сценариям Change](brownfield-and-changes.md#выбор-процесса-и-старт). Схему
+[сценариям Change](working-with-changes.md#выбор-процесса-и-старт). Схему
 существующего Change не переключают.
 
 ## 3. Planning
 
 1. Аналитик готовит Planning по правилам выбранной схемы. Состав артефактов,
    переходы между ними и правила Gate 1 описаны в
-   [сценариях Change](brownfield-and-changes.md#сценарии-работы-с-change).
+   [сценариях Change](working-with-changes.md#сценарии-работы-с-change).
 2. Аналитик создаёт от Store Story branch ветку по pattern для
    Store subtask branch и открывает Planning PR обратно в Store Story
    branch.
@@ -201,7 +201,7 @@ Repository исполнитель вызывает `start <change-id> <task-id>`
 После всех работ, проверок и стандартной галочки OpenSpec вызывается `complete`.
 Это не Verify, не слияние и не приёмка. Один commit может относиться к нескольким
 задачам. Без Tracking Apply работает штатно, а evidence передаётся командным каналом.
-Подробности — [Change Tracking](plugins.md#один-процесс-работы).
+Подробности — [Change Tracking](../plugins/change-tracking.md#один-процесс-работы).
 
 ## 8. ИФТ, Verify и дефекты
 
@@ -306,3 +306,20 @@ Jira Story
 → UAT
 → Release tag
 ```
+
+## Термины
+
+| Термин | Значение |
+|---|---|
+| Jira Story | Принятая владельцем продукта единица поставки, объединяющая требования, участников и подзадачи. |
+| OpenSpec Change | Нормативный набор Planning-артефактов и Delta Specs, связанный с Jira Story. |
+| Store | Git-репозиторий с OpenSpec Changes, Master Specs и проектным контекстом. |
+| Specs Repository | Store другой команды, подключённый как источник спецификаций и контекста. |
+| Code Repository | Git-репозиторий с реализацией компонента без локальной копии нормативного OpenSpec Change. |
+| Store Story branch | Временная интеграционная ветка Jira Story в Store; Planning, обновления подзадач и Archive попадают в неё через PR. |
+| Subtask Store PR | PR из ветки подзадачи в Store Story branch с Planning, Tasks или evidence этой подзадачи. |
+| Code PR | PR с реализацией подзадачи в Integration branch соответствующего Code Repository. |
+| Story Store PR | Финальный PR из Store Story branch в Integration branch Store после Verify и Archive. |
+| Git Flow | Единая для Store и Code Repositories модель веток Production, Integration, work, Release и Hotfix. Конкретные имена задаёт команда. |
+| Implementation candidate | Точный набор ревизий и собранных артефактов, переданный на ИФТ как единое целое. |
+| Archive | Операция OpenSpec, применяющая Delta Specs к Master Specs до передачи Jira Story на UAT. |

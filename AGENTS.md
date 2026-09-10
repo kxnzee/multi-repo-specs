@@ -9,9 +9,10 @@ compilation step, application server, database or provider account.
 1. Read the task and inspect `git status --short --branch`. Confirm the requested
    base/PR commit, preserve existing work and use a separate branch for a new task.
    Refresh remote refs before reviewing or publishing against them.
-2. Read `README.md` and `docs/technical/development.md`. Use
-   `docs/technical/README.md` to locate further developer documentation.
-3. Use Node >=22.16.0 and Git. `.nvmrc` selects the minimum version tested in CI.
+2. Read `README.md` and `docs/core/development.md`. Use `docs/core/README.md`
+   to locate further Core documentation.
+3. Use Node >=22.16.0 and Git. `package.json` and CI define the minimum supported
+   Node version.
    Run `npm ci` in the root, then `npm run check:environment`. OpenSpec 1.11.0
    is a locked dev dependency; global installs and `npm link` are unnecessary.
 4. Run the local CLI with `node src/bin/openspec-orch.js --help`. Test commands supply
@@ -89,7 +90,8 @@ compilation step, application server, database or provider account.
   or skipped check as passed.
 - After external package changes restart long-lived MCP processes; do not bypass
   Plugin Loader restart diagnostics with cache-busting entrypoint URLs.
-- Update current docs under `docs/user/` or `docs/technical/` for behavior changes.
+- Update current docs under `docs/user/`, `docs/core/`, `docs/plugins/`,
+  `docs/extensions/` or `docs/templates/` for behavior changes.
   Code, tests and manifests are the source of truth for runtime claims.
 - Review the staged diff. Commit/push/open a PR when requested; a request to
   deliver a PR includes publishing its branch. Do not merge or force-push shared

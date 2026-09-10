@@ -252,3 +252,57 @@ modules) и доступный npm lock с уже импортированным
 из ESM cache. Это проверка согласованности процесса, а не sandbox или проверка
 целостности произвольных файлов всей машины. CLI не импортирует старые Plugins
 перед package mutation; Doctor и lifecycle загружают их по необходимости.
+
+## Данные и состояние
+
+| Данные | Путь | Git | Владелец |
+|---|---|---|---|
+| Конфигурация Project | `openspec-orch.yaml` | да | Core |
+| Идентичность Store | `.openspec-store/store.yaml` | да | OpenSpec |
+| Specs и Changes | `openspec/` | да | OpenSpec/Project |
+| Карта реализации задач | `openspec/changes/<change-id>/implementation-map.yaml` | да | Change Tracking |
+| Указатель workspace | `.openspec-orch/state.json` | нет | Core |
+| Состояние Plugin | `.openspec-orch/plugins/<id>/state.json` | нет | Plugin |
+| Манифест и lock внешних пакетов | `.openspec-orch/packages/package*.json` | да | Package supply/npm |
+| Runtime внешних пакетов | `.openspec-orch/packages/node_modules/` | нет | npm |
+
+Project содержит один Store, Code/Specs Repositories, один Template, один Agent,
+Extensions и объявления с bindings плагинов. Schema Change хранит OpenSpec в
+`.openspec.yaml`; это не поле Project. `openspec-orch.yaml` поддерживает только
+`version: 1`, неизвестная версия отклоняется.
+
+Для Specs Repository локальный `id` идентифицирует подключение, а `store_id`
+фиксирует ожидаемую идентичность внешнего Store. Binding относится к локальному ID
+в основном Project. Реестр внешнего Store читается без рекурсивного подключения.
+
+### Change Tracking
+
+`implementation-map.yaml` использует `contract_version: 1`, `change_id`,
+`attempts` и `implementations`. Запись в `implementations` связывает
+`repository_id`, канонические `task.id` и `task.description`, schema, PR, план,
+явные SHA, итог и оставшуюся работу. Это переносимый снимок для передачи работы,
+не журнал локальных событий. Детальный план остаётся в PR, путь checkout и копия
+checkbox в карте не хранятся.
+
+`expected_version` защищает связь от конкурентной перезаписи. CLI/MCP проверяют
+точное описание задачи и явные SHA. Состояние checkbox вычисляется при чтении,
+`record_implementation` не пишет Plugin storage.
+
+Старый режим `attempt start` держит незавершённую попытку в локальном Plugin storage:
+Change, Repository, путь checkout, задачу OpenSpec, schema, planning и base revision.
+Для одной связки Change/Repository/task одновременно допустима одна активная попытка.
+`attempt cancel` сохраняет отменённую попытку локально и не создаёт evidence. После
+стандартной отметки задачи `attempt complete` добавляет base и implementation revisions
+в карту Change; повторная запись того же completion не создаёт дубль.
+
+### Локальное состояние Plugin и Graph
+
+Local Plugin payload хранится в versioned envelope. Mutation сериализуется lock-файлом
+и завершается atomic replace; повреждение, неизвестная версия и symlink отклоняются.
+
+OpenSpec Graph строится из текущих файлов Store, persisted index отсутствует.
+Repository links появляются только из строгой таблицы Repository Impact, а каждая
+derived связь хранит provenance `{ path, line, field }`. Для роли `specs` результаты
+несут источник с `project_id`, `repository_id` и `store_id`; Graph не читает Git,
+поэтому `revision` и `clean` равны `null`, а MCP `content_revision` считается по
+содержимому файлов.

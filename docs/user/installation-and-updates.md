@@ -1,17 +1,12 @@
-# Установка, обновление и поддержка
+# Установка, обновление и восстановление
 
-## Установка из Git checkout
+## Установка
 
-До публикации в npm registry Orchestrator устанавливается из отдельного Git
-checkout. Команда должна заранее согласовать immutable tag или commit.
-
-В репозитории хранится `package-lock.json`: `npm ci` устанавливает зафиксированное
-дерево зависимостей, предварительный `npm install` не нужен. Если lockfile отсутствует,
-проверьте выбранный commit и полноту checkout. Новый lockfile создаётся при намеренном
-изменении зависимостей и проходит review вместе с `package.json`.
+Команда фиксирует версию Orchestrator в release notes или внутренней документации.
+До публикации в npm registry используйте согласованный Git tag или commit:
 
 ```bash
-git clone https://github.com/kxnzee/multi-repo-specs.git /absolute/path/to/openspec-orchestrator
+git clone <orchestrator-repository-url> /absolute/path/to/openspec-orchestrator
 cd /absolute/path/to/openspec-orchestrator
 git checkout <approved-tag-or-commit>
 npm ci
@@ -20,62 +15,34 @@ npm link
 openspec-orch --help
 ```
 
-После смены активной версии Node.js выполните `npm link` повторно. Без global link
-CLI можно запускать через `node /absolute/path/to/repo/src/bin/openspec-orch.js`.
-
-Глобальный OpenSpec нужен для команд из реального Store. Для разработки самого
-Orchestrator root npm-команды используют локальный OpenSpec из devDependencies;
-следуйте [подготовке окружения разработки](../technical/development.md).
-
-Центральный Store определяет принятую версию для команды. До появления
-machine-readable version pin выбранный tag или commit фиксируется в командной
-документации или release notes.
+Нужен Node.js 22.16.0 или новее. После смены версии Node.js повторите `npm link`.
+Подробности для разработки и диагностики CI находятся в
+[техническом руководстве](../core/development.md).
 
 ## Обновление Orchestrator
 
-Режимы strict/relaxed удалены: уберите `--no-strict` из команд и скриптов.
-Старое поле `strict` в Project v1 пока принимается без влияния на поведение и
-исчезает при следующей записи конфигурации. Ответы больше не содержат
-`execution_mode`; `connect` сообщает `files_changed` вместо `needs_setup_pr`.
-Git revisions обычного MCP-контекста больше не вычисляются; для связи задач с
-коммитами используйте Change Tracking. Новый Store может не содержать `remote`
-и `default_branch` у роли `store`: такой конфиг требует обновлённого Orchestrator
-у всех участников. Не понижайте runtime без проверки совместимости конфигурации.
+Перед обновлением проверьте release notes: поддерживаемые версии Node, OpenSpec и
+Agent, изменения Store и payload, который требуется переустановить.
 
-1. Проверьте в release notes поддерживаемые версии Node/OpenSpec/Agents,
-   изменения Store и список Agent payload, которые нужно переустановить.
-2. Сохраните текущий tag/commit для отката.
-3. Переключите checkout на согласованный tag или commit.
-4. Установите зависимости через `npm ci`. Затем выполните `npm run check` и
-   `npm link`.
-5. Если изменились переносимые файлы или контракты Store, выполните
-   [миграцию](#процедура-миграции).
-6. Обновите затронутые gateway и Extensions по
-   [инструкции ниже](#machine-local-обновления), даже если Store не требует миграции.
-7. В каждом поддерживаемом Store выполните `connect` и `doctor`, проверьте native
-   payload и перезапустите Agent/MCP. Завершайте обновление после этих проверок.
+1. Сохраните текущий tag или commit — он понадобится для отката.
+2. Переключите checkout на согласованную версию и выполните `npm ci`.
+3. Если release меняет файлы Store, выполните миграцию через отдельный Store PR.
+4. В каждом Store запустите `openspec-orch connect` и `openspec-orch doctor`.
+5. Обновите gateway или Extensions, если это указано в release notes, и перезапустите Agent.
 
-Отдельной команды `openspec-orch upgrade` нет.
+Отдельной команды `openspec-orch upgrade` нет. Новые версии внешних Plugins и
+Extensions выбираются явно через `plugin update` или `extension update`; их manifest
+и lockfile проходят обычный review Store.
 
-## Когда нужна миграция Store
+## Миграция Store
 
-Миграция требуется, если release меняет хотя бы один portable contract:
+Миграция нужна, когда release меняет переносимый контракт: `openspec-orch.yaml`,
+schemas, файлы Template, tracked state Plugin или обязательный project context.
+Повторный `init` не обновляет существующий Store.
 
-- `openspec-orch.yaml`;
-- project-local schemas или `openspec/config.yaml`;
-- Template assets, которые уже принадлежат Store;
-- tracked state Plugin;
-- обязательный project context.
-
-Повторный `init` не является миграцией: Template применяется при создании Store и
-не перезаписывает отличающиеся файлы.
-
-## Процедура миграции
-
-1. Создайте work branch Store от актуальной Integration branch по проектной Git-политике.
+1. Создайте Store PR по процессу команды.
 2. Примените только изменения, перечисленные в release notes.
-3. Просмотрите diff как обычное изменение Store.
-4. Проверьте schemas и все Changes:
+3. Проверьте schemas, Changes и конфигурацию:
 
    ```bash
    openspec schema validate spec-driven-extended
@@ -84,60 +51,31 @@ Git revisions обычного MCP-контекста больше не вычи
    openspec-orch doctor
    git diff --check
    ```
-5. Проведите review и merge через PR в Integration branch Store.
-6. После merge обновите локальную копию Store и повторите `connect` и `doctor`.
 
-В Custom Store проверяйте собственные schema IDs. Если меняется граф зависимостей
-артефактов (DAG), сохраняйте прежнюю schema под прежним ID для активных Changes.
-Новую schema установите под новым ID и выбирайте только для новых Changes.
-Переименование старой schema не обновляет ссылки в существующих Changes.
-Удаляйте её отдельным Store PR после завершения и Archive всех связанных Changes.
+4. Проведите review и после merge повторите `connect` и `doctor`.
 
-Release notes должны перечислять изменяемые файлы, совместимые schema IDs,
-проверки и порядок отката. Если этих данных нет, миграцию выполнять нельзя.
+В Custom Store проверяйте собственные schema IDs. Если меняется порядок артефактов,
+сохраните прежнюю schema для активных Changes, а новую заведите под новым ID.
 
-Code Repositories не меняются только из-за обновления Orchestrator. Для этого нужен
-отдельный принятый Change с явным Repository Impact.
+## Gateway и Extensions
 
-## Machine-local обновления
-
-Остановите Agent/MCP перед переустановкой. Обновление состоит из двух частей:
-восстановления npm packages и обновления файлов, установленных в самом Agent.
-
-### Внешние npm packages
-
-Для внешних Plugins и standalone Extensions `connect` восстанавливает отсутствующий
-или устаревший `.openspec-orch/packages/node_modules` из зафиксированных
-`package.json` и lockfile. Новые версии выбираются явно через `plugin update` или
-`extension update`; изменения manifest и lockfile проходят Store review.
-
-Для отдельного восстановления запустите `openspec-orch package sync`.
-Read-only команда `package status --json` проверяет lock, происхождение, имя и версию
-установленных packages. Она также сверяет полный lockfile с отметкой последней
-успешной установки: новая Git revision или транзитивная зависимость обнаруживается
-даже при прежней версии прямой зависимости. При несовпадении или отсутствии отметки
-runtime получает `stale`; его восстанавливает `package sync` или следующий `connect`.
-Local state и runtime не коммитятся в Store.
-
-### Agent gateway
-
-Команды `agent` управляют только user-level gateway `orchestrator-agent`.
-Для обновления до текущей поставки используйте:
+Gateway устанавливается на машине пользователя и не входит в Store:
 
 ```bash
 openspec-orch agent setup --agent qwen --refresh
 openspec-orch agent status --agent qwen
 ```
 
-Для Claude замените `qwen` на `claude`, для GigaCode на `gigacode`.
-`setup` также обнаруживает устаревшую включённую установку и обновляет её.
-`--refresh` явно запускает подключение и проверку, даже если предыдущий status был успешен.
-Эти команды управляют только gateway, а не всеми workflow Extensions.
+Замените `qwen` на `claude` или `gigacode` при необходимости. Для workflow Extension
+или Plugin-owned Extension запустите из Store `connect` либо адресный `extension connect`
+или `plugin connect`, затем проверьте `doctor`. После обновления всегда открывайте
+новую сессию Agent и перезапускайте MCP.
 
-### Workflow и Plugin-owned Extensions
+## Восстановление после сбоя
 
-Сначала обновите источник Extension: checkout Orchestrator для bundled payload
-или Store package для внешнего. Затем выполните из Store:
+Сначала остановите команды и Agent/MCP, использующие Store. Сохраните `doctor --json`,
+версию Node/OpenSpec, версию Orchestrator, точную ошибку и Git diff. Не удаляйте всю
+`.openspec-orch`: там может быть локальное состояние незавершённой работы.
 
 ```bash
 openspec-orch extension connect spec-driven-extended
@@ -200,17 +138,6 @@ Root distribution и внутренние packages планируется пуб
 | Symlink вместо `.openspec-orch/packages` или его родителя | Не запускайте npm по этому пути. Восстановите обычные Store-local каталоги из сохранённой копии и committed файлов; затем `package sync`. |
 | Повреждённый state / неизвестная contract version | Сохраните повреждённый файл; восстановите проверенную копию того же контракта. Не меняйте поле версии вручную и не удаляйте локальные записи незавершённой работы. |
 | Частично выполненный первый `init` | Сохраните весь каталог. В новом чистом checkout исходного Store commit повторите `init` с теми же параметрами. Если Store ID занят, согласуйте его локальную регистрацию через OpenSpec. Сверьте результат с сохранёнными файлами; переносите пользовательские данные вручную. Повторный `init` не ремонтирует неполный Store. |
-
-Явный повторный `plugin init --plugin <id> --from <source>` или
-`extension init <id> --from <source>` заново разрешает обновляемый пакет внутри
-транзакции. Это обновляет содержимое локального source даже без смены его версии.
-Manifest и lockfile после такого обновления должны пройти review вместе.
-`file:` source остаётся изменяемым: lockfile не заменяет архив исходных локальных
-файлов. Для воспроизводимого командного пилота используйте immutable Git SHA или
-версионированный registry/tarball с integrity. После изменения внешних пакетов
-перезапустите Agent/MCP, включая случаи изменения только транзитивных dependencies.
-
-Если компенсация закончилась ошибкой, остальные независимые компенсации всё равно
-выполняются; исходная ошибка и все ошибки отката сохраняются в AggregateError.
-Проверьте native Extension status и повторите `connect`. Произвольные side effects
-стороннего Plugin требуют восстановления по инструкции этого Plugin.
+Для отката верните прежний tag или commit Orchestrator, выполните `npm ci` по его
+lockfile и повторите `npm link`. Откатывать Store migration можно только если прежняя
+версия читает восстановленный контракт.
