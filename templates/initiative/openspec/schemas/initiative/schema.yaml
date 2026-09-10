@@ -37,12 +37,26 @@ artifacts:
     description: Evidence-backed assessment of the shared outcome
     template: verify.md
     instruction: |
+      Account for every Scenario in the accepted Specs for this Change using the
+      template's shared scenario verification contract. Reference Scenario IDs or
+      exact source locations without copying their descriptions. Record the verified
+      candidate, requirements revision and verification conditions; link existing
+      records instead of duplicating them. A linked report may replace per-scenario
+      rows only when it identifies every result and the same candidate.
+      PASS requires executed evidence of expected behavior; violations are FAIL,
+      missing or stale evidence is PENDING, and N/A requires justified inapplicability.
+      Reconcile the full Scenario list before acceptance; omissions cannot pass.
+      Include cross-repository interactions when required by the accepted scenarios.
+      Map requirement-related findings from other verification tools to these results;
+      their summary or warning severity does not override the acceptance criteria.
+      Planning review alone cannot establish delivered Scenario PASS. Preserve the
+      schema's lifecycle and the project's human acceptance rules.
       Verify the initiative against its Delta Specs and proposal. Separate a
       planning review from acceptance of delivered results. For each requirement
       and scenario record the evidence source, its Store/repository, revision,
-      finding and unresolved gaps. Outcomes are confirmed, contradicted or
-      unverified; completion of documents or team checkboxes is not proof of
-      delivery. Missing evidence means unverified, never a fabricated success.
+      finding and unresolved gaps. Use PASS, FAIL, PENDING or justified N/A for
+      Scenario results; completion of documents or team checkboxes is not proof
+      of delivery. Missing evidence means PENDING, never a fabricated success.
       If the work is only planned, say that delivery acceptance remains open.
       Do not run code implementation, claim team approval, release or archive
       automatically. Follow local review rules and record actual human decisions.

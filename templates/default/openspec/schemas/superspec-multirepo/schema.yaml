@@ -117,6 +117,11 @@ artifacts:
       Invoke **superpowers:writing-plans** using tasks.md, Delta Specs and optional
       design.md as input. Override its default output location: write the result only
       to this Change's plan.md and do not create docs/superpowers/plans/.
+      Pass the Plan template and this execution handoff to the skill: the saved
+      Plan must identify this Change and direct a new executor to invoke the installed
+      native OpenSpec Apply through the Agent's skill/command mechanism. Preserve
+      this entrypoint instead of the skill's default direct-executor header.
+      Superpowers execution runs within Apply according to the current schema.
 
       Separate the plan by exact Code Repository ID. For each repository include the
       goal, dependencies, ordered 2-5 minute TDD steps, exact paths, commands and
@@ -134,6 +139,22 @@ artifacts:
     description: Universal human Feature Acceptance plus Superspec Process Compliance
     template: verify.md
     instruction: |
+      Account for every Scenario in the accepted Specs for this Change using the
+      template's shared scenario verification contract. Reference Scenario IDs or
+      exact source locations without copying their descriptions. Record the verified
+      candidate, requirements revision and verification conditions; link existing
+      records instead of duplicating them. A linked report may replace per-scenario
+      rows only when it identifies every result and the same candidate.
+      PASS requires executed evidence of expected behavior; violations are FAIL,
+      missing or stale evidence is PENDING, and N/A requires justified inapplicability.
+      Reconcile the full Scenario list before acceptance; omissions cannot pass.
+      Include cross-repository interactions when required by the accepted scenarios.
+      Map requirement-related findings from other verification tools to these results;
+      their summary or warning severity does not override the acceptance criteria.
+      Planning review alone cannot establish delivered Scenario PASS. Preserve the
+      schema's lifecycle and the project's human acceptance rules.
+      Write verify.md in Russian using the template's Russian headings. Preserve
+      command syntax, identifiers, status values and the contract markers.
       Treat this artifact as a separate post-implementation gate: its availability in
       the artifact graph is not proof that an Apply candidate exists and can never
       justify PASS by itself.

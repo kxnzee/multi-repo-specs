@@ -13,8 +13,8 @@ const REPOSITORY_FIELDS = {
   id: ID_SCHEMA,
   store_id: ID_SCHEMA.optional(),
   roles: z.array(z.enum(Object.values(REPOSITORY_ROLE))).length(1),
-  remote: z.string().min(1),
-  default_branch: z.string().min(1),
+  remote: z.string().min(1).optional(),
+  default_branch: z.string().min(1).optional(),
   description: z.string().refine((value) => value.trim().length > 0, "не должно быть пустым").optional(),
 };
 const REPOSITORY_SCHEMA = z.strictObject({
@@ -23,7 +23,7 @@ const REPOSITORY_SCHEMA = z.strictObject({
 });
 const PROJECT_CONFIG_SCHEMA = z.strictObject({
   version: z.literal(CORE_CONTRACT_VERSIONS.project),
-  strict: z.boolean().default(true),
+  strict: z.boolean().optional(), // Legacy input, ignored and omitted on serialization.
   template: IDENTITY_SCHEMA,
   agent: IDENTITY_SCHEMA,
   extensions: ID_LIST_SCHEMA,

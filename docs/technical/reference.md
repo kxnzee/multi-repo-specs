@@ -17,10 +17,9 @@ openspec-orch init [path]
   [--template <id-or-path>]
   [--extension <id>]... [--no-extensions]
   [--repo <id=remote#branch>]...
-  [--no-strict]
 
 openspec-orch doctor [--repo <id>]... [--json]
-openspec-orch connect [--workspace <path>] [--no-strict]
+openspec-orch connect [--workspace <path>]
 openspec-orch disconnect
 
 openspec-orch agent setup|status|remove --agent <id>
@@ -32,11 +31,8 @@ openspec-orch agent setup|status|remove --agent <id>
 
 `doctor` по умолчанию печатает человекочитаемый отчёт, а с `--json` — тот же
 Diagnostic Report в JSON. Без `--repo` он проверяет основной Store и все Code/Specs Repositories;
-повторяемый `--repo <id>` ограничивает только Repository checks. Отчёт включает путь,
-текущую ветку, `origin`, его совпадение с project config и чистоту рабочего дерева.
-Ветка не сравнивается с `default_branch`, её имя и pattern не валидируются. Даже
-detached HEAD остаётся read-only состоянием `connected`. Другой `origin` даёт
-`identity_mismatch` и блокирует Doctor.
+повторяемый `--repo <id>` ограничивает только Repository checks. Отчёт включает путь и доступность файлов Repository. Git origin, ветка и чистота
+не влияют на доступность. Для linked Store проверяются его Store ID и конфигурация.
 
 Во время обычного вызова Doctor показывает текущую группу проверок в stderr:
 в TTY — анимированный индикатор ожидания, при перенаправлении — отдельные строки
@@ -92,6 +88,9 @@ openspec-orch plugin exec openspec-graph view [--port <port>]
 Change Tracking:
 
 ```text
+openspec-orch plugin exec --repo <store-id> change-tracking status <change-id>
+openspec-orch plugin exec --repo <store-id> change-tracking record <change-id> <task-id> --description <text> --pr <url> --summary <text> --remaining <text> --version <number>
+# Совместимость с прежним процессом:
 openspec-orch plugin exec --repo <store-id> change-tracking attempt start <change-id> <task-id>
 openspec-orch plugin exec --repo <store-id> change-tracking attempt complete <change-id> <task-id>
 openspec-orch plugin exec --repo <store-id> change-tracking attempt cancel <change-id> <task-id> "Причина отмены"
@@ -109,7 +108,6 @@ CodeGraph использует общий `plugin connect/status/sync/exec/disco
 
 ```yaml
 version: 1
-strict: true
 template: {id: default}
 agent: {id: qwen}
 extensions:
@@ -151,6 +149,13 @@ Read tools:
 - `get_spec_graph_node` — узел, его связи и соседи; обязательный `node_id`;
 - `get_spec_change_impact` — Specs и Repositories, затронутые Change; обязательный `change_id`.
 
+В Graph активный Change имеет `change_id`, равный имени каталога; архивный —
+`archive/YYYY-MM-DD-name`. Этот ID используется в узлах, Delta Specs и
+`via_changes`, поэтому повторное имя не объединяет разные экземпляры.
+Для `get_spec_change_impact` копируйте точный `nodes[].change_id` из графа.
+Обычное имя выбирает активный Change; архивный запрашивается явно с датой.
+Это правило относится к Graph, а не к командам OpenSpec или Change Tracking.
+
 ### Области действия и идентификаторы
 
 MCP закреплён за working directory при запуске. `get_status`, `get_change_context`,
@@ -177,8 +182,11 @@ MCP закреплён за working directory при запуске. `get_status
 | `artifact` | ID артефакта из `openspec_status.artifacts[].id`; `apply` запрашивает инструкции Apply |
 | `task_id` | Точная строка `artifact_instructions.tasks[].id`, не номер из Markdown |
 | `include_assignment` | Включить сведения о checkout и участии репозиториев; по умолчанию `false`, назначения не создаёт |
-| `revision` | Git revision соответствующего checkout |
+| `revision` | В обычном контексте `null`; Git revisions получает только Change Tracking |
 | `context_revision` / `if_context_revision` | Хэш ответа / хэш прежнего ответа для проверки свежести, не Git commit |
+
+В provenance Graph/resources поля `revision` и `clean` равны `null`: эти ответы
+не выполняют Git-проверок. `content_revision` по-прежнему вычисляется по содержимому.
 
 `get_assignment_scope` перечисляет кодовые checkout. С `change_id` Graph overlay
 заполняет `assigned` по Repository Impact; `null` означает, что участие неизвестно.
@@ -229,12 +237,12 @@ TTL-кэшем и не разрешает переиспользовать paylo
 
 Controlled setup tools:
 
-- `initialize_project` — только cwd MCP и strict mode; принимает обязательные
+- `initialize_project` — только cwd MCP; принимает обязательные
   `store_id`, `agent_id`, опциональный bundled `template_id` и массив
   `repositories` только для Code Repositories с полями `repository_id`, `remote`,
   `default_branch`; центральный Store задаётся только через `store_id` и в этот массив
   не включается;
-- `connect_project` — без workspace и relaxed overrides.
+- `connect_project` — без произвольного workspace.
 
 Перед `initialize_project` клиент должен вызвать `get_setup_context` и подтвердить
 возвращённый `cwd`: tool не принимает другой target. Пользовательский сценарий
@@ -242,6 +250,8 @@ Controlled setup tools:
 
 Task evidence tools:
 
+- `record_implementation` — сохраняет связь задачи с PR/планом, явными SHA и
+  оставшейся работой через обработчик Plugin; checkbox и Git не изменяет;
 - `start_attempt` — локально фиксирует task и base revision текущего Code Repository;
 - `complete_attempt` — требует выполненный task из OpenSpec Apply и записывает
   итоговую revision в Change-local implementation map; повторная реализация того же
@@ -258,9 +268,12 @@ Changes не входят в этот набор; Plugin overlays могут и�
 files не публикуются.
 
 В `get_assignment_scope` поле `assigned` равно `true` или `false`, когда scope
-подтверждён подключённым OpenSpec Graph, и `null`, когда Graph недоступен. В последнем
-случае Agent подтверждает repository-id по строгой таблице Repository Impact из
-Proposal, доступного как MCP resource; `null` не означает отсутствие назначения.
+подтверждён подключённым OpenSpec Graph по непустой корректной таблице Repository
+Impact текущего Change. Если Graph недоступен, таблица отсутствует или содержит
+ошибки, возвращается `null`: участие неизвестно, а не исключено. Диагностика
+сохраняется в `graph_impact`; ошибки Repository Impact других Changes не меняют
+назначения текущего. Agent проверяет Proposal, доступный как MCP resource,
+и уточняет отсутствующие или некорректные назначения перед реализацией.
 Такая же семантика действует для вложенного `assignment_scope`, если
 `get_change_context` вызван с `include_assignment: true`.
 

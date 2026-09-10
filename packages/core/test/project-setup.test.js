@@ -24,7 +24,7 @@ function lifecycle(name, calls) {
   });
 }
 
-test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence", async (t) => {
+test("ProjectSetupService gives CLI and MCP one fixed-cwd setup sequence", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-project-setup-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const calls = [];
@@ -39,12 +39,11 @@ test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence"
         calls.push("core:connect");
         assert.equal(options.start, root);
         assert.equal(options.workspace, undefined);
-        assert.equal(options.noStrict, false);
+        assert.equal(options.noStrict, undefined);
         return {
           storeId: "specs",
           storeRoot: root,
           workspace: path.dirname(root),
-          executionMode: "strict",
           status: "ready",
           repositories: [],
         };
@@ -58,7 +57,6 @@ test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence"
           target: root,
           storeId: "specs",
           alreadyInitialized: false,
-          executionMode: "strict",
           created: ["openspec-orch.yaml"],
           updated: [],
           agent: Object.freeze({ id: "qwen" }),
@@ -75,7 +73,6 @@ test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence"
           extensions: Object.freeze([]),
           extensionsSpecified: false,
           repositories: options.repo,
-          noStrict: options.strict !== true,
         });
       },
     }),
@@ -114,15 +111,14 @@ test("ProjectSetupService gives CLI and MCP one strict fixed-cwd setup sequence"
       defaultBranch: "main",
     }],
     store: "specs",
-    strict: true,
     template: "default",
   }]);
   assert.equal(initializations[0].target, root);
-  assert.equal(initializations[0].noStrict, false);
+  assert.equal(initializations[0].noStrict, undefined);
   assert.equal(initializations[0].replaceExtensions, false);
-  assert.equal(initialized.execution_mode, "strict");
+  assert.equal(initialized.execution_mode, undefined);
 
-  const connected = await service.connect({ requireStrict: true });
+  const connected = await service.connect();
   assert.equal(connected.status, "ready");
   assert.deepEqual(calls, [
     "packages:ensure",
@@ -182,7 +178,7 @@ test("ProjectSetupService rejects an Orchestrator checkout before CLI or MCP sel
   assert.deepEqual(events, []);
 });
 
-test("ProjectSetupService rejects an existing relaxed Project before initialization writes", async (t) => {
+test("ProjectSetupService accepts legacy strict false for MCP initialization", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-project-setup-relaxed-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   await fs.mkdir(path.join(root, ".openspec-store"));
@@ -194,7 +190,7 @@ test("ProjectSetupService rejects an existing relaxed Project before initializat
     initializationService: Object.freeze({
       async initialize() {
         initializationCalled = true;
-        return {};
+        return { created: [], updated: [] };
       },
     }),
     initSelectionService: Object.freeze({ async resolve() { return {}; } }),
@@ -205,14 +201,11 @@ test("ProjectSetupService rejects an existing relaxed Project before initializat
     }),
   });
 
-  await assert.rejects(
-    service.initializeExplicit({ storeId: "specs", agentId: "qwen" }),
-    /MCP_SETUP_STRICT_REQUIRED/u,
-  );
-  assert.equal(initializationCalled, false);
+  await service.initializeExplicit({ storeId: "specs", agentId: "qwen" });
+  assert.equal(initializationCalled, true);
 });
 
-test("ProjectSetupService connects a strict Project from its resolved Code Repository pointer", async () => {
+test("ProjectSetupService connects a Project from its resolved Code Repository pointer", async () => {
   const storeRoot = "/workspace/specs";
   const codeRoot = "/workspace/src/frontend";
   const starts = [];
@@ -225,7 +218,6 @@ test("ProjectSetupService connects a strict Project from its resolved Code Repos
           storeId: "specs",
           storeRoot,
           workspace: "/workspace",
-          executionMode: "strict",
           status: "ready",
           repositories: [],
         };
@@ -246,7 +238,7 @@ test("ProjectSetupService connects a strict Project from its resolved Code Repos
     }),
   });
 
-  assert.equal((await service.connect({ requireStrict: true })).status, "ready");
+  assert.equal((await service.connect()).status, "ready");
   await service.connect();
   assert.deepEqual(starts, [storeRoot, storeRoot]);
 });

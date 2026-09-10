@@ -102,6 +102,12 @@ function findTask(instructions, taskId) {
   return task;
 }
 
+/** Requires a committed snapshot only for revision-tracking operations. */
+async function requireClean(git, paths, code, message) {
+  const changed = await git.statusPaths(paths);
+  if (changed.length > 0) throw new Error(`${code}: ${message}: ${changed.join(", ")}`);
+}
+
 /** Coordinates local active state and durable Change-local attempt history. */
 export class AttemptTrackingService {
   #context;
@@ -135,14 +141,9 @@ export class AttemptTrackingService {
     if (task.done) throw new Error(`ATTEMPT_TASK_COMPLETE: OpenSpec task '${taskId}' уже завершён`);
     const repositoryGit = await this.#context.repositories.git(invocation.id);
     if (!repositoryGit) throw new Error(`REPOSITORY_CHECKOUT_UNAVAILABLE: ${invocation.id}`);
-    const changedPaths = await repositoryGit.statusPaths();
-    if (changedPaths.length > 0) {
-      throw new Error(`WORKTREE_DIRTY: ${invocation.id}: ${changedPaths.join(", ")}`);
-    }
-    const planningPaths = await this.#context.git.statusPaths([`openspec/changes/${changeId}`]);
-    if (planningPaths.length > 0) {
-      throw new Error(`PLANNING_WORKTREE_DIRTY: сохраните изменения текущего Change в Git перед началом attempt: ${planningPaths.join(", ")}`);
-    }
+    await requireClean(repositoryGit, [], "WORKTREE_DIRTY", invocation.id);
+    await requireClean(this.#context.git, [`openspec/changes/${changeId}`],
+      "PLANNING_WORKTREE_DIRTY", "сохраните изменения текущего Change в Git перед началом attempt");
     const [baseRevision, planningRevision] = await Promise.all([
       repositoryGit.revision(),
       this.#context.git.latestRevision([`openspec/changes/${changeId}`]),
@@ -210,10 +211,7 @@ export class AttemptTrackingService {
       }
       const repositoryGit = await this.#context.repositories.git(invocation.id);
       if (!repositoryGit) throw new Error(`REPOSITORY_CHECKOUT_UNAVAILABLE: ${invocation.id}`);
-      const changedPaths = await repositoryGit.statusPaths();
-      if (changedPaths.length > 0) {
-        throw new Error(`WORKTREE_DIRTY: ${invocation.id}: ${changedPaths.join(", ")}`);
-      }
+      await requireClean(repositoryGit, [], "WORKTREE_DIRTY", invocation.id);
       const implementationRevision = await repositoryGit.revision();
       if (!isGitRevision(implementationRevision)) {
         throw new Error("COMMIT_NOT_FOUND: Git вернул некорректную implementation revision");

@@ -1,4 +1,4 @@
-/** @fileoverview Minimal persisted contract for task implementation attempts. */
+/** @fileoverview Версии и идентификаторы переносимой карты и прежних attempts. */
 
 export const CHANGE_TRACKING_CONTRACT = Object.freeze({
   implementationMapVersion: 1,

@@ -135,8 +135,8 @@ class GraphCompilation {
       ...archivedDirectories.map((directory) => ({ directory, archived: true })),
     ];
     for (const { directory, archived } of changes) {
-      const changeId = archived ? archivedChangeId(directory) : directory;
-      if (!changeId) fatal(`invalid Change directory ${directory}`);
+      const changeId = archived ? `archive/${directory}` : directory;
+      if (archived && !archivedChangeId(directory)) fatal(`invalid Change directory ${directory}`);
       if (this.#changeDefinitions.has(changeId)) fatal(`duplicate Change ${changeId}`);
       const changePath = archived
         ? `openspec/changes/archive/${directory}`
@@ -186,7 +186,7 @@ class GraphCompilation {
     const marker = archived
       ? `openspec/changes/archive/${directory}/specs`
       : `openspec/changes/${directory}/specs`;
-    const changeId = archived ? archivedChangeId(directory) : directory;
+    const changeId = archived ? `archive/${directory}` : directory;
     const change = this.#changeDefinitions.get(changeId);
     if (!change) fatal(`cannot resolve Change ${changeId}`);
     const capability = capabilityFrom(file, marker);

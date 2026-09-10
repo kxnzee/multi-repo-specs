@@ -24,7 +24,7 @@ testPluginContract({ plugin, packageManifest });
 test("change-tracking contributes only the task attempt command and Code Repository guidance", () => {
   assert.deepEqual(
     assertPluginContract({ plugin, packageManifest }).commands,
-    ["attempt"],
+    ["record", "status", "attempt"],
   );
   assert.equal(plugin.canExec(), true);
   assert.equal(plugin.hasExtensionContribution(), true);

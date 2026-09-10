@@ -12,6 +12,7 @@ import { assertPluginContract } from "@openspec-orch/plugin-sdk/testing";
 
 import plugin from "../index.js";
 import { openSpecGraphAgentContribution } from "../lib/agent.js";
+import { OpenSpecGraphApplication } from "../lib/application.js";
 import { compileOpenSpecGraph } from "../lib/builder.js";
 import { runGraphView } from "../lib/commands.js";
 import { archivedChangeId } from "../lib/compiler-input.js";
@@ -135,6 +136,60 @@ async function storeFixture(t) {
   return root;
 }
 
+test("Assignment scope distinguishes unknown Impact from confirmed nonparticipation", async (t) => {
+  const root = await storeFixture(t);
+  const changeId = "jit-100-promote";
+  const proposalPath = `openspec/changes/${changeId}/proposal.md`;
+  const header = "## Repository Impact\n\n| Repository | Capabilities |\n| --- | --- |\n";
+  const valid = `${header}| web | conference/visitors |\n`;
+  const application = new OpenSpecGraphApplication({}, {
+    service: { compile: () => compileOpenSpecGraph(root, { repositories, storeId }) },
+  });
+  const result = {
+    assigned: null,
+    current_repository: { repository_id: "web", role: "code" },
+    assignments: repositories.map(({ id }) => ({ repository_id: id, assigned: null })),
+  };
+  for (const [name, proposal, expected] of [
+    ["missing table", "# Proposal\n", [null, null]],
+    ["invalid table", "## Repository Impact\n- web\n", [null, null]],
+    ["empty table", header, [null, null]],
+    ["partially invalid table", `${valid}| control | |\n`, [null, null]],
+    ["duplicate section", `${valid}\n${valid}`, [null, null]],
+    ["duplicate mapping", `${valid}| web | conference/visitors |\n`, [null, null]],
+    ["unknown repository", `${valid}| unknown | conference/visitors |\n`, [null, null]],
+    ["unknown capability", `${header}| web | unknown |\n`, [null, null]],
+    ["valid table", valid, [false, true]],
+  ]) {
+    await t.test(name, async () => {
+      await write(root, proposalPath, proposal);
+      // A broken neighbor shares the same repository; its diagnostics remain visible.
+      await write(root, "openspec/changes/neighbor/proposal.md", `${header}| web | unknown |\n`);
+      const direct = await openSpecGraphAgentContribution.enhance({
+        application, operation: "getAssignmentScope", input: { change_id: changeId }, result,
+      });
+      const embedded = await openSpecGraphAgentContribution.enhance({
+        application, operation: "getChangeContext",
+        input: { change_id: changeId, include_assignment: true },
+        result: { current_repository: result.current_repository, assignment_scope: result },
+      });
+      assert.deepEqual(direct.assignments.map(({ assigned }) => assigned), expected);
+      assert.equal(direct.assigned, expected[1]);
+      assert.deepEqual(embedded.assignment_scope.assignments, direct.assignments);
+      assert.equal(embedded.assignment_scope.assigned, direct.assigned);
+      assert.ok(direct.graph_impact.diagnostics.length);
+    });
+  }
+  await fs.rm(path.join(root, proposalPath));
+  for (const selected of [changeId, "empty-change"]) {
+    const scope = await openSpecGraphAgentContribution.enhance({
+      application, operation: "getAssignmentScope", input: { change_id: selected }, result,
+    });
+    assert.equal(scope.assigned, null);
+    assert.deepEqual(scope.assignments.map(({ assigned }) => assigned), [null, null]);
+  }
+});
+
 /** Returns all diagnostic codes in deterministic report order. */
 function codes(report) {
   return report.diagnostics.map(({ code }) => code);
@@ -152,7 +207,7 @@ test("Package exposes a Store-only Plugin with graph commands and no sync", asyn
   assert.deepEqual(plugin.supports, ["store", "specs"]);
   assert.equal(plugin.canExec(), true);
   assert.equal(plugin.canSync(), false);
-  assert.equal(plugin.hasExtensionContribution(), false);
+  assert.equal(plugin.hasExtensionContribution(), true);
   assert.equal(packageManifest.files.includes("template"), false);
   await assert.rejects(
     fs.access(path.join(packageRoot, "template", "template.yaml")),
@@ -289,9 +344,41 @@ test("Plugin config maps localized Delta headings to canonical operations", asyn
     ["ADDED", "MODIFIED", "REMOVED", "RENAMED"],
   );
   assert.equal(
-    archivedReport.nodes.find(({ id }) => id === "change:jit-100-promote").state,
+    archivedReport.nodes.find(({ id }) => id === "change:archive/2026-08-27-jit-100-promote").state,
     "archived",
   );
+});
+
+test("Active and repeated archived Changes keep separate nodes, deltas and impact", async (t) => {
+  const root = await storeFixture(t);
+  const name = "jit-100-promote";
+  const activePath = path.join(root, "openspec/changes", name);
+  const archiveIds = ["2026-08-27", "2026-08-28"].map((date) => `archive/${date}-${name}`);
+  for (const id of archiveIds) {
+    await fs.cp(activePath, path.join(root, "openspec/changes", id), { recursive: true });
+  }
+  await write(root, `openspec/changes/${archiveIds[0]}/proposal.md`, [
+    "## Repository Impact", "", "| Repository | Capabilities |", "| --- | --- |",
+    "| control | conference/visitors |", "",
+  ].join("\n"));
+  const report = await compileOpenSpecGraph(root, { repositories, storeId });
+  assert.equal(new Set(report.nodes.map(({ id }) => id)).size, report.nodes.length);
+  for (const [id, repository] of [[name, "web"], [archiveIds[0], "control"], [archiveIds[1], "web"]]) {
+    const impact = inspectChangeImpact(report, id);
+    assert.equal(impact.change.path, `openspec/changes/${id}`);
+    assert.equal(impact.change.state, id === name ? "active" : "archived");
+    assert.deepEqual(impact.repositories.map(({ id: nodeId }) => nodeId), [`repository:${repository}`]);
+    assert.deepEqual(impact.delta_specs.map(({ id: nodeId }) => nodeId), [
+      `delta-spec:${id}/conference/visitors`,
+    ]);
+    assert.ok(impact.edges.filter(({ relation }) => relation === "linked")
+      .every(({ via_changes: changes }) => changes.includes(id)));
+  }
+  assert.ok(report.nodes.some(({ id }) => id === "master-spec:conference/agenda"));
+  await fs.rm(activePath, { recursive: true });
+  const archivedOnly = await compileOpenSpecGraph(root, { repositories, storeId });
+  assert.throws(() => inspectChangeImpact(archivedOnly, name), /CHANGE_NOT_FOUND/);
+  for (const id of archiveIds) assert.equal(inspectChangeImpact(archivedOnly, id).change.state, "archived");
 });
 
 test("Empty Delta operation sections do not create Graph edges", async (t) => {
@@ -372,12 +459,12 @@ test("Archive preserves and aggregates the neutral Repository relation", async (
   await fs.rename(activePath, archivePath);
 
   const report = await compileOpenSpecGraph(root, { repositories, storeId });
-  const change = report.nodes.find(({ id }) => id === "change:jit-100-promote");
+  const change = report.nodes.find(({ id }) => id === "change:archive/2026-08-27-jit-100-promote");
   const link = report.edges.find(({ relation }) => relation === "linked");
   assert.equal(change.state, "archived");
   assert.equal(link.source, "repository:web");
   assert.equal(link.target, "master-spec:conference/visitors");
-  assert.deepEqual(link.via_changes, ["jit-100-promote"]);
+  assert.deepEqual(link.via_changes, ["archive/2026-08-27-jit-100-promote"]);
   assert.deepEqual(link.provenance, [
     {
       path: "openspec/changes/archive/2026-08-27-jit-100-promote/proposal.md",

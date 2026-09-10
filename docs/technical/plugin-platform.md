@@ -60,7 +60,7 @@ Agent-only Plugin без Repository contribution получает Store-scoped c
 
 Repository contribution может объявить `supports: ["store", "specs"]`. Core
 не расширяет поддержку существующих Plugins автоматически. Вызов для `specs`
-проверяет Git identity и Store metadata до создания контекста. Plugin-owned
+проверяет Store ID и файлы metadata до создания контекста. Plugin-owned
 Extensions на этой роли отклоняются до repository `connect`; standalone
 Extensions по-прежнему имеют только targets `store` и `code`.
 
@@ -96,7 +96,7 @@ repositories: [{ id, role }] }` именно целевого Store; для `cod
 `files`, `git` и `process` привязаны к выбранному checkout. Чтобы команда работала
 с выбранным `store` или `specs`, используйте `scope: "current"`: `scope: "store"`
 продолжает требовать роль `store`.
-Получение `repositories.git(id)` для `specs` проверяет Git origin и метаданные
+Получение `repositories.git(id)` для `specs` проверяет ID и файлы метаданных
 целевого Store так же, как создание прямого PluginContext для этого подключения.
 `await repositories.context(id)` создаёт контекст того же Plugin для репозитория
 из реестра основного проекта. Вызов перечитывает конфигурацию основного Store,
@@ -219,6 +219,16 @@ openspec-orch plugin register dependency-audit /absolute/path/to/dependency-audi
 непрозрачного argv runtime. Для `repository` и `native` scaffold намеренно оставляет
 `connect/status` незавершёнными: реализуйте их до установки.
 
+Шаблоны Agent Extension принадлежат поставке и находятся в
+`bin/templates/plugin-extension/`. CLI передаёт их каталог в
+`new PluginScaffoldService({ extensionTemplateRoot })`. Core обрабатывает файлы
+шаблона, не выбирая провайдеров и не храня их манифесты.
+
+При прямом использовании Core API для `extension: true` передайте абсолютный
+`extensionTemplateRoot`; без него операция завершится ошибкой до создания файлов.
+Для плагинов без Extension этот параметр не требуется. Команда CLI и создаваемые
+ею файлы сохраняют прежний формат.
+
 ### 2. Реализуйте и проверьте контракт
 
 ```bash
@@ -278,3 +288,16 @@ Native Agent adapters проверяют актуальность файлов �
 из `agent setup --refresh`. Обновление использует native lifecycle и не удаляет
 установку с её настройками. Издатель повышает native manifest version при изменении
 payload. Неизменившийся cache после native update остаётся ошибкой `STATUS_STALE`.
+
+### Абстрактные операции MCP
+
+MCP владеет абстрактным контрактом `record_implementation` и прежними контрактами
+`start_attempt` / `complete_attempt`. Change Tracking
+регистрирует обработчики через `agent.operations`; общий runtime выбирает их по
+имени операции без знания ID плагина. Другой Plugin может реализовать тот же
+контракт. Два объявленных в Project провайдера одной операции вызывают ошибку
+неоднозначности; отсутствие провайдера означает недоступную возможность.
+
+Git, evidence и проверка условий завершения остаются в Change Tracking. Поля
+`tracking` и `capabilities.tracking` он добавляет через `agent.enhance`, как остальные
+плагины добавляют свои данные. Имена, аргументы и JavaScript-методы MCP сохранены.

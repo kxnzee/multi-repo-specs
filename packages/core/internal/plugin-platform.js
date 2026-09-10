@@ -241,19 +241,19 @@ export class PluginPlatform {
     return this.#doctor.inspect(options);
   }
 
-  /** Describes the exact bundled choices accepted by strict MCP initialization. */
+  /** Describes the exact bundled choices accepted by MCP initialization. */
   inspectSetup() {
     return this.#setupCatalog;
   }
 
-  /** Initializes only the Platform cwd through the shared strict setup application. */
+  /** Initializes only the Platform cwd through the shared setup application. */
   initializeProject(input) {
     return this.#setup.initializeExplicit(input);
   }
 
-  /** Connects the current Project without relaxed mode or arbitrary workspace override. */
+  /** Connects the current Project in the fixed workspace. */
   connectProject() {
-    return this.#setup.connect({ requireStrict: true });
+    return this.#setup.connect();
   }
 
   static async #loadInstalled(start, managerService, storeProjectService) {

@@ -177,7 +177,7 @@ function connectionFixture(executor, agentPackService) {
   });
 }
 
-test("connect delivers the pack, tolerates an identical pending pack and requires its setup commit", async (t) => {
+test("connect delivers the pack, tolerates an identical pending pack and reports only newly written files", async (t) => {
   const scenario = await connectionScenario(t, { pointer: true });
   const fake = connectExecutor(scenario);
   const relative = ".claude/commands/opsx/apply.md";
@@ -186,9 +186,9 @@ test("connect delivers the pack, tolerates an identical pending pack and require
   const connect = () => service.connect({ start: scenario.storeRoot });
   for (let index = 0; index < 2; index++) {
     const result = await connect();
-    assert.equal(result.status, "needs_setup_pr");
+    assert.equal(result.status, index === 0 ? "files_changed" : "ready");
     assert.equal(result.repositories[0].pointerPending, false);
-    assert.equal(result.repositories[0].agentPackPending, true);
+    assert.equal(result.repositories[0].agentPackPending, index === 0);
   }
   const checkout = path.join(scenario.workspaceRoot, "src/api");
   await execa("git", ["-C", checkout, "add", relative]);
@@ -210,8 +210,8 @@ test("ConnectionService registers Store, clones Repository and creates pointer",
   });
 
   assert.equal(result instanceof ConnectionResult, true);
-  assert.equal(result.status, "needs_setup_pr");
-  assert.equal(result.executionMode, "strict");
+  assert.equal(result.status, "files_changed");
+  assert.equal(result.executionMode, undefined);
   assert.equal(result.repositories[0].cloned, true);
   assert.equal(result.repositories[0].pointerCreated, true);
   assert.equal(result.repositories[0].pointerPending, true);
@@ -274,11 +274,11 @@ test("ConnectionService accepts an existing checkout on any named branch", async
   const result = await service.connect({ start: scenario.storeRoot });
 
   assert.equal(result.status, "ready");
-  assert.equal(result.repositories[0].branch, "team/custom-work");
+  assert.equal(result.repositories[0].branch, undefined);
   assert.equal(result.repositories[0].cloned, false);
 });
 
-test("ConnectionService rejects detached HEAD before changing a checkout", async (t) => {
+test("ConnectionService accepts detached HEAD and unrelated dirty files", async (t) => {
   const scenario = await connectionScenario(t, { pointer: true });
   const fake = connectExecutor(scenario);
   const service = connectionFixture(fake.executor);
@@ -287,13 +287,13 @@ test("ConnectionService rejects detached HEAD before changing a checkout", async
   const checkout = path.join(scenario.workspaceRoot, "src/api");
   await execa("git", ["-C", checkout, "switch", "--detach", "HEAD"]);
 
-  await assert.rejects(
-    service.connect({ start: scenario.storeRoot }),
-    /connect нельзя выполнять в detached HEAD/,
-  );
+  await fs.writeFile(path.join(checkout, "user.txt"), "keep");
+  await execa("git", ["-C", checkout, "remote", "remove", "origin"]);
+  assert.equal((await service.connect({ start: scenario.storeRoot })).status, "ready");
+  assert.equal(await fs.readFile(path.join(checkout, "user.txt"), "utf8"), "keep");
 });
 
-test("ConnectionService relaxed mode uses local directory and does not persist workspace", async (t) => {
+test("ConnectionService uses non-Git directories and persists workspace even with legacy strict false", async (t) => {
   const scenario = await connectionScenario(t, { strict: false });
   const checkout = path.join(scenario.workspaceRoot, "src/api");
   await fs.mkdir(checkout, { recursive: true });
@@ -306,13 +306,12 @@ test("ConnectionService relaxed mode uses local directory and does not persist w
     workspace: scenario.workspaceRoot,
   });
 
-  assert.equal(result.executionMode, "relaxed");
-  assert.equal(result.repositories[0].branch, "unpinned");
-  assert.equal(result.repositories[0].revision, "unpinned");
-  assert.equal(result.repositories[0].pointerPending, false);
+  assert.equal(result.executionMode, undefined);
+  assert.equal(result.repositories[0].branch, undefined);
+  assert.equal(result.repositories[0].revision, undefined);
+  assert.equal(result.repositories[0].pointerPending, true);
   assert.equal(await fs.readFile(path.join(checkout, plan.files[0].relative), "utf8"), "apply");
-  assert.equal(await fs.lstat(path.join(scenario.storeRoot, ".openspec-orch/state.json"))
-    .catch((error) => error.code), "ENOENT");
+  assert.equal(JSON.parse(await fs.readFile(path.join(scenario.storeRoot, ".openspec-orch/state.json"), "utf8")).workspace, scenario.workspaceRoot);
 });
 
 test("ConnectionService fails closed for mixed legacy state before repository mutation", async (t) => {
@@ -417,14 +416,12 @@ test("CandidateCli preserves connect grammar and normalized options", async () =
     "connect",
     "--workspace",
     "/workspace",
-    "--no-strict",
   ]);
 
   assert.equal(calls.length, 7);
   assert.deepEqual(calls[0], { packages: "ensure" });
   assert.deepEqual(calls[1], { agent: "preflight" });
   assert.equal(calls[2].workspace, "/workspace");
-  assert.equal(calls[2].noStrict, true);
   assert.equal(typeof calls[2].onProgress, "function");
   assert.deepEqual(calls[3], { extensions: "connect" });
   assert.deepEqual(calls[4], { pluginExtensions: "connect" });

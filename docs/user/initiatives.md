@@ -7,7 +7,7 @@
 
 ## Новый Store
 
-Из подготовленного Git-репозитория с настроенным origin:
+Из отдельного каталога будущего Store:
 
 ```bash
 openspec-orch init . --store management --agent qwen --template initiative

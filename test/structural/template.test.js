@@ -16,6 +16,7 @@ import { parse, stringify } from "yaml";
 import { auditContextLinks } from "../helpers/context-links.js";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/default/", import.meta.url));
+const TEMPLATES_ROOT = fileURLToPath(new URL("../../templates/", import.meta.url));
 const AGENTS_ROOT = fileURLToPath(new URL("../../agents/", import.meta.url));
 const PROJECT_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
@@ -67,7 +68,7 @@ function assertAcyclic(artifacts) {
   for (const id of dependencies.keys()) visit(id);
 }
 
-/** Extracts the universal Feature Acceptance block shared by both schemas. */
+/** Extracts the human acceptance block from schemas that prescribe this gate. */
 function featureAcceptanceContract(source) {
   const match = source.match(
     /<!-- FEATURE_ACCEPTANCE_CONTRACT_V1_START -->[\s\S]*?<!-- FEATURE_ACCEPTANCE_CONTRACT_V1_END -->/u,
@@ -267,19 +268,50 @@ test("spec-driven-extended adds Verify without a separate Apply artifact", async
   assert.doesNotMatch(tasks, /Ответственный|Получить подтверждение/u);
 });
 
-test("both schemas use one universal human Feature Acceptance", async () => {
-  const specDrivenExtended = await fs.readFile(
-    path.join(TEMPLATE_ROOT, "openspec/schemas/spec-driven-extended/templates/verify.md"),
-    "utf8",
-  );
-  const superspec = await fs.readFile(
-    path.join(TEMPLATE_ROOT, "openspec/schemas/superspec-multirepo/templates/verify.md"),
-    "utf8",
-  );
-  const contract = featureAcceptanceContract(specDrivenExtended);
-  assert.equal(contract, featureAcceptanceContract(superspec));
-  assert.match(contract, /\*\*Decision:\*\* `PENDING` \/ `PASS` \/ `FAIL`/u);
-  assert.match(contract, /Agent prepares evidence but does not choose the gate decision/u);
+/** Discovers Verify templates by schema declarations and conventional file names. */
+async function verificationTemplates() {
+  const files = await listFiles(TEMPLATES_ROOT);
+  const targets = new Set(files.filter((file) => path.posix.basename(file) === "verify.md"));
+  for (const file of files.filter((file) => path.posix.basename(file) === "schema.yaml")) {
+    const schema = parse(await fs.readFile(path.join(TEMPLATES_ROOT, file), "utf8"));
+    for (const artifact of schema.artifacts ?? []) {
+      if (artifact.id !== "verify") continue;
+      assert.equal(typeof artifact.template, "string", file);
+      const target = path.posix.normalize(path.posix.join(path.posix.dirname(file), "templates", artifact.template));
+      assert.ok(files.includes(target), `${file}: missing Verify template ${target}`);
+      targets.add(target);
+    }
+  }
+  assert.ok(targets.size > 0, "distribution must contain Verify templates");
+  return Promise.all([...targets].sort().map(async (file) => ({
+    file,
+    source: await fs.readFile(path.join(TEMPLATES_ROOT, file), "utf8"),
+  })));
+}
+
+test("all Templates and schemas share one scenario verification contract", async () => {
+  let canonical;
+  for (const { file, source } of await verificationTemplates()) {
+    const blocks = [...source.matchAll(
+      /<!-- SCENARIO_VERIFICATION_CONTRACT_V1_START -->[\s\S]*?<!-- SCENARIO_VERIFICATION_CONTRACT_V1_END -->/gu,
+    )];
+    assert.equal(blocks.length, 1, `${file}: exactly one scenario verification contract is required`);
+    canonical ??= blocks[0][0];
+    assert.equal(blocks[0][0], canonical, `${file}: scenario verification contract drift`);
+  }
+});
+
+test("schemas with a human Feature Acceptance gate share one contract", async () => {
+  const templates = (await verificationTemplates()).filter(({ source }) => (
+    source.includes("FEATURE_ACCEPTANCE_CONTRACT_V1_START")
+  ));
+  assert.ok(templates.length > 0);
+  const contract = featureAcceptanceContract(templates[0].source);
+  for (const { file, source } of templates) {
+    assert.equal(featureAcceptanceContract(source), contract, file);
+  }
+  assert.match(contract, /\*\*Решение:\*\* `PENDING` \/ `PASS` \/ `FAIL`/u);
+  assert.match(contract, /Агент собирает подтверждения, но решение о приёмке принимает человек/u);
   assert.doesNotMatch(contract, /Responsible participant/u);
   assert.doesNotMatch(contract, /commit|artifact|deployment|timestamp|Verified at/iu);
   assert.doesNotMatch(contract, /PASS_WITH_WARNINGS/u);

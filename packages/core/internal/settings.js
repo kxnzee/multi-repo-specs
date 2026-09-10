@@ -3,7 +3,6 @@
 export const CORE_SETTINGS = Object.freeze({
   execution: Object.freeze({
     externalCommandTimeoutMs: 120_000,
-    strictByDefault: true,
   }),
   openSpec: Object.freeze({
     init: Object.freeze({

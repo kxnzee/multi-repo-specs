@@ -89,9 +89,9 @@ test("RepositoryStatusService reports a connected clean registry without mutatio
     { id: "frontend", state: "connected" },
   ]);
   for (const status of statuses) {
-    assert.equal(status.clean, true);
-    assert.equal(status.remoteMatches, true);
-    assert.equal(status.branch, "main");
+    assert.equal(status.clean, undefined);
+    assert.equal(status.remoteMatches, undefined);
+    assert.equal(status.branch, undefined);
   }
 });
 
@@ -106,11 +106,11 @@ test("RepositoryStatusService keeps an arbitrary named branch connected", async 
 
   assert.equal(status.state, "connected");
   assert.equal(status.connected, true);
-  assert.equal(status.remoteMatches, true);
-  assert.equal(status.branch, "team/custom-work");
+  assert.equal(status.remoteMatches, undefined);
+  assert.equal(status.branch, undefined);
 });
 
-test("RepositoryStatusService reports an identity mismatch for another origin", async (t) => {
+test("RepositoryStatusService ignores another origin", async (t) => {
   const scenario = await repositoryScenario(t);
   await execa("git", [
     "-C", scenario.frontendRoot,
@@ -122,9 +122,9 @@ test("RepositoryStatusService reports an identity mismatch for another origin", 
     repositoryIds: ["frontend"],
   });
 
-  assert.equal(status.state, "identity_mismatch");
+  assert.equal(status.state, "connected");
   assert.equal(status.connected, true);
-  assert.equal(status.remoteMatches, false);
+  assert.equal(status.remoteMatches, undefined);
 });
 
 test("RepositoryStatusService treats detached HEAD as connected read-only state", async (t) => {
@@ -138,8 +138,8 @@ test("RepositoryStatusService treats detached HEAD as connected read-only state"
 
   assert.equal(status.state, "connected");
   assert.equal(status.connected, true);
-  assert.equal(status.remoteMatches, true);
-  assert.equal(status.branch, "");
+  assert.equal(status.remoteMatches, undefined);
+  assert.equal(status.branch, undefined);
 });
 
 test("RepositoryStatusService reports missing and dirty checkouts without fixing them", async (t) => {
@@ -151,7 +151,7 @@ test("RepositoryStatusService reports missing and dirty checkouts without fixing
   });
 
   assert.equal(dirty.connected, true);
-  assert.equal(dirty.clean, false);
+  assert.equal(dirty.clean, undefined);
   assert.equal(await fs.readFile(path.join(scenario.frontendRoot, "local.txt"), "utf8"), "dirty\n");
 
   await fs.rm(scenario.frontendRoot, { recursive: true, force: true });

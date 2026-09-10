@@ -38,7 +38,6 @@ async function contextScenario(t, { backendPlugin = false, storePlugin = false }
   await fs.mkdir(frontendRoot, { recursive: true });
   const project = createProject({
     version: 1,
-    strict: true,
     template: { id: "default" },
     agent: { id: "qwen" },
     extensions: [],
@@ -129,7 +128,6 @@ test("PluginContextFactory creates a new immutable scoped context without exposi
   assert.equal(Object.isFrozen(context), true);
   assert.deepEqual(context.project, {
     id: "specs",
-    strict: true,
     store: { id: "specs", role: "store" },
     repositories: [
       { id: "specs", role: "store" },

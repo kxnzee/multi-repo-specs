@@ -131,20 +131,6 @@ export class RepositoryGit {
     }
   }
 
-  async assertIdentity() {
-    const root = await this.repositoryRoot();
-    if (root !== this.#scope.root) {
-      throw new Error(`${this.#scope.id}: каталог не является корнем Git-репозитория`);
-    }
-    const remote = await this.originUrl();
-    if (typeof this.#scope.repository?.remote !== "string") {
-      throw new Error("GIT_SCOPE_INVALID: identity требует RepositoryCheckout");
-    }
-    if (!this.#scope.repository.matchesRemote(remote)) {
-      throw new Error(`${this.#scope.id}: origin не совпадает с openspec-orch.yaml`);
-    }
-  }
-
   #run(args, options = {}) {
     return this.#process.run("git", args, options);
   }

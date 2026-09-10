@@ -9,7 +9,6 @@ import { deepFreeze } from "./value.js";
 /** Project владеет Repository registry и Plugin bindings. */
 export class Project {
   #version;
-  #strict;
   #template;
   #agent;
   #extensions;
@@ -18,7 +17,6 @@ export class Project {
 
   constructor(config) {
     this.#version = config.version;
-    this.#strict = config.strict;
     this.#template = Project.#identity(config.template, "Template");
     this.#agent = Project.#identity(config.agent, "Agent");
     this.#extensions = Object.freeze((config.extensions ?? []).map((extension) => (
@@ -36,10 +34,6 @@ export class Project {
 
   get version() {
     return this.#version;
-  }
-
-  get strict() {
-    return this.#strict;
   }
 
   get template() { return this.#template; }
@@ -83,7 +77,6 @@ export class Project {
     const repositories = this.#repositories.map((repository) => repository.toConfig());
     return deepFreeze({
       version: this.#version,
-      strict: this.#strict,
       template: { ...this.#template },
       agent: { ...this.#agent },
       extensions: this.#extensions.map((extension) => extension.toConfig()),

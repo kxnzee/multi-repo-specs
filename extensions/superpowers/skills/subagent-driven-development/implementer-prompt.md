@@ -21,7 +21,11 @@ Subagent (general-purpose):
 
     ## Binding Constraints and Authority
 
-    [GLOBAL_CONSTRAINTS — exact plan/spec constraints applying to this task]
+    [GLOBAL_CONSTRAINTS — exact plan/spec requirements and applicable active
+    execution rules, including session-only instructions, their scope, required
+    tools, invocation order and permitted fallbacks]
+    Follow these rules as well as checkout instructions. If a required tool is
+    unavailable and no stated fallback applies, report BLOCKED to the controller.
     Repository: [REPOSITORY_ID]; checkout: [DIRECTORY]; base: [FULL_BASE_SHA].
     TDD requirement: [REQUIRED_OR_ACCEPTED_EXCEPTION].
     Commit authority: [AUTHORIZED_SCOPE_OR_NO_COMMIT].

@@ -2,7 +2,6 @@
 
 import process from "node:process";
 
-import { CORE_EXECUTION_MODE, CORE_FILES, CORE_PATTERNS } from "./constants.js";
 import { coreState } from "./core-state.js";
 import { lstatOrNull } from "./fs.js";
 import { git } from "./git.js";
@@ -39,14 +38,12 @@ export class ConnectionResult {
   #storeId;
   #storeRoot;
   #workspace;
-  #executionMode;
   #repositories;
 
-  constructor({ storeId, storeRoot, workspace: workspaceRoot, executionMode, repositories }) {
+  constructor({ storeId, storeRoot, workspace: workspaceRoot, repositories }) {
     this.#storeId = storeId;
     this.#storeRoot = storeRoot;
     this.#workspace = workspaceRoot;
-    this.#executionMode = executionMode;
     this.#repositories = Object.freeze([...repositories]);
     Object.freeze(this);
   }
@@ -54,11 +51,10 @@ export class ConnectionResult {
   get storeId() { return this.#storeId; }
   get storeRoot() { return this.#storeRoot; }
   get workspace() { return this.#workspace; }
-  get executionMode() { return this.#executionMode; }
   get repositories() { return this.#repositories; }
   get status() {
-    return this.#repositories.some(({ status }) => status === "needs_setup_pr")
-      ? "needs_setup_pr"
+    return this.#repositories.some(({ status }) => status === "files_changed")
+      ? "files_changed"
       : "ready";
   }
 }
@@ -96,14 +92,10 @@ export class ConnectionService {
     start = process.cwd(),
     workspace: requestedWorkspace,
     onProgress = () => {},
-    noStrict = false,
   } = {}) {
     onProgress("Проверка Store и OpenSpec...");
     const storeProject = await this.#storeProjects.load(start);
     const { project, root: storeRoot, store: metadata } = storeProject;
-    const executionMode = noStrict || !project.strict
-      ? CORE_EXECUTION_MODE.relaxed
-      : CORE_EXECUTION_MODE.strict;
     const storeCheckout = storeProject.checkout;
     const storeOpenSpec = this.#openspec.forRepository(storeCheckout);
     await storeOpenSpec.version();
@@ -123,9 +115,7 @@ export class ConnectionService {
       storeOption: true,
     });
     const stateStore = this.#state.forStore(storeCheckout);
-    const storedWorkspace = executionMode === CORE_EXECUTION_MODE.strict
-      ? (await stateStore.read()).workspace
-      : null;
+    const storedWorkspace = (await stateStore.read()).workspace;
     const workspaceModel = await this.#workspace.resolve({
       storeRoot,
       storeId: metadata.id,
@@ -144,20 +134,18 @@ export class ConnectionService {
         workspaceModel,
         storeId: metadata.id,
         storeRoot,
-        executionMode,
         onProgress: (message, status) => onProgress(`${prefix}: ${message}`, status),
       });
       repositories.push(connected);
       onProgress(`${prefix}: готово`, "success");
     }
-    if (requestedWorkspace && executionMode === CORE_EXECUTION_MODE.strict) {
+    if (requestedWorkspace) {
       await stateStore.update((current) => current.rememberWorkspace(workspaceModel.root));
     }
     return new ConnectionResult({
       storeId: metadata.id,
       storeRoot,
       workspace: workspaceModel.root,
-      executionMode,
       repositories,
     });
   }
@@ -168,18 +156,12 @@ export class ConnectionService {
     workspaceModel,
     storeId,
     storeRoot,
-    executionMode,
     onProgress,
   }) {
     const repositoryRoot = workspaceModel.checkoutPath(repository);
     const existing = await lstatOrNull(repositoryRoot);
     let cloned = false;
     if (!existing) {
-      if (executionMode === CORE_EXECUTION_MODE.relaxed) {
-        throw new Error(
-          `${repository.id}: relaxed mode требует существующий локальный каталог ${repositoryRoot}`,
-        );
-      }
       onProgress("клонирование...");
       await this.#git.forWorkspace(workspaceModel).clone(repository);
       cloned = true;
@@ -187,47 +169,19 @@ export class ConnectionService {
       throw new Error(`${repository.id}: checkout должен быть обычным каталогом`);
     } else onProgress("проверка существующего checkout...");
     const checkout = await this.#workspace.resolveCheckout(workspaceModel, repository);
-    const repositoryGit = this.#git.forRepository(checkout);
     if (repository.isSpecs()) {
-      await repositoryGit.assertIdentity();
       const target = await this.#storeProjects.loadSpecs(checkout);
-      const [branch, revision, clean] = await Promise.all([
-        repositoryGit.currentBranch(), repositoryGit.revision(), repositoryGit.isClean(),
-      ]);
-      if (!CORE_PATTERNS.gitRevision.test(revision)) {
-        throw new Error(`${repository.id}: Git вернул некорректную ревизию`);
-      }
       return new RepositoryConnection({
         id: repository.id, role: repository.role, storeId: target.store.id,
-        path: checkout.root, branch, revision, clean, cloned,
+        path: checkout.root, cloned,
         pointerCreated: null, pointerPending: null, agentPackPending: false, status: "ready",
       });
     }
     await agentPackPlan?.check(checkout.root);
-    const packPaths = agentPackPlan?.files.map(({ relative }) => relative) ?? [];
-    let branch = "unpinned";
-    let revision = "unpinned";
-    if (executionMode === CORE_EXECUTION_MODE.strict) {
-      await repositoryGit.assertIdentity();
-      branch = await repositoryGit.currentBranch();
-      if (!branch) {
-        throw new Error(`${repository.id}: connect нельзя выполнять в detached HEAD`);
-      }
-      const changedPaths = await repositoryGit.statusPaths();
-      if (changedPaths.some((filePath) => filePath !== CORE_FILES.openSpecConfig && !packPaths.includes(filePath))) {
-        throw new Error(`${repository.id}: рабочее дерево должно быть чистым`);
-      }
-      revision = await repositoryGit.revision();
-      if (!CORE_PATTERNS.gitRevision.test(revision)) {
-        throw new Error(`${repository.id}: Git вернул некорректную ревизию`);
-      }
-    }
     const pointerCreated = await this.#pointers.connect(checkout, storeId);
-    await agentPackPlan?.install(checkout.root);
-    const agentPackPending = executionMode === CORE_EXECUTION_MODE.strict &&
-      packPaths.length > 0 && !await repositoryGit.isClean(packPaths);
-    const pointerPending = executionMode === CORE_EXECUTION_MODE.strict &&
-      !await repositoryGit.isClean([CORE_FILES.openSpecConfig]);
+    const installed = await agentPackPlan?.install(checkout.root);
+    const agentPackPending = (installed?.length ?? 0) > 0;
+    const pointerPending = pointerCreated;
     onProgress("проверка OpenSpec pointer...");
     const repositoryOpenSpec = this.#openspec.forRepository(checkout);
     await repositoryOpenSpec.doctor(["doctor"], (message, severity) => (
@@ -241,13 +195,11 @@ export class ConnectionService {
       id: repository.id,
       role: repository.role,
       path: checkout.root,
-      branch,
-      revision,
       cloned,
       pointerCreated,
       pointerPending,
       agentPackPending,
-      status: pointerPending || agentPackPending ? "needs_setup_pr" : "ready",
+      status: pointerPending || agentPackPending ? "files_changed" : "ready",
     });
   }
 

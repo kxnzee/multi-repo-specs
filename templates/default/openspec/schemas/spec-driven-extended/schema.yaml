@@ -46,7 +46,7 @@ artifacts:
       - distinguish confirmed facts, assumptions, conflicts, and open questions;
       - preserve the scope of negative statements: "outside this Change" does not
         establish absence from the product or make security/audit unnecessary;
-      - do not read Code Repositories, CodeGraph, implementation tests, or
+      - do not read Code Repositories, implementation tests, or
         repository-specific configuration during Intake. A separate user request
         does not change the allowed sources of this artifact;
       - do not create the file until the intake is complete enough for the user to
@@ -344,6 +344,22 @@ artifacts:
     description: Universal human Feature Acceptance after implementation
     template: verify.md
     instruction: |
+      Account for every Scenario in the accepted Specs for this Change using the
+      template's shared scenario verification contract. Reference Scenario IDs or
+      exact source locations without copying their descriptions. Record the verified
+      candidate, requirements revision and verification conditions; link existing
+      records instead of duplicating them. A linked report may replace per-scenario
+      rows only when it identifies every result and the same candidate.
+      PASS requires executed evidence of expected behavior; violations are FAIL,
+      missing or stale evidence is PENDING, and N/A requires justified inapplicability.
+      Reconcile the full Scenario list before acceptance; omissions cannot pass.
+      Include cross-repository interactions when required by the accepted scenarios.
+      Map requirement-related findings from other verification tools to these results;
+      their summary or warning severity does not override the acceptance criteria.
+      Planning review alone cannot establish delivered Scenario PASS. Preserve the
+      schema's lifecycle and the project's human acceptance rules.
+      Write verify.md in Russian using the template's Russian headings. Preserve
+      command syntax, identifiers, status values and the contract markers.
       Treat this artifact as a separate post-implementation gate: its availability in
       the artifact graph is not proof that an Apply candidate exists and can never
       justify PASS by itself.
@@ -392,6 +408,62 @@ apply:
     does not execute the helper. If unavailable or blocked, stop before editing code.
     Return from the helper to this Apply without recursive invocation, then read context
     files, work through pending tasks and mark complete as you go. Apply does not create a separate receipt artifact.
+    Перед checkbox сформировать:
+
+    Для task_id используй точный `id` выбранной задачи из
+    `artifact_instructions.tasks` актуального Apply-контекста. Номер `1.1` или `2.3`
+    в начале description служит подписью в документе и может отличаться от ID OpenSpec.
+    Сопоставляй полное описание и repository section; не вычисляй индекс самостоятельно.
+
+    ~~~yaml
+    task_evidence:
+      task_id: <id>
+      claim: <проверяемый результат>
+      artifacts: []
+      checks: []
+      status: satisfied | blocked
+    ~~~
+
+    Отмечать Task только при `satisfied`:
+
+    - artifacts непосредственно подтверждают результат;
+    - реально выполненные checks перечислены с результатом;
+    - требуемый тест существует, проверяет заявленное поведение и прошёл;
+    - coverage сопоставлено с принятым контрактом независимо от списка написанных
+      тестов: проверены допустимые значения, default/отсутствие и значимые классы
+      недопустимых входов. «Любое другое значение» требует проверки типов, а не только
+      одного неизвестного литерала; для lookup/coercion проверь унаследованные имена,
+      массивы и объекты с преобразованием, если они входят в домен входов контракта;
+    - межрепозиторная проверка покрывает согласованные варианты публичного обмена,
+      включая default, а утверждения «без преобразования»/«не выбрасывает» подтверждены
+      поведением на соответствующих входах. Зелёные тесты сами по себе не доказывают
+      полноту; отсутствующий accepted contract не дополняется выдуманным требованием;
+    - план проверки или рассуждение не выдаются за выполненную verification.
+
+    После `satisfied` запиши progress по правилам этого Apply. Blocked Task остаётся
+    незакрытой; принятые описания задач не меняются.
+    Если результаты реализации требуют изменить смысл Intake или другого раннего артефакта,
+    приостановить затронутую работу и вернуть finding в Planning. Planning актуализирует
+    затронутые артефакты по правилу сверки из project context, повторяет проверки и
+    необходимые согласования. Перед возобновлением Apply заново выполнить preflight.
+    Редакционная правка без изменения смысла сама по себе не требует остановки Apply
+    или повторных Gate 1 и Feature Acceptance; передать её на review и сверку.
+    Повторная Feature Acceptance нужна при изменении реализации, проверяемого
+    контракта или потере применимости прежнего evidence.
+
+    После repository scope:
+
+    ~~~yaml
+    repository_completion:
+      repository: <repository-id>
+      satisfied_tasks: []
+      blocked_tasks: []
+      checks: []
+      completion_status: completed | incomplete
+    ~~~
+
+    Не объявлять весь Change реализованным по завершению одного Repository.
+
     Resolve exactly one existing Store task file from contextFiles.tasks; stop if
     its identity is ambiguous. After verifying the selected task's result, update
     only its checkbox using the Agent's file editor. Match the task to its full

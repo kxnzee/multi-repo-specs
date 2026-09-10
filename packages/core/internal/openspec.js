@@ -461,12 +461,11 @@ export class RepositoryOpenSpec {
       "--path",
       this.#scope.root,
       "--no-init-git",
-      "--remote",
-      remote,
+      ...(remote ? ["--remote", remote] : []),
       "--json",
     ];
     const result = parseOpenSpecJson(
-      await this.execute(args, { sensitiveValues: [remote] }),
+      await this.execute(args, { sensitiveValues: remote ? [remote] : [] }),
       `openspec store setup ${this.#scope.id}`,
     );
     assertStoreIdentity(

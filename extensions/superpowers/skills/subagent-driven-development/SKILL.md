@@ -170,6 +170,18 @@ complete: you hold the plan and cross-task context the reviewer
 lacks. If you confirm an item is a real gap, treat it as a failed spec
 review — send it back to the implementer and re-review.
 
+## Passing Active Rules to Subagents
+
+For every implementer, reviewer, fix and re-review dispatch, include the active
+rules applicable to that task and checkout in the existing Global Constraints
+block, alongside plan/spec requirements. Copy the relevant instructions themselves,
+including their scope, required tools, invocation order and permitted fallbacks.
+Include session-only instructions supplied by connected Extensions or Plugins;
+reading checkout instructions does not recover them. Do not assume a fresh
+subagent inherits the parent's session or tool access. If a required tool is
+unavailable to the subagent, resolve the handoff or use the rule's stated fallback;
+do not silently drop the rule. Refresh this block when applicable rules change.
+
 ## Constructing Reviewer Prompts
 
 Per-task reviews are task-scoped gates. The broad review happens once, at the
@@ -189,9 +201,9 @@ final whole-branch review. When you fill a reviewer template:
   lens. Copy the binding requirements verbatim from the plan's Global
   Constraints section or the spec: exact values, exact formats, and the
   stated relationships between components ("same layout as X", "matches
-  Y"). The reviewer's template already carries the process rules (YAGNI,
-  test hygiene, review method) — the constraints block is for what THIS
-  project's spec demands.
+  Y"). Also include the applicable active rules described above. The template
+  carries generic review practices; it does not contain project-specific or
+  session-only execution rules.
 - Hand the reviewer its diff as a file: run `scripts/review-package` in the
   appropriate mode from Review Snapshot Handoff and pass its printed path.
   Without Bash, a committed package can be assembled from `git log --oneline`,
@@ -254,7 +266,8 @@ and is re-read on every later turn. Hand artifacts over as files:
   any ambiguity you noticed in the brief; (5) the report-file path and
   report contract. Exact values (numbers, magic strings, signatures, test
   cases) appear only in the brief. Include a separate required Global Constraints
-  block copied from the plan/spec, plus the repository ID, checkout, full base SHA,
+  block with plan/spec requirements and applicable active execution rules,
+  plus the repository ID, checkout, full base SHA,
   TDD requirement and authorized commit scope. The extractor selects task text only;
   it does not copy these plan-level constraints.
 - **Report file:** name the implementer's report file after the brief

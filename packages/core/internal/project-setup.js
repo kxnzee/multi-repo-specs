@@ -5,8 +5,6 @@ import process from "node:process";
 
 import { bundledTemplates, isBundledTemplateProvider } from "./bundled-template.js";
 import { connection } from "./connection.js";
-import { CORE_EXECUTION_MODE, CORE_FILES } from "./constants.js";
-import { lstatOrNull } from "./fs.js";
 import { initialization } from "./initialization.js";
 import { initSelections } from "./init-selection.js";
 import { packageSupplies } from "./package-supply.js";
@@ -43,7 +41,6 @@ function connectionResult(value) {
     store_id: value.storeId,
     store_root: value.storeRoot,
     workspace: value.workspace,
-    execution_mode: value.executionMode,
     status: value.status,
     repositories: Object.freeze(value.repositories.map((repository) => Object.freeze({
       repository_id: repository.id,
@@ -67,7 +64,6 @@ function initializationResult(value) {
     target: value.target,
     store_id: value.storeId,
     already_initialized: value.alreadyInitialized,
-    execution_mode: value.executionMode,
     created: value.created,
     updated: value.updated,
     agent: value.agent,
@@ -164,50 +160,33 @@ export class ProjectSetupService {
       templateId: template.id,
       templateRoot: template.root,
       repositories: selection.repositories,
-      noStrict: selection.noStrict,
     });
     return Object.freeze({ result, selection });
   }
 
-  /** Runs strict fixed-cwd initialization for a machine protocol adapter. */
+  /** Runs fixed-cwd initialization for a machine protocol adapter. */
   async initializeExplicit({
     agentId,
     repositories = [],
     storeId,
     templateId,
   } = {}) {
-    const metadata = await lstatOrNull(path.join(this.#start, CORE_FILES.storeMetadata));
-    if (metadata) {
-      const storeProject = await this.#storeProjects.load(this.#start);
-      if (!storeProject.project.strict) {
-        throw new Error("MCP_SETUP_STRICT_REQUIRED: существующий Project настроен в relaxed mode");
-      }
-    }
     const operation = await this.initialize({
       target: this.#start,
       options: {
         agent: agentId,
         repo: repositories,
         store: storeId,
-        strict: true,
         template: templateId,
       },
     });
     const result = initializationResult(operation.result);
-    if (result.execution_mode !== CORE_EXECUTION_MODE.strict) {
-      throw new Error("MCP_SETUP_STRICT_REQUIRED: существующий Project настроен в relaxed mode");
-    }
     return result;
   }
 
   /** Runs the same complete connect sequence for every protocol adapter. */
-  async connect({ workspace, noStrict = false, onProgress = () => {}, requireStrict = false } = {}) {
+  async connect({ workspace, onProgress = () => {} } = {}) {
     const storeProject = await this.#storeProjects.resolve(this.#start);
-    if (requireStrict) {
-      if (!storeProject.project.strict) {
-        throw new Error("MCP_SETUP_STRICT_REQUIRED: connect_project недоступен для relaxed Project");
-      }
-    }
     onProgress("Восстановление Store packages из npm lock...");
     await this.#packages.forStore(storeProject.checkout).ensure();
     onProgress("Проверка native CLI выбранного Agent...");
@@ -215,7 +194,6 @@ export class ProjectSetupService {
     const result = await this.#connection.connect({
       start: storeProject.root,
       workspace,
-      noStrict,
       onProgress,
     });
     onProgress("Подключение выбранных Extensions...");

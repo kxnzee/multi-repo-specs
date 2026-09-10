@@ -107,6 +107,11 @@ export default definePlugin({
       repository: context.repository,
       invocation: context.invocation,
     }),
+    operations: {
+      record_implementation: (application, args) => ({ source: "external", ...args }),
+      start_attempt: (application, args) => ({ source: "external", operation: "start", ...args }),
+      complete_attempt: (application, args) => ({ source: "external", operation: "complete", ...args }),
+    },
     tools: [{
       name: "external_probe",
       description: "Read external Plugin state.",
@@ -143,6 +148,23 @@ export default definePlugin({
   assert.equal(result.source, "external");
   assert.deepEqual(result.repository, { id: "specs", role: "store" });
   assert.equal(result.invocation.id, "specs");
+  for (const operation of ["start", "complete"]) {
+    const response = await client.callTool({
+      name: `${operation}_attempt`, arguments: { change_id: "pay", task_id: "1" },
+    });
+    assert.notEqual(response.isError, true, JSON.stringify(response.content));
+    assert.deepEqual(JSON.parse(response.content[0].text), {
+      source: "external", operation, change_id: "pay", task_id: "1",
+    });
+  }
+
+  const handoff = { change_id: "pay", task_id: "1", task_description: "Implement",
+    pull_request: "https://example.test/pr/42", commits: [], summary: "Draft",
+    remaining: "Implementation", expected_version: 0 };
+  const recorded = await client.callTool({ name: "record_implementation", arguments: handoff });
+  assert.notEqual(recorded.isError, true, JSON.stringify(recorded.content));
+  assert.deepEqual(JSON.parse(recorded.content[0].text), { source: "external", ...handoff });
+
   const status = await client.callTool({ name: "get_status", arguments: {} });
   assert.notEqual(status.isError, true, JSON.stringify(status.content));
   assert.equal(JSON.parse(status.content[0].text).store_id, "specs");
@@ -267,7 +289,7 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
     assert.equal(Object.hasOwn(result.project.repositories[0], "description"), false);
   }
   assert.equal(resolutions, 4);
-  assert.equal(status.capabilities.tracking.available, false);
+  assert.equal(status.capabilities.tracking, undefined);
   assert.equal(status.capabilities.graph.available, false);
   assert.deepEqual(context.openspec_status, { changeName: "pay", schemaName: "spec-driven-extended" });
   assert.deepEqual(context.artifact_instructions, { instruction: "Use exact schema" });
@@ -277,7 +299,7 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
       repository_id: "frontend",
       assigned: null,
       checkout: "/workspace/src/frontend",
-      revision: "a".repeat(40),
+      revision: null,
       connected: true,
       clean: true,
       state: "connected",
@@ -286,28 +308,26 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
       repository_id: "specs",
       role: "store",
       path: "/workspace/specs",
-      revision: "a".repeat(40),
+      revision: null,
     },
   });
   assert.deepEqual(next, { action: "prepare_artifact", actor: "agent", artifact: "design" });
-  assert.equal(assignment.current_assignment.revision, "a".repeat(40));
+  assert.equal(assignment.current_assignment.revision, null);
   assert.equal(assignment.assigned, null);
   assert.deepEqual(assignment.assignments, [{
     repository_id: "frontend",
     assigned: null,
     checkout: "/workspace/src/frontend",
-    revision: "a".repeat(40),
+    revision: null,
     connected: true,
     clean: true,
     state: "connected",
   }]);
   assert.deepEqual(setup.constraints, {
     fixed_cwd: true,
-    strict_only: true,
     arbitrary_workspace: false,
     disconnect_exposed: false,
     target_role: "store",
-    separate_git_repository: true,
     forbidden_targets: [
       "orchestrator_checkout",
       "template_source",
@@ -451,4 +471,28 @@ test("public MCP refreshes artifact content and exposes only the declared shared
   assert.equal(removed.shared_resources.some(({ name }) => name === shared[0]), false);
   await fs.writeFile(path.join(root, shared[0]), "# Restored\n");
   assert.notEqual((await readContext(removed.context_revision)).context_revision, removed.context_revision);
+});
+
+test("abstract operations reject missing or ambiguous providers before invoking handlers", async () => {
+  const contribution = {
+    create() { throw new Error("must not create an ambiguous provider"); },
+    enhance: ({ result }) => result,
+    tools: [],
+    operations: { start_attempt() { throw new Error("must not invoke"); } },
+  };
+  const options = {
+    start: repositoryRoot,
+    doctorService: { inspect() {} },
+    managerService: { forStore: () => ({}) },
+    setupService: { connect() {}, initialize() {}, inspect() {} },
+    currentRepositoryService: { resolve: async () => null },
+    storeProjectService: { resolve: async () => ({
+      checkout: {}, project: { pluginDeclaration: (id) => ({ id }) },
+    }) },
+  };
+  await assert.rejects(new OrchestratorMcpRuntime(options).startAttempt({}), /CAPABILITY_UNAVAILABLE/u);
+  const runtime = new OrchestratorMcpRuntime({ ...options, agentContributions: [
+    { pluginId: "first", contribution }, { pluginId: "second", contribution },
+  ] });
+  await assert.rejects(runtime.startAttempt({}), /MCP_OPERATION_AMBIGUOUS/u);
 });

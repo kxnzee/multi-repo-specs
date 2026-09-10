@@ -63,6 +63,30 @@ MCP transport и общий runtime не знают ID Plugin, tool names или
 Tool metadata immutable, а `create`, `execute`, optional `validate` и `enhance`
 выполняются из owning Plugin package. Contribution не расширяет права `PluginContext`.
 
+### Обработчики абстрактных операций
+
+`agent.operations` связывает имена операций MCP с обработчиками `(application, input)`.
+Контракт аргументов и каталог этих операций принадлежат MCP; регистрация обработчика
+сама по себе не добавляет новый tool. `agent.tools` по-прежнему объявляет собственные
+инструменты плагина со своей схемой.
+
+```js
+agent: {
+  create: (context) => new Application(context),
+  operations: {
+    start_attempt: (application, input) => application.start(input),
+    complete_attempt: (application, input) => application.complete(input),
+  },
+}
+```
+
+Runtime выбирает обработчик среди Plugins, объявленных в текущем Project, и создаёт
+application через обычный scoped lifecycle. Отсутствие обработчика возвращает
+`CAPABILITY_UNAVAILABLE`; несколько провайдеров одной операции —
+`MCP_OPERATION_AMBIGUOUS` до вызова любого обработчика. Как и для `agent.tools`,
+application может быть `null`, если runtime плагина недоступен; обработчик должен
+сообщить об этом, не заявляя успешное выполнение. После обновления перезапустите MCP.
+
 ## PluginContext
 
 Core создаёт scoped context для каждого invocation:

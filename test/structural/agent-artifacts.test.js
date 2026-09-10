@@ -86,6 +86,12 @@ test("subagent adapters preserve the canonical body and own only provider metada
     assert.equal(parsed.metadata.name, path.basename(entry.name, ".md"), relative);
     assert.equal(typeof parsed.metadata.description, "string", relative);
     canonical.set(entry.name, parsed.body);
+    const nativeRelative = `agents/${entry.name}`;
+    const native = parseFrontmatter(
+      await fs.readFile(path.join(EXTENSION_ROOT, nativeRelative), "utf8"),
+      nativeRelative,
+    );
+    assert.equal(native.body, parsed.body, nativeRelative);
   }
 
   const adaptersRoot = path.join(EXTENSION_ROOT, "adapters");
@@ -129,13 +135,8 @@ test("repository evidence delegation keeps one question per subagent invocation"
   );
   assert.match(scout, /несколько вопросов[\s\S]*`status: blocked`/u);
   assert.match(scout, /Один вопрос — один новый subagent/u);
-  assert.match(scout, /`codegraph_explore`[\s\S]*`projectPath`/u);
-  assert.match(
-    scout,
-    /назначен `codegraph`, но MCP недоступен[\s\S]*`status: blocked`[\s\S]*Не запускай\s+`plugin exec`/u,
-  );
-  assert.match(scout, /`unindexed`: читай точные anchors через Read/u);
-  assert.match(scout, /`codegraph`: первым запросом к исходному коду вызови `codegraph_explore`/u);
+  assert.match(scout, /`code_navigation` первый шаг/u);
+  assert.match(scout, /самодостаточная инструкция навигации/u);
   assert.match(scout, /question_id: <переданный question_id>/u);
   assert.match(scout, /status: answered \| partial \| unanswered \| blocked/u);
   assert.match(scout, /В answer опиши поведение без paths, symbols,[\s\S]*code inventory/u);
@@ -146,7 +147,7 @@ test("repository evidence delegation keeps one question per subagent invocation"
   assert.ok(contracts[0].repository_evidence_request.anchors.length > 0);
   assert.deepEqual(
     Object.keys(contracts[0].repository_evidence_request),
-    ["question_id", "question", "repository_id", "checkout_path", "revision", "code_navigation", "anchors"],
+    ["question_id", "question", "repository_id", "checkout_path", "code_navigation", "anchors"],
   );
   assert.deepEqual(
     Object.keys(contracts[1].repository_evidence),
@@ -212,9 +213,11 @@ test("spec-driven-extended Extension isolates its workflow without naming other 
   assert.doesNotMatch(source, /superspec-multirepo|Superspec/u);
 });
 
-test("Default Template artifacts do not depend on concrete Plugins", async () => {
-  const forbidden = /change[ -]tracking|change-tracking|result receipt|\bcycle records?\b|\bsnapshot\b|openspec-orch graph|openspec graph/iu;
-  for (const root of [EXTENSION_ROOT, TEMPLATE_ROOT]) {
+test("Default and Initiative artifacts do not depend on concrete Plugins", async () => {
+  const forbidden = /codegraph|change[ -]tracking|change-tracking|result receipt|\bcycle records?\b|\bsnapshot\b|openspec-orch graph|openspec[ -]graph|\bget_spec_change_impact\b/iu;
+  const initiativeRoots = ["../../extensions/initiative/", "../../templates/initiative/"]
+    .map((relative) => fileURLToPath(new URL(relative, import.meta.url)));
+  for (const root of [EXTENSION_ROOT, TEMPLATE_ROOT, ...initiativeRoots]) {
     for (const file of await files(root)) {
       const source = await fs.readFile(file, "utf8");
       assert.doesNotMatch(source, forbidden, path.relative(root, file));

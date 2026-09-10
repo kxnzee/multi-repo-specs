@@ -9,6 +9,9 @@ import { OpenSpecGraphService } from "./lib/service.js";
 const plugin = definePlugin({
   id: "openspec-graph",
   agent: openSpecGraphAgentContribution,
+  extensions(context) {
+    return [{ id: "agent", root: "./extension", target: context.repository }];
+  },
   supports: [REPOSITORY_ROLE.store, REPOSITORY_ROLE.specs],
   repository: {
     connect() {

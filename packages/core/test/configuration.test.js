@@ -135,3 +135,13 @@ test("configuration parses the public init repository argument into Repository",
   assert.throws(() => configuration.parseRepositoryArgument("Frontend=remote#main"), /Ожидается/);
   assert.throws(() => configuration.parseRepositoryArgument("frontend=/tmp/frontend#main"), /CONFIG_INVALID/);
 });
+
+test("legacy strict is ignored and omitted when configuration is serialized", () => {
+  const current = configuration.parseProject(CURRENT_CONFIG.replace("strict: true\n", ""));
+  for (const value of ["true", "false"]) {
+    const legacy = configuration.parseProject(CURRENT_CONFIG.replace("strict: true", `strict: ${value}`));
+    assert.deepEqual(legacy.toConfig(), current.toConfig());
+    assert.equal(legacy.strict, undefined);
+    assert.doesNotMatch(configuration.serializeProject(legacy), /^strict:/mu);
+  }
+});

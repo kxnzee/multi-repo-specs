@@ -2,21 +2,16 @@
 
 import process from "node:process";
 
-import { RepositoryCheckout } from "./checkout.js";
 import { coreState } from "./core-state.js";
 import { lstatOrNull } from "./fs.js";
-import { git } from "./git.js";
 import { repositoryRunner, repositorySelector } from "./repository-operations.js";
 import { storeProjects } from "./store-project.js";
 import { workspace } from "./workspace.js";
 
 export const REPOSITORY_STATUS_STATE = Object.freeze({
   connected: "connected",
-  identityMismatch: "identity_mismatch",
   missing: "missing",
   notDirectory: "not_a_directory",
-  notGitRepository: "not_a_git_repository",
-  notGitRoot: "not_a_git_root",
   workspaceUnresolved: "workspace_unresolved",
   invalidSpecs: "invalid_specs",
 });
@@ -53,7 +48,6 @@ export class RepositoryStatus {
 
 /** Читает состояние Store и Code Repository checkouts без мутаций. */
 export class RepositoryStatusService {
-  #git;
   #runner;
   #selector;
   #state;
@@ -61,14 +55,12 @@ export class RepositoryStatusService {
   #workspace;
 
   constructor({
-    gitService = git,
     repositoryRunnerService = repositoryRunner,
     repositorySelectorService = repositorySelector,
     stateService = coreState,
     storeProjectService = storeProjects,
     workspaceService = workspace,
   } = {}) {
-    this.#git = gitService;
     this.#runner = repositoryRunnerService;
     this.#selector = repositorySelectorService;
     this.#state = stateService;
@@ -116,42 +108,14 @@ export class RepositoryStatusService {
         return new RepositoryStatus({ ...base, state: REPOSITORY_STATUS_STATE.notDirectory });
       }
     }
-    const checkout = new RepositoryCheckout(repository, expectedPath);
-    const repositoryGit = this.#git.forRepository(checkout);
-    let root;
-    try {
-      root = await repositoryGit.repositoryRoot();
-    } catch {
-      return new RepositoryStatus({ ...base, state: REPOSITORY_STATUS_STATE.notGitRepository });
-    }
-    if (root !== expectedPath) {
-      return new RepositoryStatus({ ...base, state: REPOSITORY_STATUS_STATE.notGitRoot });
-    }
-    const [remote, branch, clean] = await Promise.all([
-      repositoryGit.originUrl().catch(() => ""),
-      repositoryGit.currentBranch(),
-      repositoryGit.isClean(),
-    ]);
-    const remoteMatches = repository.matchesRemote(remote);
-    if (repository.isSpecs() && remoteMatches) {
+    if (repository.isSpecs()) {
       try {
-        await this.#storeProjects.loadSpecs(checkout);
+        await this.#storeProjects.loadSpecs(await this.#workspace.resolveCheckout(workspaceModel, repository));
       } catch (error) {
-        return new RepositoryStatus({ ...base, remote, remoteMatches, branch, clean,
-          state: REPOSITORY_STATUS_STATE.invalidSpecs, error: error.message });
+        return new RepositoryStatus({ ...base, state: REPOSITORY_STATUS_STATE.invalidSpecs, error: error.message });
       }
     }
-    return new RepositoryStatus({
-      ...base,
-      connected: true,
-      state: remoteMatches
-        ? REPOSITORY_STATUS_STATE.connected
-        : REPOSITORY_STATUS_STATE.identityMismatch,
-      remote,
-      remoteMatches,
-      branch,
-      clean,
-    });
+    return new RepositoryStatus({ ...base, connected: true, state: REPOSITORY_STATUS_STATE.connected });
   }
 }
 

@@ -227,3 +227,11 @@ test("native CodeGraph cannot report ready with malformed counts or flags", () =
     pendingChanges: { added: 0, modified: 0, removed: 0 }, worktreeMismatch: "false",
   })), /CODEGRAPH_STATUS_INVALID/u);
 });
+
+
+test("CodeGraph exclusion is optional outside a Git repository", async (t) => {
+  const root = await gitRepositoryFixture(t);
+  await fs.rm(path.join(root, ".git"), { recursive: true });
+  await new CodeGraphRepository(root).excludeGeneratedIndex();
+  assert.deepEqual(await fs.readdir(root), []);
+});

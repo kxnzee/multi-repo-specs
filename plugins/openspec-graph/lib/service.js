@@ -69,8 +69,8 @@ export class OpenSpecGraphService {
         project_id: this.#context.project.id,
         repository_id: this.#context.repository.id,
         store_id: this.#context.targetStore.id,
-        revision: await this.#context.git.revision(),
-        clean: await this.#context.git.isClean(),
+        revision: null,
+        clean: null,
       }) })
       : compiled;
     try {

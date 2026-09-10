@@ -261,6 +261,18 @@ test("candidate distribution exposes every Plugin through plugin exec", async (t
     "openspec-orch-distribution-cli-",
   );
 
+  const scaffoldRoot = path.join(path.dirname(storeRoot), "scaffolded-plugin");
+  await runCli(storeRoot, "plugin", "register", "sample-native", scaffoldRoot,
+    "--profile", "native", "--extension");
+  for (const relative of [".claude-plugin/plugin.json", "qwen-extension.json", "gigacode-extension.json"]) {
+    const manifest = JSON.parse(await fs.readFile(path.join(scaffoldRoot, "extension", relative), "utf8"));
+    assert.equal(manifest.name, "sample-native-agent");
+  }
+  const hook = await execa(process.execPath, [path.join(scaffoldRoot, "extension/hooks/session-start.js")]);
+  assert.equal(hook.stdout.trim(), (await fs.readFile(
+    path.join(scaffoldRoot, "extension/agent-instructions.md"), "utf8",
+  )).trim());
+
   const graphSeed = path.join(storeRoot, "openspec/graph.yaml");
   await assert.rejects(fs.access(graphSeed), { code: "ENOENT" });
   await runCli(storeRoot, "plugin", "init", "--plugin", "change-tracking");
@@ -338,6 +350,12 @@ test("candidate distribution exposes every Plugin through plugin exec", async (t
     operation: args.slice(0, 2),
     scope: args.slice(-3),
   })), [
+    {
+      cwd: await fs.realpath(storeRoot),
+      nativeId: "openspec-graph-agent",
+      operation: ["extensions", "install"],
+      scope: ["--scope", "project", "--consent"],
+    },
     {
       cwd: await fs.realpath(codeRoot),
       nativeId: "change-tracking-agent",
@@ -662,12 +680,14 @@ test("candidate distribution installs optional spec-reader with its skill payloa
   await assert.rejects(fs.access(path.join(storeRoot, "docs/business")), { code: "ENOENT" });
 });
 
-test("public CLI initializes a fresh Store and repeats connect from the Code Repository", async (t) => {
+test("public CLI initializes and connects non-Git directories without losing user files", async (t) => {
   const { storeRoot, codeRoot } = await distributionFixture(t, "openspec-orch-first-run-");
   for (const entry of await fs.readdir(storeRoot)) {
     if (entry !== ".git") await fs.rm(path.join(storeRoot, entry), { recursive: true, force: true });
   }
-  await commitAll(storeRoot, "Prepare empty Store for first-run smoke");
+  await fs.rm(path.join(storeRoot, ".git"), { recursive: true });
+  await fs.rm(path.join(codeRoot, ".git"), { recursive: true });
+  await fs.writeFile(path.join(storeRoot, "user-notes.md"), "Keep my notes");
   for (const name of ["xdg-config", "xdg-data"]) {
     await fs.rm(path.join(path.dirname(storeRoot), name), { recursive: true, force: true });
   }
@@ -678,13 +698,14 @@ test("public CLI initializes a fresh Store and repeats connect from the Code Rep
   assert.deepEqual(configuration.parseProject(config).extensions, ["spec-driven-extended", "superpowers"]);
   await runCli(storeRoot, ...args);
   assert.equal(await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"), config);
-  await commitAll(storeRoot, "Initialize Store");
+  assert.equal(configuration.parseProject(config).storeRepository.remote, undefined);
+  assert.doesNotMatch(config, /^strict:/mu);
   await runCli(storeRoot, "connect");
   const pointer = await fs.readFile(path.join(codeRoot, "openspec/config.yaml"), "utf8");
   await runCli(codeRoot, "connect");
   assert.equal(await fs.readFile(path.join(codeRoot, "openspec/config.yaml"), "utf8"), pointer);
   assert.equal(await fs.readFile(path.join(storeRoot, "openspec-orch.yaml"), "utf8"), config);
-  await commitAll(codeRoot, "Connect to central Store");
+  assert.equal(await fs.readFile(path.join(storeRoot, "user-notes.md"), "utf8"), "Keep my notes");
   const report = JSON.parse((await runCli(codeRoot, "doctor", "--json")).stdout);
   assert.equal(report.summary.error, 0);
   await assert.rejects(fs.access(path.join(codeRoot, "openspec/specs")), /ENOENT/);
@@ -726,4 +747,78 @@ test("public CLI initializes the initiative Template without code workflows", as
     await client.close();
   }
 
+});
+
+test("candidate distribution publishes partial worktree implementation and resumes through CLI", async (t) => {
+  const { codeRoot, registerCleanup, storeRoot } = await distributionFixture(t, "openspec-orch-handoff-");
+  await runCli(storeRoot, "plugin", "init", "--plugin", "change-tracking");
+  await runCli(storeRoot, "plugin", "connect", "change-tracking", "--repo", "specs", "--repo", "frontend");
+  await execa("openspec", ["new", "change", "handoff", "--schema", "spec-driven"], { cwd: storeRoot });
+  const tasksPath = path.join(storeRoot, "openspec/changes/handoff/tasks.md");
+  const tasks = "# Tasks\n\n- [ ] 1.1 Implement handoff\n";
+  await fs.writeFile(tasksPath, tasks);
+  await fs.mkdir(path.join(codeRoot, "openspec"), { recursive: true });
+  await fs.writeFile(path.join(codeRoot, "openspec/config.yaml"), "store: specs\n");
+  await commitAll(codeRoot, "Connect Store");
+  const mainHead = (await execa("git", ["rev-parse", "HEAD"], { cwd: codeRoot })).stdout;
+  const worktree = path.join(codeRoot, ".worktrees", "partial");
+  await execa("git", ["worktree", "add", "-b", "partial", worktree], { cwd: codeRoot });
+  registerCleanup(() => execa("git", ["worktree", "remove", "--force", worktree], { cwd: codeRoot }));
+  await fs.writeFile(path.join(worktree, "partial.js"), "export const partial = true;\n");
+  await commitAll(worktree, "Partial implementation");
+  const sha = (await execa("git", ["rev-parse", "HEAD"], { cwd: worktree })).stdout;
+  assert.notEqual(sha, mainHead);
+  const client = new Client({ name: "partial-handoff", version: "1.0.0" });
+  registerCleanup(() => client.close());
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: [MCP_PATH],
+    cwd: worktree, env: { ...process.env }, stderr: "pipe" }));
+  const input = { change_id: "handoff", task_id: "1", task_description: "1.1 Implement handoff",
+    pull_request: "https://example.test/frontend/pull/42", commits: [sha],
+    summary: "Partial implementation; tests pending", remaining: "Add tests", expected_version: 0 };
+  const response = await client.callTool({ name: "record_implementation", arguments: input });
+  assert.notEqual(response.isError, true, JSON.stringify(response.content));
+  const duplicate = await client.callTool({ name: "record_implementation",
+    arguments: { ...input, pull_request: `${input.pull_request}#discussion` } });
+  assert.equal(duplicate.isError, true);
+  assert.match(duplicate.content[0].text, /IMPLEMENTATION_CONFLICT/);
+  assert.equal(JSON.parse(response.content[0].text).task_done, false);
+  assert.equal(await fs.readFile(tasksPath, "utf8"), tasks);
+  const localState = path.join(storeRoot, ".openspec-orch/plugins/change-tracking/state.json");
+  await assert.rejects(fs.access(localState), { code: "ENOENT" });
+  await client.close();
+
+  // Другой процесс продолжает по переносимой карте, без локальной attempt и Store commit.
+  const command = ["plugin", "exec", "--repo", "specs", "change-tracking"];
+  let status = JSON.parse((await runCli(codeRoot, ...command, "status", "handoff")).stdout);
+  assert.equal(status.implementations[0].remaining, "Add tests");
+  assert.deepEqual(status.implementations[0].commits, [sha]);
+  await fs.writeFile(tasksPath, tasks.replace("[ ]", "[x]"));
+  const updated = JSON.parse((await runCli(codeRoot, ...command, "record", "handoff", "1",
+    "--description", input.task_description, "--pr", input.pull_request, "--commits", sha,
+    "--summary", "Implementation and tests done", "--remaining", "", "--version", "1")).stdout);
+  assert.equal(updated.task_done, true);
+  status = JSON.parse((await runCli(codeRoot, ...command, "status", "handoff")).stdout);
+  assert.equal(status.implementations[0].task_state, "done");
+  assert.equal(status.implementations[0].version, 2);
+  assert.deepEqual(status.implementations[0].commits, [sha]);
+  await assert.rejects(fs.access(localState), { code: "ENOENT" });
+  // Старый повреждённый storage не скрывает карту и не исправляется молча.
+  await fs.mkdir(path.dirname(localState), { recursive: true });
+  await fs.writeFile(localState, "{broken");
+  await fs.writeFile(tasksPath, "# Tasks\n\n- [x] 1.1 Implement handoff safely\n- [ ] 1.2 Untracked work\n");
+  status = JSON.parse((await runCli(codeRoot, ...command, "status", "handoff")).stdout);
+  assert.equal(status.legacy_error.code, "PLUGIN_STORAGE_CORRUPTED");
+  assert.equal(status.tasks.length, 2);
+  assert.equal(status.implementations[0].task_state, "changed_or_missing");
+  const rebound = JSON.parse((await runCli(codeRoot, ...command, "record", "handoff", "1",
+    "--description", "1.1 Implement handoff safely", "--pr", input.pull_request,
+    "--commits", sha, "--summary", "Confirmed revised task", "--remaining", "",
+    "--version", "2", "--previous-task", "1")).stdout);
+  assert.equal(rebound.implementation.version, 3);
+  status = JSON.parse((await runCli(codeRoot, ...command, "status", "handoff")).stdout);
+  assert.equal(status.implementations.length, 1);
+  assert.equal(status.implementations[0].task_done, true);
+  assert.deepEqual(status.tasks[1].implementations, []);
+  assert.equal(await fs.readFile(localState, "utf8"), "{broken");
+  assert.equal((await execa("git", ["rev-parse", "HEAD"], { cwd: codeRoot })).stdout, mainHead);
 });

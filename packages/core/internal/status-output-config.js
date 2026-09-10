@@ -10,7 +10,7 @@ export const STATUS_PRESENTATIONS = Object.freeze({
   failed: Object.freeze({ icon: "✗", label: "ошибка" }),
   invalid: Object.freeze({ icon: "✗", label: "некорректное состояние" }),
   missing: Object.freeze({ icon: "✗", label: "checkout отсутствует" }),
-  needs_setup_pr: Object.freeze({ icon: "⚠", label: "требуется setup PR" }),
+  files_changed: Object.freeze({ icon: "⚠", label: "созданы файлы настройки" }),
   not_a_directory: Object.freeze({ icon: "✗", label: "путь не является каталогом" }),
   not_a_git_repository: Object.freeze({ icon: "✗", label: "не Git repository" }),
   not_a_git_root: Object.freeze({ icon: "✗", label: "путь не является корнем Git" }),

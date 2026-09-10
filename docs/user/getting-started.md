@@ -54,15 +54,12 @@ openspec store list
 Локальная регистрация OpenSpec дополнительно требует, чтобы на одной машине один
 Store ID указывал только на один checkout.
 
-Для нового Store заранее создайте существующий обычный каталог, сделайте его корнем
-чистого Git-репозитория и настройте `origin`:
+Для нового Store создайте отдельный обычный каталог. Git можно настроить позже,
+когда понадобится командная поставка или Change Tracking:
 
 ```bash
 mkdir -p /absolute/path/to/workspace/specs
 cd /absolute/path/to/workspace/specs
-git init -b main
-git remote add origin <store-remote>
-git status --short
 ```
 
 Последняя команда не должна выводить изменённых файлов. После этого выполните `init`.
@@ -96,9 +93,8 @@ Template `default` добавляет Extensions `spec-driven-extended` и `supe
 
 ### Альтернатива: инициализация через MCP
 
-MCP выполняет ту же Core-инициализацию, но всегда в strict mode и только в каталоге,
-из которого запущена текущая Agent-сессия. Поэтому сначала подготовьте чистый Git
-Store с `origin`, как описано выше, установите Agent gateway и перезапустите Agent:
+MCP выполняет ту же Core-инициализацию только в каталоге текущей Agent-сессии.
+Подготовьте отдельный каталог Store, установите Agent gateway и перезапустите Agent:
 
 ```bash
 cd /absolute/path/to/workspace/specs
@@ -114,8 +110,7 @@ openspec-orch agent setup --agent qwen
   `choices.default_template_id` соответствует ожидаемому Template;
 - `doctor` не сообщает о повреждённом частично созданном Project; для нового Store
   часть проверок ожидаемо станет доступна только после init;
-- в `constraints` указаны `fixed_cwd: true`, `strict_only: true`,
-  `target_role: store` и `separate_git_repository: true`;
+- в `constraints` указаны `fixed_cwd: true` и `target_role: store`;
 - текущий тип каталога не входит в `constraints.forbidden_targets`:
   `orchestrator_checkout`, `template_source` или `code_repository`.
 
@@ -154,7 +149,7 @@ openspec-orch agent setup --agent qwen
 Store без Code Repositories. В `repositories` перечисляются только Code Repositories:
 текущий центральный Store уже задан через `store_id` и повторно туда не добавляется.
 Локальный путь к Template, произвольный target,
-`--no-strict` и `--workspace` через `initialize_project` не поддерживаются.
+`--workspace` через `initialize_project` не поддерживаются.
 
 После успешной инициализации в той же Agent-сессии можно вызвать `connect_project`
 с пустым объектом, а затем read-only `get_doctor_report`. `connect_project` может
@@ -201,29 +196,26 @@ openspec-orch connect
 openspec-orch doctor
 ```
 
-В strict mode отсутствующие Code Repositories клонируются в `<workspace>/src/`.
-Существующие checkout не обновляются и должны иметь configured remote, чистое рабочее
-дерево и именованную текущую ветку; её имя не сравнивается с `default_branch`.
+Отсутствующие Code Repositories клонируются в `<workspace>/src/`. Существующие
+каталоги используются без обновления и без проверок Git origin, ветки или чистоты.
 
 `connect` доставляет из Store OpenSpec-команды и skills выбранного Agent в каждый
 Code Repository, а workflow Extensions подключает по ролям из их `targets`.
-Новые команды, skills и OpenSpec pointer нужно принять через setup PR;
-до этого результат — `needs_setup_pr`. Повторный `connect` допускает эти
-непринятые файлы, если их содержимое совпадает с pack в Store. Настройки Agent и
+Создание команд, skills или OpenSpec pointer даёт результат `files_changed`.
+Сохраните их по процессу команды. Повторный `connect` не считает совпадающие файлы
+новыми и не проверяет, закоммичены ли они. Настройки Agent и
 пользовательские commands/skills не копируются. Отличающиеся файлы OpenSpec
 останавливают доставку с `AGENT_PACK_CONFLICT`: сначала согласуйте их обновление
 со Store. `disconnect` отключает native Extensions, сохраняя доставленные файлы.
 
-В strict mode для другой раскладки один раз передайте workspace:
+Для другой раскладки один раз передайте workspace:
 
 ```bash
 openspec-orch connect --workspace /absolute/path/to/workspace
 ```
 
-Relaxed mode (`--no-strict`) не клонирует repositories и не проверяет Git pinning;
-нужные каталоги должны уже существовать. Явный `--workspace` действует только на
-текущий relaxed-вызов и не сохраняется. Для последующего Plugin/Repository flow
-используйте стандартную раскладку либо strict project с сохранённым workspace.
+Workspace сохраняется после успешного подключения. Режимов strict/relaxed больше нет;
+старое поле `strict` в конфигурации игнорируется.
 
 ## 4. При необходимости установите Agent gateway
 

@@ -1,5 +1,9 @@
 # Implementation Plan
 
+> **Execution:** Для реализации этого OpenSpec Change вызови установленный штатный
+> OpenSpec Apply и следуй актуальным инструкциям схемы. Superpowers executor
+> запускается внутри Apply по этим инструкциям. Создание Plan не запускает реализацию.
+
 **Goal:** <!-- one sentence -->
 
 **Accepted inputs:** <!-- proposal/specs/design/tasks references -->

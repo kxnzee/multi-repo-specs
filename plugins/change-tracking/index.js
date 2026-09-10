@@ -3,15 +3,13 @@
 import { definePlugin, REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
 import { registerChangeTrackingCommands } from "./lib/commands.js";
-import { ChangeTrackingApplication } from "./lib/application.js";
+import { changeTrackingAgentContribution } from "./lib/agent.js";
 import { requireOpenSpec11 } from "./lib/openspec-compatibility.js";
 
 /** Repository lifecycle used when Change Tracking is bound to a Store or Code Repository. */
 const plugin = definePlugin({
   id: "change-tracking",
-  agent: {
-    create: (context) => new ChangeTrackingApplication(context),
-  },
+  agent: changeTrackingAgentContribution,
   supports: [REPOSITORY_ROLE.store, REPOSITORY_ROLE.code],
   extensions(context) {
     if (context.repository.role !== REPOSITORY_ROLE.code) return [];

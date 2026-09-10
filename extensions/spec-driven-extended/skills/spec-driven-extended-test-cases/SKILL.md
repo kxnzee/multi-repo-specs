@@ -54,7 +54,7 @@ argument-hint: "[change-id]"
    шаги и expected result продуктового тест-кейса.
 5. Если вызывающий meta-skill передал `repository_evidence` outputs, использовать их
    только как evidence bundle для automation placement, существующих уровней,
-   паттернов тестирования и покрытия Requirement/Scenario на указанных revisions. Не
+   паттернов тестирования и покрытия Requirement/Scenario в исследованном состоянии кода. Не
    менять шаги или expected result под существующий тест и не вызывать scout
    самостоятельно.
    При прямом запуске без bundle ограничить результат Planning-артефактами, а

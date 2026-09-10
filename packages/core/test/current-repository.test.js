@@ -93,9 +93,10 @@ test("StoreProjectService resolves a Code Repository pointer through OpenSpec co
   }]);
 });
 
-test("CurrentRepositoryService identifies and validates the invoking Code Repository", async (t) => {
+test("CurrentRepositoryService identifies the invoking Code directory without Git", async (t) => {
   const fixture = await commandWorkspace(t);
   const storeProject = await new StoreProjectService().load(fixture.storeRoot);
+  await fs.rm(path.join(fixture.repositoryRoot, ".git"), { recursive: true, force: true });
   const checked = [];
   const service = new CurrentRepositoryService({
     gitService: {
@@ -121,5 +122,5 @@ test("CurrentRepositoryService identifies and validates the invoking Code Reposi
     role: "code",
     path: fixture.repositoryRoot,
   });
-  assert.deepEqual(checked, ["frontend"]);
+  assert.deepEqual(checked, []);
 });

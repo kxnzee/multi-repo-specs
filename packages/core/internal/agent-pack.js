@@ -41,14 +41,19 @@ export class AgentPackPlan {
 
   async install(root) {
     await this.check(root);
+    const created = [];
     for (const { relative, contents } of this.files) {
       const target = await safePath(root, relative, { create: true });
-      try { await fs.writeFile(target, contents, { flag: "wx" }); }
+      try {
+        await fs.writeFile(target, contents, { flag: "wx" });
+        created.push(relative);
+      }
       catch (error) {
         if (error.code !== "EEXIST") throw error;
         await this.check(root);
       }
     }
+    return Object.freeze(created);
   }
 }
 

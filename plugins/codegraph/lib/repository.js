@@ -19,12 +19,13 @@ export class CodeGraphRepository {
   /** Keeps the generated index untracked without changing the Repository `.gitignore`. */
   async excludeGeneratedIndex() {
     const root = await fs.realpath(this.#projectPath);
-    const { stdout } = await executeFile(
+    const result = await executeFile(
       "git",
       ["-C", root, "rev-parse", "--git-path", "info/exclude"],
       { encoding: "utf8" },
-    );
-    const reportedPath = stdout.trim();
+    ).catch(() => null); // Git exclusion is optional; indexing does not require Git.
+    if (!result) return;
+    const reportedPath = result.stdout.trim();
     if (!reportedPath) throw new Error("CODEGRAPH_GIT_EXCLUDE_NOT_FOUND");
     const excludePath = path.isAbsolute(reportedPath)
       ? reportedPath

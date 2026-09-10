@@ -6,7 +6,6 @@ import {
   createRepositoryCheckout,
   currentRepositories,
   files,
-  git,
   openspec,
   pluginContexts,
   repositoryStatuses,
@@ -31,7 +30,6 @@ function projectJson(storeProject, invocation) {
     store_id: storeProject.store.id,
     current_repository: invocationJson(invocation),
     project: Object.freeze({
-      strict: project.strict,
       template_id: project.template.id,
       agent_id: project.agent.id,
       extensions: project.extensions,
@@ -47,11 +45,6 @@ function projectJson(storeProject, invocation) {
   });
 }
 
-/** Describes one optional Plugin overlay. */
-function capability(provider, available, reason = null) {
-  return Object.freeze({ provider, available, ...(reason ? { reason } : {}) });
-}
-
 /** Resolves current state for every request so a long-lived Agent never sees stale Project data. */
 export class OrchestratorMcpRuntime {
   #agentContributions;
@@ -59,7 +52,6 @@ export class OrchestratorMcpRuntime {
   #currentRepositories;
   #doctor;
   #files;
-  #git;
   #managers;
   #openSpec;
   #repositoryStatuses;
@@ -73,7 +65,6 @@ export class OrchestratorMcpRuntime {
     currentRepositoryService = currentRepositories,
     doctorService,
     fileService = files,
-    gitService = git,
     managerService,
     openSpecService = openspec,
     repositoryStatusService = repositoryStatuses,
@@ -119,7 +110,6 @@ export class OrchestratorMcpRuntime {
     this.#currentRepositories = currentRepositoryService;
     this.#doctor = doctorService;
     this.#files = fileService;
-    this.#git = gitService;
     this.#managers = managerService;
     this.#openSpec = openSpecService;
     this.#repositoryStatuses = repositoryStatusService;
@@ -137,19 +127,11 @@ export class OrchestratorMcpRuntime {
 
   async getStatus({ change_id: changeId } = {}) {
     const state = await this.#state();
-    const tracking = await this.#optionalAgentApplication(state, "change-tracking");
     const openSpec = this.#openSpec.forRepository(state.storeProject.checkout);
     const result = Object.freeze({
       ...projectJson(state.storeProject, state.invocation),
-      capabilities: Object.freeze({
-        tracking: capability(
-          "change-tracking",
-          tracking !== null,
-          tracking ? null : "Plugin is not initialized or unavailable; inspect Doctor",
-        ),
-      }),
+      capabilities: Object.freeze({}),
       openspec: await openSpec.listChanges(),
-      tracking: tracking && changeId ? await tracking.getStatus(changeId) : null,
     });
     return this.#enhance(state, "getStatus", { change_id: changeId }, result);
   }
@@ -161,11 +143,9 @@ export class OrchestratorMcpRuntime {
       doctor: (await this.#doctor.inspect({ start: this.#start })).toJSON(),
       constraints: Object.freeze({
         fixed_cwd: true,
-        strict_only: true,
         arbitrary_workspace: false,
         disconnect_exposed: false,
         target_role: "store",
-        separate_git_repository: true,
         forbidden_targets: Object.freeze([
           "orchestrator_checkout",
           "template_source",
@@ -198,14 +178,30 @@ export class OrchestratorMcpRuntime {
     return this.#setup.connect();
   }
 
-  async startAttempt({ change_id: changeId, task_id: taskId } = {}) {
-    const tracking = await this.#trackingApplication(await this.#state());
-    return tracking.startAttempt({ changeId, taskId });
+  recordImplementation(input = {}) {
+    return this.#invokeAgentOperation("record_implementation", input);
   }
 
-  async completeAttempt({ change_id: changeId, task_id: taskId } = {}) {
-    const tracking = await this.#trackingApplication(await this.#state());
-    return tracking.completeAttempt({ changeId, taskId });
+  startAttempt(input = {}) {
+    return this.#invokeAgentOperation("start_attempt", input);
+  }
+
+  completeAttempt(input = {}) {
+    return this.#invokeAgentOperation("complete_attempt", input);
+  }
+
+  /** Dispatches a governed operation to its single registered implementation. */
+  async #invokeAgentOperation(name, input) {
+    const state = await this.#state();
+    const entries = this.#agentContributions.filter(({ contribution, pluginId }) => (
+      state.storeProject.project.pluginDeclaration(pluginId) &&
+      Object.hasOwn(contribution.operations ?? {}, name)
+    ));
+    if (entries.length > 1) throw new Error(`MCP_OPERATION_AMBIGUOUS: ${name}`);
+    const [entry] = entries;
+    if (!entry) throw new Error(`CAPABILITY_UNAVAILABLE: no handler for ${name}`);
+    const application = await this.#agentApplication(state, entry);
+    return entry.contribution.operations[name](application, input);
   }
 
   async getChangeContext({ change_id: changeId, artifact, include_assignment: includeAssignment } = {}) {
@@ -213,7 +209,6 @@ export class OrchestratorMcpRuntime {
     const repositoryOpenSpec = this.#openSpec.forRepository(state.storeProject.checkout);
     const resources = await this.#resourceService(state).list({ changeId });
     const changePrefix = `openspec/changes/${changeId}/`;
-    const tracking = await this.#optionalAgentApplication(state, "change-tracking");
     const result = Object.freeze({
       ...projectJson(state.storeProject, state.invocation),
       change_id: changeId,
@@ -224,7 +219,6 @@ export class OrchestratorMcpRuntime {
         : null,
       resources: Object.freeze(resources.filter(({ name }) => name.startsWith(changePrefix))),
       shared_resources: Object.freeze(resources.filter(({ name }) => !name.startsWith("openspec/changes/"))),
-      tracking: tracking ? await tracking.getStatus(changeId) : null,
       ...(includeAssignment ? {
         assignment_scope: await this.#assignmentScope(state),
       } : {}),
@@ -263,17 +257,6 @@ export class OrchestratorMcpRuntime {
   /** Builds reusable assignment data without repeating the Project envelope. */
   async #assignmentScope(state) {
     const assignments = await this.#assignmentScopes(state);
-    const currentCheckout = state.invocation?.role === "store"
-      ? state.storeProject.checkout
-      : state.invocation
-        ? createRepositoryCheckout(
-          state.storeProject.project.requireRepository(state.invocation.id),
-          state.invocation.path,
-        )
-        : null;
-    const revision = currentCheckout
-      ? await this.#git.forRepository(currentCheckout).revision()
-      : null;
     return Object.freeze({
       assigned: null,
       assignments,
@@ -281,7 +264,7 @@ export class OrchestratorMcpRuntime {
         repository_id: state.invocation.id,
         role: state.invocation.role,
         path: state.invocation.path,
-        revision,
+        revision: null,
       }) : null,
     });
   }
@@ -374,15 +357,13 @@ export class OrchestratorMcpRuntime {
       throw new Error(`SPECS_RESOURCE_UNAVAILABLE: ${repositoryId}: ${status?.error ?? status?.state ?? "missing"}`);
     }
     const checkout = createRepositoryCheckout(repository, status.path);
-    const repositoryGit = this.#git.forRepository(checkout);
-    await repositoryGit.assertIdentity();
     const target = await this.#storeProjects.loadSpecs(checkout);
     return new StoreResourceService({
       files: this.#files.forRepository(checkout),
       storeId: target.store.id,
       source: {
         project_id: state.storeProject.store.id, repository_id: repository.id,
-        revision: await repositoryGit.revision(), clean: await repositoryGit.isClean(),
+        revision: null, clean: null,
       },
     });
   }
@@ -397,17 +378,11 @@ export class OrchestratorMcpRuntime {
       repositoryIds,
     });
     return Object.freeze(await Promise.all(statuses.map(async (status) => {
-      const revision = status.connected
-        ? await this.#git.forRepository(createRepositoryCheckout(
-          state.storeProject.project.requireRepository(status.id),
-          status.path,
-        )).revision()
-        : null;
       return Object.freeze({
         repository_id: status.id,
         assigned: null,
         checkout: status.path,
-        revision,
+        revision: null,
         connected: status.connected,
         clean: status.clean ?? null,
         state: status.state,
@@ -445,11 +420,6 @@ export class OrchestratorMcpRuntime {
     );
   }
 
-  async #optionalAgentApplication(state, pluginId) {
-    const entry = this.#agentContributions.find((candidate) => candidate.pluginId === pluginId);
-    return entry ? this.#agentApplication(state, entry) : null;
-  }
-
   #resourceService(state) {
     return new StoreResourceService({
       files: this.#files.forRepository(state.storeProject.checkout),
@@ -484,16 +454,6 @@ export class OrchestratorMcpRuntime {
       if (error?.code === "PLUGIN_RUNTIME_UNAVAILABLE") return null;
       throw error;
     }
-  }
-
-  async #trackingApplication(state) {
-    const tracking = await this.#optionalAgentApplication(state, "change-tracking");
-    if (!tracking) {
-      throw new Error(
-        "CAPABILITY_UNAVAILABLE: change-tracking is not initialized; inspect Doctor",
-      );
-    }
-    return tracking;
   }
 
   async #state() {
