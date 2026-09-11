@@ -44,13 +44,21 @@ artifacts:
       point, required data, actions and state the verifier should observe. Keep the
       human result PENDING until a person performs or explicitly accepts that case.
 
-      Reference the candidate once through its canonical implementation record. Do not
-      repeat commit lists, branch history, timestamps, raw command output, API payloads,
-      tool transcripts or Agent reasoning in verify.md. Agent evidence is one short
-      observation plus a durable link to a test, CI run, PR or report. If Delta Specs
-      are intentionally absent, derive a small set of non-normative Acceptance cases
-      from accepted Proposal success criteria; never substitute Tasks, Design details
-      or Git history for user-facing verification cases.
+      Reference the candidate once through its canonical local implementation record.
+      The canonical implementation record owns candidate revisions, provider URLs and
+      checkout resolution. verify.md must not copy commit hashes, revisions or PR/CI
+      URLs from that record. Evidence must be usable from the checked-out Store and
+      candidate checkouts. Name repository_id and repository-relative paths to the
+      result, test or report. If the canonical record
+      cannot resolve the candidate, report BLOCKED instead of reconstructing it from
+      provider data. Never require GitHub, GitLab or Bitbucket API/MCP access to
+      understand the candidate or reproduce a check.
+      Do not repeat commit lists, branch history, timestamps, raw command output,
+      API payloads, tool transcripts or Agent reasoning in verify.md. If Delta Specs
+      are intentionally absent, derive a
+      small set of non-normative Acceptance cases from accepted Proposal success
+      criteria; never substitute Tasks, Design details or Git history for user-facing
+      verification cases.
 
       PASS requires executed evidence of expected behavior; violations are FAIL,
       missing or stale evidence is PENDING, and N/A requires justified inapplicability.
@@ -60,8 +68,8 @@ artifacts:
       schema's lifecycle and the project's human acceptance rules.
       Verify the initiative against its Delta Specs and proposal. Separate a
       planning review from acceptance of delivered results. For each requirement
-      and scenario record short manual steps, the expected result, a durable evidence
-      link and unresolved gaps. Use PASS, FAIL, PENDING or justified N/A for
+      and scenario record short manual steps, the expected result, local evidence and
+      unresolved gaps. Use PASS, FAIL, PENDING or justified N/A for
       Scenario results; completion of documents or team checkboxes is not proof
       of delivery. Missing evidence means PENDING, never a fabricated success.
       If the work is only planned, say that delivery acceptance remains open.
