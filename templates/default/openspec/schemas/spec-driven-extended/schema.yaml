@@ -344,18 +344,25 @@ artifacts:
     description: Universal human Feature Acceptance after implementation
     template: verify.md
     instruction: |
-      Account for every Scenario in the accepted Specs for this Change using the
-      template's shared scenario verification contract. Reference Scenario IDs or
-      exact source locations without copying their descriptions. Record the verified
-      candidate, requirements revision and verification conditions; link existing
-      records instead of duplicating them. A linked report may replace per-scenario
-      rows only when it identifies every result and the same candidate.
+      Create a concise verification handoff for a human, not an Agent execution log.
+      Start with the template's short Agent summary, then account for every Scenario
+      in the accepted Specs. Turn each Scenario into reproducible manual steps and an
+      observable expected result. For UI, API or database behavior name the entry
+      point, required data, actions and state the verifier should observe. Keep the
+      human result PENDING until a person performs or explicitly accepts that case.
+
+      Reference the candidate once through its canonical implementation record. Do not
+      repeat commit lists, branch history, timestamps, raw command output, API payloads,
+      tool transcripts or Agent reasoning in verify.md. Agent evidence is one short
+      observation plus a durable link to a test, CI run, PR or report. If Delta Specs
+      are intentionally absent, derive a small set of non-normative Acceptance cases
+      from accepted Proposal success criteria; never substitute Tasks, Design details
+      or Git history for user-facing verification cases.
+
       PASS requires executed evidence of expected behavior; violations are FAIL,
       missing or stale evidence is PENDING, and N/A requires justified inapplicability.
       Reconcile the full Scenario list before acceptance; omissions cannot pass.
       Include cross-repository interactions when required by the accepted scenarios.
-      Map requirement-related findings from other verification tools to these results;
-      their summary or warning severity does not override the acceptance criteria.
       Planning review alone cannot establish delivered Scenario PASS. Preserve the
       schema's lifecycle and the project's human acceptance rules.
       Write verify.md in Russian using the template's Russian headings. Preserve
@@ -383,9 +390,9 @@ artifacts:
       themselves. Preserve the original decision and revision references.
 
       Invoke **openspec-verify-change**, then fill the shared Feature Acceptance
-      evidence table with applicable OpenSpec, repository and Scenario results.
+      scenario table and concise automatic-check table.
       Run `openspec validate <change-name> --strict --no-interactive` for this candidate
-      from the Store and record the command and result. Keep human decisions and
+      from the Store and record only its status plus a durable evidence link. Keep human decisions and
       future Archive/UAT/Release actions outside executed evidence. Use
       `N/A` only with a reason and `PENDING` for an applicable check that was not run.
       Present that evidence for an explicit human decision. The Agent must keep the

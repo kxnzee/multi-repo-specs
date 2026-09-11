@@ -298,6 +298,29 @@ test("all Templates and schemas share one scenario verification contract", async
     canonical ??= blocks[0][0];
     assert.equal(blocks[0][0], canonical, `${file}: scenario verification contract drift`);
   }
+  assert.match(canonical, /## Краткий вывод агента/u);
+  assert.match(
+    canonical,
+    /\| Сценарий \| Действия проверяющего \| Ожидаемый результат \| Подтверждение агента \| Решение человека \|/u,
+  );
+  assert.match(canonical, /интерфейс.*API.*баз/isu);
+  assert.match(canonical, /не вставляй.*логи/isu);
+  assert.doesNotMatch(canonical, /Подтверждение выполненной проверки/u);
+});
+
+test("Verify instructions produce a concise human test handoff", async () => {
+  const files = (await listFiles(TEMPLATES_ROOT))
+    .filter((file) => path.posix.basename(file) === "schema.yaml");
+  for (const file of files) {
+    const schema = parse(await fs.readFile(path.join(TEMPLATES_ROOT, file), "utf8"));
+    const instruction = schema.artifacts?.find(({ id }) => id === "verify")?.instruction;
+    if (!instruction) continue;
+    assert.match(instruction, /concise verification handoff for a human/u, file);
+    assert.match(instruction, /reproducible manual steps/u, file);
+    assert.match(instruction, /UI, API or database behavior/u, file);
+    assert.match(instruction, /Do not\s+repeat commit lists, branch history, timestamps, raw command output/u, file);
+    assert.match(instruction, /one short\s+observation plus a durable link/u, file);
+  }
 });
 
 test("schemas with a human Feature Acceptance gate share one contract", async () => {
@@ -310,7 +333,7 @@ test("schemas with a human Feature Acceptance gate share one contract", async ()
     assert.equal(featureAcceptanceContract(source), contract, file);
   }
   assert.match(contract, /\*\*Решение:\*\* `PENDING` \/ `PASS` \/ `FAIL`/u);
-  assert.match(contract, /Агент собирает подтверждения, но решение о приёмке принимает человек/u);
+  assert.match(contract, /Агент готовит выжимку и проверочные кейсы, но решение о приёмке принимает человек/u);
   assert.doesNotMatch(contract, /Responsible participant/u);
   assert.doesNotMatch(contract, /commit|artifact|deployment|timestamp|Verified at/iu);
   assert.doesNotMatch(contract, /PASS_WITH_WARNINGS/u);
