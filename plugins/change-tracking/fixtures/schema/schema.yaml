@@ -1,0 +1,11 @@
+name: tracking-fixture
+version: 1
+description: Custom tracked artifact for tests
+artifacts:
+  - id: work
+    generates: work.md
+    description: Tasks
+    template: work.md
+apply:
+  requires: [work]
+  tracks: work.md

@@ -46,6 +46,9 @@ export async function applyInstructions(process, changeId) {
   if (
     value.changeName !== changeId ||
     typeof value.schemaName !== "string" || value.schemaName.length === 0 ||
+    typeof value.changeDir !== "string" || value.changeDir.length === 0 ||
+    !value.contextFiles || typeof value.contextFiles !== "object" || Array.isArray(value.contextFiles) ||
+    Object.values(value.contextFiles).some((paths) => !Array.isArray(paths) || paths.some((file) => typeof file !== "string")) ||
     !Array.isArray(value.tasks)
   ) {
     throw new Error(`OPENSPEC_STATUS_INVALID: ${command} не содержит Apply task progress`);
@@ -65,6 +68,8 @@ export async function applyInstructions(process, changeId) {
   });
   return Object.freeze({
     changeName: value.changeName,
+    changeDir: value.changeDir,
+    contextFiles: value.contextFiles ?? {},
     schemaName: value.schemaName,
     tasks: Object.freeze(tasks),
   });
