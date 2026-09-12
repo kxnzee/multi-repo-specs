@@ -125,6 +125,30 @@ export class OrchestratorMcpRuntime {
     )));
   }
 
+  /** Каталог показывает только инструменты подключённых плагинов текущего проекта. */
+  async listAgentTools() {
+    let state;
+    try { state = await this.#state(); } catch { return []; }
+    const tools = [];
+    for (const entry of this.#agentContributions) {
+      if (!state.storeProject.project.pluginDeclaration(entry.pluginId)) continue;
+      const main = await this.#agentApplication(state, entry);
+      for (const tool of entry.contribution.tools) {
+        let available = main !== null;
+        if (!available && (tool.repositoryParameter || tool.repositoryScoped)) {
+          for (const repository of state.storeProject.project.repositories) {
+            if (repository.hasPlugin(entry.pluginId) && await this.#agentApplication(state, entry, repository.id)) {
+              available = true;
+              break;
+            }
+          }
+        }
+        if (available) tools.push(tool.definition);
+      }
+    }
+    return tools;
+  }
+
   async getStatus({ change_id: changeId } = {}) {
     const state = await this.#state();
     const openSpec = this.#openSpec.forRepository(state.storeProject.checkout);
@@ -176,32 +200,6 @@ export class OrchestratorMcpRuntime {
 
   connectProject() {
     return this.#setup.connect();
-  }
-
-  recordImplementation(input = {}) {
-    return this.#invokeAgentOperation("record_implementation", input);
-  }
-
-  startAttempt(input = {}) {
-    return this.#invokeAgentOperation("start_attempt", input);
-  }
-
-  completeAttempt(input = {}) {
-    return this.#invokeAgentOperation("complete_attempt", input);
-  }
-
-  /** Dispatches a governed operation to its single registered implementation. */
-  async #invokeAgentOperation(name, input) {
-    const state = await this.#state();
-    const entries = this.#agentContributions.filter(({ contribution, pluginId }) => (
-      state.storeProject.project.pluginDeclaration(pluginId) &&
-      Object.hasOwn(contribution.operations ?? {}, name)
-    ));
-    if (entries.length > 1) throw new Error(`MCP_OPERATION_AMBIGUOUS: ${name}`);
-    const [entry] = entries;
-    if (!entry) throw new Error(`CAPABILITY_UNAVAILABLE: no handler for ${name}`);
-    const application = await this.#agentApplication(state, entry);
-    return entry.contribution.operations[name](application, input);
   }
 
   async getChangeContext({ change_id: changeId, artifact, include_assignment: includeAssignment } = {}) {
@@ -285,6 +283,7 @@ export class OrchestratorMcpRuntime {
     const application = await this.#agentApplication(
       state, entry, repositoryParameter ? args[repositoryParameter] : undefined,
     );
+    if (!application) throw new Error(`CAPABILITY_UNAVAILABLE: ${entry.pluginId} не подключён или недоступен`);
     return tool.execute(application, args);
   }
 

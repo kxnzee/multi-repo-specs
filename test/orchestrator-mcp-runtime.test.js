@@ -38,15 +38,8 @@ test("public MCP executable completes stdio handshake and calls Core Doctor", as
   await client.connect(transport);
   const tools = await client.listTools();
   assert.equal(tools.tools.some(({ name }) => name === "get_doctor_report"), true);
-  const graphTool = tools.tools.find(({ name }) => name === "get_spec_graph");
-  assert.equal(graphTool.inputSchema.type, "object");
-  assert.deepEqual(graphTool.inputSchema.required, []);
-  for (const keyword of ["oneOf", "anyOf", "allOf"]) {
-    assert.equal(Object.hasOwn(graphTool.inputSchema, keyword), false);
-  }
-  assert.equal(tools.tools.some(({ name }) => name === "record_result_receipt"), false);
-  assert.equal(tools.tools.some(({ name }) => name === "start_attempt"), true);
-  assert.equal(tools.tools.some(({ name }) => name === "complete_attempt"), true);
+  assert.equal(tools.tools.some(({ name }) => name.startsWith("tracking_")), false);
+  assert.equal(tools.tools.some(({ name }) => name === "get_spec_graph"), false);
   const response = await client.callTool({ name: "get_doctor_report", arguments: {} });
   const report = JSON.parse(response.content[0].text);
   assert.equal(report.version, 1);
@@ -107,11 +100,6 @@ export default definePlugin({
       repository: context.repository,
       invocation: context.invocation,
     }),
-    operations: {
-      record_implementation: (application, args) => ({ source: "external", ...args }),
-      start_attempt: (application, args) => ({ source: "external", operation: "start", ...args }),
-      complete_attempt: (application, args) => ({ source: "external", operation: "complete", ...args }),
-    },
     tools: [{
       name: "external_probe",
       description: "Read external Plugin state.",
@@ -148,23 +136,6 @@ export default definePlugin({
   assert.equal(result.source, "external");
   assert.deepEqual(result.repository, { id: "specs", role: "store" });
   assert.equal(result.invocation.id, "specs");
-  for (const operation of ["start", "complete"]) {
-    const response = await client.callTool({
-      name: `${operation}_attempt`, arguments: { change_id: "pay", task_id: "1" },
-    });
-    assert.notEqual(response.isError, true, JSON.stringify(response.content));
-    assert.deepEqual(JSON.parse(response.content[0].text), {
-      source: "external", operation, change_id: "pay", task_id: "1",
-    });
-  }
-
-  const handoff = { change_id: "pay", task_id: "1", task_description: "Implement",
-    pull_request: "https://example.test/pr/42", commits: [], summary: "Draft",
-    remaining: "Implementation", expected_version: 0 };
-  const recorded = await client.callTool({ name: "record_implementation", arguments: handoff });
-  assert.notEqual(recorded.isError, true, JSON.stringify(recorded.content));
-  assert.deepEqual(JSON.parse(recorded.content[0].text), { source: "external", ...handoff });
-
   const status = await client.callTool({ name: "get_status", arguments: {} });
   assert.notEqual(status.isError, true, JSON.stringify(status.content));
   assert.equal(JSON.parse(status.content[0].text).store_id, "specs");
@@ -390,6 +361,7 @@ test("runtime does not advertise a bound Graph Plugin whose runtime is unavailab
   });
 
   const status = await runtime.getStatus();
+  assert.deepEqual(await runtime.listAgentTools(), []);
   assert.deepEqual(status.capabilities.graph, {
     provider: "openspec-graph",
     available: false,
@@ -397,7 +369,7 @@ test("runtime does not advertise a bound Graph Plugin whose runtime is unavailab
   });
   await assert.rejects(
     runtime.invokeAgentTool("get_spec_graph", {}),
-    /not connected or unavailable/u,
+    /CAPABILITY_UNAVAILABLE/u,
   );
 
   resolutionError = new TypeError("broken Plugin factory");
@@ -471,28 +443,4 @@ test("public MCP refreshes artifact content and exposes only the declared shared
   assert.equal(removed.shared_resources.some(({ name }) => name === shared[0]), false);
   await fs.writeFile(path.join(root, shared[0]), "# Restored\n");
   assert.notEqual((await readContext(removed.context_revision)).context_revision, removed.context_revision);
-});
-
-test("abstract operations reject missing or ambiguous providers before invoking handlers", async () => {
-  const contribution = {
-    create() { throw new Error("must not create an ambiguous provider"); },
-    enhance: ({ result }) => result,
-    tools: [],
-    operations: { start_attempt() { throw new Error("must not invoke"); } },
-  };
-  const options = {
-    start: repositoryRoot,
-    doctorService: { inspect() {} },
-    managerService: { forStore: () => ({}) },
-    setupService: { connect() {}, initialize() {}, inspect() {} },
-    currentRepositoryService: { resolve: async () => null },
-    storeProjectService: { resolve: async () => ({
-      checkout: {}, project: { pluginDeclaration: (id) => ({ id }) },
-    }) },
-  };
-  await assert.rejects(new OrchestratorMcpRuntime(options).startAttempt({}), /CAPABILITY_UNAVAILABLE/u);
-  const runtime = new OrchestratorMcpRuntime({ ...options, agentContributions: [
-    { pluginId: "first", contribution }, { pluginId: "second", contribution },
-  ] });
-  await assert.rejects(runtime.startAttempt({}), /MCP_OPERATION_AMBIGUOUS/u);
 });

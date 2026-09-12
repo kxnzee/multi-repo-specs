@@ -143,12 +143,10 @@ test("candidate distribution exposes every Plugin through plugin exec", async (t
     storeRoot,
     "plugin", "connect", "change-tracking", "--repo", "specs", "--repo", "frontend",
   );
-  const trackingHelp = await runCli(
-    storeRoot,
-    "plugin", "exec", "--repo", "specs", "change-tracking", "attempt", "--help",
-  );
-  assert.match(trackingHelp.stdout, /start <change-id> <task-id>/);
-  assert.match(trackingHelp.stdout, /complete <change-id> <task-id>/);
+  for (const command of ["start", "checkpoint", "complete", "cancel", "status"]) {
+    const help = await runCli(storeRoot, "plugin", "exec", "--repo", "specs", "change-tracking", command, "--help");
+    assert.match(help.stdout, new RegExp(`Usage: plugin-exec ${command}\\b`));
+  }
   await runCli(
     storeRoot,
     "plugin", "connect", "codegraph", "--repo", "specs", "--repo", "frontend",
