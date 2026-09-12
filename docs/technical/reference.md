@@ -88,17 +88,15 @@ openspec-orch plugin exec openspec-graph view [--port <port>]
 Change Tracking:
 
 ```text
-openspec-orch plugin exec --repo <store-id> change-tracking status <change-id>
-openspec-orch plugin exec --repo <store-id> change-tracking record <change-id> <task-id> --description <text> --pr <url> --summary <text> --remaining <text> --version <number>
-# Совместимость с прежним процессом:
-openspec-orch plugin exec --repo <store-id> change-tracking attempt start <change-id> <task-id>
-openspec-orch plugin exec --repo <store-id> change-tracking attempt complete <change-id> <task-id>
-openspec-orch plugin exec --repo <store-id> change-tracking attempt cancel <change-id> <task-id> "Причина отмены"
+openspec-orch plugin exec --repo <store-id> change-tracking status <change-id> [--json]
+openspec-orch plugin exec --repo <store-id> change-tracking start <change-id> <task-id> [--restart]
+openspec-orch plugin exec --repo <store-id> change-tracking checkpoint <change-id> <task-id> [--note <text>]
+openspec-orch plugin exec --repo <store-id> change-tracking complete <change-id> <task-id>
+openspec-orch plugin exec --repo <store-id> change-tracking cancel <change-id> <task-id> "Причина отмены"
 ```
 
-CLI fallback запускается из Code Repository и требует binding `change-tracking` как к
-Store, так и к этому Code Repository. Governed MCP attempt tools используют Store
-setup-context и не требуют передавать Store path в Agent-сессию.
+Запись запускается из Code Repository через binding Store. Binding Code Repository
+доставляет Agent Extension. Ни CLI, ни MCP не принимают ручные SHA или PR URL.
 
 CodeGraph использует общий `plugin connect/status/sync/exec/disconnect`.
 
@@ -132,8 +130,8 @@ Executable `openspec-orch-mcp` обслуживает только stdio.
 
 Read tools:
 
-- `get_status` — при переданном `change_id` Change Tracking добавляет актуальные задачи,
-  PR-связи реализации, предупреждения и локальные/завершённые attempts;
+- `get_status` — при переданном `change_id` подключённый Change Tracking добавляет
+  краткий список задач, состояния записей и соответствие checkout без revisions;
 - `get_setup_context`;
 - `get_change_context` — принимает опциональный `include_assignment: true`, чтобы
   вернуть `assignment_scope` в том же ответе без повторного Project envelope и второй
@@ -164,8 +162,8 @@ MCP закреплён за working directory при запуске. `get_status
 разрешают основной проект из этого каталога. Запуск из Code Repository использует
 его основной Store. `get_setup_context` описывает варианты настройки;
 `initialize_project` создаёт Store именно в закреплённом каталоге.
-`start_attempt` и `complete_attempt` работают с текущим Code Repository и задачей
-из основного Store. Чтение другого Store через Graph не переключает эти методы.
+Tracking write tools работают с текущим Code Repository и задачей из основного
+Store. Чтение другого Store через Graph не переключает эти методы.
 
 Три Graph-метода принадлежат Plugin `openspec-graph`. Их необязательный
 `store_repository_id` выбирает checkout с ролью `store`/`specs` и подключённым
@@ -249,14 +247,16 @@ Controlled setup tools:
 возвращённый `cwd`: tool не принимает другой target. Пользовательский сценарий
 описан в [руководстве по началу работы](../user/getting-started.md#альтернатива-инициализация-через-mcp).
 
-Task evidence tools:
+Инструменты Plugin Change Tracking (отсутствуют без подключения):
 
-- `record_implementation` — сохраняет связь задачи с PR/планом, явными SHA и
-  оставшейся работой через обработчик Plugin; checkbox и Git не изменяет;
-- `start_attempt` — локально фиксирует task и base revision текущего Code Repository;
-- `complete_attempt` — требует выполненный task из OpenSpec Apply и записывает
-  итоговую revision в Change-local implementation map; повторная реализация того же
-  task добавляется как новая attempt.
+- `tracking_start` — начать/продолжить задачу; опциональный `restart`;
+- `tracking_checkpoint` — сохранить committed результат; опциональная `note`;
+- `tracking_complete` — сохранить итог после галочки OpenSpec;
+- `tracking_cancel` — отменить локальную работу; обязательный `reason`;
+- `tracking_status` — подробные данные и снимок текущего кандидата.
+
+Write tools принимают `change_id` и точный `task_id`; status — только `change_id`.
+Git revisions и маркеры конкурентной записи Plugin получает автоматически.
 
 Resources ограничены Project config, OpenSpec config, `STORE.md`, точными файлами
 `openspec/process/quality-gates.md` и `openspec/process/release-process.md`,

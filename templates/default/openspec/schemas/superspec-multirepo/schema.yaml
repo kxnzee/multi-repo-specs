@@ -145,6 +145,10 @@ artifacts:
       candidate, requirements revision and verification conditions; link existing
       records instead of duplicating them. A linked report may replace per-scenario
       rows only when it identifies every result and the same candidate.
+      Record the selected candidate in local evidence before running checks.
+      Reference that fixed record, not a mutable implementation registry.
+      Later implementation updates cannot change the meaning of an earlier PASS.
+      Do not require PR links or Git hosting access.
       PASS requires executed evidence of expected behavior; violations are FAIL,
       missing or stale evidence is PENDING, and N/A requires justified inapplicability.
       Reconcile the full Scenario list before acceptance; omissions cannot pass.

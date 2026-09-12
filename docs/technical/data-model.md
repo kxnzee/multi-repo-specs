@@ -30,58 +30,63 @@ Extensions и Plugin declarations/bindings. Schema Change хранится са�
 
 ### Карта реализации
 
-`implementation-map.yaml` использует единый формат `contract_version: 1` с полями
-`change_id`, `attempts` и `implementations` с первой записи. Поле `implementations`
-содержит связи по ключу
-`repository_id + task.id + pull_request`: канонические `task.id/description`,
-`schema_name`, `pull_request`, `plan_url`, `commits`, `summary`, `remaining`, `version`.
-Это текущие снимки для передачи работы, а не журнал локальных событий. Детальный
-план находится в PR. Абсолютные пути checkout и копия checkbox не сохраняются.
+Один файл `openspec/changes/<change-id>/implementation-map.yaml`, одна запись на
+`repository_id + task_id`:
 
-`expected_version` предотвращает потерю конкурентного обновления той же связи.
-Повтор идентичного запроса не повышает версию. CLI/MCP проверяют точное описание
-задачи и наличие явных SHA через публичный Git facade. Состояние галочки вычисляется
-при чтении; изменённое соответствие задачи возвращается как `changed_or_missing`.
-Чтение карты не изменяет файл. `record_implementation` не пишет Plugin storage.
+```yaml
+contract_version: 1
+change_id: payment-retry
+implementations:
+  - repository_id: backend
+    task_id: "4"
+    planning_revision: <store-commit>
+    planning_fingerprint: <automatic-sha256>
+    base_revision: <code-commit-before>
+    implementation_revision: <code-commit-after>
+    state: partial
+    note: "Осталось проверить UI"
+```
 
-PR URL нормализуется через URL parser без fragment; query сохраняется. `plan_url`
-сохраняет адрес технического плана с fragment. Дубли после нормализации считаются
-конфликтом данных и требуют явного разрешения, а не молчаливого удаления записей.
-`previous_task_id` вместе с `expected_version` явно переносит одну связь того же PR
-к актуальной задаче; это аргумент операции, а не новое поле файла.
+Revisions и fingerprint получает Plugin, не вызывающий агент. `state` равен
+`partial` или `complete`; `note` необязательна и используется только для checkpoint.
+Галочка не копируется в карту: она читается из OpenSpec. Описания, схема, PR,
+списки коммитов, timestamps и версии отдельных записей в карте отсутствуют.
 
-Обзор возвращает все канонические `tasks` с краткими ссылками на реализации и
-предупреждениями. `implementations` сохраняет также устаревшие связи для разрешения.
-Повреждение локального attempt storage возвращается в `legacy_error`, не блокируя корректную
-карту; `active/cancelled: null` обозначает неизвестное состояние.
+`planning_fingerprint` защищает позиционный task ID от повторного использования
+после изменения плана: хешируются схема и полные входы Apply, включая
+`apply.tracks`. Галочки и окончания строк нормализуются. Изменение любого
+входа консервативно делает прежние записи устаревшими; Verify не входит в отпечаток,
+если активная схема не объявляет его входом Apply.
 
-### Локальная implementation attempt
+Обновление выполняется под файловой блокировкой с атомарной заменой. Plugin
+сравнивает запись с автоматически запомненным fingerprint; устаревший автор не
+может перезаписать новый результат той же задачи. Разные записи объединяются,
+идентичный результат не создаёт дубль. Чтение не меняет карту. Повреждение карты
+блокирует операции; повреждение локального состояния не скрывает исправную карту.
 
-`attempt start` хранит незавершённую попытку в локальном Plugin storage: Change,
-Repository, `checkout_path`, OpenSpec task, schema, planning revision и base revision. В Git эта
-запись не попадает. Для одного Change, Repository и task одновременно существует не
-более одной активной attempt.
+### Локальная запись работы
 
-`attempt cancel` снимает только выбранную активную попытку и сохраняет
-`{ attempt, reason, cancelled_at }` в `cancelled_attempts` локального Plugin storage.
-Он не создаёт implementation evidence. Формат локального состояния v2 содержит
-`contract_version`, `active_attempts`, `cancelled_attempts`. Другие форматы отклоняются
-без преобразования. Повторный start и первое complete требуют исходный `checkout_path`;
-для смены копии отмените attempt с причиной. В переносимую карту путь не записывается.
-Отмена и завершение сериализованы той же локальной блокировкой storage.
+Plugin storage содержит `{ contract_version: 1, sessions: [...] }`. Сессия хранит
+Change/Repository/task, `checkout_path`, planning revision/fingerprint, base revision,
+`observed`, `last_saved` и `active`. Последние поля — внутренние маркеры конкурентной
+записи и повторного вызова, их не передают через CLI/MCP и не публикуют в Store.
 
-После стандартной отметки task как выполненного `attempt complete` добавляет в
-Change-local `implementation-map.yaml` base и implementation revisions. Task ID и
-description берутся из канонического OpenSpec Apply JSON, поэтому Plugin не зависит
-от имени planning artifact, заголовков Markdown или конкретной schema. Если task
-возвращён в работу, следующая попытка добавляется в файл и не перезаписывает предыдущую.
+`start` создаёт сессию или продолжает опубликованный checkpoint на его точном
+commit. Для передачи не нужен исходный checkout или его storage. Checkpoint
+оставляет сессию активной; complete сохраняет локальный маркер для безопасного
+повтора. Cancel удаляет запись только вызывающего checkout, не трогая карту.
+Отмена и сохранение сериализованы одной локальной блокировкой.
 
-Каждая завершённая запись содержит `repository_id`, канонические `task.id` и
-`task.description`, `schema_name`, `planning_revision`, `base_revision`,
-`implementation_revision`, `started_at` и `completed_at`. Повторная запись того же
-completion после сбоя локальной очистки не создаёт дубль. После успешной очистки
-повторный CLI-вызов без новой активной attempt возвращает `ATTEMPT_NOT_FOUND`; новая
-base или implementation revision считается новой попыткой.
+Карта хранит последнее соответствие, а не журнал попыток. Перезапись истории
+или изменение плана требуют явного `start --restart` после проверки scope.
+Старые форматы не поддерживаются: это первая версия контракта.
+
+### Проверяемый кандидат
+
+`status --json` возвращает `candidate`: снимок текущих checkout известных Tracking
+репозиториев. Это не Verify receipt и не доказательство полноты Repository Impact.
+Агент сохраняет ответ отдельным evidence-артефактом до проверки и ссылается на него
+из Verify; новые записи карты не меняют ранее проверенный снимок.
 
 ## Plugin storage
 
