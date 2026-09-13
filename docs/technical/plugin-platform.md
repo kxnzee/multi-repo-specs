@@ -289,6 +289,14 @@ commits не превращаются в отрицательный резуль
 `hasCommit(revision)` возвращает `false` только при отсутствии commit; сбои запуска
 Git и повреждённый checkout остаются ошибками.
 
+`changesSince(revision)` сравнивает полный commit hash с текущим HEAD и возвращает
+`from_revision`, `to_revision`, `commit_count`, `committed_files`, `worktree_files`.
+Первый список — итоговая разница деревьев, второй — staged, unstaged и untracked
+пути; содержимое файлов и commit messages не раскрываются. Требуется продолжение
+истории от исходного commit и отсутствие незавершённых Git-операций. Отсутствующая
+revision, расходящаяся история и изменение HEAD во время чтения дают ошибку.
+Метод использует выбранный facade checkout, ничего не пишет и не знает о задачах Plugin.
+
 Native Agent adapters проверяют актуальность файлов при `status` и после `connect`.
 Параметр `refresh: true` допустим только для `connect`; user-level CLI передаёт его
 из `agent setup --refresh`. Обновление использует native lifecycle и не удаляет

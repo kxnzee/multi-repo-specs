@@ -2,6 +2,9 @@
 import { ImplementationMap } from "./map.js";
 import { planning } from "./planning.js";
 import { fingerprint, identifier, localState, nonempty, recordKey, revision } from "./records.js";
+import { readTrackingStatus } from "./status.js";
+import { operationMessage } from "./presentation.js";
+import { readTrackingOverview } from "./overview.js";
 
 /** Вызов записи принадлежит конкретному Code checkout, включая worktree. */
 function invocation(context, changeId, taskId) {
@@ -70,7 +73,8 @@ export class ChangeTrackingApplication {
       changed = true;
       return { ...state, sessions: [...state.sessions.filter((item) => !selector(item)), session] };
     });
-    return { changed, state: "active", repository_id: repo.id, task_id: taskId, base_revision: session.base_revision };
+    return { changed, state: "active", repository_id: repo.id, task_id: taskId, base_revision: session.base_revision,
+      ...operationMessage("start", changed, task, repo.id) };
   }
 
   checkpoint(input) { return this.save(input, "partial"); }
@@ -80,6 +84,7 @@ export class ChangeTrackingApplication {
     const repo = invocation(this.context, changeId, taskId);
     if (note !== undefined && !nonempty(note)) throw new Error("TRACKING_INPUT_INVALID: note должна быть непустой строкой");
     let result;
+    let savedTask;
     await this.context.storage.update(async (value) => {
       const state = localState(value);
       const session = state.sessions.find((item) => item.change_id === changeId && item.repository_id === repo.id &&
@@ -88,6 +93,7 @@ export class ChangeTrackingApplication {
       const current = (await this.maps.read(changeId)).implementations.find((item) => recordKey(item) === recordKey(session));
       const plan = await planning(this.context, changeId);
       const task = taskFor(plan, taskId);
+      savedTask = task;
       if (plan.fingerprint !== session.planning_fingerprint) throw new Error("TRACKING_PLAN_CHANGED: задание изменилось после start; проверьте изменения перед start --restart");
       if (targetState === "complete" && !task.done) throw new Error("TRACKING_TASK_OPEN: complete требует выполненную галочку OpenSpec");
       const git = await this.context.repositories.git(repo.id);
@@ -112,7 +118,7 @@ export class ChangeTrackingApplication {
         active: targetState === "partial" };
       return { ...state, sessions: state.sessions.map((item) => item === session ? updated : item) };
     });
-    return result;
+    return { ...result, ...operationMessage(targetState === "partial" ? "checkpoint" : "complete", result.changed, savedTask, repo.id, note) };
   }
 
   async cancel({ change_id: changeId, task_id: taskId, reason }) {
@@ -128,63 +134,17 @@ export class ChangeTrackingApplication {
       });
       return { ...state, sessions };
     });
-    return { changed, repository_id: repo.id, task_id: taskId, reason: reason.trim() };
+    return { changed, repository_id: repo.id, task_id: taskId, reason: reason.trim(),
+      ...operationMessage("cancel", changed, { id: taskId }, repo.id, reason.trim()) };
   }
 
-  async getStatus(changeId) {
-    const document = await this.maps.read(changeId);
-    const warnings = [];
-    let plan;
-    try { plan = await planning(this.context, changeId); }
-    catch (error) { warnings.push({ code: "PLAN_UNAVAILABLE", message: error.message }); }
-    let sessions = [];
-    try { sessions = localState(await this.context.storage.read()).sessions.filter((item) => item.change_id === changeId && item.active); }
-    catch (error) { warnings.push({ code: "LOCAL_STATE_UNAVAILABLE", message: error.message }); }
-    const repositories = new Map();
-    for (const id of new Set([...document.implementations, ...sessions].map((item) => item.repository_id))) {
-      try {
-        const git = await this.context.repositories.git(id);
-        if (!git) throw new Error("Checkout отсутствует");
-        await git.assertNoOperation();
-        repositories.set(id, { git, head: await git.revision(), dirty: (await git.statusPaths([])).length > 0 });
-      } catch (error) { repositories.set(id, { error: error.message }); }
+  async getStatus(changeId, { all = false, task_id: taskId, diff = false } = {}) {
+    if (typeof all !== "boolean" || typeof diff !== "boolean" ||
+      (all ? changeId !== undefined || taskId !== undefined || diff : !identifier(changeId)) ||
+      (diff && !nonempty(taskId))) {
+      throw new Error("TRACKING_INPUT_INVALID: укажите Change или --all; --diff требует Change и точный --task");
     }
-    const tasks = [];
-    for (const entry of document.implementations) {
-      const task = plan?.tasks.find((item) => item.id === entry.task_id);
-      const fresh = plan?.fingerprint === entry.planning_fingerprint && task !== undefined;
-      const repository = repositories.get(entry.repository_id);
-      let checkout = "unavailable";
-      if (!repository.error) {
-        try {
-          checkout = !await repository.git.hasCommit(entry.implementation_revision) ? "missing_commit" :
-            repository.dirty ? "dirty" : repository.head === entry.implementation_revision ? "matches" :
-            await repository.git.isAncestor(entry.implementation_revision, repository.head) ? "ahead" : "diverged";
-        } catch { checkout = "unavailable"; }
-      }
-      tasks.push({ task_id: entry.task_id, repository_id: entry.repository_id,
-        description: fresh ? task.description : null, state: fresh ? entry.state : "stale",
-        task_done: fresh ? task.done : null, checkout, implementation_revision: entry.implementation_revision,
-        ...(entry.note ? { note: entry.note } : {}) });
-    }
-    for (const session of sessions) {
-      if (this.context.invocation?.role === "code" && session.checkout_path !== this.context.invocation.path) continue;
-      const task = plan?.tasks.find((item) => item.id === session.task_id);
-      const fresh = plan?.fingerprint === session.planning_fingerprint && task !== undefined;
-      const existing = tasks.find((item) => recordKey(item) === recordKey(session));
-      if (existing) existing.local_work = "active";
-      else tasks.push({ task_id: session.task_id, repository_id: session.repository_id,
-        description: fresh ? task.description : null, state: fresh ? "active" : "stale", task_done: fresh ? task.done : null });
-    }
-    for (const task of plan?.tasks ?? []) {
-      if (!tasks.some((item) => item.task_id === task.id && item.state !== "stale")) {
-        tasks.push({ task_id: task.id, repository_id: null, description: task.description, state: "untracked", task_done: task.done });
-      }
-    }
-    // Это снимок текущих checkout, а не сохранённый результат Verify. Получатель сохраняет его с evidence.
-    const candidate = [...repositories].sort(([a], [b]) => a.localeCompare(b)).map(([repository_id, value]) => ({ repository_id,
-      revision: value.head ?? null, clean: value.error ? null : !value.dirty }));
-    const snapshot = { change_id: changeId, planning_fingerprint: plan?.fingerprint ?? null, repositories: candidate };
-    return { change_id: changeId, tasks, warnings, candidate: { id: fingerprint(snapshot), ...snapshot } };
+    if (all) return readTrackingOverview(this.context, (id) => this.getStatus(id));
+    return readTrackingStatus(this.context, this.maps, changeId, { task_id: taskId, diff });
   }
 }

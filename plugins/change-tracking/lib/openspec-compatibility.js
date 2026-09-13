@@ -1,4 +1,5 @@
 /** @fileoverview Canonical OpenSpec Apply task integration. */
+import { identifier } from "./records.js";
 
 const VERSION = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/u;
 
@@ -36,6 +37,17 @@ export async function requireOpenSpec11(process) {
     );
   }
   return version;
+}
+
+/** Список активных Changes принадлежит OpenSpec, а не локальной карте Tracking. */
+export async function activeChanges(process) {
+  await requireOpenSpec11(process);
+  const value = parseJson(await process.run("openspec", ["list", "--json"]), "openspec list --json");
+  if (!Array.isArray(value.changes) || value.changes.some((item) => !item || !identifier(item.name)) ||
+    new Set(value.changes.map(({ name }) => name)).size !== value.changes.length) {
+    throw new Error("OPENSPEC_STATUS_INVALID: list не содержит однозначный список Changes");
+  }
+  return value.changes.map(({ name }) => name).sort();
 }
 
 /** Reads schema-independent task progress from the canonical OpenSpec Apply API. */

@@ -63,7 +63,10 @@ test("candidate MCP hides disconnected tools, records automatic revisions and re
   const base = (await execa("git", ["rev-parse", "HEAD"], { cwd: codeRoot })).stdout;
   const started = await client.callTool({ name: "tracking_start", arguments: args });
   assert.notEqual(started.isError, true, JSON.stringify(started));
-  assert.equal(JSON.parse(started.content[0].text).base_revision, base);
+  const startedResult = JSON.parse(started.content[0].text);
+  assert.equal(startedResult.changed, true);
+  assert.match(startedResult.message, /Implement field/);
+  assert.equal(started.content[0].text.includes(base), false);
   await fs.writeFile(path.join(codeRoot, "field.js"), "export const field = true;\n");
   await commitAll(codeRoot, "Implement field");
   const revision = (await execa("git", ["rev-parse", "HEAD"], { cwd: codeRoot })).stdout;
@@ -73,12 +76,35 @@ test("candidate MCP hides disconnected tools, records automatic revisions and re
   await fs.writeFile(tasksPath, "- [x] Implement field\n- [ ] Review field\n");
   const complete = await client.callTool({ name: "tracking_complete", arguments: args });
   assert.notEqual(complete.isError, true, JSON.stringify(complete));
-  assert.equal(JSON.parse(complete.content[0].text).implementation.implementation_revision, revision);
+  assert.match(JSON.parse(complete.content[0].text).message, /Implement field/);
+  assert.equal(complete.content[0].text.includes(revision), false);
   assert.equal(JSON.parse((await client.callTool({ name: "tracking_complete", arguments: args })).content[0].text).changed, false);
   const document = parse(await fs.readFile(mapPath, "utf8"));
   assert.equal(document.implementations.length, 1);
   assert.equal(document.implementations[0].state, "complete");
+  assert.equal(document.implementations[0].base_revision, base);
+  assert.equal(document.implementations[0].implementation_revision, revision);
   assert.equal(JSON.stringify(document).includes("https://"), false);
+  const short = JSON.parse((await client.callTool({ name: "tracking_status", arguments: args })).content[0].text);
+  assert.equal(short.tasks.length, 1);
+  assert.equal(short.tasks[0].description, "Implement field");
+  assert.equal(short.tasks[0].needs_attention, false);
+  assert.equal(short.candidate, undefined);
+  assert.equal(short.tasks[0].implementation_revision, undefined);
+  assert.equal(short.context.checkout_path, await fs.realpath(codeRoot));
+  assert.deepEqual(short.summary, { total_tasks: 2, completed_tasks: 1, recorded_tasks: 1 });
+  const details = JSON.parse((await client.callTool({ name: "tracking_status", arguments: { ...args, details: true } })).content[0].text);
+  assert.equal(details.tasks[0].implementation_revision, revision);
+  assert.equal(details.candidate.repositories[0].revision, revision);
+  await fs.writeFile(path.join(codeRoot, "review-note.txt"), "Uncommitted review notes\n");
+  const compared = JSON.parse((await client.callTool({ name: "tracking_status", arguments: { ...args, diff: true } })).content[0].text);
+  assert.equal(compared.tasks[0].diff.available, true);
+  assert.equal(compared.tasks[0].diff.commit_count, 0);
+  assert.deepEqual(compared.tasks[0].diff.worktree_files, ["review-note.txt"]);
+  assert.equal(compared.tasks[0].diff.from_revision, undefined);
+  for (const invalid of [{}, { all: true, change_id: "tracking" }, { change_id: "tracking", diff: true }]) {
+    assert.equal((await client.callTool({ name: "tracking_status", arguments: invalid })).isError, true);
+  }
   const context = await client.callTool({ name: "get_change_context", arguments: { change_id: "tracking", artifact: "apply" } });
   const tracking = JSON.parse(context.content[0].text).tracking;
   assert.equal(tracking.tasks[0].implementation_revision, undefined, "context keeps technical revisions behind tracking_status");
@@ -95,6 +121,9 @@ test("custom Apply artifact protects multiline requirements and permits checkbox
   await assert.rejects(runCli(codeRoot, ...command, "start", "tracking", "1"), /TRACKING_PLAN_UNCOMMITTED/);
   await commitAll(storeRoot, "Accept full task text");
   await runCli(codeRoot, ...command, "start", "tracking", "1");
+  const focused = JSON.parse((await runCli(codeRoot, ...command, "status", "tracking", "--task", "1", "--json")).stdout);
+  assert.equal(focused.context.task_file, "openspec/changes/tracking/work.md");
+  assert.equal(focused.context.inputs.includes("openspec/changes/tracking/work.md"), true);
   await fs.appendFile(tasksPath, "  Changed multiline condition\n");
   await assert.rejects(runCli(codeRoot, ...command, "checkpoint", "tracking", "1"), /TRACKING_PLAN_CHANGED/);
   await assert.rejects(fs.access(mapPath), { code: "ENOENT" });
@@ -103,6 +132,24 @@ test("custom Apply artifact protects multiline requirements and permits checkbox
   await fs.writeFile(tasksPath, (await fs.readFile(tasksPath, "utf8")).replace("- [ ] Implement", "- [x] Implement"));
   await runCli(codeRoot, ...command, "complete", "tracking", "1");
   assert.equal(parse(await fs.readFile(mapPath, "utf8")).implementations[0].state, "complete");
+  // Обзор берёт список из OpenSpec, включая Changes без карты и с другой схемой.
+  await execa("openspec", ["new", "change", "alpha-untracked", "--schema", "spec-driven"], { cwd: storeRoot });
+  await fs.writeFile(path.join(storeRoot, "openspec/changes/alpha-untracked/tasks.md"), "- [ ] Another task\n");
+  await fs.mkdir(path.join(storeRoot, "openspec/changes/archive/old-change"), { recursive: true });
+  await fs.writeFile(path.join(storeRoot, "openspec/changes/archive/old-change/tasks.md"), "- [x] Old task\n");
+  const before = await fs.readFile(mapPath, "utf8");
+  const overview = JSON.parse((await runCli(storeRoot, ...command, "status", "--all", "--json")).stdout);
+  assert.deepEqual(overview.changes.map(({ change_id }) => change_id), ["alpha-untracked", "tracking"]);
+  assert.deepEqual(overview.changes[0].summary, { total_tasks: 1, completed_tasks: 0, recorded_tasks: 0 });
+  assert.deepEqual(overview.changes[1].summary, { total_tasks: 2, completed_tasks: 1, recorded_tasks: 1 });
+  const client = await clientFor(fixture, storeRoot);
+  const mcp = await client.callTool({ name: "tracking_status", arguments: { all: true } });
+  assert.notEqual(mcp.isError, true, JSON.stringify(mcp));
+  assert.deepEqual(JSON.parse(mcp.content[0].text).changes, overview.changes);
+  assert.equal((await runCli(storeRoot, ...command, "status", "--all")).stdout.trim().split("\n").length, 2);
+  await assert.rejects(runCli(codeRoot, ...command, "status", "tracking", "--all"), /TRACKING_INPUT_INVALID/);
+  await assert.rejects(runCli(codeRoot, ...command, "status", "tracking", "--diff"), /TRACKING_INPUT_INVALID/);
+  assert.equal(await fs.readFile(mapPath, "utf8"), before);
 });
 
 test("candidate CLI resumes a checkpoint from a different worktree and protects against stale writers", async (t) => {
@@ -117,9 +164,24 @@ test("candidate CLI resumes a checkpoint from a different worktree and protects 
   const worktree = path.join(path.dirname(codeRoot), "receiver");
   await execa("git", ["worktree", "add", "-b", "receiver", worktree], { cwd: codeRoot });
   registerCleanup(() => execa("git", ["worktree", "remove", "--force", worktree], { cwd: codeRoot }));
+  const handoff = JSON.parse((await runCli(worktree, ...command, "status", "tracking", "--task", "1", "--json")).stdout);
+  assert.equal(handoff.context.checkout_path, await fs.realpath(worktree));
+  assert.equal(handoff.tasks[0].note, "Finish validation");
+  assert.equal(handoff.tasks[0].local_work, undefined, "other worktree's cursor does not imply local start");
   await runCli(worktree, ...command, "start", "tracking", "1");
   await fs.writeFile(path.join(worktree, "field.js"), "export const field = 2;\n");
   await commitAll(worktree, "Finish validation");
+  const savedMap = await fs.readFile(mapPath, "utf8");
+  const diff = JSON.parse((await runCli(worktree, ...command, "status", "tracking", "--task", "1", "--diff", "--json")).stdout);
+  assert.equal(diff.tasks[0].diff.available, true);
+  assert.equal(diff.tasks[0].diff.commit_count, 1);
+  assert.deepEqual(diff.tasks[0].diff.committed_files, ["field.js"]);
+  const original = JSON.parse((await runCli(codeRoot, ...command, "status", "tracking", "--task", "1", "--diff", "--json")).stdout);
+  assert.equal(original.tasks[0].diff.commit_count, 0, "comparison uses the invoking worktree");
+  const readable = (await runCli(worktree, ...command, "status", "tracking", "--task", "1", "--diff")).stdout;
+  assert.equal(readable.includes("field.js"), true);
+  assert.equal(readable.includes(diff.tasks[0].diff.from_revision), false);
+  assert.equal(await fs.readFile(mapPath, "utf8"), savedMap);
   await runCli(worktree, ...command, "checkpoint", "tracking", "1");
   await assert.rejects(runCli(codeRoot, ...command, "checkpoint", "tracking", "1"), /TRACKING_CONFLICT/);
   await fs.writeFile(tasksPath, "- [x] Implement field\n- [ ] Review field\n");
@@ -133,6 +195,7 @@ test("candidate CLI resumes a checkpoint from a different worktree and protects 
   assert.equal(document.implementations[0].implementation_revision, document.implementations[1].implementation_revision);
   const status = JSON.parse((await runCli(worktree, ...command, "status", "tracking", "--json")).stdout);
   assert.equal(status.tasks.every(({ checkout }) => checkout === "matches"), true);
+  assert.deepEqual(status.summary, { total_tasks: 2, completed_tasks: 2, recorded_tasks: 2 });
   assert.equal((await runCli(worktree, ...command, "status", "tracking")).stdout.includes(document.implementations[0].implementation_revision), false);
   const before = await fs.readFile(mapPath, "utf8");
   await fs.writeFile(tasksPath, "- [x] New task\n- [x] Implement field\n- [x] Review field\n");

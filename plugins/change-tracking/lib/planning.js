@@ -74,5 +74,6 @@ export async function planning(context, changeId, { committed = false } = {}) {
     }
     inputs.push([file, normalized.trimEnd()]);
   }
-  return { ...instructions, fingerprint: fingerprint([instructions.schemaName, schema, inputs]) };
+  return { ...instructions, fingerprint: fingerprint([instructions.schemaName, schema, inputs]),
+    sources: { task_file: trackPath, inputs: [...selected].sort() } };
 }

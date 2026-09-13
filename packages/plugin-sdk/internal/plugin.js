@@ -47,6 +47,7 @@ const AGENT_TOOL_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/u;
  * @typedef {object} GitFacade
  * @property {() => Promise<string>} currentBranch
  * @property {(pathspec?: readonly string[]) => Promise<readonly string[]>} statusPaths
+ * @property {(revision: string) => Promise<GitChanges>} changesSince
  * @property {(pathspec?: readonly string[]) => Promise<boolean>} isClean
  * @property {() => Promise<string>} revision
  * @property {(ancestor: string, descendant: string) => Promise<boolean>} isAncestor
@@ -54,6 +55,16 @@ const AGENT_TOOL_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/u;
  * @property {(revision?: string) => Promise<boolean>} isRemoteReachable
  * @property {(revision: string) => Promise<boolean>} hasCommit
  * @property {() => Promise<void>} assertNoOperation
+ */
+
+/**
+ * Read-only сравнение всего Repository, без привязки файлов к задачам Plugin.
+ * @typedef {object} GitChanges
+ * @property {string} from_revision
+ * @property {string} to_revision
+ * @property {number} commit_count
+ * @property {readonly string[]} committed_files
+ * @property {readonly string[]} worktree_files
  */
 
 /**

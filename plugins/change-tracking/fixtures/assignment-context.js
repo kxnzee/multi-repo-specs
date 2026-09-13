@@ -12,6 +12,7 @@ export function assignmentContext({
   planningChangedPaths = [],
   ancestor = true,
   schemaName = "spec-driven-extended",
+  changes = ["checkout-flow"],
   tasks = [{ id: "1", description: "1.1 Implement checkout", done: false }],
 } = {}) {
   const values = new Map();
@@ -48,13 +49,15 @@ export function assignmentContext({
         if (executable === "git" && args[0] === "show") return tasks.map((task) => `- [${task.done ? "x" : " "}] ${task.description}`).join("\n");
         if (executable !== "openspec") throw new Error(`unexpected executable ${executable}`);
         if (args[0] === "--version") return openSpecVersion;
+        if (args[0] === "list") return JSON.stringify({ changes: changes.map((name) => ({ name })) });
         if (args[0] === "schema") return JSON.stringify({ path: fileURLToPath(new URL("./schema", import.meta.url)) });
         if (args[0] === "instructions" && args[1] === "apply") {
+          const changeId = args[args.indexOf("--change") + 1];
           return JSON.stringify({
-            changeName: args[args.indexOf("--change") + 1],
+            changeName: changeId,
             schemaName,
-            changeDir: "/workspace/specs/openspec/changes/checkout-flow",
-            contextFiles: { work: ["/workspace/specs/openspec/changes/checkout-flow/work.md"] },
+            changeDir: `/workspace/specs/openspec/changes/${changeId}`,
+            contextFiles: { work: [`/workspace/specs/openspec/changes/${changeId}/work.md`] },
             tasks,
           });
         }

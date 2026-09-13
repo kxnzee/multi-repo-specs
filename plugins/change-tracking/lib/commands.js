@@ -1,6 +1,8 @@
 /** @fileoverview Короткий CLI одного процесса Tracking. */
 import { COMMAND_SCOPE } from "@openspec-orch/plugin-sdk";
 import { ChangeTrackingApplication } from "./application.js";
+import { formatStatus } from "./presentation.js";
+import { formatOverview } from "./overview.js";
 
 /** Команды используют один application и не требуют ручного ввода Git данных. */
 export function registerChangeTrackingCommands(commands, { output = console } = {}) {
@@ -16,18 +18,18 @@ export function registerChangeTrackingCommands(commands, { output = console } = 
         ...(name === "cancel" ? { reason: rest[0] } : {}),
         ...(options?.restart ? { restart: true } : {}), ...(options?.note ? { note: options.note } : {}) };
       const result = await new ChangeTrackingApplication(context)[name](input);
-      output.log(`${name}: ${result.changed ? "сохранено" : "без изменений"} — ${context.invocation.id}, задача ${taskId}`);
+      output.log(`${result.message}\nДалее: ${result.next_step}`);
     }, { scope: COMMAND_SCOPE.store });
   }
-  commands.command("status <change-id>").description("задачи, записи реализации и соответствие checkout")
+  commands.command("status [change-id]").description("задачи, записи реализации и соответствие checkout")
+    .option("--all", "краткий обзор всех активных Changes OpenSpec")
+    .option("--task <task-id>", "раскрыть точную задачу и контекст продолжения")
+    .option("--diff", "изменения Repository после сохранённой точки выбранной задачи")
     .option("--json", "полные машинные данные, включая revisions кандидата")
     .actionWithContext(async (context, changeId, options) => {
-      const result = await new ChangeTrackingApplication(context).getStatus(changeId);
+      const result = await new ChangeTrackingApplication(context).getStatus(changeId,
+        { task_id: options.task, all: options.all, diff: options.diff });
       if (options.json) { output.log(JSON.stringify(result, null, 2)); return; }
-      output.log(`Change: ${changeId}`);
-      for (const task of result.tasks) output.log(`${task.task_id}  ${task.repository_id ?? "—"}  ${task.state}` +
-        `  OpenSpec: ${task.task_done === null ? "неизвестно" : task.task_done ? "готово" : "открыто"}` +
-        `${task.checkout ? `  checkout: ${task.checkout}` : ""}${task.note ? `  ${task.note}` : ""}`);
-      for (const warning of result.warnings) output.log(`${warning.code}: ${warning.message}`);
+      output.log(options.all ? formatOverview(result) : formatStatus(result));
     }, { scope: COMMAND_SCOPE.store });
 }

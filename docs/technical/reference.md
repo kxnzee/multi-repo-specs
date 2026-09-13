@@ -88,7 +88,9 @@ openspec-orch plugin exec openspec-graph view [--port <port>]
 Change Tracking:
 
 ```text
-openspec-orch plugin exec --repo <store-id> change-tracking status <change-id> [--json]
+openspec-orch plugin exec --repo <store-id> change-tracking status <change-id> [--task <task-id>] [--json]
+openspec-orch plugin exec --repo <store-id> change-tracking status --all [--json]
+openspec-orch plugin exec --repo <store-id> change-tracking status <change-id> --task <task-id> --diff [--json]
 openspec-orch plugin exec --repo <store-id> change-tracking start <change-id> <task-id> [--restart]
 openspec-orch plugin exec --repo <store-id> change-tracking checkpoint <change-id> <task-id> [--note <text>]
 openspec-orch plugin exec --repo <store-id> change-tracking complete <change-id> <task-id>
@@ -253,9 +255,14 @@ Controlled setup tools:
 - `tracking_checkpoint` — сохранить committed результат; опциональная `note`;
 - `tracking_complete` — сохранить итог после галочки OpenSpec;
 - `tracking_cancel` — отменить локальную работу; обязательный `reason`;
-- `tracking_status` — подробные данные и снимок текущего кандидата.
+- `tracking_status` — краткая сводка и следующие шаги; `task_id` раскрывает задачу,
+  `diff: true` с `task_id` добавляет сравнение после последней записи реализации,
+  `details: true` добавляет revisions и снимок текущего кандидата. `all: true`
+  вместо `change_id` возвращает компактный обзор активных Changes.
 
-Write tools принимают `change_id` и точный `task_id`; status — только `change_id`.
+Write tools принимают `change_id` и точный `task_id`. Status требует либо `change_id`,
+либо `all: true`; `all` несовместим с Change, task и diff. Без `--all` нужен Change,
+без task нельзя запросить diff. Обзор не включает технические снимки кандидатов.
 Git revisions и маркеры конкурентной записи Plugin получает автоматически.
 
 Resources ограничены Project config, OpenSpec config, `STORE.md`, точными файлами

@@ -78,6 +78,27 @@ export class RepositoryGit {
     return (await this.statusPaths(pathspec)).length === 0;
   }
 
+  /** Сравнивает commit с текущим HEAD; локальные файлы не смешиваются с committed diff. */
+  async changesSince(reference) {
+    if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(reference)) {
+      throw new Error("GIT_REVISION_INVALID: expected full commit hash");
+    }
+    await this.assertNoOperation();
+    if (!await this.hasCommit(reference)) throw new Error("GIT_COMMIT_MISSING: commit отсутствует локально");
+    const head = await this.revision();
+    if (!await this.isAncestor(reference, head)) throw new Error("GIT_HISTORY_DIVERGED: HEAD не продолжает сохранённый commit");
+    const count = await this.#run(["rev-list", "--count", `${reference}..${head}`, "--"]);
+    if (!/^\d+$/u.test(count.trim()) || !Number.isSafeInteger(Number(count))) {
+      throw new Error("GIT_OUTPUT_INVALID: некорректное число коммитов");
+    }
+    const files = await this.#run(["diff", "--name-only", "--no-renames", "--no-ext-diff", "--no-textconv", "-z", reference, head, "--"]);
+    const worktree = await this.statusPaths();
+    if (await this.revision() !== head) throw new Error("GIT_HEAD_CHANGED: HEAD изменился во время чтения; повторите запрос");
+    return { from_revision: reference, to_revision: head, commit_count: Number(count),
+      committed_files: [...new Set(files.split("\0").filter(Boolean))].sort(),
+      worktree_files: [...new Set(worktree)].sort() };
+  }
+
   revision(ref = "HEAD") {
     return this.#run(["rev-parse", ref]);
   }

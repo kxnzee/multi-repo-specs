@@ -1,16 +1,25 @@
 ## Change Tracking
 
-Use Tracking only when implementing an explicitly selected OpenSpec Change from a
+Use Tracking writes only when implementing an explicitly selected OpenSpec Change from a
 Code Repository. Invoke the installed standard OpenSpec Apply workflow first.
 Reuse fresh Work Context, or request `get_change_context` with `artifact: "apply"`
 and `include_assignment: true`. Follow the active schema and selected repository
 scope. Tracking does not invoke Apply, edit task checkboxes or run tests.
 
+For a project overview, call `tracking_status` with `all: true` instead of a Change
+ID. It lists active OpenSpec Changes, checkpoints and issues; it does not choose
+work or prove release readiness. Expand only the relevant Change/task.
+
 1. Read `tracking_status` before starting or resuming. Select the exact task ID
    from `artifact_instructions.tasks`; a display label such as `2.3` is not its ID.
+   Pass `task_id` to get the task's next step, handoff note and resolved Apply paths.
+   Add `diff: true` only when comparison is useful: it shows repository-wide changes
+   since the latest checkpoint/complete, with uncommitted files separate. Do not
+   attribute every changed file to this task. No saved point means no comparison.
 2. Call `tracking_start` with `change_id` and `task_id`. It captures Git revisions
    and the full planning inputs automatically. For a published checkpoint, prepare
-   its exact Code revision through the team's ordinary Git workflow first.
+   its exact Code revision through the team's ordinary Git workflow first; request
+   `tracking_status` with `details: true` when you need that revision.
 3. Implement and run the repository checks. A commit can cover multiple tasks;
    never create an empty commit solely for Tracking.
 4. For partial handoff, call `tracking_checkpoint`, optionally with a short `note`
@@ -31,9 +40,12 @@ use it only after the user has confirmed the new scope/history. Never silently
 attach evidence to a reordered or semantically different task.
 
 `tracking_status` separates record state, the live OpenSpec checkbox and checkout
-correspondence. `ahead` is not an exact match; `dirty`, `missing_commit`, `diverged`
-and `unavailable` need resolution before verification. The candidate in that response
-is a snapshot of the currently inspected Code revisions. Save that machine-readable
+correspondence. Use the returned message and next step in a short user update, not
+a technical log. Unknown data stays unknown; a local start does not prove a live
+agent, and an executor's note does not prove a passed test. `ahead` is not an exact
+match or an error by itself; `dirty`, `missing_commit`, `diverged` and `unavailable`
+need resolution before verification. Request `details: true` for the candidate
+snapshot of the currently inspected Code revisions. Save that machine-readable
 snapshot alongside verification evidence before running checks; reference it locally
 from Verify. Later Tracking updates do not update an earlier verification snapshot.
 Tracking does not checkout, fetch, commit, publish, accept, release or archive.
