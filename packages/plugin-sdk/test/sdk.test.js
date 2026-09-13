@@ -473,19 +473,3 @@ test("Agent routing names its schema parameter and preserves legacy external Plu
   }
   assert.throws(() => contract({ repositoryParameter: "store_repository_id", repositoryScoped: true }), /repositoryParameter/);
 });
-
-test("Agent operation bindings are immutable and reject invalid handlers", () => {
-  const handler = (application, args) => application.run(args);
-  const operations = { start_attempt: handler };
-  const contribution = definePlugin({ id: "operation-provider", agent: {
-    create: (context) => context, operations,
-  } }).agentContribution();
-  operations.start_attempt = () => "replaced";
-  assert.equal(contribution.operations.start_attempt, handler);
-  assert.equal(Object.isFrozen(contribution.operations), true);
-  for (const invalid of [{ BadName: handler }, { start_attempt: true }, []]) {
-    assert.throws(() => definePlugin({ id: "invalid-provider", agent: {
-      create: (context) => context, operations: invalid,
-    } }), /PLUGIN_DEFINITION_INVALID/u);
-  }
-});

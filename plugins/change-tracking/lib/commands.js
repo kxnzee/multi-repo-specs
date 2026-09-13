@@ -1,72 +1,35 @@
-/** @fileoverview CLI fallback for the task-to-revision workflow. */
-
+/** @fileoverview Короткий CLI одного процесса Tracking. */
 import { COMMAND_SCOPE } from "@openspec-orch/plugin-sdk";
-
 import { ChangeTrackingApplication } from "./application.js";
+import { formatStatus } from "./presentation.js";
+import { formatOverview } from "./overview.js";
 
-/** Registers one narrow command group without owning Git publication. */
+/** Команды используют один application и не требуют ручного ввода Git данных. */
 export function registerChangeTrackingCommands(commands, { output = console } = {}) {
-  const write = (message) => output.log(message);
-  commands.command("record <change-id> <task-id>")
-    .description("сохранить частичную или завершённую реализацию в Change без локальной attempt")
-    .option("--description <text>", "точное описание OpenSpec task", { required: true })
-    .option("--pr <url>", "ссылка на Code PR", { required: true })
-    .option("--previous-task <id>", "явно перепривязать связь прежней задачи с тем же PR")
-    .option("--plan <url>", "ссылка на план в PR")
-    .option("--commits <sha,...>", "полные SHA через запятую")
-    .option("--summary <text>", "что сделано и проверено", { required: true })
-    .option("--remaining <text>", "что осталось; пустая строка при завершении", { required: true })
-    .option("--version <number>", "версия связи из status; 0 для новой", { required: true })
-    .actionWithContext(async (context, changeId, taskId, options) => {
-      const result = await new ChangeTrackingApplication(context).recordImplementation({
-        change_id: changeId, task_id: taskId, task_description: options.description,
-        pull_request: options.pr, ...(options.plan ? { plan_url: options.plan } : {}),
-        ...(options.previousTask ? { previous_task_id: options.previousTask } : {}),
-        commits: options.commits ? options.commits.split(",") : [],
-        summary: options.summary, remaining: options.remaining,
-        expected_version: /^\d+$/u.test(options.version) ? Number(options.version) : NaN,
-      });
-      write(JSON.stringify(result, null, 2));
+  for (const name of ["start", "checkpoint", "complete", "cancel"]) {
+    const command = commands.command(`${name} <change-id> <task-id>${name === "cancel" ? " <reason>" : ""}`)
+      .description({ start: "начать или продолжить задачу", checkpoint: "сохранить промежуточную реализацию",
+        complete: "зафиксировать завершённую реализацию", cancel: "отменить локальную работу, сохранив checkpoint" }[name]);
+    if (name === "start") command.option("--restart", "явно начать заново после проверки изменённого плана или checkout");
+    if (name === "checkpoint") command.option("--note <text>", "короткая заметка следующему исполнителю");
+    command.actionWithContext(async (context, changeId, taskId, ...rest) => {
+      const options = name === "cancel" ? {} : rest[0];
+      const input = { change_id: changeId, task_id: taskId,
+        ...(name === "cancel" ? { reason: rest[0] } : {}),
+        ...(options?.restart ? { restart: true } : {}), ...(options?.note ? { note: options.note } : {}) };
+      const result = await new ChangeTrackingApplication(context)[name](input);
+      output.log(`${result.message}\nДалее: ${result.next_step}`);
     }, { scope: COMMAND_SCOPE.store });
-  commands.command("status <change-id>")
-    .description("прочитать связи реализации и актуальные галочки OpenSpec")
-    .actionWithContext(async (context, changeId) => {
-      write(JSON.stringify(await new ChangeTrackingApplication(context).getStatus(changeId), null, 2));
+  }
+  commands.command("status [change-id]").description("задачи, записи реализации и соответствие checkout")
+    .option("--all", "краткий обзор всех активных Changes OpenSpec")
+    .option("--task <task-id>", "раскрыть точную задачу и контекст продолжения")
+    .option("--diff", "изменения Repository после сохранённой точки выбранной задачи")
+    .option("--json", "полные машинные данные, включая revisions кандидата")
+    .actionWithContext(async (context, changeId, options) => {
+      const result = await new ChangeTrackingApplication(context).getStatus(changeId,
+        { task_id: options.task, all: options.all, diff: options.diff });
+      if (options.json) { output.log(JSON.stringify(result, null, 2)); return; }
+      output.log(options.all ? formatOverview(result) : formatStatus(result));
     }, { scope: COMMAND_SCOPE.store });
-  const attempt = commands.command("attempt")
-    .description("связать OpenSpec task с ревизией Code Repository");
-
-  attempt.command("start <change-id> <task-id>")
-    .description("начать локальную implementation attempt без изменения Store Git")
-    .actionWithContext(async (context, changeId, taskId) => {
-      const result = await new ChangeTrackingApplication(context).startAttempt({
-        changeId,
-        taskId,
-      });
-      write(
-        `Attempt ${result.changed ? "начата" : "уже активна"}: ` +
-        `${result.repository_id} task ${result.task.id} @ ${result.base_revision}`,
-      );
-    }, { scope: COMMAND_SCOPE.store });
-
-  attempt.command("complete <change-id> <task-id>")
-    .description("зафиксировать выполненный OpenSpec task в манифесте Change")
-    .actionWithContext(async (context, changeId, taskId) => {
-      const result = await new ChangeTrackingApplication(context).completeAttempt({
-        changeId,
-        taskId,
-      });
-      write(
-        `Attempt зафиксирована: ${result.attempt.repository_id} task ` +
-        `${result.attempt.task.id} @ ${result.attempt.implementation_revision}`,
-      );
-      write(`Implementation map: ${result.path}`);
-    }, { scope: COMMAND_SCOPE.store });
-  attempt.command("cancel <change-id> <task-id> <reason>")
-    .description("отменить локальную attempt с сохранением причины; не изменяет task и Git")
-    .actionWithContext(async (context, changeId, taskId, reason) => {
-      const result = await new ChangeTrackingApplication(context).cancelAttempt({ changeId, taskId, reason });
-      write(`Attempt отменена: ${result.attempt.repository_id} task ${result.attempt.task.id}. Причина: ${result.reason}`);
-    }, { scope: COMMAND_SCOPE.store });
-
 }
