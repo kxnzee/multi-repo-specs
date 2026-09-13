@@ -277,23 +277,17 @@ Extensions и объявления с bindings плагинов. Schema Change �
 
 ### Change Tracking
 
-`implementation-map.yaml` использует `contract_version: 1`, `change_id`,
-`attempts` и `implementations`. Запись в `implementations` связывает
-`repository_id`, канонические `task.id` и `task.description`, schema, PR, план,
-явные SHA, итог и оставшуюся работу. Это переносимый снимок для передачи работы,
-не журнал локальных событий. Детальный план остаётся в PR, путь checkout и копия
-checkbox в карте не хранятся.
+`implementation-map.yaml` использует `contract_version: 1`, `change_id` и одну
+коллекцию `implementations`. Запись связывает `repository_id`, точный `task_id`,
+planning revision, начальную revision и последнюю сохранённую implementation revision.
+PR, URL, описание задачи, списки SHA, результаты Verify и состояние checkbox в карте
+не дублируются.
 
-`expected_version` защищает связь от конкурентной перезаписи. CLI/MCP проверяют
-точное описание задачи и явные SHA. Состояние checkbox вычисляется при чтении,
-`record_implementation` не пишет Plugin storage.
-
-Старый режим `attempt start` держит незавершённую попытку в локальном Plugin storage:
-Change, Repository, путь checkout, задачу OpenSpec, schema, planning и base revision.
-Для одной связки Change/Repository/task одновременно допустима одна активная попытка.
-`attempt cancel` сохраняет отменённую попытку локально и не создаёт evidence. После
-стандартной отметки задачи `attempt complete` добавляет base и implementation revisions
-в карту Change; повторная запись того же completion не создаёт дубль.
+Команды `start`, `checkpoint`, `complete`, `cancel` и `status` получают task и его
+состояние через OpenSpec, а revisions и состояние checkout — через Git. Локальная
+запись начала работы защищает историю и конкурентное обновление; опубликованный
+checkpoint переносится между checkout. Запись той же задачи устаревшим исполнителем
+отклоняется, а независимые задачи могут обновляться параллельно.
 
 ### Локальное состояние Plugin и Graph
 

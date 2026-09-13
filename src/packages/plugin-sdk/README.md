@@ -134,4 +134,4 @@ testPluginContract({ plugin, packageManifest: manifest });
 ```
 
 Plugin tests не импортируют Core. Полный lifecycle описан в
-[Plugin Platform](../../docs/technical/plugin-platform.md).
+[разработке Plugin](../../../docs/plugins/development.md).

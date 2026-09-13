@@ -24,7 +24,7 @@ async function fixture(t, id = "qwen") {
     id: "fixture", name: "Fixture", agentInstructions: "entry.md",
     copy: [{ from: "STORE.md", to: "STORE.md" }],
   };
-  const { definition: agent } = await BundledAgentPackage.load(path.join(ROOT, "agents", id));
+  const { definition: agent } = await BundledAgentPackage.load(path.join(ROOT, "src", "agents", id));
   const service = new ProjectTemplateService();
   return {
     targetRoot, templateRoot, agent, descriptor,
