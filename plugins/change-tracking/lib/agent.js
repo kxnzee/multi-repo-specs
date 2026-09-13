@@ -9,7 +9,7 @@ const descriptions = {
   checkpoint: "Сохранить текущий committed результат и необязательную заметку для передачи. Не закрывает задачу и не публикует Git.",
   complete: "Сохранить завершённую реализацию из текущего checkout. Требует выполненную галочку OpenSpec, но не означает успешный Verify.",
   cancel: "Снять локальный курсор работы с причиной. Сохранённая реализация остаётся в Change.",
-  status: "Краткий статус Change или обзор активных Changes с all:true вместо change_id. task_id раскрывает задачу; diff:true добавляет изменения всего Repository после сохранённой точки этой задачи. details добавляет revisions и candidate для evidence.",
+  status: "Краткий статус Change или обзор активных Changes с all:true вместо change_id. task_id раскрывает задачу; diff:true добавляет изменения всего Repository после сохранённой точки этой задачи.",
 };
 
 export const changeTrackingAgentContribution = Object.freeze({

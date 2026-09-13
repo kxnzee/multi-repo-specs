@@ -44,8 +44,5 @@ correspondence. Use the returned message and next step in a short user update, n
 a technical log. Unknown data stays unknown; a local start does not prove a live
 agent, and an executor's note does not prove a passed test. `ahead` is not an exact
 match or an error by itself; `dirty`, `missing_commit`, `diverged` and `unavailable`
-need resolution before verification. Request `details: true` for the candidate
-snapshot of the currently inspected Code revisions. Save that machine-readable
-snapshot alongside verification evidence before running checks; reference it locally
-from Verify. Later Tracking updates do not update an earlier verification snapshot.
+need resolution before verification.
 Tracking does not checkout, fetch, commit, publish, accept, release or archive.
