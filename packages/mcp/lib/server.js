@@ -33,37 +33,6 @@ const CHANGE_SCHEMA = Object.freeze({
   properties: Object.freeze({ change_id: CHANGE_ID_SCHEMA }),
   additionalProperties: false,
 });
-const ATTEMPT_SCHEMA = Object.freeze({
-  type: "object",
-  properties: Object.freeze({
-    change_id: CHANGE_ID_SCHEMA,
-    task_id: Object.freeze({
-      ...NON_EMPTY_STRING_SCHEMA,
-      description: "Точный tasks[].id из get_change_context с artifact: apply (artifact_instructions.tasks). " +
-        "Скопируйте полученную строку; не используйте номер задачи из description, например 1.1 или " +
-        "2.3, и не вычисляйте индекс массива.",
-    }),
-  }),
-  required: ["change_id", "task_id"],
-  additionalProperties: false,
-});
-const IMPLEMENTATION_SCHEMA = Object.freeze({
-  type: "object",
-  properties: {
-    ...ATTEMPT_SCHEMA.properties,
-    previous_task_id: { ...NON_EMPTY_STRING_SCHEMA, description: "Только для явного перепривязывания: прежний task.id связи с тем же PR. При изменении лишь описания укажите тот же ID. Требует согласования соответствия и expected_version исходной связи." },
-    task_description: { ...NON_EMPTY_STRING_SCHEMA, description: "Точное описание выбранной задачи из актуального Apply-контекста." },
-    pull_request: { type: "string", pattern: "^https?://", description: "Ссылка на PR, включая частичный или draft PR." },
-    plan_url: { type: "string", pattern: "^https?://", description: "Ссылка на технический план в PR; по умолчанию pull_request." },
-    commits: { type: "array", uniqueItems: true, items: { type: "string", pattern: "^[a-f0-9]{40}$" },
-      description: "Полный актуальный список коммитов этой реализации. Не подставляйте HEAD другого checkout." },
-    summary: { ...NON_EMPTY_STRING_SCHEMA, description: "Что сделано и проверено; при отсутствии изменений кода укажите причину." },
-    remaining: { type: "string", description: "Что осталось и что блокирует продолжение. Пустая строка, если ничего." },
-    expected_version: { type: "integer", minimum: 0, description: "Версия связи из последнего чтения; 0 для новой связи задачи с PR." },
-  },
-  required: ["change_id", "task_id", "task_description", "pull_request", "commits", "summary", "remaining", "expected_version"],
-  additionalProperties: false,
-});
 const READ_ONLY_ANNOTATIONS = Object.freeze({
   readOnlyHint: true,
   destructiveHint: false,
@@ -212,33 +181,6 @@ const TOOL_DEFINITIONS = Object.freeze([
       "рекурсивно не подключаются.",
     inputSchema: EMPTY_SCHEMA,
     annotations: Object.freeze({ ...WRITE_ANNOTATIONS, openWorldHint: true }),
-  }),
-  defineTool({
-    name: "start_attempt",
-    applicationMethod: "startAttempt",
-    description: "Начать попытку выполнения одной канонической задачи OpenSpec Apply из основного Store через " +
-      "зарегистрированный обработчик операции в контексте фиксированного рабочего каталога MCP. " +
-      "Задачу не выполняет и репозиторий не выбирает.",
-    inputSchema: ATTEMPT_SCHEMA,
-    annotations: WRITE_ANNOTATIONS,
-  }),
-  defineTool({
-    name: "complete_attempt",
-    applicationMethod: "completeAttempt",
-    description: "Зафиксировать завершение одной задачи OpenSpec Apply из основного Store через " +
-      "зарегистрированный обработчик операции в контексте фиксированного рабочего каталога MCP. " +
-      "Используйте канонический task_id из start_attempt. Checkbox задачи не изменяется: Apply должен " +
-      "уже отметить её выполненной.",
-    inputSchema: ATTEMPT_SCHEMA,
-    annotations: WRITE_ANNOTATIONS,
-  }),
-  defineTool({
-    name: "record_implementation",
-    applicationMethod: "recordImplementation",
-    description: "Сохранить связь задачи с частичной или завершённой реализацией через зарегистрированный обработчик. " +
-      "Checkbox, PR и Git не изменяет. Публикация записи выполняется обычным процессом Change.",
-    inputSchema: IMPLEMENTATION_SCHEMA,
-    annotations: WRITE_ANNOTATIONS,
   }),
 ]);
 
@@ -450,7 +392,12 @@ export function createOrchestratorMcpServer(application) {
     { name: "openspec-orchestrator", version: "1.0.0" },
     { capabilities: { resources: {}, tools: {} } },
   );
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
+  const availableTools = async () => {
+    if (typeof application.listAgentTools !== "function") return tools;
+    const visible = new Set((await application.listAgentTools()).map(({ name }) => name));
+    return definitions.filter((item) => !item.agentTool || visible.has(item.tool.name)).map(({ tool }) => tool);
+  };
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: await availableTools() }));
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const args = request.params.arguments ?? {};
     const definition = definitionByName.get(request.params.name);
@@ -458,6 +405,9 @@ export function createOrchestratorMcpServer(application) {
       return errorContent(new Error(`MCP_TOOL_NOT_FOUND: ${request.params.name}`));
     }
     try {
+      if (definition.agentTool && !(await availableTools()).some(({ name }) => name === definition.tool.name)) {
+        throw new Error(`MCP_TOOL_NOT_FOUND: ${definition.tool.name}`);
+      }
       if (!definition.agentTool) assertArguments(definition, args);
       const validation = schemaValidators.get(definition.tool.name)(args);
       if (!validation.valid) {

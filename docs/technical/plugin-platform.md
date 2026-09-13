@@ -289,21 +289,27 @@ commits не превращаются в отрицательный резуль
 `hasCommit(revision)` возвращает `false` только при отсутствии commit; сбои запуска
 Git и повреждённый checkout остаются ошибками.
 
+`changesSince(revision)` сравнивает полный commit hash с текущим HEAD и возвращает
+`from_revision`, `to_revision`, `commit_count`, `committed_files`, `worktree_files`.
+Первый список — итоговая разница деревьев, второй — staged, unstaged и untracked
+пути; содержимое файлов и commit messages не раскрываются. Требуется продолжение
+истории от исходного commit и отсутствие незавершённых Git-операций. Отсутствующая
+revision, расходящаяся история и изменение HEAD во время чтения дают ошибку.
+Метод использует выбранный facade checkout, ничего не пишет и не знает о задачах Plugin.
+
 Native Agent adapters проверяют актуальность файлов при `status` и после `connect`.
 Параметр `refresh: true` допустим только для `connect`; user-level CLI передаёт его
 из `agent setup --refresh`. Обновление использует native lifecycle и не удаляет
 установку с её настройками. Издатель повышает native manifest version при изменении
 payload. Неизменившийся cache после native update остаётся ошибкой `STATUS_STALE`.
 
-### Абстрактные операции MCP
+### Инструменты MCP из Plugin
 
-MCP владеет абстрактным контрактом `record_implementation` и прежними контрактами
-`start_attempt` / `complete_attempt`. Change Tracking
-регистрирует обработчики через `agent.operations`; общий runtime выбирает их по
-имени операции без знания ID плагина. Другой Plugin может реализовать тот же
-контракт. Два объявленных в Project провайдера одной операции вызывают ошибку
-неоднозначности; отсутствие провайдера означает недоступную возможность.
+Каждый Plugin объявляет имена, JSON Schema, metadata и обработчики в `agent.tools`.
+Базовый MCP не содержит операций конкретного Plugin. Runtime фильтрует каталог
+по текущему подключению и проверяет доступность повторно при вызове.
 
-Git, evidence и проверка условий завершения остаются в Change Tracking. Поля
-`tracking` и `capabilities.tracking` он добавляет через `agent.enhance`, как остальные
-плагины добавляют свои данные. Имена, аргументы и JavaScript-методы MCP сохранены.
+Change Tracking поставляет `tracking_start`, `tracking_checkpoint`,
+`tracking_complete`, `tracking_cancel` и `tracking_status`. Без подключения
+этих инструментов в каталоге нет. `tracking` и `capabilities.tracking`
+добавляются через `agent.enhance`; общий runtime не знает их полей.

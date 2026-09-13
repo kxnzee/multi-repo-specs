@@ -75,9 +75,6 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
       return { created: [] };
     },
     connectProject() { calls.push(["connect_project"]); return { status: "ready" }; },
-    recordImplementation(args) { calls.push(["record_implementation", args]); return { stored: "change" }; },
-    startAttempt(args) { calls.push(["start_attempt", args]); return { stored: "local" }; },
-    completeAttempt(args) { calls.push(["complete_attempt", args]); return { stored: "change" }; },
     listResources() { return resources; },
     readResource(uri) { return { ...resources[0], uri, text: "# Payments" }; },
   });
@@ -106,9 +103,6 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     "optional_read",
     "initialize_project",
     "connect_project",
-    "start_attempt",
-    "complete_attempt",
-    "record_implementation",
   ]);
   assert.equal(
     listed.tools.some(({ name }) => /done|receipt|verify|release|archive|git|plugin/u.test(name)),
@@ -171,15 +165,6 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     assert.deepEqual(shape(schemas[name].properties.if_context_revision), nonEmptyStringSchema, name);
   }
   assert.equal(schemas.initialize_project.properties.if_context_revision, undefined);
-  for (const name of ["start_attempt", "complete_attempt"]) {
-    const { description, ...taskSchema } = schemas[name].properties.task_id;
-    assert.match(description, /artifact_instructions.tasks/u);
-    assert.match(description, /не используйте номер задачи/u);
-    assert.deepEqual(shape({ ...schemas[name].properties, task_id: taskSchema }), {
-      change_id: identifierSchema,
-      task_id: nonEmptyStringSchema,
-    });
-  }
   assert.deepEqual(shape(schemas.initialize_project.properties.store_id), identifierSchema);
   assert.deepEqual(
     shape(schemas.initialize_project.properties.repositories.items.properties),
@@ -228,16 +213,6 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   });
   assert.deepEqual(JSON.parse(initialized.content[0].text), { created: [] });
   assert.equal((await client.callTool({ name: "connect_project", arguments: {} })).isError, undefined);
-  const started = await client.callTool({
-    name: "start_attempt",
-    arguments: { change_id: "pay", task_id: "1" },
-  });
-  assert.deepEqual(JSON.parse(started.content[0].text), { stored: "local" });
-  const completed = await client.callTool({
-    name: "complete_attempt",
-    arguments: { change_id: "pay", task_id: "1" },
-  });
-  assert.deepEqual(JSON.parse(completed.content[0].text), { stored: "change" });
   const invalid = await client.callTool({
     name: "get_change_context",
     arguments: { change_id: "pay", source: "human" },
@@ -311,16 +286,6 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     assert.match(rejected.content[0].text, /MCP_TOOL_INPUT_INVALID/);
     assert.equal(calls.length, before);
   }
-  const handoff = { change_id: "pay", task_id: "1", task_description: "Implement",
-    pull_request: "https://example.test/pr/42", commits: [], summary: "Draft",
-    remaining: "Implementation", expected_version: 0 };
-  for (const extra of [{ expected_version: "0" }, { expected_version: -1 },
-    { commits: ["HEAD"] }, { task_description: "" }, { extra: true }]) {
-    const before = calls.length;
-    const rejected = await client.callTool({ name: "record_implementation", arguments: { ...handoff, ...extra } });
-    assert.equal(rejected.isError, true);
-    assert.equal(calls.length, before, "invalid input must not reach the handler");
-  }
   const pluginRead = await client.callTool({
     name: "optional_read",
     arguments: { id: "sample" },
@@ -343,11 +308,7 @@ test("every advertised MCP tool dispatches to its matching application method", 
     ["get_doctor_report", "getDoctorReport", {}],
     ["initialize_project", "initializeProject", { store_id: "specs", agent_id: "qwen" }],
     ["connect_project", "connectProject", {}],
-    ["start_attempt", "startAttempt", { change_id: "pay", task_id: "1" }],
-    ["complete_attempt", "completeAttempt", { change_id: "pay", task_id: "1" }],
-    ["record_implementation", "recordImplementation", { change_id: "pay", task_id: "1",
-      task_description: "Implement", pull_request: "https://example.test/pr/1", commits: [],
-      summary: "Draft", remaining: "", expected_version: 0 }],
+
   ];
   const calls = [];
   const application = {

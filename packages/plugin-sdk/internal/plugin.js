@@ -11,7 +11,7 @@ import {
 
 const PLUGIN_KEYS = new Set(["agent", "id", "supports", "repository", "extensions", "registerCommands"]);
 const REPOSITORY_KEYS = new Set(["connect", "status", "sync", "exec"]);
-const AGENT_KEYS = new Set(["create", "enhance", "requireBinding", "tools", "operations"]);
+const AGENT_KEYS = new Set(["create", "enhance", "requireBinding", "tools"]);
 const AGENT_TOOL_KEYS = new Set([
   "annotations", "description", "execute", "inputSchema", "name", "validate", "repositoryScoped", "repositoryParameter",
 ]);
@@ -47,6 +47,7 @@ const AGENT_TOOL_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/u;
  * @typedef {object} GitFacade
  * @property {() => Promise<string>} currentBranch
  * @property {(pathspec?: readonly string[]) => Promise<readonly string[]>} statusPaths
+ * @property {(revision: string) => Promise<GitChanges>} changesSince
  * @property {(pathspec?: readonly string[]) => Promise<boolean>} isClean
  * @property {() => Promise<string>} revision
  * @property {(ancestor: string, descendant: string) => Promise<boolean>} isAncestor
@@ -54,6 +55,16 @@ const AGENT_TOOL_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/u;
  * @property {(revision?: string) => Promise<boolean>} isRemoteReachable
  * @property {(revision: string) => Promise<boolean>} hasCommit
  * @property {() => Promise<void>} assertNoOperation
+ */
+
+/**
+ * Read-only сравнение всего Repository, без привязки файлов к задачам Plugin.
+ * @typedef {object} GitChanges
+ * @property {string} from_revision
+ * @property {string} to_revision
+ * @property {number} commit_count
+ * @property {readonly string[]} committed_files
+ * @property {readonly string[]} worktree_files
  */
 
 /**
@@ -215,12 +226,6 @@ function agentContribution(agent) {
   if (agent.requireBinding !== undefined && typeof agent.requireBinding !== "boolean") {
     invalid("agent.requireBinding должен быть boolean");
   }
-  const operations = agent.operations ?? {};
-  assertPlainObject(operations, "agent.operations");
-  for (const [name, handler] of Object.entries(operations)) {
-    if (!AGENT_TOOL_PATTERN.test(name)) invalid("agent operation name должен быть lowercase snake_case");
-    assertCallback(handler, `agent.operations.${name}`);
-  }
   if (!Array.isArray(agent.tools ?? [])) invalid("agent.tools должен быть массивом");
   const tools = (agent.tools ?? []).map((tool) => {
     assertPlainObject(tool, "agent tool");
@@ -268,7 +273,6 @@ function agentContribution(agent) {
     enhance: agent.enhance ?? (({ result }) => result),
     requireBinding: agent.requireBinding ?? false,
     tools: Object.freeze(tools),
-    operations: Object.freeze({ ...operations }),
   });
 }
 

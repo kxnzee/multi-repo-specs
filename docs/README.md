@@ -5,7 +5,7 @@ Orchestrator также может разрешить тот же Project из �
 Repository через OpenSpec pointer. Соблюдайте scope конкретной команды:
 
 - OpenSpec Graph работает с файлами Store;
-- запись реализации `change-tracking record` запускается из назначенного Code Repository;
+- `change-tracking start/checkpoint/complete` запускаются из выбранного Code Repository;
 - `init [path]` принимает явный target;
 - `plugin register <id> [path]` создаёт отдельный Plugin package;
 - `agent setup|status|remove` управляет user-level gateway и не требует Project.

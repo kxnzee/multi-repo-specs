@@ -239,38 +239,20 @@ Scenarios между producer и consumers.
 
 ### Частичная передача работы
 
-Code PR может содержать частичную реализацию: implementation tasks и проверки
-обновляются в его описании/плане, родительская галочка OpenSpec остаётся открытой.
-Change Tracking сохраняет ссылку на PR, план, SHA, итог и оставшуюся работу через
-`record_implementation`. Для передачи другому разработчику карта публикуется через
-Subtask Store PR до завершения подзадачи и слияния Code PR. Это не завершает задачу:
-условия полного завершения из раздела выше сохраняются.
+Change Tracking опционален и не меняет описанный выше Git-процесс. Из Code
+Repository исполнитель вызывает `start <change-id> <task-id>`, реализует задачу
+и сохраняет committed результат через `checkpoint`. Галочка остаётся открытой.
+При необходимости короткая `--note` объясняет следующий шаг.
 
-Получатель открывает Change и связанный PR, проверяет коммиты, план и блокировки,
-затем продолжает оставшиеся шаги. Отдельный журнал attempts и промежуточный коммит
-Store перед каждой технической задачей не требуются. Детали —
-[Change Tracking](plugins.md#передача-частичной-реализации).
+Для передачи публикуются Code commit и Store map через принятый командой процесс,
+в том числе Subtask Store PR. Ссылки на PR в карту не записываются. Получатель
+читает Change и checkpoint, получает сохранённый commit обычным Git, подготавливает
+его checkout и вызывает тот же `start`. Исходное локальное состояние не нужно.
 
-### Change Tracking: прежний процесс attempts
-
-Change Tracking опционален. Он связывает OpenSpec task с planning, base и
-implementation revisions, но не назначает исполнителей, не меняет checkbox, не
-создаёт branch или PR, не выполняет тесты, Verify, Archive или Release.
-
-Без Agent Extension attempt можно вести вручную из чистого Code Repository:
-
-```bash
-# перед работой над незавершённым task
-openspec-orch plugin exec --repo specs change-tracking attempt start <change-id> <task-id>
-
-# после commit, repository checks и стандартной галочки OpenSpec
-openspec-orch plugin exec --repo specs change-tracking attempt complete <change-id> <task-id>
-```
-
-При возврате task в работу галочка снимается, Apply повторяется, а новая attempt
-сохраняет новую implementation revision без удаления прежней истории. Отсутствие
-Change Tracking не блокирует Apply: SHA и check evidence передаются принятым
-командным каналом.
+После всех работ, проверок и стандартной галочки OpenSpec вызывается `complete`.
+Это не Verify, не слияние и не приёмка. Один commit может относиться к нескольким
+задачам. Без Tracking Apply работает штатно, а evidence передаётся командным каналом.
+Подробности — [Change Tracking](plugins.md#один-процесс-работы).
 
 ## 8. ИФТ, Verify и дефекты
 

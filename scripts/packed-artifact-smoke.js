@@ -11,6 +11,7 @@ const distributionManifest = JSON.parse(
   await fs.readFile(path.join(root, "package.json"), "utf8"),
 );
 const distributionVersion = distributionManifest.version;
+const registryInstallTimeoutMs = 300000;
 const npmCli = process.env.npm_execpath;
 if (typeof npmCli !== "string" || !path.isAbsolute(npmCli)) {
   throw new Error("PACKED_SMOKE_NPM_UNAVAILABLE: запустите через npm run test:pack");
@@ -92,7 +93,12 @@ try {
     "--install-links",
     "--no-audit",
     "--no-fund",
-  ], { cwd: consumer, env: npmEnvironment, stdio: "inherit" });
+  ], {
+    cwd: consumer,
+    env: npmEnvironment,
+    stdio: "inherit",
+    timeout: registryInstallTimeoutMs,
+  });
   execFileSync(process.execPath, [
     "--input-type=module",
     "--eval",
@@ -109,7 +115,6 @@ try {
   execFileSync(process.execPath, [
     "--test", "--test-concurrency=1", "--test-timeout=180000",
     path.join(root, "test/distribution-plugin-cli.test.js"),
-    path.join(root, "test/distribution-tracking.test.js"),
   ], {
     cwd: consumer,
     env: {

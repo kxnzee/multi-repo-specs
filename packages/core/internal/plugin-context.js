@@ -106,6 +106,7 @@ class PluginGitFacade {
 
   currentBranch() { return this.#git.currentBranch(); }
   statusPaths(pathspec) { return this.#git.statusPaths(pathspec); }
+  changesSince(revision) { return this.#git.changesSince(revision); }
   isClean(pathspec) { return this.#git.isClean(pathspec); }
   revision() { return this.#git.revision(); }
   latestRevision(pathspec) { return this.#git.latestRevision(pathspec); }

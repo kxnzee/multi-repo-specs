@@ -13,7 +13,7 @@ import {
 
 import * as publicApi from "../index.js";
 import plugin from "../index.js";
-import { AttemptTrackingService } from "../lib/attempt-service.js";
+import { ChangeTrackingApplication } from "../lib/application.js";
 import packageManifest from "../package.json" with { type: "json" };
 import { assignmentContext } from "../fixtures/assignment-context.js";
 
@@ -21,10 +21,10 @@ const packageRoot = path.dirname(fileURLToPath(new URL("../package.json", import
 
 testPluginContract({ plugin, packageManifest });
 
-test("change-tracking contributes only the task attempt command and Code Repository guidance", () => {
+test("change-tracking contributes one workflow and Code Repository guidance", () => {
   assert.deepEqual(
     assertPluginContract({ plugin, packageManifest }).commands,
-    ["record", "status", "attempt"],
+    ["start", "checkpoint", "complete", "cancel", "status"],
   );
   assert.equal(plugin.canExec(), true);
   assert.equal(plugin.hasExtensionContribution(), true);
@@ -48,19 +48,18 @@ test("change-tracking requires the OpenSpec 1.11 task API", async () => {
   });
   await assert.rejects(plugin.connect(incompatible), /OPENSPEC_11_REQUIRED.*1\.10\.0/u);
   await assert.rejects(
-    new AttemptTrackingService(incompatible).start({ changeId: "checkout-flow", taskId: "1" }),
+    new ChangeTrackingApplication(incompatible).start({ change_id: "checkout-flow", task_id: "1" }),
     /OPENSPEC_11_REQUIRED.*1\.10\.0/u,
   );
 });
 
 test("change-tracking ships schema-neutral Apply guidance for every Agent", async () => {
   const extensionRoot = path.join(packageRoot, "extension");
-  const [qwen, gigacode, claude, marketplace, instructions] = await Promise.all([
+  const [qwen, gigacode, claude, marketplace] = await Promise.all([
     fs.readFile(path.join(extensionRoot, "qwen-extension.json"), "utf8").then(JSON.parse),
     fs.readFile(path.join(extensionRoot, "gigacode-extension.json"), "utf8").then(JSON.parse),
     fs.readFile(path.join(extensionRoot, ".claude-plugin/plugin.json"), "utf8").then(JSON.parse),
     fs.readFile(path.join(extensionRoot, ".claude-plugin/marketplace.json"), "utf8").then(JSON.parse),
-    fs.readFile(path.join(extensionRoot, "agent-instructions.md"), "utf8"),
   ]);
 
   assert.equal(qwen.name, "change-tracking-agent");
@@ -68,12 +67,5 @@ test("change-tracking ships schema-neutral Apply guidance for every Agent", asyn
   assert.deepEqual(gigacode, qwen);
   assert.equal(claude.name, "change-tracking-agent");
   assert.equal(marketplace.name, "openspec-orch-change-tracking-agent");
-  assert.match(instructions, /standard OpenSpec Apply workflow/u);
-  assert.match(instructions, /get_change_context` once with\s+`artifact: "apply"`/u);
-  assert.match(instructions, /`include_assignment: true`/u);
-  assert.match(instructions, /duplicate `get_assignment_scope`/u);
-  assert.match(instructions, /active schema's returned\s+Apply instructions/u);
-  assert.match(instructions, /start_attempt/u);
-  assert.match(instructions, /complete_attempt/u);
-  assert.match(instructions, /Do not create separate `implement-design` or `implement-plan`/u);
+  await fs.access(path.join(extensionRoot, qwen.contextFileName));
 });
