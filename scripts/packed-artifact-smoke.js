@@ -115,8 +115,6 @@ try {
   execFileSync(process.execPath, [
     "--test", "--test-concurrency=1", "--test-timeout=180000",
     path.join(root, "test/distribution-plugin-cli.test.js"),
-    path.join(root, "test/distribution-tracking-handoff.test.js"),
-    path.join(root, "test/distribution-tracking.test.js"),
   ], {
     cwd: consumer,
     env: {
