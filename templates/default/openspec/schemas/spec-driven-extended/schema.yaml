@@ -10,25 +10,9 @@ artifacts:
       Create the intake document before Proposal to preserve the confirmed source
       context of this Change and make the next planning decision explicit.
 
-      Write intake.md as readable Russian analysis for the people discussing the
-      change, including readers unfamiliar with OpenSpec. Start the substantive
-      description with the problem, who encounters it, and the expected result.
-      Use the template's Russian headings and plain professional language:
-      - name the actor, their action, and the observable system response;
-      - keep one main thought per sentence; split chains of conditions into steps;
-      - prefer verbs over abstract nouns and avoid bureaucratic filler;
-      - explain necessary domain terms and abbreviations at first use; retain exact
-        public API names, identifiers, units and machine status values;
-      - use short paragraphs for explanations, numbered steps for sequences, and
-        tables for comparable UI or access rules. Do not turn every answer into a table;
-      - describe each fact once and refer to its section instead of repeating it;
-      - keep workflow vocabulary and route codes in the closing planning section.
-      Before saving, read the document as someone who did not attend the interview.
-      Check that they can identify the problem, main scenario, expected result and
-      remaining decisions without decoding internal terminology. Simplify wording
-      without deleting conditions, exceptions, constraints, source references or
-      uncertainty. Readability is not a reason to invent missing facts or shorten
-      the analysis to a summary that loses behavior.
+      Use the current Intake template as the single source for document sections,
+      readability, applicability and source-provenance rules. Read and apply its
+      authoring guidance before saving or revising intake.md.
 
       A new Change requires an agreed Intent. Use an accepted Daily Intent Brief,
       Jira Story, or another user-confirmed source when it explicitly provides the
@@ -52,36 +36,14 @@ artifacts:
       - do not create the file until the intake is complete enough for the user to
         choose the next route.
 
-      Capture:
-      - one or more applicable Change Profiles: new integration, UI change,
-        access/security, extension of existing behavior, or technical change;
-      - source references such as a Jira Story and supplied documents;
-      - the problem or opportunity, affected actors, Why Now, current observable
-        behavior, expected outcome, scope, constraints, and success criteria;
-      - known user and system scenarios, public interactions, access/security/data
-        constraints, and failure and degraded behavior;
-      - a PlantUML sequence diagram when the Change involves two or more interacting
-        components, an external dependency, asynchronous messaging, or meaningful
-        error branches. Otherwise retain the "Схема взаимодействия" section with a
-        concise Not applicable reason. Evaluate each trigger independently: local
-        function calls can interact and have meaningful error branches without a
-        network. Show confirmed public success/error behavior without inventing
-        implementation participants or changing a thrown error into a return value;
-      - open questions and one planning route in "Готовность к следующему шагу": ready_for_proposal,
-        explore_recommended, or blocked, with its rationale and exact Explore
-        questions when applicable.
-
       For explore_recommended, keep "Результаты исследования" pending with exact
       researchable questions. When Explore results are supplied, classify findings
       as CONFIRMED, CONTRADICTED, UNKNOWN, or MISSING, update this same intake.md,
       and reassess the Planning Route. Do not create a second questionnaire or
       exploration artifact and do not continue to Proposal automatically.
 
-      Keep intake.md current when later stages refine confirmed analytical context,
-      preserving original source provenance and the reason for each revised conclusion.
       Before finishing Intake, including after Explore or a repeated interview,
-      reconcile all existing Change artifacts using the spec-driven-extended
-      stage-completion rule in project context. Do not advance automatically.
+      invoke spec-driven-extended-reconcile. Do not advance automatically.
 
       intake.md is planning input with historical provenance, not an accepted
       Requirement, Scenario, Design decision, ADR, repository scope, or proof of
@@ -100,8 +62,7 @@ artifacts:
       Create the proposal document that establishes WHY this change is needed.
       Read intake.md first, resolve or preserve its relevant open questions, and
       promote only confirmed conclusions without copying the questionnaire verbatim.
-      Before completion reconcile Intake and all existing Change artifacts under
-      the stage-completion rule in project context. Then invoke
+      Before completion invoke spec-driven-extended-reconcile. Then invoke
       spec-driven-extended-meta-planning for the proposal stage and
       resolve its findings. Include a Repository Impact table containing only exact
       registered Code Repository IDs and capability paths expected to change.
@@ -141,8 +102,7 @@ artifacts:
       Use accepted planning sources and normative Store artifacts for this stage.
       Do not inspect Code Repositories to formulate Proposal, Requirements or Scenarios.
       Create specification files that define WHAT the system should do.
-      Before completion reconcile Intake, Proposal and all existing Change artifacts
-      under the stage-completion rule in project context. Then invoke
+      Before completion invoke spec-driven-extended-reconcile. Then invoke
       spec-driven-extended-meta-planning for the specs stage.
 
       Read intake.md and proposal.md before writing Delta Specs. For every confirmed
@@ -248,8 +208,7 @@ artifacts:
     template: design.md
     instruction: |
       Create the design document that explains HOW to implement the change.
-      Before completion reconcile Intake, Proposal and existing Specs/Tasks with
-      confirmed Design findings under the stage-completion rule in project context.
+      Before completion invoke spec-driven-extended-reconcile with the Design findings.
       Then invoke spec-driven-extended-meta-planning for the design stage.
       Include a Repository Implementation Map for Repository IDs accepted in Proposal.
 
@@ -289,8 +248,7 @@ artifacts:
     template: tasks.md
     instruction: |
       The project-designated Planning owner creates the task list that breaks down the implementation work.
-      Before completion reconcile Intake, Proposal, Specs and Design with confirmed
-      planning findings under the stage-completion rule in project context.
+      Before completion invoke spec-driven-extended-reconcile with the planning findings.
       Then invoke spec-driven-extended-meta-planning for the tasks stage and
       verify Scenario → Design decision → Task traceability.
 
@@ -388,13 +346,7 @@ artifacts:
       treating it as proof of completion. After Apply, collect current evidence and
       keep the human decision PENDING until explicitly made.
 
-      Reconcile findings with all existing Change artifacts under the stage-completion
-      rule in project context. Return requirement or planning conflicts to Planning;
-      do not rewrite expected behavior to make implementation pass. Repeat acceptance
-      on current evidence when implementation or the verified contract changes, or
-      prior evidence no longer supports the result. Editorial changes with no semantic
-      impact require review and a coherence check, not a new acceptance decision by
-      themselves. Preserve the original decision and revision references.
+      Before completing Verify invoke spec-driven-extended-reconcile with its findings.
 
       Invoke **openspec-verify-change**, then fill the shared Feature Acceptance
       scenario table and concise automatic-check table.
@@ -456,14 +408,8 @@ apply:
 
     После `satisfied` запиши progress по правилам этого Apply. Blocked Task остаётся
     незакрытой; принятые описания задач не меняются.
-    Если результаты реализации требуют изменить смысл Intake или другого раннего артефакта,
-    приостановить затронутую работу и вернуть finding в Planning. Planning актуализирует
-    затронутые артефакты по правилу сверки из project context, повторяет проверки и
-    необходимые согласования. Перед возобновлением Apply заново выполнить preflight.
-    Редакционная правка без изменения смысла сама по себе не требует остановки Apply
-    или повторных Gate 1 и Feature Acceptance; передать её на review и сверку.
-    Повторная Feature Acceptance нужна при изменении реализации, проверяемого
-    контракта или потере применимости прежнего evidence.
+    Находки, меняющие ранние артефакты, передай в spec-driven-extended-reconcile.
+    После возврата из Planning заново выполни Apply preflight.
 
     После repository scope:
 
@@ -490,7 +436,4 @@ apply:
     environment restrictions, change accepted Planning or commit/publish implicitly.
     Pause if you hit blockers or need clarification. Human Feature Acceptance belongs
     to the following Verify artifact, not to implementation Tasks.
-    At each task completion and before ending Apply, check findings against existing
-    Change artifacts under the stage-completion rule in project context. If a finding
-    requires an earlier artifact to change, pause affected work and return to Planning
-    for reconciliation and the required review before resuming implementation.
+    At each task completion and before ending Apply invoke spec-driven-extended-reconcile.
