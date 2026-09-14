@@ -2,8 +2,7 @@
 
 export const MCP_RESOURCE_CONFIG = Object.freeze({
   rootFiles: Object.freeze([
-    "openspec-orch.yaml", "openspec/config.yaml", "STORE.md",
-    "openspec/process/quality-gates.md", "openspec/process/release-process.md",
+    "openspec-orch.yaml", "openspec/config.yaml",
   ]),
   staticTrees: Object.freeze([
     Object.freeze({ root: "openspec/context", suffixes: new Set([".md", ".yaml", ".yml"]) }),

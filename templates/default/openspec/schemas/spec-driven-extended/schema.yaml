@@ -294,9 +294,8 @@ artifacts:
       Then invoke spec-driven-extended-meta-planning for the tasks stage and
       verify Scenario → Design decision → Task traceability.
 
-      Use the Planning owner, required reviewers and acceptance gates declared in
-      openspec/process/quality-gates.md. Follow the project PR process in
-      openspec/process/release-process.md; do not infer roles from job titles.
+      Use only explicitly provided project roles, reviewers and delivery rules.
+      Do not infer them from job titles, repository layout or external systems.
 
       Before writing tasks, check design.md for Open Questions. If any of them
       would change what gets built, resolve them with the user first - do not

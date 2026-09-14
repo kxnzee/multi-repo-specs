@@ -376,7 +376,7 @@ test("runtime does not advertise a bound Graph Plugin whose runtime is unavailab
   await assert.rejects(runtime.getStatus(), /broken Plugin factory/u);
 });
 
-test("public MCP refreshes artifact content and exposes only the declared shared policies", async (t) => {
+test("public MCP refreshes artifact content and exposes only declared shared resources", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-mcp-freshness-"));
   const client = new Client({ name: "freshness-regression", version: "1.0.0" });
   t.after(async () => {
@@ -396,13 +396,11 @@ test("public MCP refreshes artifact content and exposes only the declared shared
     }],
   })));
   await fs.cp(path.join(repositoryRoot, "templates/default/openspec"), path.join(root, "openspec"), { recursive: true });
-  await fs.mkdir(path.join(root, "openspec/process"));
   await fs.mkdir(path.join(root, "openspec/context"));
   await fs.mkdir(path.join(root, "openspec/specs/payments"), { recursive: true });
-  const shared = ["STORE.md", "openspec/process/quality-gates.md", "openspec/process/release-process.md",
-    "openspec/context/product.md", "openspec/specs/payments/spec.md"];
+  const shared = ["openspec/context/product.md", "openspec/specs/payments/spec.md"];
   for (const name of shared) await fs.writeFile(path.join(root, name), "# Original\n");
-  await fs.writeFile(path.join(root, "openspec/process/private.md"), "private\n");
+  await fs.writeFile(path.join(root, "openspec/context/private.txt"), "private\n");
   for (const change of ["pay", "other"]) {
     await execa("openspec", ["new", "change", change, "--schema", "spec-driven-extended"], { cwd: root });
     await fs.writeFile(path.join(root, `openspec/changes/${change}/intake.md`), "# Intake\n");
@@ -424,7 +422,7 @@ test("public MCP refreshes artifact content and exposes only the declared shared
     assert.ok(previous.shared_resources.some((resource) => resource.name === name), name);
     assert.equal((await client.readResource({ uri: uri(name) })).contents[0].text, "# Original\n");
   }
-  await assert.rejects(client.readResource({ uri: uri("openspec/process/private.md") }), /MCP_RESOURCE_NOT_FOUND/u);
+  await assert.rejects(client.readResource({ uri: uri("openspec/context/private.txt") }), /MCP_RESOURCE_NOT_FOUND/u);
   assert.equal((await readContext(previous.context_revision)).unchanged, true);
   for (const name of ["openspec/changes/pay/proposal.md", ...shared]) {
     await fs.writeFile(path.join(root, name), "# Changed content\n");
