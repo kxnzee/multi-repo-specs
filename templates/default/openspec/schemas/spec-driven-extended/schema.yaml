@@ -88,7 +88,7 @@ artifacts:
       Do not invent a requirement just to satisfy validation.
 
       Keep it concise (1-2 pages). Focus on the "why" not the "how" -
-      implementation details belong in design.md.
+      architectural decisions and public interaction contracts belong in design.md.
 
       This is the foundation - specs, design, and tasks all build on this.
     requires:
@@ -204,41 +204,20 @@ artifacts:
 
   - id: design
     generates: design.md
-    description: Technical design document with implementation details
+    description: Architecture, public interaction contracts and technical decisions
     template: design.md
     instruction: |
-      Create the design document that explains HOW to implement the change.
-      Before completion invoke spec-driven-extended-reconcile with the Design findings.
-      Then invoke spec-driven-extended-meta-planning for the design stage.
-      Include a Repository Implementation Map for Repository IDs accepted in Proposal.
+      Read the current Design template from these instructions before investigation
+      or writing. It is the single source for document sections, allowed content,
+      public-contract completeness and review criteria. Prepare design.md from it.
+      Design is required before Tasks; scale its detail to the Change.
 
-      Design is required before Tasks in this schema. For a simple Change, record
-      that no new architectural decision is needed and include its Repository
-      Implementation Map. Use a detailed design when any of these apply:
-      - Cross-cutting change (multiple services/modules) or new architectural pattern
-      - New external dependency or significant data model changes
-      - Security, performance, or migration complexity
-      - Ambiguity that benefits from technical decisions before coding
-
-      Sections:
-      - **Context**: Only the current state and constraints needed to explain the approach. Reference the proposal for motivation instead of restating it (e.g., "See proposal.md - Why").
-      - **Goals / Non-Goals**: What this design achieves and explicitly excludes. Don't restate the proposal's scope - add only design-level boundaries.
-      - **Decisions**: Key technical choices with rationale (why X over Y?). Include alternatives considered for each decision.
-      - **Risks / Trade-offs**: Known limitations, things that could go wrong. Format: [Risk] → Mitigation
-      - **Migration Plan**: Steps to deploy, rollback strategy (if applicable)
-      - **Open Questions**: Unknowns that can safely be answered later without
-        changing the specs, the approach, or the task breakdown. Omit if none.
-
-      Open questions are for genuinely deferrable unknowns, not decisions you
-      skipped. If a question would change the specs, the chosen approach, or
-      the task breakdown, resolve it now - ask the user instead of guessing.
-
-      Focus on architecture and approach, not line-by-line implementation.
-      The proposal covers why and what; design covers how. Reference the
-      proposal for motivation and, once written, the specs for requirements -
-      if a section would only restate them, point to them instead.
-
-      Good design docs explain the "why" behind technical decisions.
+      Before completion invoke spec-driven-extended-reconcile with the Design findings,
+      then spec-driven-extended-meta-planning for the design stage against the current
+      template. Resolve blockers and repeat only affected checks after edits.
+      If either check is unavailable, interrupted or incomplete, report the stage as
+      unfinished and stop before Tasks. An existing file or OpenSpec status of done
+      is not proof that review completed. Do not create a separate review artifact.
     requires:
       - proposal
 
