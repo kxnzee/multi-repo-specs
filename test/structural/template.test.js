@@ -125,12 +125,14 @@ test("Default Template is copy-only and applies identically for every independen
       `${agentId}: repeated apply`,
     );
   }
-  assert.equal((await expectedTargets(descriptor.copy)).includes(".gitignore"), true);
-  assert.equal((await expectedTargets(descriptor.copy)).some((target) => target.startsWith("assets/")), false);
+  const targets = await expectedTargets(descriptor.copy);
+  assert.equal(targets.includes(".gitignore"), true);
+  assert.equal(targets.some((target) => target.startsWith("assets/")), false);
+  assert.equal(targets.some((target) => target.startsWith("openspec/process/")), false);
   const gitignore = await fs.readFile(path.join(TEMPLATE_ROOT, "assets/gitignore.template"), "utf8");
   assert.match(gitignore, /^\.gigacode\/tmp\/$/mu);
   assert.match(gitignore, /^\.qwen\/tmp\/$/mu);
-  const allowed = /^(?:assets\/(?:gitignore\.template|STORE\.md|agent-instructions\.md)$|context\/|process\/|openspec\/|template\.yaml$)/u;
+  const allowed = /^(?:assets\/(?:gitignore\.template|STORE\.md|agent-instructions\.md)$|context\/|openspec\/|template\.yaml$)/u;
   for (const relative of await listFiles(TEMPLATE_ROOT)) {
     assert.match(relative, allowed, `Template содержит не copy-only asset: ${relative}`);
   }

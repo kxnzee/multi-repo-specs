@@ -17,7 +17,6 @@ Bundled Template `default` копирует в Store:
 - файл выбранного агента (`CLAUDE.md`, `QWEN.md` или `GIGACODE.md`), направляющий к `STORE.md`;
 - `openspec/config.yaml`;
 - долговечный project context в `openspec/context/`;
-- правила согласований и поставки в `openspec/process/`;
 - schemas `spec-driven-extended` и `superspec-multirepo` со всеми templates;
 - `.gitignore` для локального состояния Orchestrator и Agent.
 
@@ -68,9 +67,9 @@ openspec-orch init /absolute/path/to/store \
 `openspec/config.yaml.schema` задаёт только схему по умолчанию. Граф, пути артефактов,
 допустимое исследование кода и проверки стадий задаёт выбранная schema; общие
 инструкции не должны повторять список установленных схем и их этапы.
-Роли и согласования хранятся в `openspec/process/quality-gates.md`, порядок
-поставки и направления PR — в `openspec/process/release-process.md`. При адаптации
-проекта меняйте эти источники; имена внешних статусов и должностей не задаются skills.
+Template не создаёт отдельный процесс команды. Роли, согласования, ветки и направления
+PR используются только из явно предоставленных правил проекта; schema и Extensions
+не должны придумывать их по должностям или структуре репозиториев.
 
 ## Выбор schema
 

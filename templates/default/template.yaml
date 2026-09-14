@@ -10,8 +10,6 @@ copy:
     to: STORE.md
   - from: context
     to: openspec/context
-  - from: process
-    to: openspec/process
   - from: openspec/config.yaml
     to: openspec/config.yaml
   - from: openspec/schemas
