@@ -129,7 +129,9 @@ export class PluginPlatform {
       supplyService: packageSupplyService,
       storeProjectService,
     });
+    const agentPacks = new AgentPackService(bundledAgentProvider);
     this.#doctor = new DoctorService({
+      agentPackService: agentPacks,
       extensionStatusService: this.#extensionLifecycle,
       pluginStatusService: lifecycle,
       packageSupplyService,
@@ -138,7 +140,7 @@ export class PluginPlatform {
       storeProjectService,
     });
     this.#setup = new ProjectSetupService({
-      connectionService: new ConnectionService({ agentPackService: new AgentPackService(bundledAgentProvider) }),
+      connectionService: new ConnectionService({ agentPackService: agentPacks }),
       bundledTemplateProvider,
       extensionLifecycle: this.#extensionLifecycle,
       initializationService: this.#initialization,
