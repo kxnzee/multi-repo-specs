@@ -221,10 +221,13 @@ test("InitializationService creates Store through domain and public facade contr
   assert.deepEqual(project.template, { id: "default" });
   assert.deepEqual(project.agent, { id: "claude" });
   assert.deepEqual(project.codeRepositories.map(({ id }) => id), ["frontend"]);
-  assert.match(await fs.readFile(path.join(root, "CLAUDE.md"), "utf8"), /STORE\.md/u);
+  assert.match(
+    await fs.readFile(path.join(root, "CLAUDE.md"), "utf8"),
+    /центральный OpenSpec Store/u,
+  );
   assert.equal(result.created.includes("CLAUDE.md"), true);
-  assert.equal(result.created.includes("STORE.md"), true);
-  assert.equal((await fs.stat(path.join(root, "STORE.md"))).isFile(), true);
+  assert.equal(result.created.includes("STORE.md"), false);
+  await assert.rejects(fs.access(path.join(root, "STORE.md")), { code: "ENOENT" });
   assert.equal((await fs.stat(path.join(root, ".claude/commands/opsx"))).isDirectory(), true);
   assert.equal(
     await fs.readFile(path.join(root, ".claude/commands/opsx/opsx-explore.md"), "utf8"),

@@ -12,8 +12,9 @@ description: Планирование и проверка общей иници�
    соседние каталоги. Для нового Change используй schema initiative, если она
    выбрана пользователем или конфигурацией Store. Существующий Change с другой
    schema не переключай: следуй его процессу.
-2. Прочитай STORE.md и контекст проекта. Получи актуальные status и инструкции
-   OpenSpec через доступный Orchestrator MCP; без MCP используй
+2. Прочитай `openspec-orch.yaml`, `openspec/config.yaml` и относящийся к инициативе
+   контекст проекта. Получи актуальные status и инструкции OpenSpec через доступный
+   Orchestrator MCP; без MCP используй
    `openspec status --change <id> --json` и
    `openspec instructions <artifact-id> --change <id> --json` из основного Store.
    Для нового Change доступен `openspec new change <id> --schema initiative`.

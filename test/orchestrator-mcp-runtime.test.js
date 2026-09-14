@@ -398,7 +398,7 @@ test("public MCP refreshes artifact content and exposes only declared shared res
   await fs.cp(path.join(repositoryRoot, "templates/default/openspec"), path.join(root, "openspec"), { recursive: true });
   await fs.mkdir(path.join(root, "openspec/context"));
   await fs.mkdir(path.join(root, "openspec/specs/payments"), { recursive: true });
-  const shared = ["STORE.md", "openspec/context/product.md", "openspec/specs/payments/spec.md"];
+  const shared = ["openspec/context/product.md", "openspec/specs/payments/spec.md"];
   for (const name of shared) await fs.writeFile(path.join(root, name), "# Original\n");
   await fs.writeFile(path.join(root, "openspec/context/private.txt"), "private\n");
   for (const change of ["pay", "other"]) {

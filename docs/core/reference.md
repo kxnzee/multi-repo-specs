@@ -275,8 +275,8 @@ Write tools принимают `change_id` и точный `task_id`. Status т�
 без task нельзя запросить diff. Обзор не включает технические снимки кандидатов.
 Git revisions и маркеры конкурентной записи Plugin получает автоматически.
 
-Resources ограничены Project config, OpenSpec config, `STORE.md`, Markdown/YAML
-context, Master Specs и schema-declared Change artifacts.
+Resources ограничены Project config, OpenSpec config, Markdown/YAML context,
+Master Specs и schema-declared Change artifacts.
 Каждый descriptor содержит `_meta.content_revision` — SHA-256 содержимого файла.
 `get_change_context` включает эти descriptors, поэтому изменение текста, добавление
 или удаление ресурса текущего Change либо общего Store context меняет его

@@ -132,7 +132,7 @@ test("Default Template is copy-only and applies identically for every independen
   const gitignore = await fs.readFile(path.join(TEMPLATE_ROOT, "assets/gitignore.template"), "utf8");
   assert.match(gitignore, /^\.gigacode\/tmp\/$/mu);
   assert.match(gitignore, /^\.qwen\/tmp\/$/mu);
-  const allowed = /^(?:assets\/(?:gitignore\.template|STORE\.md|agent-instructions\.md)$|context\/|openspec\/|template\.yaml$)/u;
+  const allowed = /^(?:assets\/(?:gitignore\.template|agent-instructions\.md)$|context\/|openspec\/|template\.yaml$)/u;
   for (const relative of await listFiles(TEMPLATE_ROOT)) {
     assert.match(relative, allowed, `Template содержит не copy-only asset: ${relative}`);
   }

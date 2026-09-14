@@ -13,8 +13,8 @@ OpenSpec; Template и standalone Extensions не должны подменять
 
 Bundled Template `default` копирует в Store:
 
-- `STORE.md` — общую точку входа для работы со спецификациями;
-- файл выбранного агента (`CLAUDE.md`, `QWEN.md` или `GIGACODE.md`), направляющий к `STORE.md`;
+- файл выбранного агента (`CLAUDE.md`, `QWEN.md` или `GIGACODE.md`) с общей
+  точкой входа для работы со спецификациями;
 - `openspec/config.yaml`;
 - долговечный project context в `openspec/context/`;
 - schemas `spec-driven-extended` и `superspec-multirepo` со всеми templates;
@@ -33,9 +33,9 @@ copy-only файлов Template: Extensions имеют собственный li
 Plugins и user-scoped Agent gateway в Template не входят. Их подключают отдельно
 после создания Store.
 
-`STORE.md` относится к центральному Store. Он не содержит инструкции разработки
-Orchestrator и не заменяет schemas или Extensions. Исходники находятся в
-`templates/default/assets/STORE.md` и `assets/agent-instructions.md`.
+Корневой файл инструкций агента относится к центральному Store. Он не содержит
+инструкции разработки Orchestrator и не заменяет schemas или Extensions. Его общий
+исходник находится в `templates/default/assets/agent-instructions.md`.
 Существующий файл агента с другим содержимым блокирует первый init; он не
 перезаписывается. Для уже созданного Store новые файлы переносятся вручную через
 проверяемый Store PR: повторный init не обновляет Template.

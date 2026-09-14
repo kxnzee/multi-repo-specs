@@ -1,4 +1,4 @@
-/** @fileoverview Store instruction delivery preserves user files and Agent pack boundaries. */
+/** @fileoverview Agent instruction delivery preserves user files and Agent pack boundaries. */
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -18,11 +18,11 @@ async function fixture(t, id = "qwen") {
   const targetRoot = path.join(temporary, "store");
   await fs.mkdir(templateRoot);
   await fs.mkdir(targetRoot);
-  await fs.writeFile(path.join(templateRoot, "STORE.md"), "Store context\n");
-  await fs.writeFile(path.join(templateRoot, "entry.md"), "Read STORE.md\n");
+  await fs.writeFile(path.join(templateRoot, "context.md"), "Project context\n");
+  await fs.writeFile(path.join(templateRoot, "entry.md"), "Use project context\n");
   const descriptor = {
     id: "fixture", name: "Fixture", agentInstructions: "entry.md",
-    copy: [{ from: "STORE.md", to: "STORE.md" }],
+    copy: [{ from: "context.md", to: "context.md" }],
   };
   const { definition: agent } = await BundledAgentPackage.load(path.join(ROOT, "src", "agents", id));
   const service = new ProjectTemplateService();
@@ -35,7 +35,7 @@ async function fixture(t, id = "qwen") {
   };
 }
 
-test("Store entrypoint preserves existing identical files and rejects conflicting user instructions", async (t) => {
+test("Agent entrypoint preserves existing identical files and rejects conflicting user instructions", async (t) => {
   for (const id of ["claude", "qwen", "gigacode"]) {
     const f = await fixture(t, id);
     const entry = path.join(f.targetRoot, f.agent.instructionsFile);
@@ -43,9 +43,9 @@ test("Store entrypoint preserves existing identical files and rejects conflictin
     const plan = await f.plan();
     await assert.rejects(plan.install(), /существующий файл с другим содержимым/u);
     assert.equal(await fs.readFile(entry, "utf8"), "My project rules\n");
-    await assert.rejects(fs.access(path.join(f.targetRoot, "STORE.md")), { code: "ENOENT" });
-    await fs.writeFile(entry, "Read STORE.md\n");
-    assert.deepEqual(await (await f.plan()).install(), { created: ["STORE.md"], updated: [] });
+    await assert.rejects(fs.access(path.join(f.targetRoot, "context.md")), { code: "ENOENT" });
+    await fs.writeFile(entry, "Use project context\n");
+    assert.deepEqual(await (await f.plan()).install(), { created: ["context.md"], updated: [] });
   }
 });
 
@@ -62,7 +62,7 @@ test("an instruction file created after preflight is never overwritten", async (
 test("agentInstructions is optional and cannot authorize arbitrary protected copies", async (t) => {
   const f = await fixture(t);
   delete f.descriptor.agentInstructions;
-  assert.deepEqual((await f.plan()).targetPaths, ["STORE.md"]);
+  assert.deepEqual((await f.plan()).targetPaths, ["context.md"]);
   f.descriptor.copy.push({ from: "entry.md", to: f.agent.instructionsFile });
   await assert.rejects(f.plan(), /защищённый Agent path/u);
   f.descriptor.copy.pop();

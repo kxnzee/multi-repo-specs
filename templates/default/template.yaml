@@ -6,8 +6,6 @@ requires:
     - spec-driven-extended
     - superpowers
 copy:
-  - from: assets/STORE.md
-    to: STORE.md
   - from: context
     to: openspec/context
   - from: openspec/config.yaml
