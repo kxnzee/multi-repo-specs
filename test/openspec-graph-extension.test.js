@@ -17,7 +17,7 @@ test("Graph Plugin delivers the same impact verification instructions to all Age
   assert.deepEqual(contribution.target, repository);
   const payload = { ...contribution, root: path.resolve(ROOT, "plugins/openspec-graph", contribution.root) };
   const packages = await Promise.all(["claude", "qwen", "gigacode"].map((id) => (
-    BundledAgentPackage.load(path.join(ROOT, "agents", id))
+    BundledAgentPackage.load(path.join(ROOT, "src", "agents", id))
   )));
   const adapter = new BundledAgentProvider(packages).adapter;
   await adapter.validateExtension(payload, { ownerId: plugin.id });

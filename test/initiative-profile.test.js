@@ -15,7 +15,7 @@ test("initiative supports proposal/specs/verify and preserves Store-owned custom
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "initiative-profile-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const templateRoot = path.join(ROOT, "templates/initiative");
-  const { definition: agent } = await BundledAgentPackage.load(path.join(ROOT, "agents/qwen"));
+  const { definition: agent } = await BundledAgentPackage.load(path.join(ROOT, "src/agents/qwen"));
   const service = new ProjectTemplateService();
   const plan = await service.plan({ templateRoot, targetRoot: root, agent });
   await plan.install();

@@ -18,13 +18,13 @@ async function readManifest(relativePath) {
 test("root distribution exposes the candidate entrypoint and required runtime files", async () => {
   const manifest = await readManifest("package.json");
 
-  assert.deepEqual(manifest.workspaces, ["packages/*", "plugins/*"]);
+  assert.deepEqual(manifest.workspaces, ["src/packages/*", "plugins/*"]);
   assert.deepEqual(manifest.bin, {
-    "openspec-orch": "./bin/openspec-orch.js",
-    "openspec-orch-codegraph": "./bin/openspec-orch-codegraph.js",
-    "openspec-orch-mcp": "./bin/openspec-orch-mcp.js",
+    "openspec-orch": "./src/bin/openspec-orch.js",
+    "openspec-orch-codegraph": "./src/bin/openspec-orch-codegraph.js",
+    "openspec-orch-mcp": "./src/bin/openspec-orch-mcp.js",
   });
-  assert.deepEqual(manifest.files, ["agents", "bin", "extensions", "templates"]);
+  assert.deepEqual(manifest.files, ["src/agents", "src/bin", "extensions", "templates"]);
   assert.deepEqual(manifest.dependencies, {
     "@openspec-orch/core": "0.1.0",
     "@openspec-orch/mcp": "1.0.0",
@@ -59,9 +59,9 @@ test("root distribution exposes the candidate entrypoint and required runtime fi
 });
 
 test("Core, Plugin SDK and Extension SDK are independently publishable packages", async () => {
-  const core = await readManifest("packages/core/package.json");
-  const sdk = await readManifest("packages/plugin-sdk/package.json");
-  const extensionSdk = await readManifest("packages/extension-sdk/package.json");
+  const core = await readManifest("src/packages/core/package.json");
+  const sdk = await readManifest("src/packages/plugin-sdk/package.json");
+  const extensionSdk = await readManifest("src/packages/extension-sdk/package.json");
 
   assert.deepEqual(core.exports, { ".": "./index.js" });
   assert.deepEqual(sdk.exports, {
@@ -86,10 +86,10 @@ test("Core, Plugin SDK and Extension SDK are independently publishable packages"
 test("all distribution packages require the same Node runtime", async () => {
   const packagePaths = [
     "package.json",
-    "packages/core/package.json",
-    "packages/extension-sdk/package.json",
-    "packages/mcp/package.json",
-    "packages/plugin-sdk/package.json",
+    "src/packages/core/package.json",
+    "src/packages/extension-sdk/package.json",
+    "src/packages/mcp/package.json",
+    "src/packages/plugin-sdk/package.json",
     "plugins/change-tracking/package.json",
     "plugins/codegraph/package.json",
     "plugins/openspec-graph/package.json",
@@ -102,7 +102,7 @@ test("all distribution packages require the same Node runtime", async () => {
 });
 
 test("public entrypoint exposes the supported CLI", () => {
-  const candidate = spawnSync(process.execPath, ["bin/openspec-orch.js", "--help"], {
+  const candidate = spawnSync(process.execPath, ["src/bin/openspec-orch.js", "--help"], {
     cwd: path.resolve("."),
     encoding: "utf8",
   });
@@ -113,7 +113,7 @@ test("public entrypoint exposes the supported CLI", () => {
   assert.match(candidate.stdout, /^\s+extension\b/mu);
   assert.match(candidate.stdout, /^\s+package\b/mu);
 
-  const extension = spawnSync(process.execPath, ["bin/openspec-orch.js", "extension", "--help"], {
+  const extension = spawnSync(process.execPath, ["src/bin/openspec-orch.js", "extension", "--help"], {
     cwd: path.resolve("."),
     encoding: "utf8",
   });
@@ -124,7 +124,7 @@ test("public entrypoint exposes the supported CLI", () => {
 });
 
 test("public entrypoint preserves the Node guard and CLI exit codes", () => {
-  const entrypoint = path.resolve("bin/openspec-orch.js");
+  const entrypoint = path.resolve("src/bin/openspec-orch.js");
   const unsupported = spawnSync(process.execPath, [
     "--input-type=module",
     "--eval",
@@ -154,14 +154,14 @@ test("ESLint enforces static Core, SDK and Plugin import boundaries", async () =
   const cases = [
     {
       filePath: path.resolve("plugins/example/index.js"),
-      source: "import core from '../../packages/core/internal.js';\nvoid core;\n",
+      source: "import core from '../../src/packages/core/internal.js';\nvoid core;\n",
     },
     {
-      filePath: path.resolve("packages/core/internal/example.js"),
+      filePath: path.resolve("src/packages/core/internal/example.js"),
       source: "import plugin from '../../../plugins/codegraph/index.js';\nvoid plugin;\n",
     },
     {
-      filePath: path.resolve("packages/plugin-sdk/internal/example.js"),
+      filePath: path.resolve("src/packages/plugin-sdk/internal/example.js"),
       source: "import core from '../../core/internal.js';\nvoid core;\n",
     },
   ];
@@ -176,8 +176,8 @@ test("ESLint enforces static Core, SDK and Plugin import boundaries", async () =
   }
 
   for (const filePath of [
-    path.resolve("packages/core/internal/sdk-consumer.js"),
-    path.resolve("packages/plugin-sdk/test/self-reference.js"),
+    path.resolve("src/packages/core/internal/sdk-consumer.js"),
+    path.resolve("src/packages/plugin-sdk/test/self-reference.js"),
     path.resolve("plugins/example/index.js"),
   ]) {
     const [result] = await eslint.lintText(

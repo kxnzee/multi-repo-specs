@@ -11,11 +11,11 @@ import { parse } from "yaml";
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/default/", import.meta.url));
 const EXTENSION_ROOT = fileURLToPath(new URL("../../extensions/spec-driven-extended/", import.meta.url));
 const GATEWAY_ROOT = fileURLToPath(new URL("../../extensions/orchestrator-agent/", import.meta.url));
-const CORE_ROOT = fileURLToPath(new URL("../../packages/core/internal/", import.meta.url));
-const MCP_ROOT = fileURLToPath(new URL("../../packages/mcp/lib/", import.meta.url));
-const SDK_ROOT = fileURLToPath(new URL("../../packages/plugin-sdk/internal/", import.meta.url));
+const CORE_ROOT = fileURLToPath(new URL("../../src/packages/core/internal/", import.meta.url));
+const MCP_ROOT = fileURLToPath(new URL("../../src/packages/mcp/lib/", import.meta.url));
+const SDK_ROOT = fileURLToPath(new URL("../../src/packages/plugin-sdk/internal/", import.meta.url));
 const PLUGINS_ROOT = fileURLToPath(new URL("../../plugins/", import.meta.url));
-const MCP_RUNTIME = fileURLToPath(new URL("../../bin/internal/orchestrator-mcp-runtime.js", import.meta.url));
+const MCP_RUNTIME = fileURLToPath(new URL("../../src/bin/internal/orchestrator-mcp-runtime.js", import.meta.url));
 
 /** Разбирает обязательный YAML frontmatter Markdown artifact. */
 function parseFrontmatter(source, artifact) {

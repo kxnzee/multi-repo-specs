@@ -1,0 +1,137 @@
+# OpenSpec Orchestrator Plugin SDK
+
+`@openspec-orch/plugin-sdk` — единственный публичный API для in-process Plugins.
+SDK определяет immutable Plugin model, command builder, scoped contracts и test kit.
+Загрузка packages и lifecycle принадлежат Core.
+
+## Минимальный Plugin
+
+```js
+import { definePlugin } from "@openspec-orch/plugin-sdk";
+
+export default definePlugin({
+  id: "demo",
+  registerCommands(commands) {
+    commands.command("hello")
+      .description("Demo command")
+      .action(async () => {});
+  },
+});
+```
+
+Plugin объявляет хотя бы один contribution:
+
+- `commands` — declarative grammar за единым `plugin exec`;
+- `repository` — `connect/status` и optional `sync/exec`;
+- `extensions` — Agent Extension с Store или Repository target;
+- `agent` — optional Agent tools и response overlays, реализация которых остаётся
+  внутри owning Plugin.
+
+Commands-only Plugin может не объявлять `supports` и не требует binding.
+Repository Plugin объявляет хотя бы одну role. `repository.exec` нужен только для
+native passthrough; зарегистрированную grammar SDK исполняет сам.
+
+## Extension contribution
+
+```js
+import { defineExtension, definePlugin } from "@openspec-orch/plugin-sdk";
+
+export default definePlugin({
+  id: "codegraph",
+  extensions(context) {
+    return [defineExtension({
+      id: "agent",
+      root: "./extension",
+      target: context.repository,
+    })];
+  },
+});
+```
+
+`root` — package-relative path с `./`, `target` — immutable
+`{ id, role }`. Native ID равен `<plugin-id>-<extension-id>`; provider manifests
+должны использовать это имя. Extension lifecycle выполняет Orchestrator через
+выбранный Agent adapter.
+
+## Agent contribution
+
+Поле `agent` позволяет Plugin поставлять Agent-facing tools и дополнять общие read
+responses. Distribution обнаруживает contribution через публичный Plugin API; Core,
+MCP transport и общий runtime не знают ID Plugin, tool names или поля overlay.
+`requireBinding: true` требует repository binding перед созданием application.
+
+Tool metadata immutable, а `create`, `execute`, optional `validate` и `enhance`
+выполняются из owning Plugin package. Contribution не расширяет права `PluginContext`.
+
+### Каталог инструментов
+
+Имена и JSON Schema принадлежат `agent.tools` внутри Plugin, а не базовому MCP.
+Runtime публикует инструменты подключённых Plugins и повторно проверяет
+доступность при вызове. Для изменения загруженного кода Plugin перезапустите MCP;
+изменения binding перечитываются без перезапуска.
+
+## PluginContext
+
+Core создаёт scoped context для каждого invocation:
+
+- immutable Project/Repository handles;
+- optional invocation metadata;
+- safe files с атомарным `update` для read-modify-write;
+- read-only Git helpers;
+- OpenSpec version check;
+- process runner без shell interpolation;
+- versioned local storage;
+- Agent identity и logger.
+
+Plugin не получает произвольный доступ к Core internals и не должен сам искать
+checkout. `repository.status` возвращает `{ state, details? }`.
+
+## Command builder
+
+Builder поддерживает nested commands, arguments, options, choices/parsers и actions.
+Для доступа к context используется `actionWithContext`:
+
+```js
+commands.command("inspect")
+  .option("--format <format>", "Output format", {
+    choices: ["text", "json"],
+  })
+  .actionWithContext(async (context, options) => {
+    context.logger.info(`${context.repository.id}: ${options.format}`);
+  }, { scope: "current", requireBinding: true });
+```
+
+`scope` равен `current` или `store`. `requireBinding: false` допустим только
+для команды, работающей до `plugin connect`. Progress API пишет в stderr.
+
+## Package contract
+
+```json
+{
+  "type": "module",
+  "exports": "./index.js",
+  "openspecOrchestrator": {
+    "apiVersion": 1,
+    "plugin": "./index.js"
+  },
+  "peerDependencies": {
+    "@openspec-orch/plugin-sdk": "^0.1.0"
+  }
+}
+```
+
+Loader проверяет package identity, entrypoint и structural API. Порядок загрузки
+Plugins не специфицирован.
+
+## Contract test
+
+```js
+import manifest from "../package.json" with { type: "json" };
+import plugin from "../index.js";
+import { testPluginContract } from "@openspec-orch/plugin-sdk/testing";
+
+testPluginContract({ plugin, packageManifest: manifest });
+```
+
+Plugin tests не импортируют Core. Полный lifecycle описан в
+[разработке Plugin](../../../docs/plugins/development.md).

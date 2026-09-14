@@ -1,4 +1,8 @@
-# Начало работы
+# Подробное начало работы
+
+Это руководство помогает подготовить новый или существующий проект к работе:
+проверить окружение, подключить Store и репозитории кода, настроить агента,
+подключить нужные плагины и создать первый Change.
 
 ## 1. Проверьте окружение
 
@@ -89,7 +93,7 @@ openspec-orch init /absolute/path/to/workspace/specs \
 интерактивный выбор. В non-TTY обязательны `--store` и `--agent`.
 
 Template `default` добавляет Extensions `spec-driven-extended` и `superpowers`. Plugins
-он не устанавливает.
+подключаются отдельно.
 
 ### Альтернатива: инициализация через MCP
 
@@ -217,7 +221,7 @@ openspec-orch connect --workspace /absolute/path/to/workspace
 Workspace сохраняется после успешного подключения. Режимов strict/relaxed больше нет;
 старое поле `strict` в конфигурации игнорируется.
 
-## 4. При необходимости установите Agent gateway
+## 4. Установите Agent gateway при необходимости
 
 Для инициализации через MCP gateway нужно установить до запуска Agent-сессии, как
 показано выше. При обычной CLI-инициализации этот шаг можно выполнить после `connect`.
@@ -230,32 +234,16 @@ openspec-orch agent status --agent qwen
 Перезапустите Agent после установки. Gateway ставится в user scope и используется
 всеми Projects этого Agent.
 
-## 5. Подключите нужные Plugins
+## 5. Подключите нужные Plugins и начните Change
 
-Например, для проверки Store graph:
-
-```bash
-openspec-orch plugin init --plugin openspec-graph
-openspec-orch plugin connect openspec-graph --repo specs
-openspec-orch plugin exec openspec-graph inspect --json
-```
-
-Остальные варианты описаны в [руководстве Plugins](plugins.md).
-
-## 6. Создайте Change
-
-```bash
-openspec new change update-copy --schema spec-driven-extended
-# либо
-openspec new change redesign-checkout --schema superspec-multirepo
-```
-
-Дальше используйте [единый процесс поставки](story-delivery-process.md); он описывает
-как командное, так и одиночное выполнение.
+Выберите нужные возможности в [каталоге плагинов](../plugins/README.md), затем
+подключите их по [общему lifecycle](../plugins/operations.md). Создание и ведение
+Change описаны в [Template default](../templates/default.md). Полная команда для
+нового Store приведена в [быстром старте](quick-start.md).
 
 Для нового участника итоговая последовательность выглядит так:
 
 ```text
 проверка Agent CLI → clone Store → connect → doctor
-→ agent setup/status → plugin status → перезапуск Agent → работа с Change
+→ agent setup/status → подключение нужных Plugins → перезапуск Agent → работа с Change
 ```

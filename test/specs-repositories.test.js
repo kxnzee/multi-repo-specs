@@ -16,9 +16,9 @@ import {
   PluginLoader, ProcessService, repositoryStatuses, storeProjects,
 } from "@openspec-orch/core";
 
-import { AgentPackPlan } from "../packages/core/internal/agent-pack.js";
-import { createDirectoryLink } from "../packages/core/fixtures/filesystem.js";
-import { OrchestratorMcpRuntime } from "../bin/internal/orchestrator-mcp-runtime.js";
+import { AgentPackPlan } from "../src/packages/core/internal/agent-pack.js";
+import { createDirectoryLink } from "../src/packages/core/fixtures/filesystem.js";
+import { OrchestratorMcpRuntime } from "../src/bin/internal/orchestrator-mcp-runtime.js";
 import { OpenSpecGraphApplication } from "../plugins/openspec-graph/lib/application.js";
 
 const graphRoot = fileURLToPath(new URL("../plugins/openspec-graph/", import.meta.url));
@@ -260,7 +260,7 @@ test("public CLI and stdio MCP select linked Graph bindings from the owner's run
   const connected = await s.connection.connect({ start: s.ownerRoot });
   assert.deepEqual(connected.repositories.map(({ role }) => role), ["specs", "specs"]);
   assert.deepEqual(await fs.readdir(path.join(s.root, "src")), []);
-  const cli = fileURLToPath(new URL("../bin/openspec-orch.js", import.meta.url));
+  const cli = fileURLToPath(new URL("../src/bin/openspec-orch.js", import.meta.url));
   const { stdout } = await execa(process.execPath, [cli, "plugin", "exec", "--repo", "payments", "openspec-graph",
     "inspect", "--json"], { cwd: s.ownerRoot });
   const report = JSON.parse(stdout);
@@ -269,7 +269,7 @@ test("public CLI and stdio MCP select linked Graph bindings from the owner's run
   assert.equal(report.summary.errors, 0);
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [fileURLToPath(new URL("../bin/openspec-orch-mcp.js", import.meta.url))],
+    args: [fileURLToPath(new URL("../src/bin/openspec-orch-mcp.js", import.meta.url))],
     cwd: s.ownerRoot, env: { ...process.env }, stderr: "pipe",
   });
   const client = new Client({ name: "linked-specs-smoke", version: "1.0.0" });

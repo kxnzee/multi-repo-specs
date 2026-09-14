@@ -1,0 +1,9 @@
+{
+  "name": "@test/openspec-orch-extension-sample",
+  "version": "1.0.0",
+  "private": true,
+  "openspecOrchestrator": {
+    "apiVersion": 1,
+    "extension": "./extension.yaml"
+  }
+}
