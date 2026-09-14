@@ -23,6 +23,44 @@ test("pack installs missing files, preserves unrelated files and repeats without
   assert.equal(await fs.readFile(path.join(root, "README.md"), "utf8"), "user");
 });
 
+test("pack reports every managed difference without changing local files", async (t) => {
+  const root = await fixture(t);
+  const currentSkill = ".agent/skills/openspec-apply/SKILL.md";
+  const currentCommand = ".agent/commands/opsx-apply.md";
+  const retiredSkill = ".agent/skills/openspec-base-apply-context/SKILL.md";
+  const retiredCommand = ".agent/commands/opsx-old.md";
+  const unrelatedSkill = ".agent/skills/team-review/SKILL.md";
+  const unrelatedCommand = ".agent/commands/team-review.md";
+  for (const [relative, contents] of [
+    [currentCommand, "local"], [retiredSkill, "retired skill"], [retiredCommand, "retired command"],
+    [unrelatedSkill, "user skill"], [unrelatedCommand, "user command"],
+  ]) {
+    await fs.mkdir(path.dirname(path.join(root, relative)), { recursive: true });
+    await fs.writeFile(path.join(root, relative), contents);
+  }
+  const plan = new AgentPackPlan(
+    [
+      { relative: currentSkill, contents: "current skill" },
+      { relative: currentCommand, contents: "current command" },
+    ],
+    { managedEntries: [
+      { directory: ".agent/skills", kind: "directory", prefix: "openspec-", suffix: "" },
+      { directory: ".agent/commands", kind: "file", prefix: "opsx-", suffix: ".md" },
+    ] },
+  );
+
+  assert.deepEqual(await plan.inspect(root), {
+    missing: [currentSkill],
+    changed: [currentCommand],
+    retired: [retiredCommand, path.dirname(retiredSkill)].sort(),
+  });
+  assert.equal(await fs.readFile(path.join(root, currentCommand), "utf8"), "local");
+  assert.equal(await fs.readFile(path.join(root, retiredSkill), "utf8"), "retired skill");
+  assert.equal(await fs.readFile(path.join(root, retiredCommand), "utf8"), "retired command");
+  assert.equal(await fs.readFile(path.join(root, unrelatedSkill), "utf8"), "user skill");
+  assert.equal(await fs.readFile(path.join(root, unrelatedCommand), "utf8"), "user command");
+});
+
 test("pack detects all conflicts before writing any missing file", async (t) => {
   const root = await fixture(t);
   await fs.writeFile(path.join(root, "existing.md"), "custom");

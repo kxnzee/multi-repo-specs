@@ -33,6 +33,11 @@ openspec-orch agent setup|status|remove --agent <id>
 Diagnostic Report в JSON. Без `--repo` он проверяет основной Store и все Code/Specs Repositories;
 повторяемый `--repo <id>` ограничивает только Repository checks. Отчёт включает путь и доступность файлов Repository. Git origin, ветка и чистота
 не влияют на доступность. Для linked Store проверяются его Store ID и конфигурация.
+Для подключённых Code Repositories Doctor также сравнивает весь доставляемый
+Agent Pack с текущим pack в Store: все OpenSpec commands и skills. Отсутствующие,
+изменённые и больше не поставляемые файлы возвращаются предупреждением
+`AGENT_PACK_DRIFT` с точными относительными путями. Doctor ничего не изменяет, а
+`connect` не удаляет устаревшие файлы. Пользователь сам решает, что обновлять или удалять.
 
 Во время обычного вызова Doctor показывает текущую группу проверок в stderr:
 в TTY — анимированный индикатор ожидания, при перенаправлении — отдельные строки
