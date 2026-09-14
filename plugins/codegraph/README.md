@@ -33,7 +33,8 @@ Passthrough `init` принимает флаги перед путём, напр
 ## Agent Extension
 
 После успешного connect Plugin активирует Extension в workspace target Repository.
-Она подключает stdio executable `openspec-orch-codegraph` и общие инструкции:
+Она запускает Plugin-owned runtime через общий маршрут
+`openspec-orch plugin runtime codegraph serve --mcp` и добавляет общие инструкции:
 
 - Claude получает local Plugin;
 - Qwen и GigaCode получают project Extension;

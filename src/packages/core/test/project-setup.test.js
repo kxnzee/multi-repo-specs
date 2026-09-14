@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { ProjectSetupService } from "../internal/project-setup.js";
+import { ProjectSetupService } from "../internal/setup/project-setup.js";
 
 const templates = Object.freeze({
   defaultId: "default",

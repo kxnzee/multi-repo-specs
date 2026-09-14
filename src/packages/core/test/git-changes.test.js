@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { execa } from "execa";
-import { RepositoryGit } from "../internal/git.js";
+import { RepositoryGit } from "../internal/infrastructure/git.js";
 
 /** Изолированный Repository; никакой настройки Git пользователя. */
 async function repository(t) {

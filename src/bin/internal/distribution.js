@@ -1,29 +1,21 @@
 /** @fileoverview Shared composition root for public CLI and MCP adapters. */
 
 import { promises as fs } from "node:fs";
+import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import process from "node:process";
+import {
+  AGENT_GATEWAY_EXTENSION_ID,
+  BUNDLED_ROOTS,
+  DISTRIBUTION_CONFIG,
+  MINIMUM_NODE_PARTS,
+  MINIMUM_NODE_VERSION,
+} from "./distribution-config.js";
 
 const require = createRequire(import.meta.url);
-const PACKAGE_MANIFEST = require("../../../package.json");
-const MINIMUM_NODE_VERSION = PACKAGE_MANIFEST.engines.node.replace(/^>=/u, "");
-const MINIMUM_NODE_PARTS = Object.freeze(MINIMUM_NODE_VERSION.split(".").map(Number));
 
-export const DISTRIBUTION_CONFIG = Object.freeze({
-  defaultTemplateId: PACKAGE_MANIFEST.openspecOrchestrator.defaultTemplateId,
-  plugins: Object.freeze(PACKAGE_MANIFEST.openspecOrchestrator.bundledPlugins.map((plugin) => (
-    Object.freeze({ ...plugin })
-  ))),
-  version: PACKAGE_MANIFEST.version,
-});
-
-const BUNDLED_ROOTS = Object.freeze({
-  agents: fileURLToPath(new URL("../../agents/", import.meta.url)),
-  extensions: fileURLToPath(new URL("../../../extensions/", import.meta.url)),
-  templates: fileURLToPath(new URL("../../../templates/", import.meta.url)),
-});
-const AGENT_GATEWAY_EXTENSION_ID = "orchestrator-agent";
+export { DISTRIBUTION_CONFIG } from "./distribution-config.js";
 
 /** Compares one runtime version with the distribution floor. */
 function isSupportedNodeVersion(version) {
@@ -41,6 +33,36 @@ export function assertNodeVersion(version) {
         `текущая версия: ${version}`,
     );
   }
+}
+
+/** Runs a Plugin-owned native runtime declared by a bundled Plugin package. */
+export async function runBundledPluginRuntime(pluginId, args) {
+  const definition = DISTRIBUTION_CONFIG.plugins.find(({ id }) => id === pluginId);
+  if (!definition) throw new Error(`PLUGIN_RUNTIME_NOT_BUNDLED: ${pluginId ?? ""}`);
+  if (!Array.isArray(args) || args.some((arg) => typeof arg !== "string")) {
+    throw new Error("PLUGIN_RUNTIME_INVALID: args должен быть массивом строк");
+  }
+  const { manifest, root } = await resolvePluginPackage(definition.packageName);
+  const runtime = manifest?.openspecOrchestrator?.runtime;
+  if (
+    typeof runtime !== "string" || !runtime.startsWith("./") || runtime.includes("\\") ||
+    runtime.split("/").some((part) => part === "" || part === "..")
+  ) {
+    throw new Error(`PLUGIN_RUNTIME_UNAVAILABLE: ${pluginId}`);
+  }
+  const runtimePath = path.resolve(root, runtime);
+  if (!runtimePath.startsWith(`${root}${path.sep}`)) {
+    throw new Error(`PLUGIN_RUNTIME_UNAVAILABLE: ${pluginId}`);
+  }
+  await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [runtimePath, ...args], { stdio: "inherit" });
+    child.once("error", reject);
+    child.once("exit", (code, signal) => {
+      if (signal) reject(new Error(`PLUGIN_RUNTIME_FAILED: ${pluginId} завершён сигналом ${signal}`));
+      else if (code === 0) resolve();
+      else reject(new Error(`PLUGIN_RUNTIME_FAILED: ${pluginId} завершён с кодом ${code ?? 1}`));
+    });
+  });
 }
 
 /** Resolves one bundled Plugin package without importing its runtime yet. */
@@ -115,7 +137,7 @@ export async function createDistributionPlatform({ start, loadInstalledPlugins =
   const platform = await core.PluginPlatform.create({
     pluginCommandOptions: {
       scaffoldService: new core.PluginScaffoldService({
-        extensionTemplateRoot: fileURLToPath(new URL("../templates/plugin-extension/", import.meta.url)),
+        extensionTemplateRoots: bundledAgentProvider.extensionTemplateRoots,
       }),
     },
     bundledAgentProvider,

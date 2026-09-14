@@ -1,0 +1,189 @@
+/** @fileoverview Безопасная загрузка установленного ESM Plugin entrypoint. */
+
+import { createHash } from "node:crypto";
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+import {
+  PLUGIN_API_METHODS,
+  PLUGIN_PATTERNS,
+  PluginPackage,
+  REPOSITORY_ROLE,
+} from "@openspec-orch/plugin-sdk";
+
+import { lstatOrNull, requireSafePath } from "../infrastructure/fs.js";
+import { isContainedPath } from "../infrastructure/path.js";
+
+const defaultImport = (specifier) => import(specifier);
+const importedPackages = new WeakMap();
+
+/** Includes helper modules and data files, since changing just an entry URL leaves imports cached. */
+async function packageFingerprint(root, runtimeRevision) {
+  const hash = createHash("sha256");
+  /** Hashes the complete ordinary package tree in deterministic order. */
+  async function visit(directory) {
+    for (const entry of (await fs.readdir(directory, { withFileTypes: true }))
+      .sort((left, right) => left.name.localeCompare(right.name))) {
+      const target = path.join(directory, entry.name);
+      hash.update(JSON.stringify(path.relative(root, target)));
+      if (entry.isDirectory()) await visit(target);
+      else if (entry.isFile()) hash.update(await fs.readFile(target));
+      else if (entry.isSymbolicLink()) hash.update(await fs.readlink(target));
+      else invalid("package содержит специальный файл");
+    }
+  }
+  await visit(root);
+  return { contents: hash.digest("hex"), lock: runtimeRevision ?? null };
+}
+
+const REPOSITORY_ROLES = new Set(Object.values(REPOSITORY_ROLE));
+
+/** Завершает загрузку стабильной ошибкой Core Plugin Loader. */
+function invalid(message, options) {
+  throw new Error(`PLUGIN_LOAD_INVALID: ${message}`, options);
+}
+
+/** Независимо проверяет структурный публичный API Plugin export. */
+function assertPluginExport(plugin) {
+  if (!plugin || typeof plugin !== "object" || Array.isArray(plugin)) {
+    invalid("default export должен быть Plugin object");
+  }
+  if (typeof plugin.id !== "string" || !PLUGIN_PATTERNS.id.test(plugin.id)) {
+    invalid("Plugin export id должен быть lowercase kebab-case");
+  }
+  if (!Array.isArray(plugin.supports)) {
+    invalid("Plugin export supports должен быть массивом");
+  }
+  if (plugin.supports.some((role) => !REPOSITORY_ROLES.has(role))) {
+    invalid("Plugin export supports содержит неизвестную Repository role");
+  }
+  if (new Set(plugin.supports).size !== plugin.supports.length) {
+    invalid("Plugin export supports содержит повторяющуюся role");
+  }
+  if (!Object.isFrozen(plugin) || !Object.isFrozen(plugin.supports)) {
+    invalid("Plugin export и supports должны быть immutable");
+  }
+  for (const method of PLUGIN_API_METHODS) {
+    if (typeof plugin[method] !== "function") {
+      invalid(`Plugin export не предоставляет метод ${method}`);
+    }
+  }
+}
+
+/** Проверяет ordinary file/directory chain внутри канонического package root. */
+async function requirePackagePath(packageRoot, relativePath) {
+  try {
+    return await requireSafePath(packageRoot, relativePath);
+  } catch (error) {
+    invalid(error.message.replace(/^SAFE_PATH_INVALID:\s*/u, ""), { cause: error });
+  }
+}
+
+/** Immutable загруженная связка package contract и Plugin export. */
+export class LoadedPlugin {
+  #root;
+  #entrypoint;
+  #package;
+  #plugin;
+
+  constructor({ root, entrypoint, pluginPackage, plugin } = {}) {
+    if (
+      typeof root !== "string" ||
+      typeof entrypoint !== "string" ||
+      !path.isAbsolute(root) ||
+      !path.isAbsolute(entrypoint)
+    ) {
+      throw new Error("LOADED_PLUGIN_INVALID: root и entrypoint должны быть абсолютными путями");
+    }
+    if (!isContainedPath(root, entrypoint)) {
+      throw new Error("LOADED_PLUGIN_INVALID: entrypoint должен находиться внутри package root");
+    }
+    if (!(pluginPackage instanceof PluginPackage)) {
+      throw new Error("LOADED_PLUGIN_INVALID: требуется проверенный PluginPackage");
+    }
+    assertPluginExport(plugin);
+    this.#root = root;
+    this.#entrypoint = entrypoint;
+    this.#package = pluginPackage;
+    this.#plugin = plugin;
+    Object.freeze(this);
+  }
+
+  get id() { return this.#plugin.id; }
+  get supports() { return this.#plugin.supports; }
+  get root() { return this.#root; }
+  get entrypoint() { return this.#entrypoint; }
+  get package() { return this.#package; }
+  get plugin() { return this.#plugin; }
+}
+
+/** Валидирует package до import и не выполняет Plugin contributions. */
+export class PluginLoader {
+  #importModule;
+
+  constructor(importModule = defaultImport) {
+    if (typeof importModule !== "function") {
+      throw new Error("PLUGIN_LOADER_INVALID: importModule должен быть функцией");
+    }
+    this.#importModule = importModule;
+    Object.freeze(this);
+  }
+
+  async load({ packageRoot, pluginId, runtimeRevision } = {}) {
+    if (typeof packageRoot !== "string" || !path.isAbsolute(packageRoot)) {
+      invalid("packageRoot должен быть абсолютным путём");
+    }
+    if (typeof pluginId !== "string" || !PLUGIN_PATTERNS.id.test(pluginId)) {
+      invalid("ожидаемый pluginId должен быть lowercase kebab-case");
+    }
+    const rootStat = await lstatOrNull(packageRoot);
+    if (!rootStat?.isDirectory() || rootStat.isSymbolicLink()) {
+      invalid("packageRoot должен быть существующим обычным каталогом");
+    }
+    const root = await fs.realpath(packageRoot);
+    const manifestPath = await requirePackagePath(root, "package.json");
+    let manifestSource;
+    try {
+      manifestSource = await fs.readFile(manifestPath, "utf8");
+    } catch (error) {
+      invalid(`не удалось прочитать package.json: ${error.message}`, { cause: error });
+    }
+    let manifest;
+    try {
+      manifest = JSON.parse(manifestSource);
+    } catch (error) {
+      invalid(`package.json содержит некорректный JSON: ${error.message}`, { cause: error });
+    }
+    const pluginPackage = new PluginPackage(manifest);
+    const entrypoint = await requirePackagePath(root, pluginPackage.entrypoint.slice(2));
+    const fingerprint = await packageFingerprint(root, runtimeRevision);
+    let imported = importedPackages.get(this.#importModule);
+    if (!imported) {
+      imported = new Map();
+      importedPackages.set(this.#importModule, imported);
+    }
+    const previous = imported.get(root);
+    if (previous && (previous.contents !== fingerprint.contents ||
+      (previous.lock !== null && fingerprint.lock !== null && previous.lock !== fingerprint.lock))) {
+      invalid("package runtime изменился после import; restart CLI/MCP process перед повторным вызовом");
+    }
+    // Failed ESM evaluations are cached too; never accept a repaired package through an old graph.
+    imported.set(root, fingerprint);
+    let namespace;
+    try {
+      namespace = await this.#importModule(pathToFileURL(entrypoint).href);
+    } catch (error) {
+      invalid(`не удалось импортировать ${pluginPackage.name}: ${error.message}`, { cause: error });
+    }
+    const plugin = namespace?.default;
+    assertPluginExport(plugin);
+    if (plugin.id !== pluginId) {
+      invalid(`ожидался plugin-id ${pluginId}, entrypoint экспортировал ${plugin.id}`);
+    }
+    return new LoadedPlugin({ root, entrypoint, pluginPackage, plugin });
+  }
+}
+
+/** Общий Plugin Loader нового Core. */
+export const pluginLoader = Object.freeze(new PluginLoader());

@@ -4,8 +4,8 @@
   "contextFileName": "agent-instructions.md",
   "mcpServers": {
     "openspec-orch-codegraph": {
-      "command": "openspec-orch-codegraph",
-      "args": ["serve", "--mcp"],
+      "command": "openspec-orch",
+      "args": ["plugin", "runtime", "codegraph", "serve", "--mcp"],
       "cwd": "${workspacePath}"
     }
   }

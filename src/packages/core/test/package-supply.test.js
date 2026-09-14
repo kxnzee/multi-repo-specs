@@ -212,6 +212,25 @@ test("StorePackageSupply compares dependency maps without relying on key order",
   assert.deepEqual(calls, [["sync"]]);
 });
 
+test("StorePackageSupply accepts a compatible npm v2 lockfile", async (t) => {
+  const { calls, root, supply } = await fixture(t);
+  const runtimeRoot = path.join(root, ".openspec-orch/packages");
+  await fs.mkdir(runtimeRoot, { recursive: true });
+  await fs.writeFile(path.join(runtimeRoot, "package.json"), JSON.stringify({
+    name: "openspec-orchestrator-packages",
+    private: true,
+    dependencies: {},
+    openspecOrchestrator: { extensions: {}, plugins: {} },
+  }));
+  await fs.writeFile(path.join(runtimeRoot, "package-lock.json"), JSON.stringify({
+    lockfileVersion: 2,
+    packages: { "": { dependencies: {} } },
+  }));
+
+  assert.equal(await supply.sync(), true);
+  assert.deepEqual(calls, [["sync"]]);
+});
+
 test("StorePackageSupply rejects legacy dependency-only package locks", async (t) => {
   const { root, supply } = await fixture(t);
   const runtimeRoot = path.join(root, ".openspec-orch/packages");

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 
-import { isContainedPath, isPortableRelativePath } from "../internal/path.js";
+import { isContainedPath, isPortableRelativePath } from "../internal/infrastructure/path.js";
 
 test("isContainedPath rejects prefix siblings and parent traversal", () => {
   const root = path.resolve("workspace/project");

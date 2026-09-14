@@ -16,7 +16,8 @@
   ],
   "openspecOrchestrator": {
     "apiVersion": 1,
-    "plugin": "./index.js"
+    "plugin": "./index.js",
+    "runtime": "./bin/codegraph.js"
   },
   "peerDependencies": {
     "@openspec-orch/plugin-sdk": "0.1.0"

@@ -219,15 +219,16 @@ openspec-orch plugin register dependency-audit /absolute/path/to/dependency-audi
 непрозрачного argv runtime. Для `repository` и `native` scaffold намеренно оставляет
 `connect/status` незавершёнными: реализуйте их до установки.
 
-Шаблоны Agent Extension принадлежат поставке и находятся в
-`src/bin/templates/plugin-extension/`. CLI передаёт их каталог в
-`new PluginScaffoldService({ extensionTemplateRoot })`. Core обрабатывает файлы
-шаблона, не выбирая провайдеров и не храня их манифесты.
+Общая инструкция Extension принадлежит Core. Manifest и hook-template каждого
+provider лежат рядом с ним: `src/agents/<id>/plugin-extension/`. CLI передаёт
+в `new PluginScaffoldService({ extensionTemplateRoots })` roots всех bundled
+Agent packages, а Core объединяет их с общей инструкцией. Поэтому новый Agent
+добавляется одним пакетом: descriptor, adapter и его scaffold-template.
 
-При прямом использовании Core API для `extension: true` передайте абсолютный
-`extensionTemplateRoot`; без него операция завершится ошибкой до создания файлов.
-Для плагинов без Extension этот параметр не требуется. Команда CLI и создаваемые
-ею файлы сохраняют прежний формат.
+При прямом использовании Core API для `extension: true` передайте абсолютные
+`extensionTemplateRoots` нужных Agent providers; без них операция завершится до
+создания файлов. Для Plugin без Extension параметр не требуется. Команда CLI и
+создаваемые ею файлы сохраняют прежний формат.
 
 ### 2. Реализуйте и проверьте контракт
 

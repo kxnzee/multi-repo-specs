@@ -1,36 +1,8 @@
 #!/usr/bin/env node
 
-/** @fileoverview Composition root for the built-in Orchestrator Agent API. */
+/** @fileoverview Thin public stdio adapter for the Orchestrator Agent API. */
 
-import process from "node:process";
+import { runPublicEntrypoint } from "./internal/entrypoint.js";
+import { runMcp } from "./internal/mcp-entrypoint.js";
 
-import {
-  OrchestratorMcpApplication,
-  serveOrchestratorMcpStdio,
-} from "@openspec-orch/mcp";
-
-import { assertNodeVersion, createDistributionPlatform } from "./internal/distribution.js";
-import { OrchestratorMcpRuntime } from "./internal/orchestrator-mcp-runtime.js";
-
-try {
-  assertNodeVersion(process.versions.node);
-  const start = process.cwd();
-  const { loadAgentContributions, managerService, platform } = await createDistributionPlatform({ start });
-  const runtime = new OrchestratorMcpRuntime({
-    agentContributions: await loadAgentContributions(),
-    doctorService: Object.freeze({
-      inspect: (options) => platform.inspectDoctor(options),
-    }),
-    managerService,
-    setupService: Object.freeze({
-      connect: () => platform.connectProject(),
-      initialize: (input) => platform.initializeProject(input),
-      inspect: () => platform.inspectSetup(),
-    }),
-    start,
-  });
-  await serveOrchestratorMcpStdio(new OrchestratorMcpApplication({ runtime }));
-} catch (error) {
-  console.error(`openspec-orch-mcp: ${error instanceof Error ? error.message : String(error)}`);
-  process.exitCode = 1;
-}
+await runPublicEntrypoint({ name: "openspec-orch-mcp", run: runMcp });

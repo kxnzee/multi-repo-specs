@@ -1,0 +1,37 @@
+/** @fileoverview Human-readable presentation config for machine states. */
+
+export const STATUS_PRESENTATIONS = Object.freeze({
+  blocked: Object.freeze({ icon: "✗", label: "заблокирован" }),
+  complete: Object.freeze({ icon: "✓", label: "готов" }),
+  completed: Object.freeze({ icon: "✓", label: "завершён" }),
+  connected: Object.freeze({ icon: "✓", label: "подключён" }),
+  identity_mismatch: Object.freeze({ icon: "✗", label: "remote не совпадает" }),
+  fail: Object.freeze({ icon: "✗", label: "проверка не пройдена" }),
+  failed: Object.freeze({ icon: "✗", label: "ошибка" }),
+  invalid: Object.freeze({ icon: "✗", label: "некорректное состояние" }),
+  missing: Object.freeze({ icon: "✗", label: "checkout отсутствует" }),
+  files_changed: Object.freeze({ icon: "⚠", label: "созданы файлы настройки" }),
+  not_a_directory: Object.freeze({ icon: "✗", label: "путь не является каталогом" }),
+  not_a_git_repository: Object.freeze({ icon: "✗", label: "не Git repository" }),
+  not_a_git_root: Object.freeze({ icon: "✗", label: "путь не является корнем Git" }),
+  pass: Object.freeze({ icon: "✓", label: "проверка пройдена" }),
+  ready: Object.freeze({ icon: "✓", label: "готов" }),
+  stale: Object.freeze({ icon: "⚠", label: "требует обновления" }),
+  unavailable: Object.freeze({ icon: "✗", label: "недоступен" }),
+  workspace_unresolved: Object.freeze({ icon: "✗", label: "workspace не определён" }),
+});
+
+const doctorPresentation = (icon, label) => Object.freeze({ icon, label });
+
+export const DOCTOR_PRESENTATIONS = Object.freeze({
+  pass: doctorPresentation("✓", "Успешно"),
+  warning: doctorPresentation("⚠", "Предупреждения"),
+  error: doctorPresentation("✗", "Ошибки"),
+  skipped: doctorPresentation("•", "Пропущено"),
+});
+
+export const DOCTOR_STATUS_PRESENTATIONS = Object.freeze({
+  ready: doctorPresentation("✓", "Готово к работе"),
+  degraded: doctorPresentation("⚠", "Готово с предупреждениями"),
+  blocked: doctorPresentation("✗", "Есть блокирующие ошибки"),
+});
