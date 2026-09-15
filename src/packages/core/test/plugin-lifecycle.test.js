@@ -266,7 +266,7 @@ test("PluginLifecycleService reconnects Extension for an existing portable bindi
   assert.equal(result.connected, false);
   assert.deepEqual(contextCalls.map(([mode]) => mode), ["connected"]);
   assert.deepEqual(calls.map(([operation]) => operation), ["extensions", "agent-extension"]);
-  assert.deepEqual(calls[1][3], { operation: "connect", ownerId: "sample" });
+  assert.deepEqual(calls[1][3], { operation: "connect", ownerId: "sample", refresh: true });
 });
 
 test("PluginLifecycleService restores every portable Extension contribution without changing bindings", async (t) => {
@@ -313,6 +313,20 @@ test("PluginLifecycleService restores every portable Extension contribution with
     { operation: "status", ownerId: "sample" },
     { operation: "status", ownerId: "sample" },
   ]);
+
+  calls.length = 0;
+  contextCalls.length = 0;
+  const diagnostics = await service.diagnoseSelected({ start: fixture.storeRoot });
+  assert.deepEqual(diagnostics.map((status) => status.toJSON()), [
+    { pluginId: "sample", repositoryId: "frontend", state: "ready", output: "" },
+    { pluginId: "sample", repositoryId: "backend", state: "ready", output: "" },
+  ]);
+  assert.deepEqual(calls.filter(([operation]) => operation === "agent-extension")
+    .map(([, , , request]) => request), [
+    { operation: "diagnose", ownerId: "sample" },
+    { operation: "diagnose", ownerId: "sample" },
+  ]);
+
   assert.equal(await fs.readFile(fixture.configPath, "utf8"), before);
 
   calls.length = 0;

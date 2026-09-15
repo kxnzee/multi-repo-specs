@@ -19,6 +19,10 @@ const EXTENSION_CLI_PROTOCOL = Object.freeze({
     uninstall: "uninstall",
   }),
   marketplace: CLAUDE_PLUGIN_FILES,
+  sourceOnlyPaths: Object.freeze([
+    CLAUDE_PLUGIN_FILES.directory,
+    "adapters/claude",
+  ]),
   defaultActivationScope: "workspace",
   ansiEscape: new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "gu"),
   installationPathLabels: Object.freeze(["Path", "Путь"]),

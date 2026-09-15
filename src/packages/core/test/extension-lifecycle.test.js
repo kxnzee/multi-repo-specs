@@ -43,7 +43,8 @@ function lifecycleFixture(invoke = async (_context, selected, request) => (
         calls.push({ operation: "validate", extension: extension.id });
       },
       async invokeExtension(context, extension, request) {
-        calls.push({ context, targetId: extension.target.id, extension: extension.id, operation: request.operation });
+        calls.push({ context, targetId: extension.target.id, extension: extension.id,
+          operation: request.operation, refresh: request.refresh });
         return invoke(context, extension, request);
       },
     }),
@@ -113,7 +114,7 @@ test("ExtensionLifecycle preflights and invokes the complete Store selection", a
 });
 
 test("ExtensionLifecycle diagnoses every selected Extension after an independent failure", async () => {
-  const { lifecycle } = lifecycleFixture(async (_context, selected) => {
+  const { calls, lifecycle } = lifecycleFixture(async (_context, selected) => {
     if (selected.id === "first") throw new Error("native registration is missing");
     return "enabled";
   });
@@ -127,6 +128,7 @@ test("ExtensionLifecycle diagnoses every selected Extension after an independent
     },
     { extensionId: "second", targetId: "specs", state: "ready", output: "enabled" },
   ]);
+  assert.deepEqual(calls.map(({ operation }) => operation), ["diagnose", "diagnose"]);
 });
 
 test("ExtensionLifecycle addresses connect, status, disconnect and remove by Extension ID", async () => {
@@ -149,6 +151,10 @@ test("ExtensionLifecycle addresses connect, status, disconnect and remove by Ext
   assert.equal(await lifecycle.disconnect("second"), "second:disconnect");
   assert.equal(await lifecycle.remove("second"), "second:remove");
   await assert.rejects(lifecycle.connect("missing"), /EXTENSION_NOT_DECLARED: missing/);
+
+  calls.length = 0;
+  await lifecycle.connect("first", { refresh: true });
+  assert.equal(calls.find(({ operation }) => operation === "connect").refresh, true);
 });
 
 

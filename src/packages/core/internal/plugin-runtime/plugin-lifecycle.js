@@ -15,6 +15,7 @@ import { hasMethods } from "../runtime/value.js";
 const REPOSITORY_OPERATIONS = new Set(["connect", "disconnect", "exec", "sync"]);
 const SELECTED_OPERATION_METHODS = Object.freeze({
   connect: "connect",
+  diagnose: "diagnose",
   disconnect: "disconnectExtensions",
   status: "status",
 });
@@ -235,6 +236,7 @@ export class PluginLifecycleService {
         await this.#host.connectExtensions({
           pluginId,
           repositoryId: selectedIds[index],
+          refresh: true,
           storeProject,
         });
       }
@@ -257,6 +259,11 @@ export class PluginLifecycleService {
     return this.#invokeSelected("status", start);
   }
 
+  /** Проверяет Plugin и его Agent Extensions только для Doctor. */
+  async diagnoseSelected({ start = this.#start ?? process.cwd() } = {}) {
+    return this.#invokeSelected("diagnose", start);
+  }
+
   /** Локально отключает Agent Extensions всех portable Plugin bindings без изменения config. */
   async disconnectSelected({ start = this.#start ?? process.cwd() } = {}) {
     return this.#invokeSelected("disconnect", start);
@@ -276,7 +283,9 @@ export class PluginLifecycleService {
           repositoryId: repository.id,
           storeProject,
         });
-        if (operation === "status") results.push(statusResult(pluginId, repository.id, value));
+        if (["diagnose", "status"].includes(operation)) {
+          results.push(statusResult(pluginId, repository.id, value));
+        }
       } catch (error) {
         if (!error.message?.startsWith("PLUGIN_NOT_LOADED:")) throw error;
         throw new Error(
@@ -287,7 +296,7 @@ export class PluginLifecycleService {
         );
       }
     }
-    if (operation === "status") return Object.freeze(results);
+    if (["diagnose", "status"].includes(operation)) return Object.freeze(results);
     return Object.freeze(connections.map(({ pluginId, repository }) => Object.freeze({
       pluginId,
       repositoryId: repository.id,

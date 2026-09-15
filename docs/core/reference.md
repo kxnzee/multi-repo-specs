@@ -72,7 +72,7 @@ openspec-orch plugin disconnect <id> [--repo <id>]... [--all]
 openspec-orch plugin remove <id>
 openspec-orch extension init <id> [--from <source>]
 openspec-orch extension update <id> --from <source>
-openspec-orch extension connect <id>
+openspec-orch extension connect <id> [--refresh]
 openspec-orch extension status [<id>] [--json]
 openspec-orch extension disconnect <id>
 openspec-orch extension remove <id>

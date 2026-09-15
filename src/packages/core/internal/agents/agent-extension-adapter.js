@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { hasMethods } from "../runtime/value.js";
 
-const OPERATIONS = new Set(["connect", "disconnect", "remove", "status"]);
+const OPERATIONS = new Set(["connect", "diagnose", "disconnect", "remove", "status"]);
 
 /** Завершает проверку стабильной ошибкой Agent Adapter. */
 function invalid(message) {

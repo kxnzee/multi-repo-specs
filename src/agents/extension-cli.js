@@ -29,10 +29,10 @@ function installationPath(entry, protocol) {
   return entry?.match(new RegExp(`^\\s*(?:${protocol.installationPathLabels.join("|")}):\\s*(.+)$`, "mu"))?.[1].trim();
 }
 
-/** Исключает Claude marketplace и манифесты других Agent из проверки payload. */
+/** Исключает provider-specific исходники и манифесты других Agent из проверки payload. */
 function ignoredPayloadPaths(extension, agent, protocol) {
   return [
-    protocol.marketplace.directory,
+    ...protocol.sourceOnlyPaths,
     ...unselectedManifestPaths(extension, agent.id),
   ];
 }
@@ -69,30 +69,22 @@ async function validateExtension(extension, agent, protocol, { nativeId = extens
   }
 }
 
-/** Updates a known installation only when its shipped payload is stale. */
-async function refreshIfStale({ context, extension, nativeId, entry, protocol, refresh }) {
-  let stale = refresh === true;
-  if (!stale) {
-    try {
-      await assertInstalledPayload(extension, installationPath(entry, protocol), {
-        ignoredPaths: ignoredPayloadPaths(extension, context.agent, protocol),
-      });
-    }
-    catch (error) {
-      if (!error.message.startsWith("AGENT_EXTENSION_STATUS_STALE:")) throw error;
-      stale = true;
-    }
-  }
-  if (!stale) return;
+/** Explicitly refreshes a known installation without diagnosing it during connect. */
+async function refreshIfRequested({ context, extension, nativeId, entry, protocol, refresh }) {
+  if (!entry || refresh !== true) return;
   await runNative(context, extension, [protocol.commands.group, protocol.commands.update, nativeId]);
-  const updated = await inspectExtension({ context, extension, nativeId, protocol });
-  await assertInstalledPayload(extension, installationPath(updated.entry, protocol), {
-    ignoredPaths: ignoredPayloadPaths(extension, context.agent, protocol),
-  });
 }
 
-/** Verifies one Extension registration and returns the native list output. */
+/** Verifies one Extension registration without auditing its installed files. */
 async function statusExtension({ context, extension, nativeId, protocol, request, scopeMarkers }) {
+  const scope = request.scope ?? protocol.defaultActivationScope;
+  const state = await inspectExtension({ context, extension, nativeId, protocol });
+  assertEnabled({ ...state, nativeId, protocol, scope, scopeMarkers });
+  return state.output;
+}
+
+/** Performs the deep installed-payload audit reserved for Doctor. */
+async function diagnoseExtension({ context, extension, nativeId, protocol, request, scopeMarkers }) {
   const scope = request.scope ?? protocol.defaultActivationScope;
   const state = await inspectExtension({ context, extension, nativeId, protocol });
   assertEnabled({ ...state, nativeId, protocol, scope, scopeMarkers });
@@ -110,7 +102,7 @@ async function connectExtension(input, protocol, scopeMarkers) {
   const state = await inspectExtension({ context, extension, nativeId, protocol });
   let args;
   if (state.entry) {
-    await refreshIfStale({ context, extension, nativeId, entry: state.entry, protocol, refresh: request.refresh });
+    await refreshIfRequested({ context, extension, nativeId, entry: state.entry, protocol, refresh: request.refresh });
     args = [protocol.commands.group, protocol.commands.enable, nativeId, "--scope", scope];
   } else {
     args = [protocol.commands.group, protocol.commands.install, `${extension.root}:${nativeId}`,
@@ -128,6 +120,7 @@ export function createExtensionCliLifecycle({ protocol, scopeMarkers } = AGENT_A
     validateExtension: validate,
     operations: Object.freeze({
       connect: (input) => connectExtension(input, protocol, scopeMarkers),
+      diagnose: (input) => diagnoseExtension({ ...input, protocol, scopeMarkers }),
       status: (input) => statusExtension({ ...input, protocol, scopeMarkers }),
       disconnect: ({ context, extension, nativeId, request }) => runNative(context, extension, [
         protocol.commands.group, protocol.commands.disable, nativeId, "--scope", request.scope ?? protocol.defaultActivationScope,
