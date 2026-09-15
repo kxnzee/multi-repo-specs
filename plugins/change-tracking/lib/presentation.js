@@ -15,19 +15,15 @@ export function taskGuidance(task, { storageAvailable }) {
     "Проверьте и сохраните изменения в Git перед checkpoint или complete.", true);
   if (!storageAvailable) return reply("Локальное состояние работы неизвестно.",
     "Восстановите локальное состояние Tracking перед записью нового результата.", true);
-  if (task.state === "complete") return reply(
-    task.checkout === "ahead" ? "Итог записан; рабочая копия содержит более поздние коммиты." : "Итог реализации записан.",
-    null);
-  if (task.state === "partial") {
-    if (task.local_work === "active") return reply("Промежуточный результат сохранён; есть локальное начало работы.",
-      "Продолжите задачу. Следующий результат сохраните через checkpoint или complete.");
-    return reply("Промежуточный результат сохранён.", task.checkout === "matches"
-      ? "Для продолжения вызовите start из этого Code checkout."
-      : "Подготовьте точный сохранённый commit перед продолжением через start.");
-  }
-  if (task.state === "active") return reply("Начало работы записано; сохранённого результата пока нет.",
+  if (task.revision_recorded) return reply(
+    task.checkout === "ahead" ? "Revision записана; рабочая копия содержит более поздние коммиты." : "Revision записана.",
+    task.local_work === "active" ? "Продолжите работу и сохраните следующую revision через checkpoint или complete."
+      : task.note ? "Для продолжения подготовьте сохранённый commit и вызовите start из нужного Code checkout." : null);
+  if (task.local_work === "active") return reply("Начало работы записано; сохранённой revision пока нет.",
     "Продолжите задачу и сохраните committed результат через checkpoint или complete.");
-  return reply("Записи реализации пока нет.", "Проверьте выбранный Code Repository и вызовите start.");
+  if (task.task_done) return reply("Задача OpenSpec выполнена, но revision не записана.",
+    "Запишите revision из нужного Code Repository.", true);
+  return reply("Revision пока не записана.", "Начните Tracking из нужного Code Repository.");
 }
 
 /** Обычные ответы не раскрывают внутренние revisions и не дублируют evidence. */
@@ -41,7 +37,6 @@ export function compactStatus(report) {
   }), tasks: report.tasks.map((task) => {
     const row = { ...task };
     delete row.implementation_revision;
-    delete row.recorded_state;
     if (row.diff) {
       row.diff = { ...row.diff };
       delete row.diff.from_revision;
@@ -54,12 +49,16 @@ export function compactStatus(report) {
 
 /** Форматирует уже собранный отчёт без повторных запросов к Git или OpenSpec. */
 export function formatStatus(report) {
-  const { tracked_records: tracked, active_records: active, partial_records: partial,
-    complete_records: complete } = report.summary;
+  const { total_tasks: total, completed_tasks: complete, remaining_tasks: remaining,
+    tasks_with_revision: tracked, active_records: active } = report.summary;
   const lines = [`Изменение: ${report.change_id}`,
-    `Записи Tracking: ${tracked}; в работе: ${active}; checkpoint: ${partial}; завершено: ${complete}.`];
+    total === null ? `Задачи OpenSpec: неизвестно; revisions записаны для ${tracked} задач; локально в работе: ${active}.`
+      : `Задачи OpenSpec: ${complete}/${total} выполнено, осталось ${remaining}; revisions записаны для ${tracked}; локально в работе: ${active}.`];
   for (const task of report.tasks) {
-    lines.push(`${task.needs_attention ? "!" : "•"} ${task.task_id} (${task.repository_id}) — ${task.message}`);
+    const checkbox = task.task_done === null ? "[?]" : task.task_done ? "[x]" : "[ ]";
+    const repository = task.repository_id ? ` (${task.repository_id})` : "";
+    const label = task.description ? `${task.task_id}: ${task.description}` : task.task_id;
+    lines.push(`${task.needs_attention ? "!" : "•"} ${checkbox} ${label}${repository} — ${task.message}`);
     if (task.note) lines.push(`  Заметка исполнителя: ${task.note}`);
     // Полный следующий шаг нужен при проблеме или раскрытии конкретной задачи.
     if (task.next_step && (task.needs_attention || report.tasks.length === 1)) lines.push(`  Далее: ${task.next_step}`);
@@ -92,7 +91,7 @@ export function operationMessage(operation, changed, taskId, repositoryId, note)
     message: `${changed ? "Промежуточный результат сохранён" : "Этот промежуточный результат уже сохранён"}: ${location}.` +
       `${note ? ` Заметка исполнителя: ${note.trim()}` : ""}`,
     next_step: "Продолжите работу или передайте Code commit и карту Store обычным Git-процессом." };
-  if (operation === "complete") return { message: `${changed ? "Итог реализации записан" : "Этот итог уже записан"}: ${location}.`,
+  if (operation === "complete") return { message: `${changed ? "Revision записана, локальная работа закрыта" : "Revision уже записана, локальная работа закрыта"}: ${location}.`,
     next_step: null };
   return { message: `${changed ? "Локальная запись работы удалена" : "Локальной записи работы нет"}: ${location}. Сохранённые результаты не изменены. Причина: ${note}`,
     next_step: "Перед продолжением прочитайте status и проверьте выбранную рабочую копию." };

@@ -7,9 +7,9 @@ const change = { ...text, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" };
 const descriptions = {
   start: "Начать или продолжить отслеживание task_id в текущем Code checkout. restart явно начинает новую локальную работу от текущей revision.",
   checkpoint: "Сохранить текущий committed результат и необязательную заметку для передачи. Не меняет OpenSpec и не публикует Git.",
-  complete: "Сохранить итоговую revision текущего чистого Code checkout. Не меняет OpenSpec и не подтверждает проверки.",
+  complete: "Сохранить revision текущего чистого Code checkout и закрыть локальную сессию. Не меняет OpenSpec и не подтверждает проверки.",
   cancel: "Снять локальный курсор работы с причиной. Сохранённая реализация остаётся в Change.",
-  status: "Краткий статус Tracking для Change или обзор активных Changes с all:true вместо change_id. task_id выбирает запись; diff:true добавляет изменения Repository после сохранённой точки.",
+  status: "Checkbox из публичного OpenSpec API рядом с наличием revision и состоянием checkout. all:true показывает активные Changes; diff:true — изменения после сохранённой точки.",
 };
 
 export const changeTrackingAgentContribution = Object.freeze({

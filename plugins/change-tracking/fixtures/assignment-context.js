@@ -10,6 +10,10 @@ export function assignmentContext({
   repositoryChangedPaths = [],
   ancestor = true,
   changes = ["checkout-flow"],
+  tasks = [
+    { id: "1", description: "1.1 Implement checkout flow", done: false },
+    { id: "2", description: "1.2 Verify checkout fallback", done: false },
+  ],
 } = {}) {
   const values = new Map();
   const updates = new Map();
@@ -43,6 +47,11 @@ export function assignmentContext({
         if (executable !== "openspec") throw new Error(`unexpected executable ${executable}`);
         if (args[0] === "--version") return openSpecVersion;
         if (args[0] === "list") return JSON.stringify({ changes: changes.map((name) => ({ name })) });
+        if (args[0] === "instructions" && args[1] === "apply" && args[2] === "--change" && args[4] === "--json") {
+          const completed = tasks.filter(({ done }) => done).length;
+          return JSON.stringify({ changeName: args[3], tasks,
+            progress: { total: tasks.length, complete: completed, remaining: tasks.length - completed } });
+        }
         throw new Error(`unexpected openspec args ${args.join(" ")}`);
       },
     }),
