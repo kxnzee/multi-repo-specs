@@ -1,48 +1,118 @@
 # Установка, обновление и восстановление
 
-## Установка
+## Требования
 
-Команда фиксирует версию Orchestrator в release notes или внутренней документации.
-До публикации в npm registry используйте согласованный Git tag или commit:
+Для работы нужны:
+
+- Node.js 22.16.0 или новее;
+- Git и npm;
+- OpenSpec 1.11.0, доступный как команда `openspec`;
+- настроенная командная строка Claude, Qwen или GigaCode.
+
+В репозитории зафиксирована OpenSpec 1.11.0 для разработки и проверок. Пользовательской
+установке Orchestrator всё равно нужна команда `openspec` в `PATH`: установите её
+разрешённым в вашей среде способом. Например:
+
+```bash
+npm install --global @fission-ai/openspec@1.11.0
+openspec --version
+```
+
+## Установка Orchestrator из Git
+
+Используйте согласованный тег или коммит, а не меняющуюся вершину ветки:
 
 ```bash
 git clone <orchestrator-repository-url> /absolute/path/to/openspec-orchestrator
 cd /absolute/path/to/openspec-orchestrator
 git checkout <approved-tag-or-commit>
 npm ci
-npm install --global @fission-ai/openspec@1.11.0
 npm link
+openspec-orch --version
 openspec-orch --help
 ```
 
-Нужен Node.js 22.16.0 или новее. После смены версии Node.js повторите `npm link`.
-Подробности для разработки и диагностики CI находятся в
+После смены версии Node.js повторите `npm link`. Если глобальная ссылка запрещена,
+запускайте тот же файл напрямую:
+
+```bash
+node /absolute/path/to/openspec-orchestrator/src/bin/openspec-orch.js --help
+```
+
+Для разработки в самом репозитории глобальные установки не нужны: `npm ci`
+устанавливает зафиксированную версию OpenSpec локально, а проверки подставляют её в
+`PATH`. Настройка среды разработки описана в
 [техническом руководстве](../core/development.md).
 
 ## Обновление Orchestrator
 
-Перед обновлением проверьте release notes: поддерживаемые версии Node, OpenSpec и
-Agent, изменения Store и payload, который требуется переустановить.
+Перед обновлением прочитайте описание выпуска: в нём должны быть указаны требования
+к Node.js, OpenSpec и агентам, изменения переносимого контракта Store и файлы агента,
+которые требуется переустановить.
 
-1. Сохраните текущий tag или commit — он понадобится для отката.
-2. Переключите checkout на согласованную версию и выполните `npm ci`.
-3. Если release меняет файлы Store, выполните миграцию через отдельный Store PR.
-4. В каждом Store запустите `openspec-orch connect` и `openspec-orch doctor`.
-5. Обновите gateway или Extensions, если это указано в release notes, и перезапустите Agent.
+1. Остановите длительно работающие процессы Orchestrator и MCP.
+2. Запишите текущий тег или коммит для возможного отката.
+3. Переключите рабочую копию на согласованную версию и установите её зависимости:
 
-Отдельной команды `openspec-orch upgrade` нет. Новые версии внешних Plugins и
-Extensions выбираются явно через `plugin update` или `extension update`; их manifest
-и lockfile проходят обычный review Store.
+   ```bash
+   git checkout <approved-tag-or-commit>
+   npm ci
+   npm link
+   openspec-orch --version
+   ```
+
+   `npm link` нужен только при запуске через глобально связанную команду.
+
+4. Если выпуск меняет файлы Store, проведите миграцию отдельным запросом на
+   изменение Store.
+5. В каждом Store восстановите зафиксированные внешние пакеты и проверьте подключение:
+
+   ```bash
+   openspec-orch package status --json
+   openspec-orch package sync
+   openspec-orch connect
+   openspec-orch doctor
+   ```
+
+6. Если изменились файлы шлюза агента, обновите его штатной командой и откройте новую
+   сессию агента:
+
+   ```bash
+   openspec-orch agent setup --agent qwen --refresh
+   openspec-orch agent status --agent qwen
+   ```
+
+   Вместо `qwen` можно указать `claude` или `gigacode`.
+
+Отдельной команды `openspec-orch upgrade` нет. `connect` восстанавливает версии,
+зафиксированные в Store, но не выбирает новые версии внешних Plugin и Extension.
+
+## Обновление внешних Plugin и Extension
+
+Новую зависимость выбирают явно с точной версией npm, архивом, коммитом Git или
+локальным путём:
+
+```bash
+openspec-orch plugin update <plugin-id> --from <exact-source>
+openspec-orch extension update <extension-id> --from <exact-source>
+openspec-orch connect
+openspec-orch doctor
+```
+
+Изменения `package.json` и `package-lock.json` проверяются и принимаются вместе.
+Каталог `.openspec-orch/packages` содержит восстановленную среду выполнения; его не
+редактируют вручную и не заменяют символической ссылкой. После обновления пакетов
+перезапустите процессы CLI/MCP, чтобы они не использовали уже загруженный старый код.
 
 ## Миграция Store
 
-Миграция нужна, когда release меняет переносимый контракт: `openspec-orch.yaml`,
-schemas, файлы Template, tracked state Plugin или обязательный project context.
-Повторный `init` не обновляет существующий Store.
+Миграция нужна, когда выпуск меняет переносимый контракт: `openspec-orch.yaml`, схемы,
+файлы Template, отслеживаемое состояние Plugin или обязательный контекст проекта.
+Повторный `init` не обновляет и не ремонтирует существующий Store.
 
-1. Создайте Store PR по процессу команды.
-2. Примените только изменения, перечисленные в release notes.
-3. Проверьте schemas, Changes и конфигурацию:
+1. Создайте отдельный запрос на изменение Store по процессу команды.
+2. Примените только изменения, перечисленные в описании выпуска.
+3. Проверьте схемы, Changes и конфигурацию:
 
    ```bash
    openspec schema validate spec-driven-extended
@@ -52,92 +122,96 @@ schemas, файлы Template, tracked state Plugin или обязательны
    git diff --check
    ```
 
-4. Проведите review и после merge повторите `connect` и `doctor`.
+4. После принятия изменения повторите `connect` и `doctor`.
 
-В Custom Store проверяйте собственные schema IDs. Если меняется порядок артефактов,
-сохраните прежнюю schema для активных Changes, а новую заведите под новым ID.
+В нестандартном Store проверяйте собственные идентификаторы схем. Если меняется
+порядок артефактов, сохраните прежнюю схему для активных Changes, а новую добавьте
+под новым идентификатором.
 
-## Gateway и Extensions
+## Шлюз агента и Extension
 
-Gateway устанавливается на машине пользователя и не входит в Store:
+Шлюз устанавливается в пользовательскую область агента и не входит в Store:
 
 ```bash
 openspec-orch agent setup --agent qwen --refresh
 openspec-orch agent status --agent qwen
 ```
 
-Замените `qwen` на `claude` или `gigacode` при необходимости. Для workflow Extension
-или Plugin-owned Extension запустите из Store `connect` либо адресный `extension connect`
-или `plugin connect`, затем проверьте `doctor`. После обновления всегда открывайте
-новую сессию Agent и перезапускайте MCP.
+`agent status` только проверяет установку. `agent setup --refresh` повторно подключает
+шлюз штатной командой агента и затем сверяет файлы.
 
-## Восстановление после сбоя
-
-Сначала остановите команды и Agent/MCP, использующие Store. Сохраните `doctor --json`,
-версию Node/OpenSpec, версию Orchestrator, точную ошибку и Git diff. Не удаляйте всю
-`.openspec-orch`: там может быть локальное состояние незавершённой работы.
+Для самостоятельной или принадлежащей Plugin Extension выполняйте команды из Store:
 
 ```bash
-openspec-orch extension connect spec-driven-extended
-openspec-orch extension status spec-driven-extended
-openspec-orch plugin connect change-tracking --repo frontend
+openspec-orch extension connect <extension-id>
+openspec-orch extension status <extension-id>
+openspec-orch plugin connect <plugin-id> --repo <repository-id>
 openspec-orch doctor
 ```
 
-Общий `connect` использует те же adapters. Подключение обновляет установленный payload
-штатными native-командами и проверяет его файлы. Qwen/GigaCode обновляют существующую
-установку по её сохранённому native source; если он отличается от текущей поставки,
-успех возможен только при совпадении файлов. Неверный source исправляется отдельно
-через native lifecycle, а не скрытой заменой глобальной установки.
+Проверка состояния сравнивает предназначенные для выбранного агента файлы с фактической
+установкой, включая добавленные, изменённые и удалённые файлы. Манифесты других агентов,
+служебные данные установки, `.git` и `node_modules` не сравниваются. Проверка ничего
+не изменяет.
 
-### Версии и проверка файлов
+После обновления откройте новую сессию агента и перезапустите MCP. Совпадение файлов
+на диске не означает, что уже запущенный процесс перечитал их. Не удаляйте общий кеш
+агента вручную: он может использоваться другими проектами.
 
-При изменении payload издатель повышает `version` в native manifests всех поддерживаемых
-провайдеров. Это относится и к инструкциям, skills, commands и hooks: Claude/Qwen могут
-не обновить cache при прежнем номере версии. `--refresh` не обходит это правило.
+## Восстановление после сбоя
 
-Статус сравнивает shipped files с путём установки из native CLI, включая добавленные,
-изменённые и удалённые файлы. Native installation metadata, `.git` и `node_modules`
-не сравниваются. При несовпадении возвращается `AGENT_EXTENSION_STATUS_STALE`, а не
-`ready`; неизвестный формат native path не принимается за успешную проверку.
-Эта проверка общая для gateway, standalone и Plugin-owned Extensions, включая Doctor
-и MCP-диагностику. `status` не изменяет установку.
+Сначала остановите команды и процессы Agent/MCP, использующие Store. Сохраните копию
+Store вместе с `.openspec-orch/`, вывод `openspec-orch doctor --json`, версии Node.js,
+OpenSpec и Orchestrator, точный текст ошибки и `git diff`. Не удаляйте всю
+`.openspec-orch`: в ней может находиться локальное состояние незавершённой работы.
 
-После обновления запустите новую Agent-сессию и перезапустите долгоживущие MCP-процессы.
-Совпадение файлов на диске не доказывает, что старая сессия перечитала их.
-Не удаляйте общий native cache вручную: он может использоваться другими проектами.
-
-## Rollback и поддержка
-
-При проблеме верните прежний Orchestrator tag/commit, установите зависимости через
-`npm ci` по lockfile выбранного commit, затем
-выполните `npm link`. Portable Store migration откатывается отдельным Git revert
-только если предыдущая версия может читать восстановленный контракт. Не удаляйте
-local state до диагностики: сначала сохраните `doctor --json`, версию Node/OpenSpec,
-commit Orchestrator и точную команду ошибки.
-
-## Поставка Orchestrator через npm registry
-
-Root distribution и внутренние packages планируется публиковать в npm registry.
-Внутренние версии Orchestrator будут поставляться как единый согласованный release.
-Это не связано со Store-local npm-проектом внешних Plugins и Extensions.
-
-
-## Восстановление после прерывания
-
-Перед восстановлением остановите команды и Agent/MCP, использующие этот Store,
-сохраните копию Store вместе с `.openspec-orch/`, вывод `doctor --json` и Git diff.
-Не удаляйте целиком `.openspec-orch`: там могут быть локальные записи незавершённой работы Tracking.
+### Симптомы и действия
 
 | Симптом | Действие |
 |---|---|
-| `*_BUSY` после завершения всех процессов | Ошибка показывает точный lock-каталог. Убедитесь, что он обычный и пустой; удалите только его (`rmdir <точный-путь>`), затем повторите операцию. Автоматического снятия старых locks нет. |
-| Прерванный npm / отсутствующий или stale runtime | Проверьте committed manifest и lockfile, выполните `openspec-orch package sync`, затем `connect` и `doctor`. |
-| Несогласованные `package.json` и `package-lock.json` | Восстановите оба файла из одного принятого Store commit; затем `package sync`. Не генерируйте новый lock ради обхода ошибки. |
-| `PLUGIN_LOAD_INVALID` с требованием `restart` | Завершите старый MCP/CLI процесс. После package update/sync запустите новую Agent-сессию: старый ESM module graph нельзя безопасно обновить на месте. |
-| Symlink вместо `.openspec-orch/packages` или его родителя | Не запускайте npm по этому пути. Восстановите обычные Store-local каталоги из сохранённой копии и committed файлов; затем `package sync`. |
-| Повреждённый state / неизвестная contract version | Сохраните повреждённый файл; восстановите проверенную копию того же контракта. Не меняйте поле версии вручную и не удаляйте локальные записи незавершённой работы. |
-| Частично выполненный первый `init` | Сохраните весь каталог. В новом чистом checkout исходного Store commit повторите `init` с теми же параметрами. Если Store ID занят, согласуйте его локальную регистрацию через OpenSpec. Сверьте результат с сохранёнными файлами; переносите пользовательские данные вручную. Повторный `init` не ремонтирует неполный Store. |
-Для отката верните прежний tag или commit Orchestrator, выполните `npm ci` по его
-lockfile и повторите `npm link`. Откатывать Store migration можно только если прежняя
-версия читает восстановленный контракт.
+| `needs_recovery` после первого `init` | Сохраните каталог: повторный `init` не является ремонтом. В чистой рабочей копии того же коммита Store повторите `init` с теми же параметрами, сравните результат с сохранёнными файлами и переносите пользовательские данные осознанно. Если идентификатор Store уже занят, сначала согласуйте его регистрацию в OpenSpec. |
+| `STORE_AGENT_MISMATCH` или `STORE_TEMPLATE_MISMATCH` | Используйте агента и Template, записанные при создании Store. Намеренную смену оформляйте как отдельную миграцию; не переписывайте метаданные Store вручную. |
+| `CONFIG_INVALID`, `SPECS_CONFIG_INVALID` или `STORE_IDENTITY_MISMATCH` | Восстановите конфигурацию и метаданные из одного принятого коммита Store. Не запускайте восстановление пакетов, пока конфигурация не читается без ошибки. |
+| `package status` показывает `stale` или `unavailable`; Doctor сообщает `PACKAGE_RUNTIME_STALE` или `PACKAGE_RUNTIME_UNAVAILABLE` | Проверьте принятые `package.json` и `package-lock.json`, выполните `openspec-orch package sync`, затем `connect` и `doctor`. В выводе `--json` недоступная среда имеет состояние `missing`. |
+| Doctor сообщает `PACKAGE_SOURCE_MUTABLE` | Замените изменяемый источник пакета точной версией, архивом или коммитом Git через `plugin update` либо `extension update`, проверьте изменения файлов зависимостей и повторите `connect`. |
+| `PACKAGE_SUPPLY_INVALID` или несогласованные `package.json` и `package-lock.json` | Восстановите оба файла из одного принятого коммита. Не создавайте новый файл фиксации зависимостей только для обхода ошибки. Убедитесь, что `.openspec-orch` и `.openspec-orch/packages` — обычные каталоги, а не символические ссылки. |
+| Ошибка с окончанием `_BUSY` после завершения всех процессов | Ошибка содержит точный путь к каталогу блокировки. Убедитесь, что процессы остановлены, сохраните состояние и удалите командой `rmdir` только указанный пустой каталог. Автоматического удаления оставшихся блокировок нет. |
+| `PLUGIN_LOAD_INVALID` требует `restart` | Остановите старый процесс CLI/MCP и запустите новый после `package sync` или обновления пакета. Уже загруженные модули нельзя безопасно заменить внутри процесса. |
+| `AGENT_PACK_CONFLICT` | Файл пакета OpenSpec в подключаемом репозитории изменён. Сверьте указанный путь и согласуйте обновление пакета; `connect` намеренно не перезаписывает конфликтующий файл. |
+| Doctor сообщает `AGENT_PACK_DRIFT` | Проверьте перечисленные отсутствующие, изменённые и устаревшие файлы. Обновите пакет агента через согласованное изменение Store и снова выполните `connect`; Doctor сам файлы не меняет. |
+| `AGENT_EXTENSION_STATUS_MISSING`, `AGENT_EXTENSION_STATUS_DISABLED`, `AGENT_EXTENSION_STATUS_SCOPE_MISSING` или `AGENT_EXTENSION_STATUS_STALE` | Для шлюза выполните `agent setup --refresh`; для Extension — `extension connect` либо команду подключения владеющей Plugin. Затем повторите `status` и `doctor` и откройте новую сессию агента. |
+| `AGENT_EXTENSION_STATUS_PROJECT_MISMATCH` | Проверьте выбранный проект, источник и область установки в штатной командной строке агента. Не подменяйте служебные данные вручную и не применяйте `--refresh`, пока причина несовпадения не устранена. |
+| `PROJECT_CONNECT_NOT_READY` | Выполните `doctor` и исправьте указанный отрицательный статус Plugin или Extension. Уже завершённые подключения сохранены; после исправления безопасно повторите `connect`. |
+| Ошибка с окончанием `_ROLLBACK_FAILED` | Сохраните исходную ошибку и ошибку компенсирующего действия, затем проверьте состояние через `status` и `doctor`. Не повторяйте изменение вслепую: сначала восстановите ресурс по инструкции владеющей Plugin или Extension. |
+| Повреждённое состояние или неизвестная версия контракта | Сохраните повреждённый файл и восстановите проверенную копию той же версии контракта. Не меняйте номер версии вручную и не удаляйте записи незавершённой работы. |
+
+## Откат
+
+Верните прежний тег или коммит Orchestrator и установите зависимости из его файла
+фиксации:
+
+```bash
+git checkout <previous-tag-or-commit>
+npm ci
+npm link
+openspec-orch --version
+```
+
+`npm link` пропустите, если команда запускается напрямую. Миграцию Store откатывайте
+отдельным Git revert только тогда, когда прежняя версия Orchestrator читает
+восстановленный контракт. Версии внешних пакетов и файлов агента также должны быть
+совместимы с выбранной версией Orchestrator.
+
+## Установка из npm-реестра
+
+Если согласованный выпуск опубликован в доступном вашей среде npm-реестре, его можно
+установить без рабочей копии Git:
+
+```bash
+npm install --global openspec-orchestrator@<exact-version>
+openspec-orch --version
+```
+
+Доступность конкретной версии проверяйте в используемом реестре. Такая установка не
+заменяет Store-local зависимости внешних Plugin и Extension: они по-прежнему
+зафиксированы в `package.json` и `package-lock.json` Store.

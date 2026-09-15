@@ -64,6 +64,11 @@ function extension(root, id = "agent") {
   return Object.freeze({
     id,
     root,
+    manifests: Object.freeze({
+      claude: ".claude-plugin/plugin.json",
+      gigacode: "gigacode-extension.json",
+      qwen: "qwen-extension.json",
+    }),
     target: Object.freeze({ id: "frontend", role: "code" }),
   });
 }
@@ -166,6 +171,41 @@ test("GigaCode adapter requires its manifest and uses GigaCode CLI", async (t) =
     /gigacode-extension\.json/u,
   );
 });
+
+for (const agentId of ["qwen", "gigacode"]) {
+  test(`${agentId} status ignores native metadata of other Agents`, async (t) => {
+    const root = await extensionFixture(t, `openspec-${agentId}-filtered-payload-`);
+    await fs.writeFile(path.join(root, "agent-instructions.md"), "shared payload");
+    const installedRoot = await fs.mkdtemp(path.join(os.tmpdir(), `openspec-${agentId}-installed-`));
+    t.after(() => fs.rm(installedRoot, { recursive: true, force: true }));
+    await fs.cp(root, installedRoot, { recursive: true });
+    await fs.rm(path.join(installedRoot, ".claude-plugin"), { recursive: true });
+    await fs.rm(path.join(
+      installedRoot,
+      agentId === "qwen" ? "gigacode-extension.json" : "qwen-extension.json",
+    ));
+    const fixture = invocationContext(
+      agentId,
+      `✓ codegraph-agent (1.0.0)\n Path: ${installedRoot}\n Enabled (Workspace): true`,
+    );
+
+    await agentAdapter.invokeExtension(fixture.context, extension(root), {
+      operation: "status",
+      ownerId: "codegraph",
+    });
+    await fs.writeFile(
+      path.join(installedRoot, `${agentId}-extension.json`),
+      `${JSON.stringify({ name: "stale" })}\n`,
+    );
+    await assert.rejects(
+      agentAdapter.invokeExtension(fixture.context, extension(root), {
+        operation: "status",
+        ownerId: "codegraph",
+      }),
+      new RegExp(`STATUS_STALE.*${agentId}-extension`, "u"),
+    );
+  });
+}
 
 for (const agentId of ["qwen", "gigacode"]) {
   test(`${agentId} adapter selects and removes the gateway in explicit user scope`, async (t) => {

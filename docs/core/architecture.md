@@ -94,13 +94,14 @@ Requirements, Master Specs и Changes существуют только в Store
 
 `init` принимает существующий обычный каталог; Git не обязателен. Для нового Project он:
 
-1. проверяет Store ID, Agent, Template и Repository registry;
-2. строит безопасный план применения Template;
-3. устанавливает штатный OpenSpec Agent pack и адаптирует provider-specific layout;
-4. создаёт Store через OpenSpec;
-5. копирует Template assets;
-6. записывает `openspec-orch.yaml` с пустым списком Plugins;
-7. проверяет обязательные файлы и каталоги результата.
+1. сразу после выбора Store проверяет его ID, целевой путь и локальную регистрацию;
+2. проверяет Agent, Template и Repository registry;
+3. строит безопасный план применения Template;
+4. устанавливает штатный OpenSpec Agent pack и адаптирует provider-specific layout;
+5. создаёт Store через OpenSpec;
+6. копирует Template assets;
+7. записывает `openspec-orch.yaml` с пустым списком Plugins;
+8. проверяет обязательные файлы и каталоги результата.
 
 Операция fail-closed для неизвестных IDs, path traversal, symlink, collisions, неполного Agent pack и попытки перезаписать
 отличающийся файл. Повторный `init` проверяет существующий Project и может обновить

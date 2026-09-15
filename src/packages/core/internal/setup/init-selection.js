@@ -93,11 +93,15 @@ export class InitSelectionService {
   }
 
   /** Выбирает flag mode либо дополняет отсутствующие значения через TTY prompts. */
-  async resolve(options = {}) {
+  async resolve(options = {}, { validateStore = async () => {} } = {}) {
+    if (typeof validateStore !== "function") {
+      throw new Error("INIT_SELECTION_INVALID: validateStore должен быть function");
+    }
     if (options.extensions === false && (options.extension?.length ?? 0) > 0) {
       throw new Error("INIT_SELECTION_INVALID: --extension несовместим с --no-extensions");
     }
     if (options.store !== undefined && options.agent !== undefined) {
+      await validateStore(options.store);
       this.#assertExtensionsEnabled(options.template, options.extensions);
       return this.#normalize({
         storeId: options.store,
@@ -121,6 +125,7 @@ export class InitSelectionService {
       message: messages.storeId,
       validate: (value) => CORE_PATTERNS.id.test(value) || "Используйте lowercase kebab-case",
     });
+    await validateStore(storeId);
     const template = await this.#template(options.template);
     this.#assertExtensionsEnabled(template, options.extensions);
     const agentId = options.agent ?? await this.#select({

@@ -87,7 +87,12 @@ async function storeFixture(t) {
 }
 
 /** Создаёт executor Git плюс полностью контролируемого OpenSpec fixture. */
-function fakeExecutor(projectRoot, { registered = false, failSetup = false } = {}) {
+function fakeExecutor(projectRoot, {
+  registered = false,
+  registeredId = "registered",
+  registeredRoot = projectRoot,
+  failSetup = false,
+} = {}) {
   const calls = [];
   const executor = async (executable, args, options) => {
     if (executable === "git") return execa(executable, args, options);
@@ -97,7 +102,7 @@ function fakeExecutor(projectRoot, { registered = false, failSetup = false } = {
     if (args.join(" ") === "--version") stdout = "1.7.0";
     else if (args.join(" ") === "store list --json") {
       stdout = JSON.stringify({
-        stores: registered ? [{ id: "registered", root: projectRoot }] : [],
+        stores: registered ? [{ id: registeredId, root: registeredRoot }] : [],
         status: [],
       });
     } else if (args[0] === "init") {
@@ -387,6 +392,30 @@ test("InitializationService accepts non-Git user files but rejects conflicting S
   const registeredRoot = await storeFixture(t);
   const registeredFake = fakeExecutor(registeredRoot, { registered: true });
   const registeredService = initFixture(registeredFake.executor).service;
+  await assert.rejects(registeredService.validateStore({
+    target: registeredRoot,
+    storeId: "payments-specs",
+  }), /store unregister registered/);
+  assert.deepEqual(registeredFake.calls, [
+    ["--version"],
+    ["store", "list", "--json"],
+  ]);
+  assert.equal(await fs.lstat(path.join(registeredRoot, "openspec-orch.yaml"))
+    .catch((error) => error.code), "ENOENT");
+
+  const occupiedIdFake = fakeExecutor(registeredRoot, {
+    registered: true,
+    registeredId: "payments-specs",
+    registeredRoot: path.join(path.dirname(registeredRoot), "another-store"),
+  });
+  const occupiedIdService = initFixture(occupiedIdFake.executor).service;
+  await assert.rejects(occupiedIdService.validateStore({
+    target: registeredRoot,
+    storeId: "payments-specs",
+  }), /store unregister payments-specs/);
+  assert.equal(await fs.lstat(path.join(registeredRoot, "openspec-orch.yaml"))
+    .catch((error) => error.code), "ENOENT");
+
   await assert.rejects(registeredService.initialize({
     target: registeredRoot,
     storeId: "payments-specs",
@@ -434,6 +463,7 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
     bundledTemplateProvider: TEST_TEMPLATE_PROVIDER,
     initSelectionService: new InitSelectionService({ extensionCatalog: availableExtensions }),
     initializationService: {
+      async validateStore() {},
       async initialize(options) {
         calls.push(options);
         return {
@@ -505,6 +535,7 @@ test("CandidateCli resolves an explicit bundled Template ID before initializatio
       },
     },
     initializationService: {
+      async validateStore() {},
       async initialize(options) {
         calls.push(options);
         return {
@@ -551,6 +582,7 @@ test("CandidateCli rejects an unknown Template ID but preserves an explicit loca
       },
     },
     initializationService: {
+      async validateStore() {},
       async initialize(options) {
         calls.push(options);
         return {
@@ -656,6 +688,7 @@ test("CandidateCli interactive init skips an Extension prompt with no selectable
     }),
     templateRoot: TEMPLATE_ROOT,
     initializationService: {
+      async validateStore() {},
       async initialize(options) {
         calls.push(options);
         return {
@@ -713,6 +746,7 @@ test("CandidateCli starts init progress after interactive selection and closes i
       },
     },
     initializationService: {
+      async validateStore() {},
       async initialize() {
         successEvents.push("initialization:start");
         return {
@@ -741,6 +775,7 @@ test("CandidateCli starts init progress after interactive selection and closes i
     bundledTemplateProvider: TEST_TEMPLATE_PROVIDER,
     initSelectionService: { async resolve() { return selection; } },
     initializationService: {
+      async validateStore() {},
       async initialize() {
         failureEvents.push("initialization:start");
         throw new Error("template failed");
@@ -904,6 +939,47 @@ test("init applies required Extension profiles in flag mode and rejects disablin
   }
 });
 
+test("CandidateCli validates Store immediately after interactive selection", async () => {
+  const events = [];
+  const cli = new CandidateCli({
+    bundledTemplateProvider: TEST_TEMPLATE_PROVIDER,
+    initSelectionService: new InitSelectionService({
+      agentCatalog: new AgentCatalog([
+        new AgentCatalogEntry({ id: "qwen", name: "Qwen Code" }),
+      ]),
+      extensionCatalog: new ExtensionCatalog(),
+      stdin: { isTTY: true },
+      stdout: { isTTY: true },
+      inputPrompt: async ({ message }) => {
+        events.push(message);
+        return "occupied-store";
+      },
+      selectPrompt: async ({ message }) => {
+        events.push(message);
+        throw new Error("следующий выбор не должен открываться");
+      },
+    }),
+    initializationService: {
+      async validateStore(options) {
+        events.push(`Проверка Store: ${options.storeId} (${options.target})`);
+        throw new Error("STORE_PATH_OCCUPIED: путь уже зарегистрирован");
+      },
+      async initialize() {
+        throw new Error("инициализация не должна начинаться");
+      },
+    },
+  });
+
+  await assert.rejects(
+    cli.createProgram().parseAsync(["node", "openspec-orch", "init", "project"]),
+    /STORE_PATH_OCCUPIED/u,
+  );
+  assert.deepEqual(events, [
+    "Store ID",
+    "Проверка Store: occupied-store (project)",
+  ]);
+});
+
 test("CandidateCli interactive init cancels before mutation and non-TTY requires flags", async () => {
   const calls = [];
   const candidate = (selectionOverrides) => new CandidateCli({
@@ -915,7 +991,10 @@ test("CandidateCli interactive init cancels before mutation and non-TTY requires
       extensionCatalog: new ExtensionCatalog(),
       ...selectionOverrides,
     }),
-    initializationService: { async initialize(options) { calls.push(options); } },
+    initializationService: {
+      async validateStore() {},
+      async initialize(options) { calls.push(options); },
+    },
   }).createProgram();
 
   await assert.rejects(

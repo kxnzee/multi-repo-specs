@@ -98,8 +98,13 @@ export class ProjectSetupService {
         "PROJECT_SETUP_INVALID: bundled Template provider должен предоставлять defaultId, catalog и resolve",
       );
     }
-    if (!hasMethods(connectionService, ["connect"]) || !hasMethods(initializationService, ["initialize"])) {
-      throw new Error("PROJECT_SETUP_INVALID: требуются initialization и connection services");
+    if (
+      !hasMethods(connectionService, ["connect"]) ||
+      !hasMethods(initializationService, ["initialize", "validateStore"])
+    ) {
+      throw new Error(
+        "PROJECT_SETUP_INVALID: требуются initialization validateStore/initialize и connection services",
+      );
     }
     if (typeof initSelectionService?.resolve !== "function") {
       throw new Error("PROJECT_SETUP_INVALID: initSelectionService должен предоставлять resolve");
@@ -146,7 +151,9 @@ export class ProjectSetupService {
       targetRoot: target,
       templateRoots: knownTemplateRoots(this.#templates, options.template),
     });
-    const selection = await this.#initSelection.resolve(options);
+    const selection = await this.#initSelection.resolve(options, {
+      validateStore: (storeId) => this.#initialization.validateStore({ target, storeId }),
+    });
     if (!selection) return null;
     onSelectionResolved(selection);
     const templateRequest = selection.template ?? this.#templates.defaultId;

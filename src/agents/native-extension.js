@@ -100,11 +100,41 @@ export async function preflightNative(context) {
   }
 }
 
+/** Возвращает манифесты других Agent, не входящие в payload выбранного Agent. */
+export function unselectedManifestPaths(extension, agentId) {
+  if (extension.manifests === undefined) return Object.freeze([]);
+  if (
+    !extension.manifests ||
+    typeof extension.manifests !== "object" ||
+    Array.isArray(extension.manifests) ||
+    typeof agentId !== "string" ||
+    !agentId
+  ) {
+    throw new Error("AGENT_EXTENSION_INVALID: manifests и agentId некорректны");
+  }
+  return Object.freeze(Object.entries(extension.manifests)
+    .filter(([candidateId]) => candidateId !== agentId)
+    .map(([, manifest]) => manifest));
+}
+
 /** Compares shipped files with the native installation, including unchanged-version updates. */
-export async function assertInstalledPayload(extension, installedRoot) {
+export async function assertInstalledPayload(extension, installedRoot, { ignoredPaths = [] } = {}) {
   if (typeof installedRoot !== "string" || !path.isAbsolute(installedRoot)) {
     throw new Error(`AGENT_EXTENSION_STATUS_INVALID: ${extension.id}: native CLI did not report an absolute installation path`);
   }
+  if (
+    !Array.isArray(ignoredPaths) ||
+    ignoredPaths.some((item) => typeof item !== "string" || !item || path.isAbsolute(item))
+  ) {
+    throw new Error("AGENT_EXTENSION_INVALID: ignoredPaths должен содержать относительные пути");
+  }
+  const ignored = ignoredPaths.map((item) => path.normalize(item));
+  if (ignored.some((item) => item === ".." || item.startsWith(`..${path.sep}`))) {
+    throw new Error("AGENT_EXTENSION_INVALID: ignoredPaths выходит из Extension root");
+  }
+  const isIgnored = (relativePath) => ignored.some((item) => (
+    relativePath === item || relativePath.startsWith(`${item}${path.sep}`)
+  ));
   const expectedRoot = await fs.realpath(extension.root);
   const actualRoot = await fs.realpath(installedRoot).catch((cause) => {
     throw new Error(`AGENT_EXTENSION_STATUS_STALE: ${extension.id}: installation is missing; publish a new native manifest version and reconnect the Extension`, { cause });
@@ -115,13 +145,15 @@ export async function assertInstalledPayload(extension, installedRoot) {
     const entries = await fs.readdir(path.join(expectedRoot, relative), { withFileTypes: true });
     const expectedNames = new Set(entries.map(({ name }) => name));
     for (const name of await fs.readdir(path.join(actualRoot, relative))) {
+      const file = path.join(relative, name);
       if (NATIVE_PAYLOAD_CONFIG.ignoredDirectoryNames.includes(name) || (!relative &&
-        NATIVE_PAYLOAD_CONFIG.rootBookkeepingFiles.includes(name))) continue;
+        NATIVE_PAYLOAD_CONFIG.rootBookkeepingFiles.includes(name)) || isIgnored(file)) continue;
       if (!expectedNames.has(name)) throw new Error(`AGENT_EXTENSION_STATUS_STALE: ${extension.id}: removed file ${path.join(relative, name)} remains installed; publish a new native manifest version and reconnect the Extension`);
     }
     for (const entry of entries) {
       if (NATIVE_PAYLOAD_CONFIG.ignoredDirectoryNames.includes(entry.name)) continue;
       const file = path.join(relative, entry.name);
+      if (isIgnored(file)) continue;
       const actual = path.join(actualRoot, file);
       const stat = await fs.lstat(actual).catch((error) => {
         if (error.code === "ENOENT") return null;

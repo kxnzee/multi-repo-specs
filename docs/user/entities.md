@@ -10,7 +10,7 @@ Orchestrator связывает требования, код и инструме
 | Specs Repository | Store другой команды, подключённый только для чтения спецификаций | [Подключённые Store](../core/configuration.md#подключённые-store-роль-specs) |
 | Change | Согласованная доработка с дельтой требований, планом и проверкой результата | [Сценарии работы с Change](../templates/default.md#сценарии-работы-с-change) |
 | Template | Начальные файлы Store: контекст, схемы и правила процесса | [Шаблоны](../templates/README.md) |
-| Agent и gateway | Клиент агента и его доступ к контексту через MCP | [Gateway и Extensions](installation-and-updates.md#gateway-и-extensions) |
+| Agent и gateway | Клиент агента и его доступ к контексту через MCP | [Шлюз агента и Extension](installation-and-updates.md#шлюз-агента-и-extension) |
 | Extension | Инструкции, навыки, команды и манифесты для агента | [Standalone Extensions](../plugins/operations.md#standalone-extensions) |
 | Plugin | Исполняемая возможность, подключаемая к проекту и репозиториям | [Общий lifecycle Plugin](../plugins/operations.md#общий-lifecycle-plugin) |
 

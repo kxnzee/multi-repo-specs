@@ -73,6 +73,7 @@ test("ProjectSetupService gives CLI and MCP one fixed-cwd setup sequence", async
     }),
     extensionLifecycle: extension,
     initializationService: Object.freeze({
+      async validateStore() {},
       async initialize(options) {
         initializations.push(options);
         return {
@@ -172,6 +173,7 @@ test("ProjectSetupService rejects an Orchestrator checkout before CLI or MCP sel
     }),
     connectionService: Object.freeze({ async connect() {} }),
     initializationService: Object.freeze({
+      async validateStore() {},
       async initialize() { events.push("initialize"); },
     }),
     initSelectionService: Object.freeze({
@@ -210,6 +212,7 @@ test("ProjectSetupService accepts legacy strict false for MCP initialization", a
     bundledTemplateProvider: templates,
     connectionService: Object.freeze({ async connect() { return {}; } }),
     initializationService: Object.freeze({
+      async validateStore() {},
       async initialize() {
         initializationCalled = true;
         return { created: [], updated: [] };
@@ -245,7 +248,10 @@ test("ProjectSetupService connects a Project from its resolved Code Repository p
         };
       },
     }),
-    initializationService: Object.freeze({ async initialize() { return {}; } }),
+    initializationService: Object.freeze({
+      async validateStore() {},
+      async initialize() { return {}; },
+    }),
     initSelectionService: Object.freeze({ async resolve() { return {}; } }),
     start: codeRoot,
     packageSupplyService: Object.freeze({
