@@ -14,7 +14,7 @@ The Extension owns the native Agent payload; the Template owns this schema.
 | Phase | Required handoff |
 | --- | --- |
 | Brainstorm | `superpowers:brainstorming` |
-| Plan | `superpowers:writing-plans` |
+| Execution-ready Tasks | `superpowers:writing-plans` with `tasks.md` as its only output |
 | Apply preflight | `superpowers:using-superpowers` and accepted repository scope |
 | Workspace | `superpowers:using-git-worktrees` per Code Repository |
 | Default execution | `superpowers:subagent-driven-development`, with transitive TDD and per-task/final review |
@@ -25,8 +25,8 @@ The Extension owns the native Agent payload; the Template owns this schema.
 | Verify | `openspec-verify-change`, evidence and human Feature Acceptance |
 
 Independent repository work may use `superpowers:dispatching-parallel-agents` only
-when plan dependencies, state and paths do not overlap. The default is to preserve the
-plan's dependency order.
+when task dependencies, state and paths do not overlap. The default is to preserve the
+dependency order recorded in `tasks.md`.
 
 ## Apply and Verify convergence
 

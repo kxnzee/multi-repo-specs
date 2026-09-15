@@ -51,19 +51,11 @@ for (const schema of ["spec-driven-extended", "superspec-multirepo"]) {
       `- [${second}] 1.2 Check integration\n`);
 
     await writeTasks(" ", " ");
-    if (schema === "superspec-multirepo") {
-      const beforePlan = await application.nextAction("verify-order");
-      assert.equal(beforePlan.action, "prepare_artifact");
-      assert.equal(beforePlan.artifact, "plan");
-      await fs.writeFile(path.join(change, "plan.md"), "# Accepted execution plan fixture\n");
-    }
     const status = await application.changeStatus("verify-order");
     assert.equal(status.artifacts.find(({ id }) => id === "verify").status, "ready");
     assert.equal((await application.nextAction("verify-order")).action, "apply_change");
 
-    const planning = await application.artifactInstructions(
-      "verify-order", schema === "superspec-multirepo" ? "plan" : "tasks",
-    );
+    const planning = await application.artifactInstructions("verify-order", "tasks");
     const apply = await application.artifactInstructions("verify-order", "apply");
     assert.deepEqual(apply.tasks.map(({ id, description }) => ({ id, description })), [
       { id: "1", description: "1.1 Implement behavior and check it" },
