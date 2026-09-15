@@ -3,7 +3,7 @@
 ## Основное
 
 | Задача | Документ |
-|---|---|---|
+|---|---|
 | Быстро создать Store, подключить репозитории и начать Change | [Быстрый старт](quick-start.md) |
 | Разобраться в Store, репозиториях, Change, Template, Agent, Extensions и Plugins | [Сущности Orchestrator](entities.md) |
 | Установить или обновить Orchestrator, восстановить работу после сбоя | [Установка и обновление](installation-and-updates.md) |
