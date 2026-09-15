@@ -66,6 +66,7 @@ test("change-tracking ships workflow-independent guidance for every Agent", asyn
   assert.equal(qwen.contextFileName, "agent-instructions.md");
   assert.deepEqual(gigacode, qwen);
   assert.equal(claude.name, "change-tracking-agent");
+  assert.equal(claude.version, qwen.version);
   assert.equal(marketplace.name, "openspec-orch-change-tracking-agent");
   const instructions = await fs.readFile(path.join(extensionRoot, qwen.contextFileName), "utf8");
   assert.match(instructions, /работает независимо от\s+шагов OpenSpec/u);
