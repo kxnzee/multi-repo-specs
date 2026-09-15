@@ -68,7 +68,7 @@ export class ChangeTrackingApplication {
       }
       session = { change_id: changeId, repository_id: repo.id, task_id: taskId, checkout_path: repo.path,
         store_revision: current && !restart ? current.store_revision : storeHead,
-        base_revision: restartBase ?? (current?.recorded_state === "partial" ? current.base_revision : head),
+        base_revision: restartBase ?? current?.base_revision ?? head,
         observed: current ? fingerprint(current) : null, last_saved: null, active: true };
       changed = true;
       return { ...state, sessions: [...state.sessions.filter((item) => !selector(item)), session] };
@@ -78,7 +78,7 @@ export class ChangeTrackingApplication {
       ...operationMessage("start", changed, taskId, repo.id) };
   }
 
-  checkpoint(input) { return this.save(input, "partial"); }
+  checkpoint(input) { return this.save(input, "checkpoint"); }
   complete(input) { return this.save(input, "complete"); }
 
   async save({ change_id: changeId, task_id: taskId, note }, targetState) {
@@ -97,7 +97,7 @@ export class ChangeTrackingApplication {
         throw new Error("TRACKING_HISTORY_CHANGED: текущая revision не продолжает начало работы");
       }
       if (!session.active) {
-        if (targetState === "complete" && current?.recorded_state === "complete" && current.implementation_revision === head &&
+        if (targetState === "complete" && current?.implementation_revision === head &&
           fingerprint(current) === session.last_saved) {
           result = { changed: false, path: this.maps.path(changeId), implementation: current };
           return state;
@@ -106,14 +106,14 @@ export class ChangeTrackingApplication {
       }
       const entry = { repository_id: repo.id, task_id: taskId,
         store_revision: session.store_revision,
-        base_revision: session.base_revision, implementation_revision: head, recorded_state: targetState,
-        ...(targetState === "partial" && note ? { note: note.trim() } : {}) };
+        base_revision: session.base_revision, implementation_revision: head,
+        ...(targetState === "checkpoint" && note ? { note: note.trim() } : {}) };
       result = await this.maps.save(changeId, entry, session.observed);
       const updated = { ...session, observed: fingerprint(result.implementation), last_saved: fingerprint(result.implementation),
-        active: targetState === "partial" };
+        active: targetState === "checkpoint" };
       return { ...state, sessions: state.sessions.map((item) => item === session ? updated : item) };
     });
-    return { ...result, ...operationMessage(targetState === "partial" ? "checkpoint" : "complete", result.changed, taskId, repo.id, note) };
+    return { ...result, ...operationMessage(targetState, result.changed, taskId, repo.id, note) };
   }
 
   async cancel({ change_id: changeId, task_id: taskId, reason }) {

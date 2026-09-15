@@ -9,7 +9,7 @@ import { formatOverview } from "../lib/overview.js";
 const input = { change_id: "checkout-flow", task_id: "1" };
 const mapPath = "openspec/changes/checkout-flow/implementation-map.yaml";
 
-test("overview uses the active Change list but reports only Tracking state", async () => {
+test("overview combines active Change task progress with revision coverage", async () => {
   const changes = ["z-other", "checkout-flow", "broken"];
   const context = assignmentContext({ changes, invocation: { id: "frontend", role: "code" } });
   const app = new ChangeTrackingApplication(context);
@@ -21,16 +21,13 @@ test("overview uses the active Change list but reports only Tracking state", asy
   const local = JSON.stringify(await context.storage.read());
   const report = await app.getStatus(undefined, { all: true });
   assert.deepEqual(report.changes.map(({ change_id }) => change_id), ["broken", "checkout-flow", "z-other"]);
-  assert.equal(report.changes[0].summary.tracked_records, null);
-  assert.equal(report.changes[0].checkpoints, null, "unreadable data does not mean no checkpoints");
+  assert.equal(report.changes[0].summary.total_tasks, null);
   assert.equal(report.changes[0].warnings[0].code, "TRACKING_STATUS_UNAVAILABLE");
-  assert.deepEqual(report.changes[1].checkpoints, [
-    { task_id: "1", repository_id: "frontend" },
-  ]);
-  assert.equal(report.changes[1].summary.partial_records, 1);
-  assert.equal(report.changes[2].summary.tracked_records, 0);
+  assert.equal(report.changes[1].summary.tasks_with_revision, 1);
+  assert.equal(report.changes[1].summary.completed_tasks, 0);
+  assert.equal(report.changes[2].summary.tasks_with_revision, 0);
   const next = await app.getStatus(undefined, { all: true });
-  assert.equal(next.changes[1].summary.partial_records, 1);
+  assert.equal(next.changes[1].summary.tasks_with_revision, 1);
   assert.equal(next.changes[1].attention.length, 0);
   assert.equal(JSON.stringify(next).includes("a".repeat(40)), false);
   assert.equal(formatOverview(next).split("\n").length, 3);
@@ -113,7 +110,7 @@ test("failed comparison preserves the task report without claiming zero changes"
     return { ...await context.repositories.git(id), async changesSince() { throw new Error("GIT_HISTORY_DIVERGED"); } };
   } } });
   const report = await unavailable.getStatus(input.change_id, { task_id: "1", diff: true });
-  assert.equal(report.tasks[0].state, "partial");
+  assert.equal(report.tasks[0].revision_recorded, true);
   assert.equal(report.tasks[0].diff.available, false);
   assert.equal(report.tasks[0].diff.commit_count, undefined);
   assert.equal(compactStatus(report).tasks[0].diff.details, undefined);

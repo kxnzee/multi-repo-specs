@@ -1,5 +1,5 @@
-/** @fileoverview Минимальная проверка OpenSpec и списка Changes. */
-import { identifier } from "./records.js";
+/** @fileoverview Read-only проверка OpenSpec, Changes и task progress. */
+import { identifier, nonempty } from "./records.js";
 
 const VERSION = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/u;
 
@@ -48,4 +48,26 @@ export async function activeChanges(process) {
     throw new Error("OPENSPEC_STATUS_INVALID: list не содержит однозначный список Changes");
   }
   return value.changes.map(({ name }) => name).sort();
+}
+
+/** Читает task progress только через публичный JSON API OpenSpec. */
+export async function taskProgress(process, changeId) {
+  await requireOpenSpec11(process);
+  const command = "openspec instructions apply --json";
+  const value = parseJson(await process.run("openspec",
+    ["instructions", "apply", "--change", changeId, "--json"]), command);
+  if (value.changeName !== changeId || !Array.isArray(value.tasks) ||
+    value.tasks.some((task) => !task || !nonempty(task.id) || !nonempty(task.description) ||
+      typeof task.done !== "boolean") ||
+    new Set(value.tasks.map(({ id }) => id)).size !== value.tasks.length) {
+    throw new Error("OPENSPEC_STATUS_INVALID: instructions apply не содержит однозначный список задач");
+  }
+  const completed = value.tasks.filter(({ done }) => done).length;
+  if (!value.progress || value.progress.total !== value.tasks.length ||
+    value.progress.complete !== completed || value.progress.remaining !== value.tasks.length - completed) {
+    throw new Error("OPENSPEC_STATUS_INVALID: instructions apply содержит противоречивый progress");
+  }
+  return { total_tasks: value.tasks.length, completed_tasks: completed,
+    remaining_tasks: value.tasks.length - completed,
+    tasks: value.tasks.map(({ id, description, done }) => ({ task_id: id, description, done })) };
 }

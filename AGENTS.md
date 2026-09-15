@@ -47,8 +47,9 @@ compilation step, application server, database or provider account.
 - OpenSpec schema steps own their instructions, artifacts and progress. A step
   must work unchanged when every optional Plugin is absent; do not mention or
   require Plugin commands, MCP tools, state files or response fields in a step.
-- A Plugin owns only its declared capability. It must not read, write, advance,
-  complete or block OpenSpec steps, artifact instructions or task checkboxes.
+- A Plugin owns only its declared capability. It may read OpenSpec state through
+  the supported public JSON API, but must not parse workflow files itself or
+  write, advance, complete or block OpenSpec steps, artifacts or task checkboxes.
   Shared identifiers may correlate records, but must not transfer lifecycle
   ownership between the Plugin and the OpenSpec workflow.
 - Core and the base MCP surface remain generic. Do not add knowledge of a

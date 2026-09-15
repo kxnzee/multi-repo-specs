@@ -18,13 +18,13 @@ function fixture(options = {}) {
   return { heads, context, app: new ChangeTrackingApplication(context) };
 }
 
-test("one workflow captures revisions and completes independently from OpenSpec task progress", async () => {
+test("one workflow records revisions without persisting a second completion state", async () => {
   const { app, context, heads } = fixture();
   await app.start(input);
   assert.equal(await context.files.read(mapPath, { optional: true }), null);
   heads.frontend = next;
   const partial = await app.checkpoint({ ...input, note: "UI remains" });
-  assert.equal(partial.implementation.recorded_state, "partial");
+  assert.equal(partial.implementation.note, "UI remains");
   assert.equal((await app.checkpoint({ ...input, note: "UI remains" })).changed, false);
   const complete = await app.complete(input);
   assert.equal(complete.implementation.base_revision, base);
@@ -35,12 +35,13 @@ test("one workflow captures revisions and completes independently from OpenSpec 
   assert.deepEqual(Object.keys(document), ["contract_version", "change_id", "implementations"]);
   assert.equal(document.implementations.length, 1);
   assert.deepEqual(Object.keys(document.implementations[0]), ["repository_id", "task_id",
-    "store_revision", "base_revision", "implementation_revision", "recorded_state"]);
-  assert.equal(document.implementations[0].recorded_state, "complete");
-  assert.equal((await app.getStatus(input.change_id)).tasks[0].state, "complete");
+    "store_revision", "base_revision", "implementation_revision"]);
+  const status = await app.getStatus(input.change_id);
+  assert.equal(status.tasks[0].revision_recorded, true);
+  assert.equal(status.tasks[0].task_done, false);
 });
 
-test("task_id is an opaque correlation key and workflow APIs are never read", async () => {
+test("task_id is opaque and write operations never read workflow task progress", async () => {
   const original = assignmentContext({ invocation: { id: "frontend", role: "code" } });
   const calls = [];
   const context = { ...original, process: Object.freeze({ async run(executable, args) {
@@ -159,7 +160,8 @@ test("map corruption is preserved and corrupt local storage does not hide a read
   await app.checkpoint(input);
   await context.storage.update(() => ({ broken: true }));
   const status = await app.getStatus(input.change_id);
-  assert.equal(status.tasks[0].state, "partial");
+  assert.equal(status.tasks[0].revision_recorded, true);
+  assert.equal(status.tasks[0].task_done, false);
   assert.equal(status.warnings[0].code, "LOCAL_STATE_UNAVAILABLE");
   const old = stringify({ contract_version: 1, change_id: input.change_id, implementations: [], attempts: [] });
   await context.files.write(mapPath, old);

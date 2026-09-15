@@ -69,5 +69,7 @@ test("change-tracking ships workflow-independent guidance for every Agent", asyn
   assert.equal(marketplace.name, "openspec-orch-change-tracking-agent");
   const instructions = await fs.readFile(path.join(extensionRoot, qwen.contextFileName), "utf8");
   assert.match(instructions, /работает независимо от\s+шагов OpenSpec/u);
+  assert.match(instructions, /публичный JSON API OpenSpec/u);
+  assert.doesNotMatch(instructions, /читать .*tasks\.md|редактировать .*tasks\.md/iu);
   assert.doesNotMatch(instructions, /artifact_instructions|task checkbox|Apply has marked|Verify passed/u);
 });

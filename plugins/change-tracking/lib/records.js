@@ -29,18 +29,17 @@ export function recordKey(value) {
 /** Нормализует порядок полей для повторов и сравнения прочитанной версии. */
 export function checkedRecord(value) {
   if (!shape(value, ["repository_id", "task_id", "store_revision", "base_revision",
-    "implementation_revision", "recorded_state"], ["note"]) ||
+    "implementation_revision"], ["note"]) ||
     !identifier(value.repository_id) || !nonempty(value.task_id) ||
     !revision(value.store_revision) ||
     !revision(value.base_revision) || !revision(value.implementation_revision) ||
-    !["partial", "complete"].includes(value.recorded_state) ||
-    (value.note !== undefined && (value.recorded_state !== "partial" || !nonempty(value.note)))) {
+    (value.note !== undefined && !nonempty(value.note))) {
     throw new Error("TRACKING_MAP_INVALID: несовместимая запись реализации; автоматическое преобразование не выполняется");
   }
   return { repository_id: value.repository_id, task_id: value.task_id,
     store_revision: value.store_revision, base_revision: value.base_revision,
     implementation_revision: value.implementation_revision,
-    recorded_state: value.recorded_state, ...(value.note ? { note: value.note } : {}) };
+    ...(value.note ? { note: value.note } : {}) };
 }
 
 /** Читает локальные курсоры, не превращая повреждённое состояние в пустое. */

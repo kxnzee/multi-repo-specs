@@ -9,7 +9,7 @@ export function registerChangeTrackingCommands(commands, { output = console } = 
   for (const name of ["start", "checkpoint", "complete", "cancel"]) {
     const command = commands.command(`${name} <change-id> <task-id>${name === "cancel" ? " <reason>" : ""}`)
       .description({ start: "начать или продолжить задачу", checkpoint: "сохранить промежуточную реализацию",
-        complete: "зафиксировать завершённую реализацию", cancel: "отменить локальную работу, сохранив checkpoint" }[name]);
+        complete: "сохранить revision и закрыть локальную сессию", cancel: "отменить локальную работу, сохранив checkpoint" }[name]);
     if (name === "start") command.option("--restart", "явно начать заново после проверки изменённого плана или checkout");
     if (name === "checkpoint") command.option("--note <text>", "короткая заметка следующему исполнителю");
     command.actionWithContext(async (context, changeId, taskId, ...rest) => {

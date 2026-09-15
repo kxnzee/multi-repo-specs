@@ -200,7 +200,8 @@ lifecycle не требуют чистого Git, origin или именован
 
 Change Tracking: `start` требует активный Change и чистый Code checkout.
 `checkpoint` и `complete` требуют чистый Code и продолжение истории от base revision;
-новый commit не обязателен. Плагин не читает и не меняет состояние шагов OpenSpec.
+новый commit не обязателен. Записывающие операции не читают и не меняют состояние
+шагов OpenSpec; `status` получает checkbox через публичный JSON API только для вывода.
 `cancel` удаляет только локальную запись вызывающего checkout. Ошибка чтения Git
 не считается чистым состоянием.
 
@@ -229,7 +230,7 @@ Git Flow, ветки и направления PR принадлежат про�
 | `openspec-orch.yaml` | Project configuration | да |
 | `.openspec-store/store.yaml` | Identity Store | да |
 | `openspec/` | Specs, Changes, schemas и Template assets | да |
-| `openspec/changes/<change-id>/implementation-map.yaml` | Текущие partial/complete реализации задач по Code Repository | да |
+| `openspec/changes/<change-id>/implementation-map.yaml` | Последние записанные revisions задач по Code Repository | да |
 | `.openspec-orch/state.json` | Версия Core state и запомненный workspace | нет |
 | `.openspec-orch/plugins/<plugin-id>/state.json` | Versioned local state конкретного Plugin | нет |
 | `.openspec-orch/packages/package.json` | npm-зависимости и соответствие package к Plugin/Extension ID | да |
