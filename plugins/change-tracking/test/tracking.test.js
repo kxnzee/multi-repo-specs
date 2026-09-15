@@ -25,7 +25,8 @@ test("one workflow captures revisions, checkpoint stays open, completion and ret
   assert.equal(await context.files.read(mapPath, { optional: true }), null);
   heads.frontend = next;
   const partial = await app.checkpoint({ ...input, note: "UI remains" });
-  assert.equal(partial.implementation.state, "partial");
+  assert.equal(partial.implementation.recorded_state, "partial");
+  assert.equal(partial.implementation.task_ref, "1");
   assert.equal(tasks[0].done, false);
   assert.equal((await app.checkpoint({ ...input, note: "UI remains" })).changed, false);
   await assert.rejects(app.complete(input), /TRACKING_TASK_OPEN/);
@@ -38,6 +39,9 @@ test("one workflow captures revisions, checkpoint stays open, completion and ret
   const document = parse(await context.files.read(mapPath));
   assert.deepEqual(Object.keys(document), ["contract_version", "change_id", "implementations"]);
   assert.equal(document.implementations.length, 1);
+  assert.deepEqual(Object.keys(document.implementations[0]), ["repository_id", "task_id", "task_ref",
+    "planning_revision", "planning_fingerprint", "base_revision", "implementation_revision", "recorded_state"]);
+  assert.equal(document.implementations[0].recorded_state, "complete");
   const source = await context.files.read(mapPath);
   const status = await app.getStatus(input.change_id);
   assert.equal(status.tasks[0].checkout, "matches");
@@ -141,14 +145,18 @@ test("missing commit, wrong checkout, dirty tree and unrelated history fail clos
 });
 
 test("explicit restart acknowledges changed planning but does not bypass later conflicts", async () => {
-  const { app, tasks } = fixture();
+  const { app, tasks, heads } = fixture();
   await app.start(input);
+  heads.frontend = next;
   await app.checkpoint(input);
   tasks[0].description = "Revised task";
   await assert.rejects(app.start(input), /TRACKING_PLAN_CHANGED/);
-  await app.start({ ...input, restart: true });
+  const restarted = await app.start({ ...input, restart: true });
+  assert.equal(restarted.base_revision, base, "reviewed restart preserves the original comparison point");
   tasks[0].done = true;
-  assert.equal((await app.complete(input)).implementation.state, "complete");
+  const completed = await app.complete(input);
+  assert.equal(completed.implementation.recorded_state, "complete");
+  assert.equal(completed.implementation.base_revision, base);
 });
 
 test("map corruption is preserved and corrupt local storage does not hide a readable checkpoint", async () => {

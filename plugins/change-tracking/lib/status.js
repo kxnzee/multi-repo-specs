@@ -61,8 +61,10 @@ export async function readTrackingStatus(context, maps, changeId, { task_id: tas
   for (const entry of document.implementations) {
     const task = plan?.tasks.find((item) => item.id === entry.task_id);
     const fresh = plan?.fingerprint === entry.planning_fingerprint && task !== undefined;
-    tasks.push({ task_id: entry.task_id, repository_id: entry.repository_id,
-      description: fresh ? task.description : null, state: !plan ? "unknown" : fresh ? entry.state : "stale",
+    tasks.push({ task_id: entry.task_id, task_ref: entry.task_ref, repository_id: entry.repository_id,
+      description: fresh ? task.description : null,
+      recorded_state: entry.recorded_state,
+      state: !plan ? "unknown" : fresh ? entry.recorded_state : "stale",
       task_done: fresh ? task.done : null, checkout: await checkoutState(repositories.get(entry.repository_id), entry.implementation_revision),
       implementation_revision: entry.implementation_revision, ...(entry.note ? { note: entry.note } : {}) });
   }
@@ -72,7 +74,7 @@ export async function readTrackingStatus(context, maps, changeId, { task_id: tas
     let row = tasks.find((item) => recordKey(item) === recordKey(session));
     const entry = document.implementations.find((item) => recordKey(item) === recordKey(session));
     if (!row) {
-      row = { task_id: session.task_id, repository_id: session.repository_id,
+      row = { task_id: session.task_id, task_ref: session.task_ref, repository_id: session.repository_id,
         description: fresh ? task.description : null, state: !plan ? "unknown" : fresh ? "active" : "stale", task_done: fresh ? task.done : null,
         checkout: await checkoutState(repositories.get(session.repository_id), session.base_revision) };
       tasks.push(row);
@@ -84,7 +86,8 @@ export async function readTrackingStatus(context, maps, changeId, { task_id: tas
   }
   for (const task of plan?.tasks ?? []) {
     if (!tasks.some((item) => item.task_id === task.id && !["stale", "unknown"].includes(item.state))) {
-      tasks.push({ task_id: task.id, repository_id: null, description: task.description, state: "untracked", task_done: task.done });
+      tasks.push({ task_id: task.id, task_ref: task.ref, repository_id: null,
+        description: task.description, state: "untracked", task_done: task.done });
     }
   }
   tasks.sort((a, b) => {
@@ -96,6 +99,10 @@ export async function readTrackingStatus(context, maps, changeId, { task_id: tas
     return a.repository_id.localeCompare(b.repository_id, "en");
   });
   const summary = summarize(plan, tasks);
+  const staleCount = tasks.filter(({ state }) => state === "stale").length;
+  if (staleCount > 0) warnings.push({ code: "TRACKING_PLAN_CHANGED",
+    message: `План изменился после записи ${staleCount} ${staleCount === 1 ? "результата" : "результатов"}.`,
+    next_step: "Сопоставьте прежние результаты с актуальными задачами; после проверки используйте start --restart." });
   const selected = taskId === undefined ? tasks : tasks.filter(({ task_id }) => task_id === taskId);
   if (taskId !== undefined && !selected.length && plan) throw new Error("TRACKING_TASK_MISSING: перечитайте ID задачи из OpenSpec Apply");
   for (const task of selected) Object.assign(task, taskGuidance(task, {
