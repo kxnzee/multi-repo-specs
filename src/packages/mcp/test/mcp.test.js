@@ -370,8 +370,8 @@ test("Store resources follow each Change schema without mixing workflow artifact
     generates: proposal.md
   - id: specs
     generates: specs/**/*.md
-  - id: plan
-    generates: plan.md
+  - id: tasks
+    generates: tasks.md
   - id: verify
     generates: verify.md
   - id: finalize
@@ -389,7 +389,8 @@ test("Store resources follow each Change schema without mixing workflow artifact
     ["openspec/changes/super-pay/brainstorm.md", "# Brainstorm\n"],
     ["openspec/changes/super-pay/proposal.md", "# Proposal\n"],
     ["openspec/changes/super-pay/specs/api/spec.md", "# API delta\n"],
-    ["openspec/changes/super-pay/plan.md", "# Plan\n"],
+    ["openspec/changes/super-pay/tasks.md", "# Tasks\n"],
+    ["openspec/changes/super-pay/plan.md", "# Wrong workflow\n"],
     ["openspec/changes/super-pay/verify.md", "# Verify\n"],
     ["openspec/changes/super-pay/finalize.md", "# Finalize\n"],
     ["openspec/changes/super-pay/intake.md", "# Wrong workflow\n"],
@@ -429,9 +430,9 @@ test("Store resources follow each Change schema without mixing workflow artifact
     "openspec/changes/extended-pay/verify.md",
     "openspec/changes/super-pay/brainstorm.md",
     "openspec/changes/super-pay/finalize.md",
-    "openspec/changes/super-pay/plan.md",
     "openspec/changes/super-pay/proposal.md",
     "openspec/changes/super-pay/specs/api/spec.md",
+    "openspec/changes/super-pay/tasks.md",
     "openspec/changes/super-pay/verify.md",
     "openspec/config.yaml",
     "openspec/context/03-architecture.md",
@@ -450,6 +451,7 @@ test("Store resources follow each Change schema without mixing workflow artifact
   );
   assert.equal(listed.some(({ name }) => name.endsWith("/.openspec.yaml")), false);
   assert.equal(listed.some(({ name }) => name === "openspec/changes/extended-pay/plan.md"), false);
+  assert.equal(listed.some(({ name }) => name === "openspec/changes/super-pay/plan.md"), false);
   assert.equal(listed.some(({ name }) => name === "openspec/changes/super-pay/intake.md"), false);
   await assert.rejects(
     resourcesService.read("openspec-orch://store/specs/..%2Fsecrets.txt"),

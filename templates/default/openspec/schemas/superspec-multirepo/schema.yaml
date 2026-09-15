@@ -1,8 +1,8 @@
 name: superspec-multirepo
-version: 2
+version: 3
 description: >
   Complete Superspec lifecycle adapted to a central multi-repository OpenSpec Store:
-  brainstorm → proposal → optional design → specs → tasks → plan → verify.
+  brainstorm → proposal → optional design → specs → tasks → verify.
   OpenSpec governs artifacts; Superpowers governs execution discipline;
   Orchestrator owns repository identity and team gates.
 
@@ -25,8 +25,9 @@ artifacts:
       constraints, success criteria, agreed approach, decisions and open questions.
       Do not implement or create later artifacts before approval.
       After approval finish this artifact and return to OpenSpec. Do not follow
-      brainstorming's automatic writing-plans handoff: Proposal, Specs and Tasks
-      must precede Plan. Do not commit Store artifacts from this skill.
+      brainstorming's automatic writing-plans handoff: Proposal and Specs must
+      precede the execution-ready Tasks artifact. Do not commit Store artifacts
+      from this skill.
     requires: []
 
   - id: proposal
@@ -64,7 +65,7 @@ artifacts:
       Explain boundaries, contracts, decisions, alternatives and risks. Include a
       Repository Implementation Map using only IDs accepted in Proposal Repository
       Impact once Proposal exists; before then mark the map provisional and reconcile
-      it with the accepted Proposal before Tasks or Plan. Code inspection may validate
+      it with the accepted Proposal before Tasks. Code inspection may validate
       current state or feasibility; cite it as
       evidence and do not turn implementation accidents into Requirements.
     requires:
@@ -92,13 +93,22 @@ artifacts:
 
   - id: tasks
     generates: tasks.md
-    description: Coarse implementation and verification work grouped by repository
+    description: Canonical execution-ready implementation plan grouped by repository
     template: tasks.md
     instruction: |
-      The project-designated Planning owner reads proposal.md, Delta Specs and optional design.md and creates
-      coarse-grained checkbox tasks grouped under headings containing the exact
-      Repository ID that owns the work. Each task states the required result and how
-      it will be checked. Do not introduce behavior outside the accepted Specs.
+      Invoke **superpowers:writing-plans** using proposal.md, Delta Specs and optional
+      design.md as input. Override its default output location: write the result only
+      to this Change's tasks.md and do not create plan.md or docs/superpowers/plans/.
+      Adapt the skill's detailed planning discipline to the Tasks template instead of
+      creating a second plan.
+
+      Group work under headings containing the exact Repository ID that owns it. Each
+      independently completable repository result has one stable X.Y checkbox and
+      contains its dependencies, traceability, exact paths or current-state anchors,
+      ordered 2-5 minute TDD steps, verification commands with expected results, and
+      a review checkpoint. Keep micro-steps as numbered text inside the task, not as
+      additional checkboxes: every checkbox is a separate OpenSpec task identity.
+      Do not introduce behavior outside the accepted Specs.
 
       Use only explicitly provided project roles, reviewers and delivery rules.
       Do not infer them from job titles, repository layout or external systems.
@@ -112,33 +122,12 @@ artifacts:
 
       Human Feature Acceptance belongs to the following Verify artifact, not to
       implementation Tasks.
+      After writing Tasks, refresh get_next_action and hand off to Apply when its
+      prerequisites are complete. Do not execute the plan, mutate repository state,
+      mark Tasks complete or suggest/create verify.md from Planning. Continue and
+      Fast-forward must stop at Apply.
     requires:
       - specs
-
-  - id: plan
-    generates: plan.md
-    description: Repository-scoped micro-task plan using Superpowers writing-plans
-    template: plan.md
-    instruction: |
-      Invoke **superpowers:writing-plans** using tasks.md, Delta Specs and optional
-      design.md as input. Override its default output location: write the result only
-      to this Change's plan.md and do not create docs/superpowers/plans/.
-      Pass the Plan template and this execution handoff to the skill: the saved
-      Plan must identify this Change and direct a new executor to invoke the installed
-      native OpenSpec Apply through the Agent's skill/command mechanism. Preserve
-      this entrypoint instead of the skill's default direct-executor header.
-      Superpowers execution runs within Apply according to the current schema.
-
-      Separate the plan by exact Code Repository ID. For each repository include the
-      goal, dependencies, ordered 2-5 minute TDD steps, exact paths, commands and
-      expected results, review checkpoints, and traceability to coarse Tasks and
-      Requirements or Scenarios. Do not execute the plan, mutate repository state or
-      mark Tasks complete while producing this artifact.
-      After writing Plan, refresh get_next_action and hand off to Apply when its
-      prerequisites are complete. Do not suggest or create verify.md from Planning,
-      even if OpenSpec reports it ready. Continue/Fast-forward must stop at Apply.
-    requires:
-      - tasks
 
   - id: verify
     generates: verify.md
@@ -191,7 +180,7 @@ artifacts:
       keep the human decision PENDING until explicitly made.
 
       First invoke **superpowers:verification-before-completion** for every affected
-      Code Repository. Run fresh commands from plan.md and record actual output; never
+      Code Repository. Run fresh commands from tasks.md and record actual output; never
       infer success from an earlier run or an agent claim. If a failure is unexpected,
       invoke **superpowers:systematic-debugging**, return to Apply and preserve evidence.
 
@@ -213,10 +202,10 @@ artifacts:
       and accepted Process Compliance are required before the team archives the Change
       through a Store PR.
     requires:
-      - plan
+      - tasks
 
 apply:
-  requires: [plan]
+  requires: [tasks]
   tracks: tasks.md
   instruction: |
     Use **superpowers:using-superpowers** to resolve every applicable skill before
@@ -236,11 +225,11 @@ apply:
 
     0. Scope and evidence preflight
        - Resolve exact repository roots from the connected Orchestrator workspace.
-       - Confirm dependency order from plan.md. Independent repository scopes may use
+       - Confirm dependency order from tasks.md. Independent repository scopes may use
          **superpowers:dispatching-parallel-agents** only when they have no shared state,
          ordering dependency or overlapping files; otherwise work sequentially.
        - Confirm that the repository set matches the accepted Repository Impact and
-         repository sections in plan.md before implementation.
+         repository sections in tasks.md before implementation.
 
     1. Isolated workspace
        For every assigned Code Repository invoke **superpowers:using-git-worktrees**.
@@ -249,12 +238,14 @@ apply:
 
     2. Executor and TDD
        Prefer **superpowers:subagent-driven-development** when fresh subagents are
-       available. It drives one plan task at a time and transitively requires
+       available. Treat tasks.md as its accepted plan; it drives one OpenSpec task at
+       a time and transitively requires
        **superpowers:test-driven-development** and
        **superpowers:requesting-code-review** after each task plus a final review.
 
        If subagents are unavailable, invoke **superpowers:executing-plans** as fallback.
-       In that path invoke **superpowers:test-driven-development** explicitly for every
+       Pass tasks.md as the plan in that path and invoke
+       **superpowers:test-driven-development** explicitly for every
        behavior change and **superpowers:requesting-code-review** after each coherent
        batch and at the end. Preserve RED → GREEN → review; implementation written
        before a failing test is not accepted as TDD evidence.
@@ -267,7 +258,7 @@ apply:
     3. Repository completion
        Before marking a repository result complete invoke
        **superpowers:verification-before-completion** and run the exact fresh commands
-       from plan.md. Update only the coarse tasks whose observable repository result is
+       from tasks.md. Update only the tasks whose observable repository result is
        complete. Do not close a repository result from uncommitted work. Human Feature
        Acceptance belongs to the following Verify artifact.
 

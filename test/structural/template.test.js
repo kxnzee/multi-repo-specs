@@ -368,17 +368,18 @@ test("superspec-multirepo preserves the complete skill-driven lifecycle", async 
     "design",
     "specs",
     "tasks",
-    "plan",
     "verify",
   ]);
   assert.match(schema.artifacts[0].instruction, /superpowers:brainstorming/u);
-  assert.match(schema.artifacts.find(({ id }) => id === "plan").instruction, /superpowers:writing-plans/u);
+  const tasksArtifact = schema.artifacts.find(({ id }) => id === "tasks");
+  assert.match(tasksArtifact.instruction, /superpowers:writing-plans/u);
   assert.match(schema.artifacts[0].instruction, /brainstorm\.md/u);
-  assert.match(schema.artifacts.find(({ id }) => id === "plan").instruction, /plan\.md/u);
+  assert.match(tasksArtifact.instruction, /write the result only\s+to this Change's tasks\.md/u);
+  assert.match(tasksArtifact.instruction, /do not create plan\.md/u);
   assert.equal(schema.artifacts.some(({ id }) => id === "apply"), false);
   assert.equal(schema.artifacts.some(({ generates }) => generates === "apply.md"), false);
-  assert.deepEqual(schema.artifacts.find(({ id }) => id === "verify").requires, ["plan"]);
-  assert.deepEqual(schema.apply.requires, ["plan"]);
+  assert.deepEqual(schema.artifacts.find(({ id }) => id === "verify").requires, ["tasks"]);
+  assert.deepEqual(schema.apply.requires, ["tasks"]);
   assert.equal(schema.apply.tracks, "tasks.md");
   for (const skill of [
     "using-superpowers",
@@ -409,10 +410,19 @@ test("superspec-multirepo preserves the complete skill-driven lifecycle", async 
     { code: "ENOENT" },
   );
   await assert.rejects(
+    fs.access(path.join(schemaRoot, "templates/plan.md")),
+    { code: "ENOENT" },
+  );
+  await assert.rejects(
     fs.access(path.join(schemaRoot, "templates/finalize.md")),
     { code: "ENOENT" },
   );
 
   const tasks = await fs.readFile(path.join(schemaRoot, "templates/tasks.md"), "utf8");
   assert.doesNotMatch(tasks, /Ответственный|Получить подтверждение/u);
+  assert.match(tasks, /единственный принятый план/u);
+  assert.match(tasks, /\*\*Steps:\*\*/u);
+  assert.match(tasks, /\*\*Verification:\*\*/u);
+  assert.match(tasks, /\*\*Review checkpoint:\*\*/u);
+  assert.equal((tasks.match(/- \[ \] \d+\.\d+/gu) ?? []).length, 2);
 });

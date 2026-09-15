@@ -101,7 +101,7 @@ Planning PR дополнительно и не заменяет ни одну и
    Story branch.
 
 Gate 1 относится к точной ревизии Planning PR. Изменение принятого поведения,
-Repository Impact, Design, Tasks или Plan требует нового Planning PR и нового Gate 1.
+Repository Impact, Design или Tasks требует нового Planning PR и нового Gate 1.
 Git-процесс не заменяет проверок схемы и человеческого решения по Planning.
 
 ## 4. Декомпозиция в Jira
@@ -125,7 +125,7 @@ Jira-подзадачи управляют назначением и стату�
 ветках и PR вместе с Jira key, если это не нарушает ограничение Git-сервера на длину
 имени.
 
-Assignment, Repository Impact и соответствующая секция Tasks или Plan должны
+Assignment, Repository Impact и соответствующая секция Tasks должны
 совпадать. Если во время Apply обнаружен новый Repository, capability или изменение
 принятого scope, разработка останавливается до обновления Planning и повторного
 Gate 1.
@@ -181,7 +181,7 @@ Change готов к ИФТ после сведения всех заплани�
 Scenarios между producer и consumers.
 
 В `superspec-multirepo` независимые repository scopes выполняются параллельно только
-когда Plan явно это разрешает и между ними нет общей state, порядка выполнения или
+когда зависимости в `tasks.md` явно это разрешают и между ними нет общей state, порядка выполнения или
 пересекающихся файлов. Rollout не должен создавать несовместимое состояние producer
 и consumers.
 
