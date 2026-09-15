@@ -65,12 +65,13 @@ export class ChangeTrackingApplication {
         if (!await git.hasCommit(current.implementation_revision)) throw new Error("TRACKING_COMMIT_MISSING: получите сохранённый commit обычным Git-процессом");
         if (head !== current.implementation_revision) throw new Error("TRACKING_CHECKOUT_MISMATCH: продолжение требует checkout сохранённой revision; start --restart начинает новую работу явно");
       }
-      if (current && restart) {
-        if (!await git.hasCommit(current.base_revision) || !await git.hasCommit(current.implementation_revision)) {
+      const restartBase = restart ? current?.base_revision ?? active?.base_revision : null;
+      if (restartBase) {
+        if (!await git.hasCommit(restartBase) || (current && !await git.hasCommit(current.implementation_revision))) {
           throw new Error("TRACKING_COMMIT_MISSING: commit сохранённой работы отсутствует");
         }
-        if (!await git.isAncestor(current.base_revision, current.implementation_revision) ||
-          !await git.isAncestor(current.implementation_revision, head)) {
+        if ((current && !await git.isAncestor(restartBase, current.implementation_revision)) ||
+          !await git.isAncestor(current?.implementation_revision ?? restartBase, head)) {
           throw new Error("TRACKING_HISTORY_CHANGED: новый план нельзя связать с расходящейся историей реализации");
         }
       }
@@ -78,7 +79,7 @@ export class ChangeTrackingApplication {
         checkout_path: repo.path,
         planning_revision: current && !restart ? current.planning_revision : storeHead,
         planning_fingerprint: plan.fingerprint,
-        base_revision: current && (current.recorded_state === "partial" || restart) ? current.base_revision : head,
+        base_revision: restartBase ?? (current?.recorded_state === "partial" ? current.base_revision : head),
         observed: current ? fingerprint(current) : null, last_saved: null, active: true };
       changed = true;
       return { ...state, sessions: [...state.sessions.filter((item) => !selector(item)), session] };

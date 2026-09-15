@@ -159,6 +159,53 @@ test("explicit restart acknowledges changed planning but does not bypass later c
   assert.equal(completed.implementation.base_revision, base);
 });
 
+test("restart after planning changes before a checkpoint preserves the original base", async () => {
+  const { app, tasks, heads } = fixture();
+  await app.start(input);
+  heads.frontend = next;
+  tasks[0].description = "Revised task";
+  await assert.rejects(app.start(input), /TRACKING_PLAN_CHANGED/);
+  const restarted = await app.start({ ...input, restart: true });
+  assert.equal(restarted.base_revision, base);
+});
+
+test("restart before a checkpoint rejects a missing original base", async () => {
+  const { app, context, tasks } = fixture();
+  await app.start(input);
+  tasks[0].description = "Revised task";
+  const missing = new ChangeTrackingApplication({ ...context, repositories: { async git(id) {
+    return { ...await context.repositories.git(id), async hasCommit(revision) { return revision !== base; } };
+  } } });
+  await assert.rejects(missing.start({ ...input, restart: true }), /TRACKING_COMMIT_MISSING/);
+});
+
+test("restart from a checkpoint rejects missing saved commits", async () => {
+  const { app, context, tasks, heads } = fixture();
+  await app.start(input);
+  heads.frontend = next;
+  await app.checkpoint(input);
+  tasks[0].description = "Revised task";
+  for (const missingRevision of [base, next]) {
+    const missing = new ChangeTrackingApplication({ ...context, repositories: { async git(id) {
+      return { ...await context.repositories.git(id),
+        async hasCommit(revision) { return revision !== missingRevision; } };
+    } } });
+    await assert.rejects(missing.start({ ...input, restart: true }), /TRACKING_COMMIT_MISSING/);
+  }
+});
+
+test("restart rejects divergent history", async () => {
+  const { app, context, tasks, heads } = fixture();
+  await app.start(input);
+  heads.frontend = next;
+  await app.checkpoint(input);
+  tasks[0].description = "Revised task";
+  const divergent = new ChangeTrackingApplication({ ...context, repositories: { async git(id) {
+    return { ...await context.repositories.git(id), async isAncestor() { return false; } };
+  } } });
+  await assert.rejects(divergent.start({ ...input, restart: true }), /TRACKING_HISTORY_CHANGED/);
+});
+
 test("map corruption is preserved and corrupt local storage does not hide a readable checkpoint", async () => {
   const { app, context } = fixture();
   await app.start(input);
