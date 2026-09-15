@@ -92,7 +92,7 @@ test("focus shows OpenSpec tasks without revisions and rejects an unknown task",
 test("missing Git and corrupt local state preserve readable records but never suggest immediate completion", async () => {
   const { app, context } = fixture();
   await app.start(input);
-  await app.checkpoint(input);
+  await app.checkpoint({ ...input, note: "UI remains" });
   const missing = new ChangeTrackingApplication({ ...context,
     repositories: { async git() { throw new Error("REPO_UNAVAILABLE"); } } });
   const row = (await missing.getStatus(input.change_id)).tasks[0];
@@ -103,7 +103,14 @@ test("missing Git and corrupt local state preserve readable records but never su
   await context.storage.update(() => ({ broken: true }));
   const corrupt = await app.getStatus(input.change_id);
   assert.equal(corrupt.warnings[0].code, "LOCAL_STATE_UNAVAILABLE");
-  assert.equal(corrupt.tasks[0].next_step.includes("complete"), false);
+  assert.equal(corrupt.tasks[0].message, "Revision записана.");
+  assert.equal(corrupt.tasks[0].needs_attention, false);
+  assert.equal(corrupt.tasks[0].next_step, null);
+  assert.equal(corrupt.tasks[1].message, "Revision пока не записана.");
+  assert.equal(corrupt.tasks[1].next_step, null);
+  const formatted = formatStatus(corrupt);
+  assert.doesNotMatch(formatted, /Локальное состояние работы неизвестно/u);
+  assert.equal(formatted.match(/Локальное состояние Tracking недоступно/gu)?.length, 1);
 });
 
 test("handoff focus retains note and detects another writer before a write attempt", async () => {

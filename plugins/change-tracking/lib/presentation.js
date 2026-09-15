@@ -13,16 +13,16 @@ export function taskGuidance(task, { storageAvailable }) {
   }
   if (task.checkout === "dirty") return reply("В рабочей копии есть незакоммиченные изменения.",
     "Проверьте и сохраните изменения в Git перед checkpoint или complete.", true);
-  if (!storageAvailable) return reply("Локальное состояние работы неизвестно.",
-    "Восстановите локальное состояние Tracking перед записью нового результата.", true);
   if (task.revision_recorded) return reply(
     task.checkout === "ahead" ? "Revision записана; рабочая копия содержит более поздние коммиты." : "Revision записана.",
     task.local_work === "active" ? "Продолжите работу и сохраните следующую revision через checkpoint или complete."
-      : task.note ? "Для продолжения подготовьте сохранённый commit и вызовите start из нужного Code checkout." : null);
-  if (task.local_work === "active") return reply("Начало работы записано; сохранённой revision пока нет.",
-    "Продолжите задачу и сохраните committed результат через checkpoint или complete.");
+      : !storageAvailable ? null
+        : task.note ? "Для продолжения подготовьте сохранённый commit и вызовите start из нужного Code checkout." : null);
   if (task.task_done) return reply("Задача OpenSpec выполнена, но revision не записана.",
     "Запишите revision из нужного Code Repository.", true);
+  if (!storageAvailable) return reply("Revision пока не записана.", null);
+  if (task.local_work === "active") return reply("Начало работы записано; сохранённой revision пока нет.",
+    "Продолжите задачу и сохраните committed результат через checkpoint или complete.");
   return reply("Revision пока не записана.", "Начните Tracking из нужного Code Repository.");
 }
 
