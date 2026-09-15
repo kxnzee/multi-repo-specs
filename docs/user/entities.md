@@ -5,14 +5,14 @@ Orchestrator связывает требования, код и инструме
 
 | Сущность | Назначение | Подробнее |
 |---|---|---|
-| Store | Центральный репозиторий спецификаций: Master Specs, Changes, контекст и правила процесса | [Подробное начало работы](getting-started.md) |
-| Code Repository | Репозиторий реализации компонента, его проверок и указателя на Store | [Подробное начало работы](getting-started.md) |
-| Specs Repository | Store другой команды, подключённый только для чтения спецификаций | [Подробное начало работы](getting-started.md) |
-| Change | Согласованная доработка с дельтой требований, планом и проверкой результата | [Template default](../templates/default.md) |
+| Store | Центральный репозиторий спецификаций: Master Specs, Changes, контекст и правила процесса | [Создание и подключение Store](getting-started.md#2-создайте-или-клонируйте-store) |
+| Code Repository | Репозиторий реализации компонента, его проверок и указателя на Store | [Подключение Code Repositories](getting-started.md#3-подключите-машину) |
+| Specs Repository | Store другой команды, подключённый только для чтения спецификаций | [Подключённые Store](../core/configuration.md#подключённые-store-роль-specs) |
+| Change | Согласованная доработка с дельтой требований, планом и проверкой результата | [Сценарии работы с Change](../templates/default.md#сценарии-работы-с-change) |
 | Template | Начальные файлы Store: контекст, схемы и правила процесса | [Шаблоны](../templates/README.md) |
-| Agent и gateway | Клиент агента и его доступ к контексту через MCP | [Быстрый старт](quick-start.md) |
-| Extension | Инструкции, навыки, команды и манифесты для агента | [Расширения](../extensions/README.md) |
-| Plugin | Исполняемая возможность, подключаемая к проекту и репозиториям | [Плагины](../plugins/README.md) |
+| Agent и gateway | Клиент агента и его доступ к контексту через MCP | [Gateway и Extensions](installation-and-updates.md#gateway-и-extensions) |
+| Extension | Инструкции, навыки, команды и манифесты для агента | [Standalone Extensions](../plugins/operations.md#standalone-extensions) |
+| Plugin | Исполняемая возможность, подключаемая к проекту и репозиториям | [Общий lifecycle Plugin](../plugins/operations.md#общий-lifecycle-plugin) |
 
 Template не устанавливает плагины и не управляет учётными записями агентов.
 Расширения помогают агенту следовать процессу, а плагины добавляют команды и

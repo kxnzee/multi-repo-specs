@@ -208,15 +208,17 @@ bash <skill-directory>/scripts/review-package BASE --worktree OUTFILE -- src/fil
 
 ## Поставка и совместимость
 
-Root package `openspec-orchestrator` содержит CLI entrypoints, Agent definitions,
-bundled Extensions и Templates. Core, MCP и first-party Plugins входят как точные
-внутренние dependencies. Orchestrator запускается на рабочей машине или в CI и не
-становится runtime dependency Code Repositories. Принятую версию выбирает Store.
+Корневой пакет `openspec-orchestrator` содержит точки входа CLI, определения агентов,
+встроенные расширения и шаблоны. Core, MCP и встроенные плагины входят как точные
+внутренние зависимости. Orchestrator запускается на рабочей машине или в CI и не
+становится зависимостью среды выполнения репозиториев кода. Принятую версию выбирает
+Store.
 
-Во время пилота поставка выполняется через Git checkout, `npm ci` и `npm link`;
-её идентичность задают immutable tag и commit. После пилота root distribution и
-publishable workspaces публикуются в корпоративный npm registry. Store хранит
-точную root dependency и lockfile, внутренние packages отдельно не выбираются.
+При поставке через рабочую копию Git используются `npm ci` и `npm link`; её
+идентичность задают неизменяемые тег и коммит. Для публикуемого пакета корневой пакет
+и публикуемые рабочие пространства размещаются в корпоративном реестре npm. Store
+хранит точную корневую зависимость и файл блокировки; внутренние пакеты отдельно не
+выбираются.
 
 | Контракт | Как обновлять |
 |---|---|
