@@ -47,7 +47,7 @@ test("ExtensionCommands and PackageCommands expose separate public groups", asyn
       },
     },
     extensionLifecycle: {
-      async connect(id) { calls.push(["connect", id]); },
+      async connect(id, options) { calls.push(["connect", id, options]); },
       async disconnect(id) { calls.push(["disconnect", id]); },
       async remove(id) { calls.push(["native-remove", id]); },
       async statuses(options) { calls.push(["status", options.extensionId]); return [status]; },
@@ -75,6 +75,7 @@ test("ExtensionCommands and PackageCommands expose separate public groups", asyn
   await program.parseAsync(["node", "test", "extension", "init", "workflow", "--from", "./workflow"]);
   await program.parseAsync(["node", "test", "extension", "connect", "workflow"]);
   await program.parseAsync(["node", "test", "extension", "update", "workflow", "--from", "../workflow-v2"]);
+  await program.parseAsync(["node", "test", "extension", "connect", "workflow", "--refresh"]);
   await program.parseAsync(["node", "test", "extension", "status", "workflow", "--json"]);
   await program.parseAsync(["node", "test", "extension", "disconnect", "workflow"]);
   await program.parseAsync(["node", "test", "extension", "remove", "workflow"]);
@@ -84,23 +85,28 @@ test("ExtensionCommands and PackageCommands expose separate public groups", asyn
 
   assert.deepEqual(calls, [
     ["install", storeProject, "workflow", path.resolve("/workspace/client/workflow")],
-    ["connect", "workflow"],
+    ["connect", "workflow", { refresh: false }],
     ["status", "workflow"],
     ["install", storeProject, "workflow", path.resolve("/workspace/workflow-v2")],
+    ["connect", "workflow", { refresh: true }],
+    ["status", "workflow"],
     ["status", "workflow"],
     ["disconnect", "workflow"],
     ["native-remove", "workflow"],
     ["remove", storeProject, "workflow"],
     ["sync"],
     ["package-status"],
-    ["connect", "workflow"],
+    ["connect", "workflow", undefined],
   ]);
   assert.deepEqual(output, [
     "✓ workflow — инициализирован",
     "✓ workflow — подключён",
     "✓ workflow → specs — готов",
     "  enabled",
-    "✓ workflow — обновлён; выполните openspec-orch connect",
+    "✓ workflow — обновлён; выполните openspec-orch extension connect workflow --refresh",
+    "✓ workflow — подключён",
+    "✓ workflow → specs — готов",
+    "  enabled",
     `${JSON.stringify({ extensions: [status] }, null, 2)}`,
     "✓ workflow — отключён",
     "✓ workflow — удалён",

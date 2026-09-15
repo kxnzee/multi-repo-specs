@@ -298,11 +298,14 @@ Git и повреждённый checkout остаются ошибками.
 revision, расходящаяся история и изменение HEAD во время чтения дают ошибку.
 Метод использует выбранный facade checkout, ничего не пишет и не знает о задачах Plugin.
 
-Native Agent adapters проверяют актуальность файлов при `status` и после `connect`.
-Параметр `refresh: true` допустим только для `connect`; user-level CLI передаёт его
-из `agent setup --refresh`. Обновление использует native lifecycle и не удаляет
-установку с её настройками. Издатель повышает native manifest version при изменении
-payload. Неизменившийся cache после native update остаётся ошибкой `STATUS_STALE`.
+Native Agent adapters проверяют регистрацию при `status` и после `connect`, не выполняя
+глубокую сверку файлов. Отдельная внутренняя операция `diagnose` доступна только Doctor.
+Параметр `refresh: true` допустим только для `connect`; CLI передаёт его из
+`agent setup --refresh`, `extension connect --refresh` и повторного подключения уже
+связанной Plugin. Обновление использует native lifecycle и не удаляет установку с её
+настройками. Издатель повышает native manifest version при изменении payload.
+Неизменившийся cache после native update обнаруживается следующим запуском Doctor как
+ошибка `STATUS_STALE`.
 
 ### Инструменты MCP из Plugin
 

@@ -64,8 +64,8 @@ export class DoctorService {
     if (extensionStatusService && !hasMethods(extensionStatusService, ["diagnoseSelected"])) {
       throw new Error("DOCTOR_INVALID: Extension status должен предоставлять diagnoseSelected");
     }
-    if (pluginStatusService && !hasMethods(pluginStatusService, ["statuses"])) {
-      throw new Error("DOCTOR_INVALID: Plugin status должен предоставлять statuses");
+    if (pluginStatusService && !hasMethods(pluginStatusService, ["diagnoseSelected"])) {
+      throw new Error("DOCTOR_INVALID: Plugin status должен предоставлять diagnoseSelected");
     }
     if (typeof start !== "string") throw new Error("DOCTOR_INVALID: start должен быть строкой");
     this.#agentPacks = agentPackService;
@@ -198,7 +198,7 @@ export class DoctorService {
 
   async #inspectPlugins(storeProject) {
     if (!this.#plugins) return groupDiagnostic("plugins", "Plugins", "skipped", "Plugin lifecycle не настроен");
-    const statuses = await this.#plugins.statuses({ start: storeProject.root });
+    const statuses = await this.#plugins.diagnoseSelected({ start: storeProject.root });
     return statuses.length > 0
       ? statuses.map(pluginDiagnostic)
       : groupDiagnostic("plugins", "Plugins", "pass", "Подключённые Plugins отсутствуют");

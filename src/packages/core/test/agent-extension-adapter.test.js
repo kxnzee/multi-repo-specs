@@ -178,7 +178,7 @@ test("GigaCode adapter requires its manifest and uses GigaCode CLI", async (t) =
 });
 
 for (const agentId of ["qwen", "gigacode"]) {
-  test(`${agentId} status ignores native source files of other Agents`, async (t) => {
+  test(`${agentId} diagnose ignores native source files of other Agents`, async (t) => {
     const root = await extensionFixture(t, `openspec-${agentId}-filtered-payload-`);
     await fs.writeFile(path.join(root, "agent-instructions.md"), "shared payload");
     const installedRoot = await fs.mkdtemp(path.join(os.tmpdir(), `openspec-${agentId}-installed-`));
@@ -196,7 +196,7 @@ for (const agentId of ["qwen", "gigacode"]) {
     );
 
     await agentAdapter.invokeExtension(fixture.context, extension(root), {
-      operation: "status",
+      operation: "diagnose",
       ownerId: "codegraph",
     });
     await fs.writeFile(
@@ -205,7 +205,7 @@ for (const agentId of ["qwen", "gigacode"]) {
     );
     await assert.rejects(
       agentAdapter.invokeExtension(fixture.context, extension(root), {
-        operation: "status",
+        operation: "diagnose",
         ownerId: "codegraph",
       }),
       new RegExp(`STATUS_STALE.*${agentId}-extension`, "u"),
@@ -595,7 +595,7 @@ for (const agentId of ["qwen", "gigacode"]) {
 }
 
 for (const agentId of ["qwen", "gigacode", "claude"]) {
-  test(`${agentId} detects stale installed files and verifies reconnect`, async (t) => {
+  test(`${agentId} leaves payload drift to diagnose and repairs it only on explicit refresh`, async (t) => {
     const root = await extensionFixture(t, "openspec-refresh-source-", "agent");
     await fs.writeFile(path.join(root, "agent-instructions.md"), "current instructions");
     const installedRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-refresh-installed-"));
@@ -614,14 +614,29 @@ for (const agentId of ["qwen", "gigacode", "claude"]) {
     });
     const payload = extension(root);
     const status = { operation: "status", scope: "user" };
-    await assert.rejects(agentAdapter.invokeExtension(fixture.context, payload, status), /STATUS_STALE.*agent-instructions/u);
-    assert.equal(fixture.calls.length, 1, "status is read-only");
-    await assert.rejects(agentAdapter.invokeExtension(fixture.context, payload, { ...status, operation: "connect" }), /STATUS_STALE/u);
-    updateWorks = true;
-    await agentAdapter.invokeExtension(fixture.context, payload, { ...status, operation: "connect" });
     await agentAdapter.invokeExtension(fixture.context, payload, status);
+    assert.equal(fixture.calls.length, 1, "status is read-only");
+    await assert.rejects(
+      agentAdapter.invokeExtension(fixture.context, payload, { ...status, operation: "diagnose" }),
+      /STATUS_STALE.*agent-instructions/u,
+    );
+    await agentAdapter.invokeExtension(fixture.context, payload, { ...status, operation: "connect" });
+    await assert.rejects(
+      agentAdapter.invokeExtension(fixture.context, payload, { ...status, operation: "diagnose" }),
+      /STATUS_STALE.*agent-instructions/u,
+    );
+    updateWorks = true;
+    await agentAdapter.invokeExtension(fixture.context, payload, {
+      ...status,
+      operation: "connect",
+      refresh: true,
+    });
+    await agentAdapter.invokeExtension(fixture.context, payload, { ...status, operation: "diagnose" });
     assert.equal(fixture.calls.some(([, args]) => args[1] === "uninstall"), false);
     await fs.writeFile(path.join(installedRoot, "obsolete-command.md"), "removed upstream");
-    await assert.rejects(agentAdapter.invokeExtension(fixture.context, payload, status), /STATUS_STALE.*removed file/u);
+    await assert.rejects(
+      agentAdapter.invokeExtension(fixture.context, payload, { ...status, operation: "diagnose" }),
+      /STATUS_STALE.*obsolete-command/u,
+    );
   });
 }

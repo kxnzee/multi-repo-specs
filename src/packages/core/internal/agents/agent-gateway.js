@@ -79,7 +79,7 @@ export class AgentGatewayService {
       ...(refresh ? { refresh: true } : {}),
     });
     await this.#adapter.invokeExtension(runtime.context, runtime.extension, {
-      operation: "status",
+      operation: refresh ? "diagnose" : "status",
       scope: USER_SCOPE,
     });
     return this.#result(agentId, "ready");
@@ -89,7 +89,7 @@ export class AgentGatewayService {
   async status(agentId) {
     const runtime = this.#runtime(agentId);
     await this.#adapter.invokeExtension(runtime.context, runtime.extension, {
-      operation: "status",
+      operation: "diagnose",
       scope: USER_SCOPE,
     });
     return this.#result(agentId, "ready");

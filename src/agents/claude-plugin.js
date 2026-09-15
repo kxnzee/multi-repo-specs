@@ -89,8 +89,18 @@ function pluginIdentity(nativeId, protocol) {
   return Object.freeze({ marketplaceId, qualifiedId: `${nativeId}@${marketplaceId}` });
 }
 
-/** Verifies one Claude Plugin registration and its installed payload. */
+/** Verifies one Claude Plugin registration without auditing its installed files. */
 async function statusPlugin({ context, extension, nativeId, protocol, request }) {
+  const { qualifiedId } = pluginIdentity(nativeId, protocol);
+  const scope = request.scope ?? context.agent.scope;
+  const projectPath = await projectDirectory(context, scope);
+  const state = await inspectPlugin({ context, extension, protocol });
+  assertInstalledPlugin(state.plugins, qualifiedId, scope, projectPath);
+  return state.output;
+}
+
+/** Performs the deep installed-payload audit reserved for Doctor. */
+async function diagnosePlugin({ context, extension, nativeId, protocol, request }) {
   const { qualifiedId } = pluginIdentity(nativeId, protocol);
   const scope = request.scope ?? context.agent.scope;
   const projectPath = await projectDirectory(context, scope);
@@ -135,6 +145,7 @@ export function createClaudePluginLifecycle({ protocol } = AGENT_ADAPTER_CONFIG.
     validateExtension: validate,
     operations: Object.freeze({
       connect: (input) => connectPlugin(input, protocol),
+      diagnose: (input) => diagnosePlugin({ ...input, protocol }),
       status: (input) => statusPlugin({ ...input, protocol }),
       disconnect: (input) => removePlugin({ ...input, protocol }),
       remove: (input) => removePlugin({ ...input, protocol }),

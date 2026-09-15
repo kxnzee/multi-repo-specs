@@ -86,8 +86,12 @@ export class PluginHost {
     return this.#invoke("connect", options);
   }
 
-  async connectExtensions({ pluginId, storeProject, repositoryId } = {}) {
-    return this.#invokeBoundExtensions({ pluginId, storeProject, repositoryId }, "connect");
+  async connectExtensions({ pluginId, storeProject, repositoryId, refresh = false } = {}) {
+    return this.#invokeBoundExtensions(
+      { pluginId, storeProject, repositoryId },
+      "connect",
+      { requestOptions: refresh ? { refresh: true } : {} },
+    );
   }
 
   /** Проверяет все Extension contributions до Plugin/native lifecycle mutation. */
@@ -177,6 +181,10 @@ export class PluginHost {
     return this.#invoke("status", options);
   }
 
+  diagnose(options) {
+    return this.#invoke("diagnose", options);
+  }
+
   sync(options) {
     return this.#invoke("sync", options);
   }
@@ -240,9 +248,9 @@ export class PluginHost {
       await this.#invokePreparedExtensions(loadedPlugin, context, extensions, "connect");
       return output;
     }
-    if (operation === "status") {
+    if (["diagnose", "status"].includes(operation)) {
       const output = await plugin.status(context);
-      await this.#invokeExtensions(loadedPlugin, context, "status");
+      await this.#invokeExtensions(loadedPlugin, context, operation);
       return output;
     }
     if (operation === "exec") return plugin.exec(context, immutableArgs);
@@ -252,7 +260,7 @@ export class PluginHost {
   async #invokeBoundExtensions(
     { pluginId, storeProject, repositoryId },
     operation,
-    { optionalPlugin = false } = {},
+    { optionalPlugin = false, requestOptions = {} } = {},
   ) {
     const loadedPlugin = optionalPlugin
       ? this.#registry.find(pluginId)
@@ -263,12 +271,12 @@ export class PluginHost {
       storeProject,
       repositoryId,
     });
-    return this.#invokeExtensions(loadedPlugin, context, operation);
+    return this.#invokeExtensions(loadedPlugin, context, operation, requestOptions);
   }
 
-  async #invokeExtensions(loadedPlugin, context, operation) {
+  async #invokeExtensions(loadedPlugin, context, operation, requestOptions = {}) {
     const extensions = await this.#prepareExtensions(loadedPlugin, context);
-    return this.#invokePreparedExtensions(loadedPlugin, context, extensions, operation);
+    return this.#invokePreparedExtensions(loadedPlugin, context, extensions, operation, requestOptions);
   }
 
   async #prepareExtensions(loadedPlugin, context) {
@@ -296,8 +304,8 @@ export class PluginHost {
     return Object.freeze(prepared);
   }
 
-  async #invokePreparedExtensions(loadedPlugin, context, extensions, operation) {
-    const request = Object.freeze({ operation, ownerId: loadedPlugin.id });
+  async #invokePreparedExtensions(loadedPlugin, context, extensions, operation, requestOptions = {}) {
+    const request = Object.freeze({ ...requestOptions, operation, ownerId: loadedPlugin.id });
     const completed = [];
     try {
       for (const resolvedExtension of extensions) {

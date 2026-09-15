@@ -124,7 +124,7 @@ test("DoctorService reuses read-only status services and keeps checking after fa
       },
     },
     pluginStatusService: {
-      async statuses() {
+      async diagnoseSelected() {
         calls.push(["plugins"]);
         return [
           { pluginId: "codegraph", repositoryId: "frontend", state: "ready", output: "" },

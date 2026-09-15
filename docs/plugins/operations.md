@@ -40,17 +40,19 @@ Standalone Extension управляется через отдельную гру
 
 ```bash
 openspec-orch extension init <extension-id> --from <package@version>
-openspec-orch extension connect <extension-id>
+openspec-orch extension connect <extension-id> [--refresh]
 openspec-orch extension update <extension-id> --from <package@version>
 openspec-orch extension status <extension-id>
 openspec-orch extension disconnect <extension-id>
 openspec-orch extension remove <extension-id>
 ```
 
-`connect` проверяет Agent CLI и payload. `status` ничего не меняет. `disconnect`
-временно отключает Extension, а `remove` после успешного native removal удаляет её
-declaration и внешнюю npm-зависимость. Общий `connect` восстанавливает объявленные
-Extensions после checkout.
+`connect` проверяет Agent CLI, устанавливает или включает Extension и подтверждает
+её нативную регистрацию. `--refresh` явно обновляет уже установленную копию.
+`status` только читает регистрацию и ничего не меняет; глубокую сверку файлов выполняет
+`doctor`. `disconnect` временно отключает Extension, а `remove` после успешного native
+removal удаляет её declaration и внешнюю npm-зависимость. Общий `connect`
+восстанавливает объявленные Extensions после checkout без глубокой диагностики.
 
 ## Общий lifecycle Plugin
 
@@ -69,6 +71,8 @@ openspec-orch plugin remove <plugin-id>
 `connect`, `status`, `sync` и `disconnect` относятся к repository contribution.
 `plugin exec` запускает команды самого Plugin; `sync` доступен только если Plugin
 его объявляет. `update` всегда явный и не выполняется из обычного `connect`.
+`plugin status` проверяет состояние Plugin и регистрацию его Extension; глубокую
+сверку файлов Extension выполняет только `doctor`.
 
 Для нескольких repositories повторяйте `--repo` или используйте `--all`. Без
 selector единственный подходящий Repository выбирается автоматически; в non-TTY
