@@ -18,6 +18,23 @@ function fixture(options = {}) {
   return { heads, context, app: new ChangeTrackingApplication(context) };
 }
 
+test("checkpoint and complete never recreate an inactive Change", async () => {
+  for (const operation of ["checkpoint", "complete"]) {
+    for (const saved of [false, true]) {
+      const changes = [input.change_id];
+      const { app, context } = fixture({ changes });
+      await app.start(input);
+      if (saved) await app.checkpoint(input);
+      const before = await context.files.read(mapPath, { optional: true });
+      changes.length = 0;
+      await assert.rejects(app[operation](input), /TRACKING_CHANGE_MISSING/u);
+      assert.equal(await context.files.read(mapPath, { optional: true }), before);
+      changes.push(input.change_id);
+      await app[operation](input);
+    }
+  }
+});
+
 test("one workflow records revisions without persisting a second completion state", async () => {
   const { app, context, heads } = fixture();
   await app.start(input);

@@ -1,6 +1,6 @@
 {
   "name": "codegraph-agent",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "contextFileName": "agent-instructions.md",
   "mcpServers": {
     "openspec-orch-codegraph": {

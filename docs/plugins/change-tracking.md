@@ -33,8 +33,15 @@ openspec-orch plugin exec --repo specs change-tracking complete payment-retry 4
 Store/base/implementation revisions и состояние Git checkout.
 
 `start` требует существующий активный Change и чистый Code checkout. `checkpoint`
-и `complete` требуют committed состояние и продолжение истории. Операции записи
+и `complete` повторно проверяют наличие активного Change, требуют committed состояние
+и продолжение истории. Для исчезнувшего или архивированного Change запись отклоняется
+с `TRACKING_CHANGE_MISSING`, без восстановления его каталога. Операции записи
 не читают галочки Tasks, не зависят от них и не меняют OpenSpec.
+
+`store_revision` — HEAD Store на момент `start`, а не подтверждение принятого
+Planning или наличия файлов Change в этом коммите. Незакоммиченные изменения Store
+не запрещены. Если нужна воспроизводимая ссылка на Planning, закоммитьте его в Store
+до начала отслеживания.
 
 ## Передача частичной реализации
 

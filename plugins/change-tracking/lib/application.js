@@ -24,6 +24,13 @@ async function cleanHead(git) {
   return head;
 }
 
+/** Проверяет активное назначение записи через публичный API, не читая шаги workflow. */
+async function assertActiveChange(context, changeId) {
+  if (!(await activeChanges(context.process)).includes(changeId)) {
+    throw new Error("TRACKING_CHANGE_MISSING: Change отсутствует среди активных OpenSpec Changes");
+  }
+}
+
 export class ChangeTrackingApplication {
   constructor(context) {
     this.context = context;
@@ -33,9 +40,7 @@ export class ChangeTrackingApplication {
   async start({ change_id: changeId, task_id: taskId, restart = false }) {
     if (typeof restart !== "boolean") throw new Error("TRACKING_INPUT_INVALID: restart должен быть boolean");
     const repo = invocation(this.context, changeId, taskId);
-    if (!(await activeChanges(this.context.process)).includes(changeId)) {
-      throw new Error("TRACKING_CHANGE_MISSING: Change отсутствует среди активных OpenSpec Changes");
-    }
+    await assertActiveChange(this.context, changeId);
     const git = await this.context.repositories.git(repo.id);
     const head = await cleanHead(git);
     const storeHead = await this.context.git.revision();
@@ -90,6 +95,7 @@ export class ChangeTrackingApplication {
       const session = state.sessions.find((item) => item.change_id === changeId && item.repository_id === repo.id &&
         item.task_id === taskId && item.checkout_path === repo.path);
       if (!session) throw new Error("TRACKING_NOT_STARTED: сначала вызовите start из этой рабочей копии");
+      await assertActiveChange(this.context, changeId);
       const current = (await this.maps.read(changeId)).implementations.find((item) => recordKey(item) === recordKey(session));
       const git = await this.context.repositories.git(repo.id);
       const head = await cleanHead(git);

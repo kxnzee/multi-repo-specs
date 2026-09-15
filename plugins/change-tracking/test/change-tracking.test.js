@@ -14,12 +14,34 @@ import {
 import * as publicApi from "../index.js";
 import plugin from "../index.js";
 import { ChangeTrackingApplication } from "../lib/application.js";
+import { changeTrackingAgentContribution } from "../lib/agent.js";
 import packageManifest from "../package.json" with { type: "json" };
 import { assignmentContext } from "../fixtures/assignment-context.js";
 
 const packageRoot = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 
 testPluginContract({ plugin, packageManifest });
+
+test("invalid tracking map preserves Core status and reports an unavailable overlay", async () => {
+  const context = assignmentContext();
+  const application = new ChangeTrackingApplication(context);
+  const mapPath = "openspec/changes/checkout-flow/implementation-map.yaml";
+  const invalid = "contract_version: 999\n";
+  await context.files.write(mapPath, invalid);
+  const result = { project: { id: "specs" }, openspec: { available: true }, capabilities: { graph: { available: true } } };
+  const actual = await changeTrackingAgentContribution.enhance({
+    application, operation: "getStatus", input: { change_id: "checkout-flow" }, result,
+  });
+  assert.equal(actual.project, result.project);
+  assert.equal(actual.openspec, result.openspec);
+  assert.equal(actual.capabilities.graph, result.capabilities.graph);
+  assert.equal(actual.tracking, null);
+  assert.equal(actual.capabilities.tracking.available, false);
+  assert.equal(actual.capabilities.tracking.diagnostic.code, "TRACKING_STATUS_UNAVAILABLE");
+  assert.match(actual.capabilities.tracking.diagnostic.message, /TRACKING_MAP_INVALID/u);
+  await assert.rejects(application.getStatus("checkout-flow"), /TRACKING_MAP_INVALID/u);
+  assert.equal(await context.files.read(mapPath), invalid);
+});
 
 test("change-tracking contributes one workflow and Code Repository guidance", () => {
   assert.deepEqual(

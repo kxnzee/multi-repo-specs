@@ -174,7 +174,8 @@ test("visual explicit choice reaches the server event file, including falsey cho
   for (const event of sent) { server.eventInput = event; vm.runInContext("handleMessage(eventInput)", server); }
   const events = (await fs.readFile(path.join(root, "state", "events"), "utf8")).trim().split("\n").map(JSON.parse);
   assert.deepEqual(events.map((event) => event.choice), ["left", 0]);
-  assert.equal(vm.runInContext("SUPERPOWERS_VERSION", server), "6.1.1");
+  const manifest = JSON.parse(await fs.readFile(path.join(ROOT, ".claude-plugin/plugin.json"), "utf8"));
+  assert.equal(vm.runInContext("SUPERPOWERS_VERSION", server), manifest.version);
 });
 
 test("graph renderer starts under both module types and reports invalid invocation", async (t) => {

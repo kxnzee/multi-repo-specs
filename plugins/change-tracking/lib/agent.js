@@ -37,10 +37,19 @@ export const changeTrackingAgentContribution = Object.freeze({
   })),
   async enhance({ application, operation, input, result }) {
     if (operation !== "getStatus") return result;
-    const status = application && input.change_id ? await application.getStatus(input.change_id) : null;
+    let status = null;
+    let diagnostic;
+    if (application && input.change_id) {
+      try { status = await application.getStatus(input.change_id); }
+      catch (error) {
+        // Ошибка необязательного дополнения не скрывает уже прочитанный Core status.
+        diagnostic = { code: "TRACKING_STATUS_UNAVAILABLE", message: error.message };
+      }
+    }
     return { ...result,
       capabilities: { ...result.capabilities,
-        tracking: { provider: "change-tracking", available: application !== null } },
+        tracking: { provider: "change-tracking", available: application !== null && !diagnostic,
+          ...(diagnostic ? { diagnostic } : {}) } },
       tracking: status ? compactStatus(status) : null };
   },
 });
