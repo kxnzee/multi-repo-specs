@@ -5,11 +5,11 @@ import { compactOperation, compactStatus } from "./presentation.js";
 const text = { type: "string", minLength: 1 };
 const change = { ...text, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" };
 const descriptions = {
-  start: "Начать или продолжить задачу в текущем Code checkout. task_id — точный ID из OpenSpec Apply. restart только после явной проверки нового плана/checkout.",
-  checkpoint: "Сохранить текущий committed результат и необязательную заметку для передачи. Не закрывает задачу и не публикует Git.",
-  complete: "Сохранить завершённую реализацию из текущего checkout. Требует выполненную галочку OpenSpec, но не означает успешный Verify.",
+  start: "Начать или продолжить отслеживание task_id в текущем Code checkout. restart явно начинает новую локальную работу от текущей revision.",
+  checkpoint: "Сохранить текущий committed результат и необязательную заметку для передачи. Не меняет OpenSpec и не публикует Git.",
+  complete: "Сохранить итоговую revision текущего чистого Code checkout. Не меняет OpenSpec и не подтверждает проверки.",
   cancel: "Снять локальный курсор работы с причиной. Сохранённая реализация остаётся в Change.",
-  status: "Краткий статус Change или обзор активных Changes с all:true вместо change_id. task_id раскрывает задачу; diff:true добавляет изменения всего Repository после сохранённой точки этой задачи.",
+  status: "Краткий статус Tracking для Change или обзор активных Changes с all:true вместо change_id. task_id выбирает запись; diff:true добавляет изменения Repository после сохранённой точки.",
 };
 
 export const changeTrackingAgentContribution = Object.freeze({
@@ -36,11 +36,11 @@ export const changeTrackingAgentContribution = Object.freeze({
     },
   })),
   async enhance({ application, operation, input, result }) {
-    if (!["getStatus", "getChangeContext"].includes(operation)) return result;
+    if (operation !== "getStatus") return result;
     const status = application && input.change_id ? await application.getStatus(input.change_id) : null;
     return { ...result,
-      ...(operation === "getStatus" ? { capabilities: { ...result.capabilities,
-        tracking: { provider: "change-tracking", available: application !== null } } } : {}),
+      capabilities: { ...result.capabilities,
+        tracking: { provider: "change-tracking", available: application !== null } },
       tracking: status ? compactStatus(status) : null };
   },
 });

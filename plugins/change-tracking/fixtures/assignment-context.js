@@ -1,19 +1,15 @@
 /** @fileoverview Изолированный Store context для проверок Tracking. */
-import { fileURLToPath } from "node:url";
 
-/** Создаёт управляемые Git, Apply, files и storage без импорта Core. */
+/** Создаёт управляемые Git, Change list, files и storage без импорта Core. */
 export function assignmentContext({
   implementationHead = "a".repeat(40),
   implementationHeads = null,
   invocation = null,
   openSpecVersion = "1.11.0",
-  planningRevision = "a".repeat(40),
+  storeRevision = "a".repeat(40),
   repositoryChangedPaths = [],
-  planningChangedPaths = [],
   ancestor = true,
-  schemaName = "spec-driven-extended",
   changes = ["checkout-flow"],
-  tasks = [{ id: "1", description: "1.1 Implement checkout", done: false }],
 } = {}) {
   const values = new Map();
   const updates = new Map();
@@ -40,34 +36,19 @@ export function assignmentContext({
       },
     }),
     git: Object.freeze({
-      async revision() { return planningRevision; },
-      async statusPaths() { return planningChangedPaths; },
-      async latestRevision() { return planningRevision; },
+      async revision() { return storeRevision; },
     }),
     process: Object.freeze({
       async run(executable, args) {
-        if (executable === "git" && args[0] === "show") return tasks.map((task) => `- [${task.done ? "x" : " "}] ${task.description}`).join("\n");
         if (executable !== "openspec") throw new Error(`unexpected executable ${executable}`);
         if (args[0] === "--version") return openSpecVersion;
         if (args[0] === "list") return JSON.stringify({ changes: changes.map((name) => ({ name })) });
-        if (args[0] === "schema") return JSON.stringify({ path: fileURLToPath(new URL("./schema", import.meta.url)) });
-        if (args[0] === "instructions" && args[1] === "apply") {
-          const changeId = args[args.indexOf("--change") + 1];
-          return JSON.stringify({
-            changeName: changeId,
-            schemaName,
-            changeDir: `/workspace/specs/openspec/changes/${changeId}`,
-            contextFiles: { work: [`/workspace/specs/openspec/changes/${changeId}/work.md`] },
-            tasks,
-          });
-        }
         throw new Error(`unexpected openspec args ${args.join(" ")}`);
       },
     }),
     files: Object.freeze({
       async read(relativePath, { optional } = {}) {
         if (values.has(relativePath)) return values.get(relativePath);
-        if (relativePath.endsWith("/work.md")) return tasks.map((task) => `- [${task.done ? "x" : " "}] ${task.description}`).join("\n");
         if (optional) return null;
         throw new Error(`missing ${relativePath}`);
       },

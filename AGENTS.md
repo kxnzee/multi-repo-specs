@@ -42,6 +42,23 @@ compilation step, application server, database or provider account.
 - Separate machine-readable stdout from progress on stderr. Preserve scoped
   paths, validation before mutation and fail-closed handling of unknown state.
 
+## Non-negotiable layer independence
+
+- OpenSpec schema steps own their instructions, artifacts and progress. A step
+  must work unchanged when every optional Plugin is absent; do not mention or
+  require Plugin commands, MCP tools, state files or response fields in a step.
+- A Plugin owns only its declared capability. It must not read, write, advance,
+  complete or block OpenSpec steps, artifact instructions or task checkboxes.
+  Shared identifiers may correlate records, but must not transfer lifecycle
+  ownership between the Plugin and the OpenSpec workflow.
+- Core and the base MCP surface remain generic. Do not add knowledge of a
+  concrete Plugin, Template or schema to make two layers coordinate implicitly.
+  Optional integration is allowed only through public contribution contracts and
+  must preserve the standalone behavior of every participating layer.
+- Before changing a Template step or Plugin workflow, inspect dependencies in
+  both directions and add focused regression coverage for independence. A green
+  end-to-end scenario does not justify a cross-layer dependency.
+
 ## Efficient iteration
 
 - Start with `rg` and the owning layer; avoid reading all bundled skills or

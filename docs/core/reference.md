@@ -268,11 +268,11 @@ Controlled setup tools:
 
 - `tracking_start` — начать/продолжить задачу; опциональный `restart`;
 - `tracking_checkpoint` — сохранить committed результат; опциональная `note`;
-- `tracking_complete` — сохранить итог после галочки OpenSpec;
+- `tracking_complete` — сохранить итоговую revision независимо от состояния OpenSpec;
 - `tracking_cancel` — отменить локальную работу; обязательный `reason`;
 - `tracking_status` — краткая сводка и следующие шаги; `task_id` раскрывает задачу,
   `diff: true` с `task_id` добавляет сравнение после последней записи реализации,
-  `details: true` добавляет revisions и снимок текущего кандидата. `all: true`
+  `details: true` добавляет revisions. `all: true`
   вместо `change_id` возвращает компактный обзор активных Changes.
 
 Write tools принимают `change_id` и точный `task_id`. Status требует либо `change_id`,

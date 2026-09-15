@@ -9,10 +9,9 @@ import { formatOverview } from "../lib/overview.js";
 const input = { change_id: "checkout-flow", task_id: "1" };
 const mapPath = "openspec/changes/checkout-flow/implementation-map.yaml";
 
-test("overview follows only the live OpenSpec list, isolates broken maps and retains actionable facts", async () => {
+test("overview uses the active Change list but reports only Tracking state", async () => {
   const changes = ["z-other", "checkout-flow", "broken"];
-  const tasks = [{ id: "1", description: "1.1 Field", done: false }];
-  const context = assignmentContext({ changes, tasks, invocation: { id: "frontend", role: "code" } });
+  const context = assignmentContext({ changes, invocation: { id: "frontend", role: "code" } });
   const app = new ChangeTrackingApplication(context);
   await app.start(input);
   await app.checkpoint(input);
@@ -22,20 +21,17 @@ test("overview follows only the live OpenSpec list, isolates broken maps and ret
   const local = JSON.stringify(await context.storage.read());
   const report = await app.getStatus(undefined, { all: true });
   assert.deepEqual(report.changes.map(({ change_id }) => change_id), ["broken", "checkout-flow", "z-other"]);
-  assert.equal(report.changes[0].summary.total_tasks, null);
+  assert.equal(report.changes[0].summary.tracked_records, null);
   assert.equal(report.changes[0].checkpoints, null, "unreadable data does not mean no checkpoints");
   assert.equal(report.changes[0].warnings[0].code, "TRACKING_STATUS_UNAVAILABLE");
   assert.deepEqual(report.changes[1].checkpoints, [
-    { task_id: "1", task_ref: "1.1", repository_id: "frontend" },
+    { task_id: "1", repository_id: "frontend" },
   ]);
-  assert.equal(report.changes[1].summary.completed_tasks, 0);
-  assert.equal(report.changes[2].summary.total_tasks, 1);
-  tasks[0].done = true;
+  assert.equal(report.changes[1].summary.partial_records, 1);
+  assert.equal(report.changes[2].summary.tracked_records, 0);
   const next = await app.getStatus(undefined, { all: true });
-  assert.equal(next.changes[1].summary.completed_tasks, 1);
-  assert.equal(next.changes[1].summary.recorded_tasks, 0);
-  assert.equal(next.changes[1].attention[0].task_id, "1");
-  assert.equal(next.changes[1].attention[0].next_step.length > 0, true);
+  assert.equal(next.changes[1].summary.partial_records, 1);
+  assert.equal(next.changes[1].attention.length, 0);
   assert.equal(JSON.stringify(next).includes("a".repeat(40)), false);
   assert.equal(formatOverview(next).split("\n").length, 3);
   assert.equal(await context.files.read(mapPath), map);

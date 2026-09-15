@@ -308,8 +308,9 @@ test("all Templates and schemas share one scenario verification contract", async
   assert.match(canonical, /интерфейс.*API.*баз/isu);
   assert.match(canonical, /не вставляй.*логи/isu);
   assert.match(canonical, /Не требуй GitHub\/GitLab\/Bitbucket API или MCP/u);
-  assert.match(canonical, /локальная ссылка на канонический реестр версий/u);
-  assert.match(canonical, /Кандидата разрешает канонический реестр: не копируй revisions, хеши и PR\/CI URL/u);
+  assert.match(canonical, /какие checkout, сборка или среда проверяются/u);
+  assert.match(canonical, /Опиши кандидата человеческим языком; не копируй revisions, хеши и PR\/CI URL/u);
+  assert.doesNotMatch(canonical, /Tracking|implementation-map|реестр версий/iu);
   assert.doesNotMatch(canonical, /Подтверждение выполненной проверки/u);
 });
 
@@ -324,12 +325,13 @@ test("Verify instructions produce a concise human test handoff", async () => {
     assert.match(instruction, /reproducible manual steps/u, file);
     assert.match(instruction, /UI, API or database behavior/u, file);
     assert.match(instruction, /Do not\s+repeat commit lists, branch history, timestamps, raw command output/u, file);
-    assert.match(instruction, /canonical local implementation record/u, file);
-    assert.match(instruction, /canonical implementation record owns candidate revisions, provider URLs and\s+checkout resolution/u, file);
-    assert.match(instruction, /must not copy commit hashes, revisions or PR\/CI\s+URLs/u, file);
-    assert.match(instruction, /repository_id and\s+repository-relative paths/u, file);
-    assert.match(instruction, /report BLOCKED instead of reconstructing it from\s+provider data/u, file);
+    assert.match(instruction, /current workflow context/u, file);
+    assert.match(instruction, /accepted Change,\s+connected Code Repository checkouts/u, file);
+    assert.match(instruction, /must not copy\s+commit hashes, revisions or PR\/CI URLs/u, file);
+    assert.match(instruction, /repository_id[\s\S]*repository-relative\s+paths/u, file);
+    assert.match(instruction, /required checkout, environment or piece\s+of evidence is unavailable, report BLOCKED/u, file);
     assert.match(instruction, /Never require GitHub, GitLab or Bitbucket API\/MCP access/u, file);
+    assert.doesNotMatch(instruction, /Change Tracking|change-tracking|implementation-map|tracking_/iu, file);
   }
 });
 

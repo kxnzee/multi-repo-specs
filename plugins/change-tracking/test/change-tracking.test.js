@@ -41,7 +41,7 @@ test("change-tracking contributes one workflow and Code Repository guidance", ()
   assert.deepEqual(Object.keys(publicApi), ["default"]);
 });
 
-test("change-tracking requires the OpenSpec 1.11 task API", async () => {
+test("change-tracking requires the OpenSpec 1.11 Change list API", async () => {
   const incompatible = assignmentContext({
     invocation: Object.freeze({ id: "frontend", role: "code", path: "/workspace/frontend" }),
     openSpecVersion: "1.10.0",
@@ -53,7 +53,7 @@ test("change-tracking requires the OpenSpec 1.11 task API", async () => {
   );
 });
 
-test("change-tracking ships schema-neutral Apply guidance for every Agent", async () => {
+test("change-tracking ships workflow-independent guidance for every Agent", async () => {
   const extensionRoot = path.join(packageRoot, "extension");
   const [qwen, gigacode, claude, marketplace] = await Promise.all([
     fs.readFile(path.join(extensionRoot, "qwen-extension.json"), "utf8").then(JSON.parse),
@@ -67,5 +67,7 @@ test("change-tracking ships schema-neutral Apply guidance for every Agent", asyn
   assert.deepEqual(gigacode, qwen);
   assert.equal(claude.name, "change-tracking-agent");
   assert.equal(marketplace.name, "openspec-orch-change-tracking-agent");
-  await fs.access(path.join(extensionRoot, qwen.contextFileName));
+  const instructions = await fs.readFile(path.join(extensionRoot, qwen.contextFileName), "utf8");
+  assert.match(instructions, /работает независимо от\s+шагов OpenSpec/u);
+  assert.doesNotMatch(instructions, /artifact_instructions|task checkbox|Apply has marked|Verify passed/u);
 });

@@ -1,4 +1,4 @@
-/** @fileoverview Пользовательский отчёт выводит только наблюдаемые факты без записи состояния. */
+/** @fileoverview Пользовательский отчёт выводит только собственные факты Tracking. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assignmentContext } from "../fixtures/assignment-context.js";
@@ -8,38 +8,33 @@ import { compactStatus, formatStatus } from "../lib/presentation.js";
 const input = { change_id: "checkout-flow", task_id: "1" };
 const mapPath = "openspec/changes/checkout-flow/implementation-map.yaml";
 
-/** Состояние источников изменяется явно; каждое чтение должно видеть новые факты. */
+/** Состояние Git изменяется явно; каждое чтение должно видеть новые факты. */
 function fixture() {
-  const tasks = [{ id: "1", description: "1.1 Display region", done: false },
-    { id: "2", description: "1.2 Review", done: false }];
   const heads = { frontend: "a".repeat(40) };
   const dirty = [];
-  const context = assignmentContext({ tasks, implementationHeads: heads, repositoryChangedPaths: dirty,
+  const context = assignmentContext({ implementationHeads: heads, repositoryChangedPaths: dirty,
     invocation: { id: "frontend", role: "code", path: "/workspace/receiver" } });
-  return { context, tasks, heads, dirty, app: new ChangeTrackingApplication(context) };
+  return { context, heads, dirty, app: new ChangeTrackingApplication(context) };
 }
 
-test("summary counts a task once across repositories and separates checkbox from recorded completion", async () => {
-  const { app, context, tasks } = fixture();
-  const backendContext = assignmentContext({ tasks, invocation: { id: "backend", role: "code" } });
+test("summary counts only Tracking records and never mirrors OpenSpec progress", async () => {
+  const { app, context } = fixture();
+  const backendContext = assignmentContext({ invocation: { id: "backend", role: "code" } });
   const backend = new ChangeTrackingApplication({ ...backendContext, files: context.files });
   await app.start(input);
   await backend.start(input);
   await backend.checkpoint(input);
-  tasks[0].done = true;
   await app.complete(input);
-  const partial = await app.getStatus(input.change_id);
-  assert.deepEqual(partial.summary, { total_tasks: 2, completed_tasks: 1, recorded_tasks: 0 });
-  assert.equal(partial.tasks.find(({ repository_id }) => repository_id === "backend").needs_attention, true);
+  assert.deepEqual((await app.getStatus(input.change_id)).summary,
+    { tracked_records: 2, active_records: 0, partial_records: 1, complete_records: 1 });
   await backend.complete(input);
-  assert.deepEqual((await app.getStatus(input.change_id)).summary, { total_tasks: 2, completed_tasks: 1, recorded_tasks: 1 });
+  assert.deepEqual((await app.getStatus(input.change_id)).summary,
+    { tracked_records: 2, active_records: 0, partial_records: 0, complete_records: 2 });
 });
 
-test("fresh read distinguishes dirty work, later commits, reopened task and changed plan without writes", async () => {
-  const { app, context, tasks, heads, dirty } = fixture();
+test("fresh read distinguishes dirty work and later commits without workflow reads or writes", async () => {
+  const { app, context, heads, dirty } = fixture();
   await app.start(input);
-  tasks[0].done = true;
-  assert.equal((await app.getStatus(input.change_id)).tasks[0].needs_attention, true);
   await app.complete(input);
   const source = await context.files.read(mapPath);
   const local = JSON.parse(JSON.stringify(await context.storage.read()));
@@ -51,73 +46,43 @@ test("fresh read distinguishes dirty work, later commits, reopened task and chan
   const changed = (await app.getStatus(input.change_id)).tasks[0];
   assert.equal(changed.checkout, "dirty");
   assert.equal(changed.needs_attention, true);
-  dirty.length = 0;
-  tasks[0].done = false;
-  const reopened = (await app.getStatus(input.change_id)).tasks[0];
-  assert.equal(reopened.state, "complete");
-  assert.equal(reopened.task_done, false);
-  assert.equal(reopened.needs_attention, true);
-  tasks[0].description = "Different requirement";
-  const stale = await app.getStatus(input.change_id);
-  const staleTask = stale.tasks.find(({ state }) => state === "stale");
-  assert.equal(staleTask.description, null);
-  assert.equal(staleTask.task_ref, "1.1");
-  assert.equal(staleTask.recorded_state, "complete");
-  assert.equal(stale.warnings.at(-1).code, "TRACKING_PLAN_CHANGED");
-  assert.equal(stale.summary.recorded_tasks, 0);
-  assert.equal(compactStatus(stale).tasks[0].recorded_state, undefined);
-  assert.match(formatStatus(stale), /! 1\.1\. Соответствие заданию не подтверждено/u);
-  assert.doesNotMatch(formatStatus(stale), /Итог реализации записан/u);
+  assert.match(formatStatus(await app.getStatus(input.change_id)), /! 1 \(frontend\)/u);
   assert.equal(await context.files.read(mapPath), source);
   assert.deepEqual(await context.storage.read(), local);
 });
 
-test("unavailable OpenSpec stays unknown and default response hides diagnostics and revisions", async () => {
+test("status does not need OpenSpec workflow APIs and default response hides revisions", async () => {
   const { app, context } = fixture();
   await app.start(input);
   await app.checkpoint(input);
-  const unavailable = new ChangeTrackingApplication({ ...context,
-    process: { async run() { throw new Error("EXTERNAL_PROCESS_FAILED: private diagnostic"); } } });
-  const report = await unavailable.getStatus(input.change_id);
-  assert.deepEqual(report.summary, { total_tasks: null, completed_tasks: null, recorded_tasks: null });
-  assert.equal(report.tasks[0].state, "unknown");
-  assert.equal(report.tasks[0].task_done, null);
-  assert.equal(report.tasks[0].local_work, "active", "unavailable plan does not prove a local conflict");
-  assert.equal(report.tasks[0].needs_attention, true);
-  assert.match(report.warnings[0].details, /private diagnostic/);
+  const independent = new ChangeTrackingApplication({ ...context,
+    process: Object.freeze({ async run() { throw new Error("workflow unavailable"); } }) });
+  const report = await independent.getStatus(input.change_id);
+  assert.deepEqual(report.summary,
+    { tracked_records: 1, active_records: 0, partial_records: 1, complete_records: 0 });
+  assert.equal(report.tasks[0].state, "partial");
+  assert.equal(report.tasks[0].local_work, "active");
   const compact = compactStatus(report);
-  assert.equal(compact.candidate, undefined);
   assert.equal(compact.tasks[0].implementation_revision, undefined);
-  assert.equal(compact.warnings[0].details, undefined);
-  assert.equal(JSON.stringify(compact).includes("private diagnostic"), false);
-  assert.equal(formatStatus(report).includes("private diagnostic"), false);
-  assert.equal(report.tasks[0].implementation_revision, "a".repeat(40), "presentation does not mutate detailed evidence");
+  assert.equal(JSON.stringify(compact).includes("workflow unavailable"), false);
+  assert.equal(report.tasks[0].implementation_revision, "a".repeat(40));
 });
 
-test("focus uses exact OpenSpec ID, resolved schema paths and current worktree without guessing assignment", async () => {
+test("focus selects an existing Tracking record and never invents untracked tasks", async () => {
   const { app } = fixture();
-  const untracked = await app.getStatus(input.change_id, { task_id: "2" });
-  assert.equal(untracked.tasks[0].repository_id, null);
-  assert.equal(untracked.context.checkout_path, undefined);
+  await assert.rejects(app.getStatus(input.change_id, { task_id: "2" }), /TRACKING_RECORD_MISSING/);
   await app.start(input);
   const focused = await app.getStatus(input.change_id, { task_id: "1" });
   assert.equal(focused.tasks.length, 1);
-  assert.equal(focused.tasks[0].description, "1.1 Display region");
-  assert.equal(focused.tasks[0].task_ref, "1.1");
-  assert.match(formatStatus(focused), /• 1\.1\. Display region/u);
-  assert.doesNotMatch(formatStatus(focused), /1\.1\. 1\.1 Display region/u);
-  assert.equal(focused.context.checkout_path, "/workspace/receiver");
-  assert.equal(focused.context.task_file, "openspec/changes/checkout-flow/work.md");
-  assert.deepEqual(focused.context.inputs, [focused.context.task_file]);
-  assert.equal(focused.summary.total_tasks, 2);
-  await assert.rejects(app.getStatus(input.change_id, { task_id: "1.1" }), /TRACKING_TASK_MISSING/);
+  assert.equal(focused.tasks[0].task_id, "1");
+  assert.equal(focused.tasks[0].repository_id, "frontend");
+  assert.match(formatStatus(focused), /• 1 \(frontend\)/u);
 });
 
 test("missing Git and corrupt local state preserve readable records but never suggest immediate completion", async () => {
-  const { app, context, tasks } = fixture();
+  const { app, context } = fixture();
   await app.start(input);
   await app.checkpoint(input);
-  tasks[0].done = true;
   const missing = new ChangeTrackingApplication({ ...context,
     repositories: { async git() { throw new Error("REPO_UNAVAILABLE"); } } });
   const row = (await missing.getStatus(input.change_id)).tasks[0];
@@ -131,7 +96,7 @@ test("missing Git and corrupt local state preserve readable records but never su
   assert.equal(corrupt.tasks[0].next_step.includes("complete"), false);
 });
 
-test("handoff focus retains attributed note and detects another writer before a write attempt", async () => {
+test("handoff focus retains note and detects another writer before a write attempt", async () => {
   const first = fixture();
   await first.app.start(input);
   await first.app.checkpoint({ ...input, note: "UI remains" });

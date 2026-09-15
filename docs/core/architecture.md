@@ -182,8 +182,8 @@ binding; repository lifecycle работает только с поддержи�
   опубликованный checkpoint переносится между checkout.
 
 Change Tracking Extension устанавливается только в подключённые Code Repositories и
-использует общий MCP для Store context. Эти Plugins независимы: их отсутствие не
-меняет штатный OpenSpec Apply и не отменяет repository checks или evidence.
+использует общий MCP для Store context. Плагин не читает, не меняет и не блокирует
+шаги OpenSpec; workflow одинаково работает с ним и без него.
 
 ## Governed MCP
 
@@ -279,15 +279,16 @@ Extensions и объявления с bindings плагинов. Schema Change �
 
 `implementation-map.yaml` использует `contract_version: 1`, `change_id` и одну
 коллекцию `implementations`. Запись связывает `repository_id`, точный `task_id`,
-planning revision, начальную revision и последнюю сохранённую implementation revision.
+Store revision на момент начала, начальную Code revision и последнюю сохранённую
+implementation revision.
 PR, URL, описание задачи, списки SHA, результаты Verify и состояние checkbox в карте
 не дублируются.
 
-Команды `start`, `checkpoint`, `complete`, `cancel` и `status` получают task и его
-состояние через OpenSpec, а revisions и состояние checkout — через Git. Локальная
-запись начала работы защищает историю и конкурентное обновление; опубликованный
-checkpoint переносится между checkout. Запись той же задачи устаревшим исполнителем
-отклоняется, а независимые задачи могут обновляться параллельно.
+Команды `start`, `checkpoint`, `complete`, `cancel` и `status` принимают task ID как
+непрозрачный ключ, получают revisions и состояние checkout через Git и не обращаются
+к API шагов OpenSpec. Локальная запись начала работы защищает историю и конкурентное
+обновление; опубликованный checkpoint переносится между checkout. Запись того же
+task ID устаревшим исполнителем отклоняется, а разные task ID обновляются параллельно.
 
 ### Локальное состояние Plugin и Graph
 

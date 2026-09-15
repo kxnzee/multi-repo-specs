@@ -198,11 +198,11 @@ lifecycle не требуют чистого Git, origin или именован
 У Code/Specs эти поля задают источник и ветку только для клонирования отсутствующего
 каталога. Существующие каталоги не обновляются через pull, checkout, reset или merge.
 
-Change Tracking: `start` требует чистый Code checkout и зафиксированные входы
-Apply выбранного Change. Галочки и другие Changes не требуют промежуточного Store
-commit. `checkpoint` и `complete` требуют чистый Code и продолжение истории от
-base revision; новый commit не обязателен. `cancel` удаляет только локальную запись
-вызывающего checkout. Ошибка чтения Git не считается чистым состоянием.
+Change Tracking: `start` требует активный Change и чистый Code checkout.
+`checkpoint` и `complete` требуют чистый Code и продолжение истории от base revision;
+новый commit не обязателен. Плагин не читает и не меняет состояние шагов OpenSpec.
+`cancel` удаляет только локальную запись вызывающего checkout. Ошибка чтения Git
+не считается чистым состоянием.
 
 `assignment_scope` передаёт repository-id, checkout и доступность каталога.
 Его `revision: null` и `clean: null` не блокируют scout или Apply preflight:

@@ -1,48 +1,50 @@
 ## Change Tracking
 
-Use Tracking writes only when implementing an explicitly selected OpenSpec Change from a
-Code Repository. Invoke the installed standard OpenSpec Apply workflow first.
-Reuse fresh Work Context, or request `get_change_context` with `artifact: "apply"`
-and `include_assignment: true`. Follow the active schema and selected repository
-scope. Tracking does not invoke Apply, edit task checkboxes or run tests.
+Change Tracking — необязательный реестр Git-ревизий. Он работает независимо от
+шагов OpenSpec: не начинает, не продвигает и не завершает их. Используй его, только
+если пользователь или контекст проекта уже содержит точные `change_id` и `task_id`.
+Tracking не редактирует артефакты OpenSpec, не запускает тесты и не решает, готова
+ли работа.
 
-For a project overview, call `tracking_status` with `all: true` instead of a Change
-ID. It lists active OpenSpec Changes, checkpoints and issues; it does not choose
-work or prove release readiness. Expand only the relevant Change/task.
+Для обзора проекта вызови `tracking_status` с `all: true`, не передавая Change ID.
+Команда покажет сохранённые состояния и проблемы активных OpenSpec Changes, но не
+выберет следующую работу и не подтвердит готовность workflow. Раскрывай подробности
+только для нужного Change или `task_id`.
 
-1. Read `tracking_status` before starting or resuming. Select the exact task ID
-   from `artifact_instructions.tasks`; a display label such as `2.3` is not its ID.
-   Pass `task_id` to get the task's next step, handoff note and resolved Apply paths.
-   Add `diff: true` only when comparison is useful: it shows repository-wide changes
-   since the latest checkpoint/complete, with uncommitted files separate. Do not
-   attribute every changed file to this task. No saved point means no comparison.
-2. Call `tracking_start` with `change_id` and `task_id`. It captures Git revisions
-   and the full planning inputs automatically. For a published checkpoint, prepare
-   its exact Code revision through the team's ordinary Git workflow first; request
-   `tracking_status` with `details: true` when you need that revision.
-3. Implement and run the repository checks. A commit can cover multiple tasks;
-   never create an empty commit solely for Tracking.
-4. For partial handoff, call `tracking_checkpoint`, optionally with a short `note`
-   explaining the next step. Keep the OpenSpec task open. Publish the Code commit
-   and Store map through the team's Git process so another checkout can resume.
-5. Once Apply has marked the task done, call `tracking_complete`. It records the
-   current clean checkout; it does not prove that tests ran or that Verify passed.
+1. Перед началом или продолжением работы прочитай `tracking_status`. Используй точный
+   `task_id` из текущего контекста проекта: Tracking воспринимает его как непрозрачный
+   идентификатор. Передай `task_id`, чтобы получить сохранённое состояние и заметку
+   для передачи работы. Добавляй `diff: true` только для полезного сравнения: он
+   показывает изменения всего репозитория после последнего checkpoint или complete,
+   отдельно отмечая незакоммиченные файлы. Не приписывай каждый изменённый файл этой
+   задаче. Если сохранённой точки нет, сравнение невозможно.
+2. Вызови `tracking_start` с `change_id` и `task_id`. Команда автоматически сохранит
+   Git-ревизии Store и Code Repository. Перед публикацией checkpoint сначала
+   зафиксируй точную Code revision обычным Git-процессом команды. Если нужна сама
+   revision, запроси `tracking_status` с `details: true`.
+3. Выполняй workflow проекта независимо от Tracking. Один commit может относиться к
+   нескольким task ID; не создавай пустой commit только ради Tracking.
+4. Для частичной передачи работы вызови `tracking_checkpoint`. При необходимости
+   добавь короткую `note` со следующим шагом. Опубликуй Code commit и карту Store
+   обычным Git-процессом команды, чтобы работу можно было продолжить в другом checkout.
+5. Вызови `tracking_complete`, когда нужно сохранить текущий чистый checkout как
+   итоговую отслеживаемую revision. Команда не меняет и не проверяет шаги workflow.
 
-All writes require the invoking Code checkout. The Plugin is bound to the Store;
-Code bindings deliver these instructions. No hosting API or additional MCP is needed.
-Never supply PR links, commit lists, copied task descriptions or storage versions.
+Все операции записи выполняются из вызывающего Code checkout. Plugin подключён к
+Store, а привязки Code Repository доставляют эти инструкции. API Git-хостинга и
+дополнительный MCP не нужны. Не передавай ссылки на PR, списки commit, скопированные
+описания задач и версии хранилища.
 
-On a changed plan, diverged checkout or concurrent update, inspect the difference
-before proceeding. `tracking_cancel` drops only this checkout's local cursor and
-requires a reason; published checkpoints remain. `tracking_start(restart: true)`
-explicitly acknowledges a fresh start from the current committed plan and checkout;
-use it only after the user has confirmed the new scope/history. Never silently
-attach evidence to a reordered or semantically different task.
+Если история checkout разошлась или запись параллельно изменили, сначала изучи
+разницу. `tracking_cancel` удаляет только локальный курсор этого checkout и требует
+причину; опубликованные checkpoint сохраняются. `tracking_start(restart: true)` явно
+начинает новую работу от текущего commit. Используй его только после подтверждения
+пользователем выбранной истории.
 
-`tracking_status` separates record state, the live OpenSpec checkbox and checkout
-correspondence. Use the returned message and next step in a short user update, not
-a technical log. Unknown data stays unknown; a local start does not prove a live
-agent, and an executor's note does not prove a passed test. `ahead` is not an exact
-match or an error by itself; `dirty`, `missing_commit`, `diverged` and `unavailable`
-need resolution before verification.
-Tracking does not checkout, fetch, commit, publish, accept, release or archive.
+`tracking_status` отделяет сохранённое состояние записи от состояния checkout.
+Передавай пользователю его сообщение и следующий шаг кратко, без технического лога.
+Неизвестные данные должны оставаться неизвестными: локальный start не доказывает,
+что агент ещё работает, а заметка исполнителя — что тест пройден. Состояние `ahead`
+само по себе не является точным совпадением или ошибкой. Перед следующей записью
+Tracking нужно устранить `dirty`, `missing_commit`, `diverged` и `unavailable`.
+Tracking не выполняет checkout, fetch, commit, публикацию и операции над шагами workflow.
