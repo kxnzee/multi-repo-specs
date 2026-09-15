@@ -201,8 +201,18 @@ export class ProjectSetupService {
       await lifecycle.connectSelected({ start: storeProject.root, workspace: result.workspace });
     }
     onProgress("Проверка состояния Extensions и Plugins...");
+    const unavailable = [];
     for (const lifecycle of this.#extensionLifecycles) {
-      await lifecycle.statusSelected({ start: storeProject.root, workspace: result.workspace });
+      const statuses = await lifecycle.statusSelected({ start: storeProject.root, workspace: result.workspace });
+      // Native Extensions возвращают строки; Plugin bindings — результаты с полем state.
+      for (const status of statuses ?? []) {
+        if (status && typeof status === "object" && status.state !== undefined && status.state !== "ready") {
+          unavailable.push(`${status.pluginId ?? status.extensionId} → ${status.repositoryId ?? status.targetId}: ${status.state}${status.output ? ` (${status.output})` : ""}`);
+        }
+      }
+    }
+    if (unavailable.length > 0) {
+      throw new Error(`PROJECT_CONNECT_NOT_READY: ${unavailable.join("; ")}. Выполните doctor для диагностики; уже выполненные подключения сохранены`);
     }
     return connectionResult(result);
   }

@@ -49,8 +49,8 @@ repositories:
 | `repositories[].plugins` | Уникальные bindings только объявленных Plugins; по умолчанию пустой массив |
 
 Должен существовать ровно один Repository с `roles: [store]`. Остальные используют
-`roles: [code]` или `roles: [specs]`. ID основного Store и его `remote` должны совпадать с
-`.openspec-store/store.yaml`.
+`roles: [code]` или `roles: [specs]`. ID основного Store должен совпадать с
+`.openspec-store/store.yaml`. Совпадение `remote` между этими файлами не проверяется.
 
 HTTP(S) credentials, `file://`, локальные абсолютные remote и значения Git,
 начинающиеся с `-`, отклоняются. Неизвестные поля, повторяющиеся ID, повторяющиеся

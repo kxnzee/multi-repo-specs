@@ -24,6 +24,28 @@ function lifecycle(name, calls) {
   });
 }
 
+test("connect refuses negative Plugin statuses after connecting", async () => {
+  for (const state of ["ready", "stale", "unavailable", "unknown"]) {
+    const calls = [];
+    const root = path.join(os.tmpdir(), "project-status");
+    const service = new ProjectSetupService({
+      bundledTemplateProvider: templates,
+      connectionService: { async connect() {
+        return { storeId: "specs", storeRoot: root, workspace: root, status: "ready", repositories: [] };
+      } },
+      pluginExtensionConnector: { ...lifecycle("plugin", calls), async statusSelected() {
+        return [{ pluginId: "example", repositoryId: "frontend", state, output: "binding status" }];
+      } },
+      packageSupplyService: { forStore() { return { async ensure() {} }; } },
+      storeProjectService: { async load() {}, async resolve() { return { root, checkout: {} }; } },
+      start: root,
+    });
+    if (state === "ready") assert.equal((await service.connect()).status, "ready");
+    else await assert.rejects(service.connect(), new RegExp(`PROJECT_CONNECT_NOT_READY: example → frontend: ${state}`, "u"));
+    assert.deepEqual(calls, ["plugin:connect"]);
+  }
+});
+
 test("ProjectSetupService gives CLI and MCP one fixed-cwd setup sequence", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-project-setup-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
