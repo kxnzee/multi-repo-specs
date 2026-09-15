@@ -1,4 +1,4 @@
-/** @fileoverview Проверки реальных гарантий единого Tracking workflow. */
+/** @fileoverview Проверки гарантий независимого Change Tracking workflow. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parse, stringify } from "yaml";
@@ -10,27 +10,22 @@ const base = "a".repeat(40);
 const next = "b".repeat(40);
 const mapPath = "openspec/changes/checkout-flow/implementation-map.yaml";
 
-/** Изменяемые задачи и HEAD принадлежат тесту, storage и files изолированы. */
+/** Изменяемые HEAD принадлежат тесту, storage и files изолированы. */
 function fixture(options = {}) {
-  const tasks = [{ id: "1", description: "Implement", done: false }];
   const heads = { frontend: base };
-  const context = assignmentContext({ tasks, implementationHeads: heads,
+  const context = assignmentContext({ implementationHeads: heads,
     invocation: { id: "frontend", role: "code" }, ...options });
-  return { tasks, heads, context, app: new ChangeTrackingApplication(context) };
+  return { heads, context, app: new ChangeTrackingApplication(context) };
 }
 
-test("one workflow captures revisions, checkpoint stays open, completion and retries preserve checkboxes", async () => {
-  const { app, context, tasks, heads } = fixture();
+test("one workflow captures revisions and completes independently from OpenSpec task progress", async () => {
+  const { app, context, heads } = fixture();
   await app.start(input);
   assert.equal(await context.files.read(mapPath, { optional: true }), null);
   heads.frontend = next;
   const partial = await app.checkpoint({ ...input, note: "UI remains" });
   assert.equal(partial.implementation.recorded_state, "partial");
-  assert.equal(partial.implementation.task_ref, "1");
-  assert.equal(tasks[0].done, false);
   assert.equal((await app.checkpoint({ ...input, note: "UI remains" })).changed, false);
-  await assert.rejects(app.complete(input), /TRACKING_TASK_OPEN/);
-  tasks[0].done = true;
   const complete = await app.complete(input);
   assert.equal(complete.implementation.base_revision, base);
   assert.equal(complete.implementation.implementation_revision, next);
@@ -39,42 +34,34 @@ test("one workflow captures revisions, checkpoint stays open, completion and ret
   const document = parse(await context.files.read(mapPath));
   assert.deepEqual(Object.keys(document), ["contract_version", "change_id", "implementations"]);
   assert.equal(document.implementations.length, 1);
-  assert.deepEqual(Object.keys(document.implementations[0]), ["repository_id", "task_id", "task_ref",
-    "planning_revision", "planning_fingerprint", "base_revision", "implementation_revision", "recorded_state"]);
+  assert.deepEqual(Object.keys(document.implementations[0]), ["repository_id", "task_id",
+    "store_revision", "base_revision", "implementation_revision", "recorded_state"]);
   assert.equal(document.implementations[0].recorded_state, "complete");
-  const source = await context.files.read(mapPath);
-  const status = await app.getStatus(input.change_id);
-  assert.equal(status.tasks[0].checkout, "matches");
-  assert.equal(status.tasks[0].state, "complete");
-  tasks[0].done = false;
-  assert.equal((await app.getStatus(input.change_id)).tasks[0].task_done, false);
-  assert.equal(await context.files.read(mapPath), source);
-  await app.start(input);
-  tasks[0].done = true;
-  await app.complete(input);
+  assert.equal((await app.getStatus(input.change_id)).tasks[0].state, "complete");
+});
+
+test("task_id is an opaque correlation key and workflow APIs are never read", async () => {
+  const original = assignmentContext({ invocation: { id: "frontend", role: "code" } });
+  const calls = [];
+  const context = { ...original, process: Object.freeze({ async run(executable, args) {
+    calls.push([executable, ...args]);
+    if (args[0] === "instructions") throw new Error("workflow API must not be called");
+    return original.process.run(executable, args);
+  } }) };
+  const app = new ChangeTrackingApplication(context);
+  const arbitrary = { change_id: "checkout-flow", task_id: "repository-slice" };
+  await app.start(arbitrary);
+  await app.complete(arbitrary);
+  assert.equal(calls.some((call) => call.includes("instructions")), false);
 });
 
 test("tasks sharing a commit and no-code tasks do not need artificial commits", async () => {
-  const { app, tasks } = fixture();
-  tasks.push({ id: "2", description: "Review", done: false });
+  const { app } = fixture();
   await app.start(input);
-  tasks[0].done = true;
   await app.complete(input);
   const second = { ...input, task_id: "2" };
   await app.start(second);
-  tasks[1].done = true;
   assert.equal((await app.complete(second)).implementation.implementation_revision, base);
-});
-
-test("reordered tasks and multiline edits cannot silently reuse positional IDs", async () => {
-  const { app, context, tasks } = fixture();
-  await app.start(input);
-  await context.files.write("openspec/changes/checkout-flow/work.md", "- [ ] Implement\n  Changed requirement\n");
-  tasks[0].done = true;
-  await assert.rejects(app.complete(input), /TRACKING_PLAN_CHANGED/);
-  await context.files.write("openspec/changes/checkout-flow/work.md", "- [ ] New task\n- [x] Implement\n");
-  await assert.rejects(app.checkpoint(input), /TRACKING_PLAN_CHANGED/);
-  assert.equal(await context.files.read(mapPath, { optional: true }), null);
 });
 
 test("handoff uses only published map and commit; independent stale contributor cannot overwrite", async () => {
@@ -95,8 +82,7 @@ test("handoff uses only published map and commit; independent stale contributor 
 
 test("parallel contributors to different tasks preserve both entries", async () => {
   const first = fixture();
-  first.tasks.push({ id: "2", description: "Second", done: false });
-  const other = assignmentContext({ tasks: first.tasks, invocation: { id: "backend", role: "code" } });
+  const other = assignmentContext({ invocation: { id: "backend", role: "code" } });
   const second = new ChangeTrackingApplication({ ...other, files: first.context.files });
   await first.app.start(input);
   await second.start({ ...input, task_id: "2" });
@@ -105,10 +91,9 @@ test("parallel contributors to different tasks preserve both entries", async () 
 });
 
 test("completion recovers after durable map write and interrupted local storage update", async () => {
-  const { app, context, tasks } = fixture();
+  const { app, context } = fixture();
   await app.start(input);
   const before = await context.storage.read();
-  tasks[0].done = true;
   await app.complete(input);
   await context.storage.update(() => before);
   assert.equal((await app.complete(input)).changed, false);
@@ -116,12 +101,11 @@ test("completion recovers after durable map write and interrupted local storage 
 });
 
 test("cancel is local, preserves checkpoint and repeated completion cannot recreate cancelled work", async () => {
-  const { app, context, tasks } = fixture();
+  const { app, context } = fixture();
   await app.start(input);
   await app.checkpoint(input);
   const before = await context.files.read(mapPath);
   await app.cancel({ ...input, reason: "Handed over" });
-  tasks[0].done = true;
   await assert.rejects(app.complete(input), /TRACKING_NOT_STARTED/);
   assert.equal(await context.files.read(mapPath), before);
 });
@@ -144,62 +128,25 @@ test("missing commit, wrong checkout, dirty tree and unrelated history fail clos
   await assert.rejects(unrelated.app.checkpoint(input), /TRACKING_HISTORY_CHANGED/);
 });
 
-test("explicit restart acknowledges changed planning but does not bypass later conflicts", async () => {
-  const { app, tasks, heads } = fixture();
+test("restart preserves the original comparison point without consulting workflow state", async () => {
+  const { app, heads } = fixture();
   await app.start(input);
   heads.frontend = next;
   await app.checkpoint(input);
-  tasks[0].description = "Revised task";
-  await assert.rejects(app.start(input), /TRACKING_PLAN_CHANGED/);
-  const restarted = await app.start({ ...input, restart: true });
-  assert.equal(restarted.base_revision, base, "reviewed restart preserves the original comparison point");
-  tasks[0].done = true;
-  const completed = await app.complete(input);
-  assert.equal(completed.implementation.recorded_state, "complete");
-  assert.equal(completed.implementation.base_revision, base);
-});
-
-test("restart after planning changes before a checkpoint preserves the original base", async () => {
-  const { app, tasks, heads } = fixture();
-  await app.start(input);
-  heads.frontend = next;
-  tasks[0].description = "Revised task";
-  await assert.rejects(app.start(input), /TRACKING_PLAN_CHANGED/);
   const restarted = await app.start({ ...input, restart: true });
   assert.equal(restarted.base_revision, base);
+  assert.equal((await app.complete(input)).implementation.base_revision, base);
 });
 
-test("restart before a checkpoint rejects a missing original base", async () => {
-  const { app, context, tasks } = fixture();
+test("restart rejects missing saved commits and divergent history", async () => {
+  const { app, context, heads } = fixture();
   await app.start(input);
-  tasks[0].description = "Revised task";
+  heads.frontend = next;
+  await app.checkpoint(input);
   const missing = new ChangeTrackingApplication({ ...context, repositories: { async git(id) {
-    return { ...await context.repositories.git(id), async hasCommit(revision) { return revision !== base; } };
+    return { ...await context.repositories.git(id), async hasCommit(revision) { return revision !== next; } };
   } } });
   await assert.rejects(missing.start({ ...input, restart: true }), /TRACKING_COMMIT_MISSING/);
-});
-
-test("restart from a checkpoint rejects missing saved commits", async () => {
-  const { app, context, tasks, heads } = fixture();
-  await app.start(input);
-  heads.frontend = next;
-  await app.checkpoint(input);
-  tasks[0].description = "Revised task";
-  for (const missingRevision of [base, next]) {
-    const missing = new ChangeTrackingApplication({ ...context, repositories: { async git(id) {
-      return { ...await context.repositories.git(id),
-        async hasCommit(revision) { return revision !== missingRevision; } };
-    } } });
-    await assert.rejects(missing.start({ ...input, restart: true }), /TRACKING_COMMIT_MISSING/);
-  }
-});
-
-test("restart rejects divergent history", async () => {
-  const { app, context, tasks, heads } = fixture();
-  await app.start(input);
-  heads.frontend = next;
-  await app.checkpoint(input);
-  tasks[0].description = "Revised task";
   const divergent = new ChangeTrackingApplication({ ...context, repositories: { async git(id) {
     return { ...await context.repositories.git(id), async isAncestor() { return false; } };
   } } });
@@ -220,26 +167,12 @@ test("map corruption is preserved and corrupt local storage does not hide a read
   assert.equal(await context.files.read(mapPath), old);
 });
 
-test("candidate changes with checkout revisions without rewriting recorded implementation", async () => {
+test("status follows checkout revisions without rewriting recorded implementation", async () => {
   const { app, context, heads } = fixture();
   await app.start(input);
   await app.checkpoint(input);
-  const before = await app.getStatus(input.change_id);
   const source = await context.files.read(mapPath);
   heads.frontend = next;
-  const after = await app.getStatus(input.change_id);
-  assert.notEqual(after.candidate.id, before.candidate.id);
-  assert.equal(after.tasks[0].checkout, "ahead");
-  assert.equal(before.candidate.repositories[0].revision, base);
+  assert.equal((await app.getStatus(input.change_id)).tasks[0].checkout, "ahead");
   assert.equal(await context.files.read(mapPath), source);
-});
-
-test("candidate identity includes planning inputs but ignores task checkboxes", async () => {
-  const { app, tasks } = fixture();
-  await app.start(input);
-  const before = await app.getStatus(input.change_id);
-  tasks[0].done = true;
-  assert.equal((await app.getStatus(input.change_id)).candidate.id, before.candidate.id);
-  tasks[0].description = "Changed acceptance criteria";
-  assert.notEqual((await app.getStatus(input.change_id)).candidate.id, before.candidate.id);
 });

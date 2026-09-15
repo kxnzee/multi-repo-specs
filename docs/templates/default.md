@@ -331,7 +331,6 @@ Proposal и Specs являются Store-only стадиями. Repository Impac
 | CodeGraph недоступен или устарел | Использовать адресное read/search в текущем Repository; не запускать sync автоматически |
 | Task имеет artifacts и прошедшие checks | Отметить Task выполненным и сохранить конкретное evidence |
 | Task заблокирован или проверка не выполнена | Оставить checkbox открытым и зафиксировать blocker |
-| Change Tracking доступен | Связать task с implementation revision; Tracking не меняет status и не выполняет проверки |
 | Scopes независимы | В `superspec-multirepo` допускается параллельная работа, если это разрешают зависимости в Tasks |
 | Есть зависимость или общие файлы | Выполнять работы последовательно в порядке Tasks |
 

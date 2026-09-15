@@ -147,18 +147,16 @@ Gate 1.
 ## 7. Apply и PR подзадачи
 
 1. Разработчик запускает штатный OpenSpec Apply из назначенного Code Repository.
-2. Если подключён Change Tracking, разработчик читает состояние точной задачи и
-   продолжает работу от опубликованного checkpoint.
-3. Разработчик реализует task, выполняет repository checks, создаёт commit и отмечает
+2. Разработчик реализует task, выполняет repository checks, создаёт commit и отмечает
    task выполненным.
-4. Разработчик создаёт Code PR в Integration branch соответствующего Code
+3. Разработчик создаёт Code PR в Integration branch соответствующего Code
    Repository. В описании
    указываются Jira Story, подзадача, `change-id`, план реализации и результаты
    проверок.
-5. После review Code PR сливается в Integration branch. Точный implementation commit
+4. После review Code PR сливается в Integration branch. Точный implementation commit
    и identity
    собранного artifact сохраняются как evidence.
-6. После слияния кода разработчик создаёт от Store Story branch ветку
+5. После слияния кода разработчик создаёт от Store Story branch ветку
    по pattern для Store subtask branch и открывает Subtask Store PR обратно в Store
    Story branch с обновлёнными Tasks и implementation evidence. Прямое изменение
    Store Story branch запрещено.
@@ -184,23 +182,6 @@ Scenarios между producer и consumers.
 когда зависимости в `tasks.md` явно это разрешают и между ними нет общей state, порядка выполнения или
 пересекающихся файлов. Rollout не должен создавать несовместимое состояние producer
 и consumers.
-
-### Частичная передача работы
-
-Change Tracking опционален и не меняет описанный выше Git-процесс. Из Code
-Repository исполнитель вызывает `start <change-id> <task-id>`, реализует задачу
-и сохраняет committed результат через `checkpoint`. Галочка остаётся открытой.
-При необходимости короткая `--note` объясняет следующий шаг.
-
-Для передачи публикуются Code commit и Store map через принятый командой процесс,
-в том числе Subtask Store PR. Ссылки на PR в карту не записываются. Получатель
-читает Change и checkpoint, получает сохранённый commit обычным Git, подготавливает
-его checkout и вызывает тот же `start`. Исходное локальное состояние не нужно.
-
-После всех работ, проверок и стандартной галочки OpenSpec вызывается `complete`.
-Это не Verify, не слияние и не приёмка. Один commit может относиться к нескольким
-задачам. Без Tracking Apply работает штатно, а evidence передаётся командным каналом.
-Подробности — [Change Tracking](../plugins/change-tracking.md#один-процесс-работы).
 
 ## 8. ИФТ, Verify и дефекты
 

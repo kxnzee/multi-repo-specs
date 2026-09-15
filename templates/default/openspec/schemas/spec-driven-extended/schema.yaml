@@ -293,13 +293,13 @@ artifacts:
       point, required data, actions and state the verifier should observe. Keep the
       human result PENDING until a person performs or explicitly accepts that case.
 
-      Reference the candidate once through its canonical local implementation record.
-      The canonical implementation record owns candidate revisions, provider URLs and
-      checkout resolution. verify.md must not copy commit hashes, revisions or PR/CI
-      URLs from that record. Evidence must be usable from the checked-out Store and
-      candidate checkouts. Name repository_id and repository-relative paths to the
-      result, test or report. If the canonical record
-      cannot resolve the candidate, report BLOCKED instead of reconstructing it from
+      Identify the candidate from the current workflow context: the accepted Change,
+      connected Code Repository checkouts and the environment or build available to
+      the verifier. Describe it once in human-readable terms. verify.md must not copy
+      commit hashes, revisions or PR/CI URLs. Evidence must be usable from the checked-out
+      Store and Code Repository checkouts. Name repository_id and repository-relative
+      paths to the result, test or report. If a required checkout, environment or piece
+      of evidence is unavailable, report BLOCKED instead of reconstructing it from
       provider data. Never require GitHub, GitLab or Bitbucket API/MCP access to
       understand the candidate or reproduce a check.
       Do not repeat commit lists, branch history, timestamps, raw command output,
@@ -355,8 +355,8 @@ apply:
   instruction: |
     Before any implementation edit, invoke the installed spec-driven-extended-apply-context
     skill through the Agent's skill mechanism and require its apply_scope.scope_status:
-    ready for this Change and Repository. Reading these instructions or calling tracking
-    does not execute the helper. If unavailable or blocked, stop before editing code.
+    ready for this Change and Repository. Reading these instructions does not execute
+    the helper. If unavailable or blocked, stop before editing code.
     Return from the helper to this Apply without recursive invocation, then read context
     files, work through pending tasks and mark complete as you go. Apply does not create a separate receipt artifact.
     Перед checkbox сформировать:

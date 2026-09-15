@@ -1,4 +1,4 @@
-/** @fileoverview Canonical OpenSpec Apply task integration. */
+/** @fileoverview Минимальная проверка OpenSpec и списка Changes. */
 import { identifier } from "./records.js";
 
 const VERSION = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/u;
@@ -48,41 +48,4 @@ export async function activeChanges(process) {
     throw new Error("OPENSPEC_STATUS_INVALID: list не содержит однозначный список Changes");
   }
   return value.changes.map(({ name }) => name).sort();
-}
-
-/** Reads schema-independent task progress from the canonical OpenSpec Apply API. */
-export async function applyInstructions(process, changeId) {
-  const args = ["instructions", "apply", "--change", changeId, "--json"];
-  const command = `openspec ${args.join(" ")}`;
-  const value = parseJson(await requireProcess(process).run("openspec", args), command);
-  if (
-    value.changeName !== changeId ||
-    typeof value.schemaName !== "string" || value.schemaName.length === 0 ||
-    typeof value.changeDir !== "string" || value.changeDir.length === 0 ||
-    !value.contextFiles || typeof value.contextFiles !== "object" || Array.isArray(value.contextFiles) ||
-    Object.values(value.contextFiles).some((paths) => !Array.isArray(paths) || paths.some((file) => typeof file !== "string")) ||
-    !Array.isArray(value.tasks)
-  ) {
-    throw new Error(`OPENSPEC_STATUS_INVALID: ${command} не содержит Apply task progress`);
-  }
-  const ids = new Set();
-  const tasks = value.tasks.map((task) => {
-    if (
-      !task || typeof task !== "object" || Array.isArray(task) ||
-      typeof task.id !== "string" || task.id.length === 0 || ids.has(task.id) ||
-      typeof task.description !== "string" || task.description.length === 0 ||
-      typeof task.done !== "boolean"
-    ) {
-      throw new Error(`OPENSPEC_STATUS_INVALID: ${command} содержит некорректный task`);
-    }
-    ids.add(task.id);
-    return Object.freeze({ id: task.id, description: task.description, done: task.done });
-  });
-  return Object.freeze({
-    changeName: value.changeName,
-    changeDir: value.changeDir,
-    contextFiles: value.contextFiles ?? {},
-    schemaName: value.schemaName,
-    tasks: Object.freeze(tasks),
-  });
 }
