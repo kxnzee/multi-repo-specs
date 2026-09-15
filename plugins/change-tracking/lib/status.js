@@ -2,6 +2,7 @@
 import { fingerprint, localState, nonempty, recordKey, revision } from "./records.js";
 import { taskGuidance } from "./presentation.js";
 import { readTrackingDiff } from "./diff.js";
+import { taskProgress } from "./openspec-compatibility.js";
 
 /** Сравнивает рабочую копию с записью; ошибка чтения остаётся неизвестным состоянием. */
 async function checkoutState(repository, reference) {
@@ -14,14 +15,19 @@ async function checkoutState(repository, reference) {
   } catch { return "unavailable"; }
 }
 
-/** Считает только собственные записи Plugin, не дублируя прогресс OpenSpec. */
-function summarize(tasks) {
-  return {
-    tracked_records: tasks.length,
-    active_records: tasks.filter(({ state }) => state === "active").length,
-    partial_records: tasks.filter(({ state }) => state === "partial").length,
-    complete_records: tasks.filter(({ state }) => state === "complete").length,
-  };
+/** Объединяет OpenSpec progress с наличием revisions, не меняя ни один источник. */
+function summarize(progress, tasks) {
+  const recorded = new Set(tasks.filter(({ revision_recorded: present }) => present)
+    .map(({ task_id: id }) => id));
+  const withRevision = progress
+    ? progress.tasks.filter(({ task_id: id }) => recorded.has(id)).length
+    : recorded.size;
+  return { total_tasks: progress?.total_tasks ?? null,
+    completed_tasks: progress?.completed_tasks ?? null,
+    remaining_tasks: progress?.remaining_tasks ?? null,
+    tasks_with_revision: withRevision,
+    tasks_without_revision: progress ? progress.total_tasks - withRevision : null,
+    active_records: tasks.filter(({ local_work }) => local_work === "active").length };
 }
 
 /** Создаёт один свежий отчёт; task_id раскрывает контекст продолжения в том же status. */
@@ -29,6 +35,11 @@ export async function readTrackingStatus(context, maps, changeId, { task_id: tas
   if (taskId !== undefined && !nonempty(taskId)) throw new Error("TRACKING_INPUT_INVALID: нужен точный task_id");
   const document = await maps.read(changeId);
   const warnings = [];
+  let progress = null;
+  try { progress = await taskProgress(context.process, changeId); }
+  catch (error) { warnings.push({ code: "OPENSPEC_TASKS_UNAVAILABLE",
+    message: "Прогресс задач OpenSpec недоступен; revisions Tracking сохранены.",
+    next_step: "Проверьте публичный JSON API OpenSpec.", details: error.message }); }
   let sessions = [];
   let storageAvailable = true;
   try {
@@ -53,9 +64,9 @@ export async function readTrackingStatus(context, maps, changeId, { task_id: tas
   }
   const tasks = [];
   for (const entry of document.implementations) {
-    tasks.push({ task_id: entry.task_id, repository_id: entry.repository_id,
-      recorded_state: entry.recorded_state,
-      state: entry.recorded_state,
+    const task = progress?.tasks.find(({ task_id: id }) => id === entry.task_id);
+    tasks.push({ task_id: entry.task_id, description: task?.description ?? null,
+      task_done: task?.done ?? null, repository_id: entry.repository_id, revision_recorded: true,
       checkout: await checkoutState(repositories.get(entry.repository_id), entry.implementation_revision),
       implementation_revision: entry.implementation_revision, ...(entry.note ? { note: entry.note } : {}) });
   }
@@ -63,7 +74,9 @@ export async function readTrackingStatus(context, maps, changeId, { task_id: tas
     let row = tasks.find((item) => recordKey(item) === recordKey(session));
     const entry = document.implementations.find((item) => recordKey(item) === recordKey(session));
     if (!row) {
-      row = { task_id: session.task_id, repository_id: session.repository_id, state: "active",
+      const task = progress?.tasks.find(({ task_id: id }) => id === session.task_id);
+      row = { task_id: session.task_id, description: task?.description ?? null,
+        task_done: task?.done ?? null, repository_id: session.repository_id, revision_recorded: false,
         checkout: await checkoutState(repositories.get(session.repository_id), session.base_revision) };
       tasks.push(row);
     }
@@ -72,12 +85,20 @@ export async function readTrackingStatus(context, maps, changeId, { task_id: tas
     const conflict = current !== session.observed && current !== session.last_saved;
     row.local_work = conflict || row.local_work === "conflict" ? "conflict" : "active";
   }
+  for (const task of progress?.tasks ?? []) {
+    if (!tasks.some(({ task_id: id }) => id === task.task_id)) {
+      tasks.push({ task_id: task.task_id, description: task.description, task_done: task.done,
+        repository_id: null, revision_recorded: false, checkout: null });
+    }
+  }
   tasks.sort((a, b) => {
     const byTask = a.task_id.localeCompare(b.task_id, "en", { numeric: true });
     if (byTask) return byTask;
+    if (a.repository_id === null) return b.repository_id === null ? 0 : 1;
+    if (b.repository_id === null) return -1;
     return a.repository_id.localeCompare(b.repository_id, "en");
   });
-  const summary = summarize(tasks);
+  const summary = summarize(progress, tasks);
   const selected = taskId === undefined ? tasks : tasks.filter(({ task_id }) => task_id === taskId);
   if (taskId !== undefined && !selected.length) {
     throw new Error("TRACKING_RECORD_MISSING: для task_id нет локальной или сохранённой записи");

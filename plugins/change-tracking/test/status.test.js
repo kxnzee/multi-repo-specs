@@ -1,4 +1,4 @@
-/** @fileoverview Пользовательский отчёт выводит только собственные факты Tracking. */
+/** @fileoverview Пользовательский отчёт объединяет read-only OpenSpec progress и Tracking. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assignmentContext } from "../fixtures/assignment-context.js";
@@ -9,16 +9,20 @@ const input = { change_id: "checkout-flow", task_id: "1" };
 const mapPath = "openspec/changes/checkout-flow/implementation-map.yaml";
 
 /** Состояние Git изменяется явно; каждое чтение должно видеть новые факты. */
-function fixture() {
+function fixture(options = {}) {
   const heads = { frontend: "a".repeat(40) };
   const dirty = [];
   const context = assignmentContext({ implementationHeads: heads, repositoryChangedPaths: dirty,
-    invocation: { id: "frontend", role: "code", path: "/workspace/receiver" } });
+    invocation: { id: "frontend", role: "code", path: "/workspace/receiver" }, ...options });
   return { context, heads, dirty, app: new ChangeTrackingApplication(context) };
 }
 
-test("summary counts only Tracking records and never mirrors OpenSpec progress", async () => {
-  const { app, context } = fixture();
+test("summary reads checkbox progress and counts revisions independently", async () => {
+  const tasks = [
+    { id: "1", description: "1.1 Implement checkout flow", done: false },
+    { id: "2", description: "1.2 Verify checkout fallback", done: false },
+  ];
+  const { app, context } = fixture({ tasks });
   const backendContext = assignmentContext({ invocation: { id: "backend", role: "code" } });
   const backend = new ChangeTrackingApplication({ ...backendContext, files: context.files });
   await app.start(input);
@@ -26,10 +30,12 @@ test("summary counts only Tracking records and never mirrors OpenSpec progress",
   await backend.checkpoint(input);
   await app.complete(input);
   assert.deepEqual((await app.getStatus(input.change_id)).summary,
-    { tracked_records: 2, active_records: 0, partial_records: 1, complete_records: 1 });
-  await backend.complete(input);
+    { total_tasks: 2, completed_tasks: 0, remaining_tasks: 2,
+      tasks_with_revision: 1, tasks_without_revision: 1, active_records: 0 });
+  tasks[0].done = true;
   assert.deepEqual((await app.getStatus(input.change_id)).summary,
-    { tracked_records: 2, active_records: 0, partial_records: 0, complete_records: 2 });
+    { total_tasks: 2, completed_tasks: 1, remaining_tasks: 1,
+      tasks_with_revision: 1, tasks_without_revision: 1, active_records: 0 });
 });
 
 test("fresh read distinguishes dirty work and later commits without workflow reads or writes", async () => {
@@ -46,12 +52,12 @@ test("fresh read distinguishes dirty work and later commits without workflow rea
   const changed = (await app.getStatus(input.change_id)).tasks[0];
   assert.equal(changed.checkout, "dirty");
   assert.equal(changed.needs_attention, true);
-  assert.match(formatStatus(await app.getStatus(input.change_id)), /! 1 \(frontend\)/u);
+  assert.match(formatStatus(await app.getStatus(input.change_id)), /! \[ \] 1: 1\.1 Implement checkout flow \(frontend\)/u);
   assert.equal(await context.files.read(mapPath), source);
   assert.deepEqual(await context.storage.read(), local);
 });
 
-test("status does not need OpenSpec workflow APIs and default response hides revisions", async () => {
+test("status preserves revisions when the read-only OpenSpec API is unavailable", async () => {
   const { app, context } = fixture();
   await app.start(input);
   await app.checkpoint(input);
@@ -59,8 +65,10 @@ test("status does not need OpenSpec workflow APIs and default response hides rev
     process: Object.freeze({ async run() { throw new Error("workflow unavailable"); } }) });
   const report = await independent.getStatus(input.change_id);
   assert.deepEqual(report.summary,
-    { tracked_records: 1, active_records: 0, partial_records: 1, complete_records: 0 });
-  assert.equal(report.tasks[0].state, "partial");
+    { total_tasks: null, completed_tasks: null, remaining_tasks: null,
+      tasks_with_revision: 1, tasks_without_revision: null, active_records: 1 });
+  assert.equal(report.tasks[0].revision_recorded, true);
+  assert.equal(report.tasks[0].task_done, null);
   assert.equal(report.tasks[0].local_work, "active");
   const compact = compactStatus(report);
   assert.equal(compact.tasks[0].implementation_revision, undefined);
@@ -68,15 +76,17 @@ test("status does not need OpenSpec workflow APIs and default response hides rev
   assert.equal(report.tasks[0].implementation_revision, "a".repeat(40));
 });
 
-test("focus selects an existing Tracking record and never invents untracked tasks", async () => {
+test("focus shows OpenSpec tasks without revisions and rejects an unknown task", async () => {
   const { app } = fixture();
-  await assert.rejects(app.getStatus(input.change_id, { task_id: "2" }), /TRACKING_RECORD_MISSING/);
+  const untracked = await app.getStatus(input.change_id, { task_id: "2" });
+  assert.equal(untracked.tasks[0].revision_recorded, false);
+  await assert.rejects(app.getStatus(input.change_id, { task_id: "3" }), /TRACKING_RECORD_MISSING/);
   await app.start(input);
   const focused = await app.getStatus(input.change_id, { task_id: "1" });
   assert.equal(focused.tasks.length, 1);
   assert.equal(focused.tasks[0].task_id, "1");
   assert.equal(focused.tasks[0].repository_id, "frontend");
-  assert.match(formatStatus(focused), /• 1 \(frontend\)/u);
+  assert.match(formatStatus(focused), /• \[ \] 1: 1\.1 Implement checkout flow \(frontend\)/u);
 });
 
 test("missing Git and corrupt local state preserve readable records but never suggest immediate completion", async () => {
@@ -87,7 +97,7 @@ test("missing Git and corrupt local state preserve readable records but never su
     repositories: { async git() { throw new Error("REPO_UNAVAILABLE"); } } });
   const row = (await missing.getStatus(input.change_id)).tasks[0];
   assert.equal(row.checkout, "unavailable");
-  assert.equal(row.state, "partial");
+  assert.equal(row.revision_recorded, true);
   assert.equal(row.needs_attention, true);
   assert.equal(row.next_step.includes("complete"), false);
   await context.storage.update(() => ({ broken: true }));
