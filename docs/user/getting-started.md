@@ -90,7 +90,9 @@ openspec-orch init /absolute/path/to/workspace/specs \
 ```
 
 В TTY можно запустить `openspec-orch init` без обязательных флагов и пройти
-интерактивный выбор. В non-TTY обязательны `--store` и `--agent`.
+интерактивный выбор. Сразу после ввода Store ID Orchestrator проверяет сам ID, целевой
+путь и локальный реестр OpenSpec. При конфликте остальные параметры ещё не запрашиваются.
+В non-TTY обязательны `--store` и `--agent`.
 
 Template `default` добавляет Extensions `spec-driven-extended` и `superpowers`. Plugins
 подключаются отдельно.

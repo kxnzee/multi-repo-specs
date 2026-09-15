@@ -8,6 +8,7 @@ import {
   createNativeExtensionAdapter,
   readNativeManifest,
   runNative,
+  unselectedManifestPaths,
 } from "./native-extension.js";
 import { AGENT_ADAPTER_CONFIG } from "./config.js";
 
@@ -95,7 +96,9 @@ async function statusPlugin({ context, extension, nativeId, protocol, request })
   const projectPath = await projectDirectory(context, scope);
   const state = await inspectPlugin({ context, extension, protocol });
   const plugin = assertInstalledPlugin(state.plugins, qualifiedId, scope, projectPath);
-  await assertInstalledPayload(extension, plugin.installPath);
+  await assertInstalledPayload(extension, plugin.installPath, {
+    ignoredPaths: unselectedManifestPaths(extension, context.agent.id),
+  });
   return state.output;
 }
 

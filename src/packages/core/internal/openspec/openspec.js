@@ -222,14 +222,16 @@ export class RepositoryOpenSpec {
     if (!Array.isArray(registry.stores)) {
       throw new Error("OpenSpec Orchestrator требует JSON capability: openspec store list --json: stores[]");
     }
-    const registrations = registry.stores.filter(
-      (store) => store &&
-        typeof store === "object" &&
-        typeof store.root === "string" &&
-        path.resolve(store.root) === this.#scope.root,
-    );
+    const registrations = registry.stores.filter((store) => (
+      store &&
+      typeof store === "object" &&
+      (
+        store.id === this.#scope.id ||
+        (typeof store.root === "string" && path.resolve(store.root) === this.#scope.root)
+      )
+    ));
     if (registrations.length === 0) return;
-    const registeredIds = registrations.map(({ id }) => id);
+    const registeredIds = [...new Set(registrations.map(({ id }) => id))];
     if (registeredIds.some((id) => typeof id !== "string" || !CORE_PATTERNS.id.test(id))) {
       throw new Error("Некорректный Store ID в локальном registry OpenSpec");
     }
@@ -237,8 +239,9 @@ export class RepositoryOpenSpec {
       .map((registeredId) => `openspec store unregister ${registeredId}`)
       .join("\n");
     throw new Error(
-      `Локальный registry OpenSpec уже регистрирует путь ${this.#scope.root} как Store: ` +
-        `${registeredIds.join(", ")}. Для чистого первого запуска выполните:\n${commands}\n` +
+      `Локальный registry OpenSpec уже содержит Store ID ${this.#scope.id} или путь ` +
+        `${this.#scope.root}: ${registeredIds.join(", ")}. ` +
+        `Для чистого первого запуска выполните:\n${commands}\n` +
         "Команда unregister удаляет только локальную регистрацию и не удаляет файлы. " +
         "После этого повторите openspec-orch init",
     );

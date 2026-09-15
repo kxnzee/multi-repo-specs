@@ -59,6 +59,37 @@ export class InitializationService {
     Object.freeze(this);
   }
 
+  /** Проверяет выбранные Store ID и путь до остальных шагов интерактивного init. */
+  async validateStore({ target = ".", storeId } = {}) {
+    this.#assertId(storeId, "Store ID");
+    const storeTarget = await this.#resolveTarget(storeId, target);
+    if (await lstatOrNull(path.join(storeTarget.root, CORE_FILES.alternateOpenSpecConfig))) {
+      throw new Error(
+        `${CORE_FILES.alternateOpenSpecConfig} нужно перенести в ` +
+          `${CORE_FILES.openSpecConfig} до openspec-orch init`,
+      );
+    }
+    const metadataStat = await lstatOrNull(path.join(storeTarget.root, CORE_FILES.storeMetadata));
+    if (metadataStat && (!metadataStat.isFile() || metadataStat.isSymbolicLink())) {
+      throw new Error(`${CORE_FILES.storeMetadata} должна быть обычным файлом`);
+    }
+    if (metadataStat) {
+      const metadata = this.#configuration.parseStore(
+        await fs.readFile(path.join(storeTarget.root, CORE_FILES.storeMetadata), "utf8"),
+      );
+      if (metadata.id !== storeTarget.id) {
+        throw new Error(`Store уже инициализирован с ID ${metadata.id}, а не ${storeTarget.id}`);
+      }
+      return;
+    }
+    if (await lstatOrNull(path.join(storeTarget.root, CORE_FILES.orchestratorConfig))) {
+      throw new Error(`Инициализации мешает существующий ${CORE_FILES.orchestratorConfig}`);
+    }
+    const openSpec = this.#openspec.forStoreTarget(storeTarget);
+    await openSpec.version();
+    await openSpec.assertStorePathAvailable();
+  }
+
   async initialize({
     target = ".",
     storeId,
