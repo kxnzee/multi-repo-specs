@@ -29,10 +29,10 @@ function installationPath(entry, protocol) {
   return entry?.match(new RegExp(`^\\s*(?:${protocol.installationPathLabels.join("|")}):\\s*(.+)$`, "mu"))?.[1].trim();
 }
 
-/** Исключает Claude marketplace и манифесты других Agent из проверки payload. */
+/** Исключает provider-specific исходники и манифесты других Agent из проверки payload. */
 function ignoredPayloadPaths(extension, agent, protocol) {
   return [
-    protocol.marketplace.directory,
+    ...protocol.sourceOnlyPaths,
     ...unselectedManifestPaths(extension, agent.id),
   ];
 }
