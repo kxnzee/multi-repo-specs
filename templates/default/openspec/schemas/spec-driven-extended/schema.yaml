@@ -244,6 +244,12 @@ artifacts:
       Guidelines:
       - Group related tasks under ## numbered headings
       - Each task MUST be a checkbox: `- [ ] X.Y Task description`
+      - Keep tasks.md as the current executable plan, not a change log. If an
+        accepted Planning correction invalidates a task, revise that task and
+        reopen its checkbox instead of retaining an obsolete checked task plus a
+        new "correction" task. Git already preserves the previous wording.
+      - Preserve an existing X.Y reference while revising the same responsibility;
+        never reuse it for unrelated work.
       - Implementation tasks should be small enough to complete in one session
       - Order tasks by dependency (what must be done first?)
       - Each implementation task MUST state how to verify completion (a test,

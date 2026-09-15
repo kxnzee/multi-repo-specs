@@ -5,9 +5,18 @@ import { parse } from "yaml";
 import { fingerprint } from "./records.js";
 import { applyInstructions, requireOpenSpec11 } from "./openspec-compatibility.js";
 
+// Человек видит номер в начале Markdown-задачи, OpenSpec отдельно выдаёт позиционный ID.
+const TASK_REFERENCE = /^(\d+(?:\.\d+)+)(?=\s|$)/u;
+
 /** Галочка отражает прогресс; остальной текст задания сравнивается полностью. */
 function normalizeTasks(source) {
   return source.replace(/\r\n/gu, "\n").replace(/^(\s*[-*]\s*)\[[\sxX]\]/gmu, "$1[ ]");
+}
+
+/** Добавляет короткую подпись, не заменяя канонический ID OpenSpec. */
+function withTaskReferences(tasks) {
+  return tasks.map((task) => ({ ...task,
+    ref: task.description.trim().match(TASK_REFERENCE)?.[1] ?? task.id }));
 }
 
 /** Читает разрешённую OpenSpec схему и её входы, включая пользовательские apply.tracks. */
@@ -74,6 +83,7 @@ export async function planning(context, changeId, { committed = false } = {}) {
     }
     inputs.push([file, normalized.trimEnd()]);
   }
-  return { ...instructions, fingerprint: fingerprint([instructions.schemaName, schema, inputs]),
+  return { ...instructions, tasks: withTaskReferences(instructions.tasks),
+    fingerprint: fingerprint([instructions.schemaName, schema, inputs]),
     sources: { task_file: trackPath, inputs: [...selected].sort() } };
 }

@@ -11,7 +11,7 @@ const mapPath = "openspec/changes/checkout-flow/implementation-map.yaml";
 
 test("overview follows only the live OpenSpec list, isolates broken maps and retains actionable facts", async () => {
   const changes = ["z-other", "checkout-flow", "broken"];
-  const tasks = [{ id: "1", description: "Field", done: false }];
+  const tasks = [{ id: "1", description: "1.1 Field", done: false }];
   const context = assignmentContext({ changes, tasks, invocation: { id: "frontend", role: "code" } });
   const app = new ChangeTrackingApplication(context);
   await app.start(input);
@@ -25,7 +25,9 @@ test("overview follows only the live OpenSpec list, isolates broken maps and ret
   assert.equal(report.changes[0].summary.total_tasks, null);
   assert.equal(report.changes[0].checkpoints, null, "unreadable data does not mean no checkpoints");
   assert.equal(report.changes[0].warnings[0].code, "TRACKING_STATUS_UNAVAILABLE");
-  assert.deepEqual(report.changes[1].checkpoints, [{ task_id: "1", repository_id: "frontend" }]);
+  assert.deepEqual(report.changes[1].checkpoints, [
+    { task_id: "1", task_ref: "1.1", repository_id: "frontend" },
+  ]);
   assert.equal(report.changes[1].summary.completed_tasks, 0);
   assert.equal(report.changes[2].summary.total_tasks, 1);
   tasks[0].done = true;

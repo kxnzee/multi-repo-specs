@@ -10,7 +10,8 @@ const mapPath = "openspec/changes/checkout-flow/implementation-map.yaml";
 
 /** Состояние источников изменяется явно; каждое чтение должно видеть новые факты. */
 function fixture() {
-  const tasks = [{ id: "1", description: "Display region", done: false }, { id: "2", description: "Review", done: false }];
+  const tasks = [{ id: "1", description: "1.1 Display region", done: false },
+    { id: "2", description: "1.2 Review", done: false }];
   const heads = { frontend: "a".repeat(40) };
   const dirty = [];
   const context = assignmentContext({ tasks, implementationHeads: heads, repositoryChangedPaths: dirty,
@@ -58,8 +59,15 @@ test("fresh read distinguishes dirty work, later commits, reopened task and chan
   assert.equal(reopened.needs_attention, true);
   tasks[0].description = "Different requirement";
   const stale = await app.getStatus(input.change_id);
-  assert.equal(stale.tasks.find(({ state }) => state === "stale").description, null);
+  const staleTask = stale.tasks.find(({ state }) => state === "stale");
+  assert.equal(staleTask.description, null);
+  assert.equal(staleTask.task_ref, "1.1");
+  assert.equal(staleTask.recorded_state, "complete");
+  assert.equal(stale.warnings.at(-1).code, "TRACKING_PLAN_CHANGED");
   assert.equal(stale.summary.recorded_tasks, 0);
+  assert.equal(compactStatus(stale).tasks[0].recorded_state, undefined);
+  assert.match(formatStatus(stale), /! 1\.1\. Соответствие заданию не подтверждено/u);
+  assert.doesNotMatch(formatStatus(stale), /Итог реализации записан/u);
   assert.equal(await context.files.read(mapPath), source);
   assert.deepEqual(await context.storage.read(), local);
 });
@@ -94,7 +102,10 @@ test("focus uses exact OpenSpec ID, resolved schema paths and current worktree w
   await app.start(input);
   const focused = await app.getStatus(input.change_id, { task_id: "1" });
   assert.equal(focused.tasks.length, 1);
-  assert.equal(focused.tasks[0].description, "Display region");
+  assert.equal(focused.tasks[0].description, "1.1 Display region");
+  assert.equal(focused.tasks[0].task_ref, "1.1");
+  assert.match(formatStatus(focused), /• 1\.1\. Display region/u);
+  assert.doesNotMatch(formatStatus(focused), /1\.1\. 1\.1 Display region/u);
   assert.equal(focused.context.checkout_path, "/workspace/receiver");
   assert.equal(focused.context.task_file, "openspec/changes/checkout-flow/work.md");
   assert.deepEqual(focused.context.inputs, [focused.context.task_file]);

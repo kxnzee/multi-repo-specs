@@ -103,6 +103,13 @@ artifacts:
       Use only explicitly provided project roles, reviewers and delivery rules.
       Do not infer them from job titles, repository layout or external systems.
 
+      Keep tasks.md as the current executable plan, not a change log. If an
+      accepted Planning correction invalidates a task, revise that task and reopen
+      its checkbox instead of retaining an obsolete checked task plus a new
+      "correction" task. Git already preserves the previous wording. Preserve an
+      existing X.Y reference while revising the same responsibility and never reuse
+      it for unrelated work.
+
       Human Feature Acceptance belongs to the following Verify artifact, not to
       implementation Tasks.
     requires:

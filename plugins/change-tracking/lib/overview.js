@@ -10,9 +10,10 @@ export async function readTrackingOverview(context, readStatus) {
       const report = compactStatus(await readStatus(changeId));
       changes.push({ change_id: changeId, summary: report.summary,
         checkpoints: report.summary.total_tasks === null ? null : report.tasks.filter(({ state }) => state === "partial")
-          .map(({ task_id, repository_id }) => ({ task_id, repository_id })),
+          .map(({ task_id, task_ref, repository_id }) => ({ task_id, task_ref, repository_id })),
         attention: report.tasks.filter(({ needs_attention }) => needs_attention)
-          .map(({ task_id, repository_id, message, next_step }) => ({ task_id, repository_id, message, next_step })),
+          .map(({ task_id, task_ref, repository_id, message, next_step }) => (
+            { task_id, task_ref, repository_id, message, next_step })),
         warnings: report.warnings });
     } catch {
       changes.push({ change_id: changeId,

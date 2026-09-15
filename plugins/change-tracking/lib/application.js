@@ -65,15 +65,27 @@ export class ChangeTrackingApplication {
         if (!await git.hasCommit(current.implementation_revision)) throw new Error("TRACKING_COMMIT_MISSING: получите сохранённый commit обычным Git-процессом");
         if (head !== current.implementation_revision) throw new Error("TRACKING_CHECKOUT_MISMATCH: продолжение требует checkout сохранённой revision; start --restart начинает новую работу явно");
       }
-      session = { change_id: changeId, repository_id: repo.id, task_id: taskId, checkout_path: repo.path,
+      const restartBase = restart ? current?.base_revision ?? active?.base_revision : null;
+      if (restartBase) {
+        if (!await git.hasCommit(restartBase) || (current && !await git.hasCommit(current.implementation_revision))) {
+          throw new Error("TRACKING_COMMIT_MISSING: commit сохранённой работы отсутствует");
+        }
+        if ((current && !await git.isAncestor(restartBase, current.implementation_revision)) ||
+          !await git.isAncestor(current?.implementation_revision ?? restartBase, head)) {
+          throw new Error("TRACKING_HISTORY_CHANGED: новый план нельзя связать с расходящейся историей реализации");
+        }
+      }
+      session = { change_id: changeId, repository_id: repo.id, task_id: taskId, task_ref: task.ref,
+        checkout_path: repo.path,
         planning_revision: current && !restart ? current.planning_revision : storeHead,
         planning_fingerprint: plan.fingerprint,
-        base_revision: current?.state === "partial" && !restart ? current.base_revision : head,
+        base_revision: restartBase ?? (current?.recorded_state === "partial" ? current.base_revision : head),
         observed: current ? fingerprint(current) : null, last_saved: null, active: true };
       changed = true;
       return { ...state, sessions: [...state.sessions.filter((item) => !selector(item)), session] };
     });
-    return { changed, state: "active", repository_id: repo.id, task_id: taskId, base_revision: session.base_revision,
+    return { changed, state: "active", repository_id: repo.id, task_id: taskId, task_ref: task.ref,
+      base_revision: session.base_revision,
       ...operationMessage("start", changed, task, repo.id) };
   }
 
@@ -102,16 +114,17 @@ export class ChangeTrackingApplication {
         throw new Error("TRACKING_HISTORY_CHANGED: текущая revision не продолжает начало работы");
       }
       if (!session.active) {
-        if (targetState === "complete" && current?.state === "complete" && current.implementation_revision === head &&
+        if (targetState === "complete" && current?.recorded_state === "complete" && current.implementation_revision === head &&
           fingerprint(current) === session.last_saved) {
           result = { changed: false, path: this.maps.path(changeId), implementation: current };
           return state;
         }
         throw new Error("TRACKING_NOT_STARTED: для новой работы вызовите start");
       }
-      const entry = { repository_id: repo.id, task_id: taskId, planning_revision: session.planning_revision,
+      const entry = { repository_id: repo.id, task_id: taskId, task_ref: task.ref,
+        planning_revision: session.planning_revision,
         planning_fingerprint: session.planning_fingerprint, base_revision: session.base_revision,
-        implementation_revision: head, state: targetState,
+        implementation_revision: head, recorded_state: targetState,
         ...(targetState === "partial" && note ? { note: note.trim() } : {}) };
       result = await this.maps.save(changeId, entry, session.observed);
       const updated = { ...session, observed: fingerprint(result.implementation), last_saved: fingerprint(result.implementation),

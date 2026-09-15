@@ -55,6 +55,7 @@ export function compactStatus(report) {
   }), tasks: report.tasks.map((task) => {
     const row = { ...task };
     delete row.implementation_revision;
+    delete row.recorded_state;
     if (row.diff) {
       row.diff = { ...row.diff };
       delete row.diff.from_revision;
@@ -72,8 +73,10 @@ export function formatStatus(report) {
     ? "Прогресс OpenSpec неизвестен."
     : `В OpenSpec выполнено ${done} из ${total} задач. Итог записан для ${recorded} задач по известным связям.`];
   for (const task of report.tasks) {
-    const title = task.description ?? "Соответствие заданию не подтверждено";
-    lines.push(`${task.needs_attention ? "!" : "•"} ${task.task_id}. ${title} (${task.repository_id ?? "нет связи с репозиторием в Tracking"}) — ${task.message}`);
+    const prefix = `${task.task_ref} `;
+    const title = task.description?.startsWith(prefix) ? task.description.slice(prefix.length)
+      : task.description ?? "Соответствие заданию не подтверждено";
+    lines.push(`${task.needs_attention ? "!" : "•"} ${task.task_ref ?? task.task_id}. ${title} (${task.repository_id ?? "нет связи с репозиторием в Tracking"}) — ${task.message}`);
     if (task.note) lines.push(`  Заметка исполнителя: ${task.note}`);
     // Полный следующий шаг нужен при проблеме или раскрытии конкретной задачи.
     if (task.next_step && (task.needs_attention || report.context)) lines.push(`  Далее: ${task.next_step}`);
@@ -99,7 +102,8 @@ export function formatStatus(report) {
 
 /** Оставляет в результате действия только подтверждённый итог и следующий шаг. */
 export function compactOperation(result, input, repositoryId) {
-  return { change_id: input.change_id, task_id: input.task_id, repository_id: repositoryId,
+  return { change_id: input.change_id, task_id: input.task_id,
+    task_ref: result.task_ref ?? result.implementation?.task_ref ?? input.task_id, repository_id: repositoryId,
     changed: result.changed, message: result.message, next_step: result.next_step };
 }
 
