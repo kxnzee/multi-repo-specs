@@ -93,10 +93,8 @@ test("ExtensionCommands and PackageCommands expose separate public groups", asyn
   assert.deepEqual(calls, [
     ["install", storeProject, "workflow", path.resolve("/workspace/client/workflow")],
     ["connect", "workflow", { refresh: false }],
-    ["status", "workflow"],
     ["install", storeProject, "workflow", path.resolve("/workspace/workflow-v2")],
     ["connect", "workflow", { refresh: true }],
-    ["status", "workflow"],
     ["status", "workflow"],
     ["disconnect", "workflow"],
     ["native-remove", "workflow"],
@@ -107,11 +105,7 @@ test("ExtensionCommands and PackageCommands expose separate public groups", asyn
   ]);
   assert.deepEqual(output, [
     "✓ workflow — инициализирован",
-    "✓ workflow → specs — готов",
-    "  enabled",
     "✓ workflow — обновлён; выполните openspec-orch extension connect workflow --refresh",
-    "✓ workflow → specs — готов",
-    "  enabled",
     `${JSON.stringify({ extensions: [status] }, null, 2)}`,
     "✓ workflow — отключён",
     "✓ workflow — удалён",
