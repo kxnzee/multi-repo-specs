@@ -121,8 +121,7 @@ export function unselectedManifestPaths(extension, agentId) {
 function stalePayload(extension, detail, cause) {
   return new Error(
     `AGENT_EXTENSION_STATUS_STALE: ${extension.id}: ${detail}; ` +
-      `выполните openspec-orch extension connect ${extension.id} --refresh, ` +
-      "затем повторите openspec-orch doctor",
+      "нативная установка Extension не соответствует зафиксированному источнику",
     cause === undefined ? undefined : { cause },
   );
 }
