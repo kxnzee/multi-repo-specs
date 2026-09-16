@@ -86,7 +86,7 @@ test("AgentGatewayService owns explicit setup, status and removal without Projec
     ["invoke", "qwen", "orchestrator-agent", { operation: "status", scope: "user" }],
     ["invoke", "qwen", "orchestrator-agent", { operation: "connect", scope: "user" }],
     ["invoke", "qwen", "orchestrator-agent", { operation: "status", scope: "user" }],
-    ["invoke", "qwen", "orchestrator-agent", { operation: "status", scope: "user" }],
+    ["invoke", "qwen", "orchestrator-agent", { operation: "diagnose", scope: "user" }],
     ["invoke", "qwen", "orchestrator-agent", { operation: "remove", scope: "user" }],
   ]);
 });
@@ -132,7 +132,7 @@ test("CandidateCli exposes only the explicit user-level gateway lifecycle", asyn
   );
 });
 
-test("gateway setup repairs stale status and refresh explicitly invokes connect", async () => {
+test("gateway setup stays lightweight while status diagnoses and refresh repairs payload drift", async () => {
   const calls = [];
   let stale = true;
   const service = new AgentGatewayService({
@@ -142,7 +142,7 @@ test("gateway setup repairs stale status and refresh explicitly invokes connect"
         async preflight() {}, async validateExtension() {},
         async invokeExtension(_context, _extension, request) {
           calls.push(request);
-          if (request.operation === "status" && stale) throw new Error("AGENT_EXTENSION_STATUS_STALE: gateway");
+          if (request.operation === "diagnose" && stale) throw new Error("AGENT_EXTENSION_STATUS_STALE: gateway");
           if (request.operation === "connect") stale = false;
         },
       },
@@ -150,8 +150,12 @@ test("gateway setup repairs stale status and refresh explicitly invokes connect"
     extensionProvider: { resolve: () => ({ id: "gateway", root: "/payload" }) },
   });
   assert.equal((await service.setup("qwen")).status, "ready");
-  assert.deepEqual(calls.map(({ operation }) => operation), ["status", "connect", "status"]);
+  assert.deepEqual(calls.map(({ operation }) => operation), ["status"]);
+  await assert.rejects(service.status("qwen"), /AGENT_EXTENSION_STATUS_STALE/u);
   calls.length = 0;
   await service.setup("qwen", { refresh: true });
-  assert.deepEqual(calls, [{ operation: "connect", scope: "user", refresh: true }, { operation: "status", scope: "user" }]);
+  assert.deepEqual(calls, [
+    { operation: "connect", scope: "user", refresh: true },
+    { operation: "diagnose", scope: "user" },
+  ]);
 });

@@ -117,6 +117,15 @@ export function unselectedManifestPaths(extension, agentId) {
     .map(([, manifest]) => manifest));
 }
 
+/** Builds one actionable deep-diagnosis failure without prescribing package publication. */
+function stalePayload(extension, detail, cause) {
+  return new Error(
+    `AGENT_EXTENSION_STATUS_STALE: ${extension.id}: ${detail}; ` +
+      "обновите нативную установку Extension и повторите doctor",
+    cause === undefined ? undefined : { cause },
+  );
+}
+
 /** Compares shipped files with the native installation, including unchanged-version updates. */
 export async function assertInstalledPayload(extension, installedRoot, { ignoredPaths = [] } = {}) {
   if (typeof installedRoot !== "string" || !path.isAbsolute(installedRoot)) {
@@ -137,7 +146,7 @@ export async function assertInstalledPayload(extension, installedRoot, { ignored
   ));
   const expectedRoot = await fs.realpath(extension.root);
   const actualRoot = await fs.realpath(installedRoot).catch((cause) => {
-    throw new Error(`AGENT_EXTENSION_STATUS_STALE: ${extension.id}: installation is missing; publish a new native manifest version and reconnect the Extension`, { cause });
+    throw stalePayload(extension, "нативная установка отсутствует", cause);
   });
   if (expectedRoot === actualRoot) return;
   /** Reads only regular payload files; native installation bookkeeping is not shipped payload. */
@@ -148,7 +157,9 @@ export async function assertInstalledPayload(extension, installedRoot, { ignored
       const file = path.join(relative, name);
       if (NATIVE_PAYLOAD_CONFIG.ignoredDirectoryNames.includes(name) || (!relative &&
         NATIVE_PAYLOAD_CONFIG.rootBookkeepingFiles.includes(name)) || isIgnored(file)) continue;
-      if (!expectedNames.has(name)) throw new Error(`AGENT_EXTENSION_STATUS_STALE: ${extension.id}: removed file ${path.join(relative, name)} remains installed; publish a new native manifest version and reconnect the Extension`);
+      if (!expectedNames.has(name)) {
+        throw stalePayload(extension, `после обновления остался файл ${path.join(relative, name)}`);
+      }
     }
     for (const entry of entries) {
       if (NATIVE_PAYLOAD_CONFIG.ignoredDirectoryNames.includes(entry.name)) continue;
@@ -161,11 +172,11 @@ export async function assertInstalledPayload(extension, installedRoot, { ignored
       });
       if (entry.isSymbolicLink() || stat?.isSymbolicLink() ||
         (entry.isDirectory() ? !stat?.isDirectory() : !entry.isFile() || !stat?.isFile())) {
-        throw new Error(`AGENT_EXTENSION_STATUS_STALE: ${extension.id}: ${file}; publish a new native manifest version and reconnect the Extension`);
+        throw stalePayload(extension, file);
       }
       if (entry.isDirectory()) await compare(file);
       else if (!(await fs.readFile(path.join(expectedRoot, file))).equals(await fs.readFile(actual))) {
-        throw new Error(`AGENT_EXTENSION_STATUS_STALE: ${extension.id}: ${file}; publish a new native manifest version and reconnect the Extension`);
+        throw stalePayload(extension, file);
       }
     }
   }

@@ -59,7 +59,8 @@ export class ExtensionCommands {
       .action((extensionId, options) => this.#install(extensionId, options.from));
     extension.command("connect <extension-id>")
       .description("установить или включить Extension в выбранном Agent")
-      .action((extensionId) => this.#connect(extensionId));
+      .option("--refresh", "явно обновить нативную установку")
+      .action((extensionId, options) => this.#connect(extensionId, Boolean(options.refresh)));
     extension.command("update <extension-id>")
       .description("явно обновить внешнюю Extension и npm lock")
       .requiredOption("--from <source>", "точная npm-версия, tarball, Git commit или path")
@@ -88,8 +89,8 @@ export class ExtensionCommands {
       : `✓ ${extensionId} — уже инициализирован`);
   }
 
-  async #connect(extensionId) {
-    await this.#lifecycle.connect(extensionId);
+  async #connect(extensionId, refresh) {
+    await this.#lifecycle.connect(extensionId, { refresh });
     this.#output.log(`✓ ${extensionId} — подключён`);
     await this.#status(extensionId, false);
   }
@@ -98,7 +99,7 @@ export class ExtensionCommands {
     const storeProject = await this.#storeProjects.resolve();
     storeProject.project.requireExtension(extensionId);
     await this.#extensions.install(storeProject, extensionId, this.#resolveSource(source));
-    this.#output.log(`✓ ${extensionId} — обновлён; выполните openspec-orch connect`);
+    this.#output.log(`✓ ${extensionId} — обновлён; выполните openspec-orch extension connect ${extensionId} --refresh`);
   }
 
   async #status(extensionId, json) {

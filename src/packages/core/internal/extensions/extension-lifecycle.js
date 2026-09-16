@@ -79,15 +79,19 @@ export class ExtensionLifecycle {
   statusSelected(options) { return this.#invokeSelected("status", options); }
   disconnectSelected() { return this.#invokeSelected("disconnect"); }
 
-  connect(extensionId) { return this.#invokeOne(extensionId, "connect", { preflight: true }); }
+  connect(extensionId, { refresh = false } = {}) {
+    return this.#invokeOne(extensionId, "connect", { preflight: true, refresh });
+  }
   disconnect(extensionId) { return this.#invokeOne(extensionId, "disconnect"); }
   remove(extensionId) { return this.#invokeOne(extensionId, "remove"); }
 
   /** Проверяет все выбранные Extensions, не останавливаясь после независимой ошибки. */
-  diagnoseSelected() { return this.statuses(); }
+  diagnoseSelected() { return this.#statuses("diagnose"); }
 
   /** Diagnoses each selected Extension target independently. */
-  async statuses({ extensionId } = {}) {
+  statuses(options) { return this.#statuses("status", options); }
+
+  async #statuses(operation, { extensionId } = {}) {
     const storeProject = await this.#storeProjects.resolve(this.#start);
     const manager = this.#managers.forStore(storeProject.checkout);
     const results = [];
@@ -101,7 +105,7 @@ export class ExtensionLifecycle {
       }
       for (const repository of this.#targets(storeProject, resolved)) {
         try {
-          const output = await this.#invokeTarget(storeProject, resolved, repository, "status");
+          const output = await this.#invokeTarget(storeProject, resolved, repository, operation);
           results.push(Object.freeze({ extensionId: resolved.id, targetId: repository.id,
             state: "ready", output: typeof output === "string" ? output : "" }));
         } catch (cause) {
@@ -118,7 +122,7 @@ export class ExtensionLifecycle {
         ? cause.message : nativeFailure(extensionId, targetId, cause).message });
   }
 
-  async #invokeOne(extensionId, operation, { preflight = false } = {}) {
+  async #invokeOne(extensionId, operation, { preflight = false, refresh = false } = {}) {
     const storeProject = await this.#storeProjects.resolve(this.#start);
     const [declaration] = this.#declarations(storeProject, extensionId);
     const resolved = await this.#managers.forStore(storeProject.checkout).resolve(declaration);
@@ -127,7 +131,7 @@ export class ExtensionLifecycle {
       await this.#adapter.preflight(await this.#context(storeProject));
       await this.#adapter.validateExtension(resolved, { agentId: storeProject.project.agent.id });
     }
-    const results = await this.#invokeTargets(storeProject, resolved, targets, operation);
+    const results = await this.#invokeTargets(storeProject, resolved, targets, operation, undefined, { refresh });
     return results.length === 1 ? results[0] : Object.freeze(results);
   }
 
@@ -147,24 +151,26 @@ export class ExtensionLifecycle {
     return Object.freeze(results);
   }
 
-  async #invokeTargets(storeProject, resolved, targets, operation, requestedWorkspace) {
+  async #invokeTargets(storeProject, resolved, targets, operation, requestedWorkspace, requestOptions = {}) {
     const ordered = ["disconnect", "remove"].includes(operation) ? [...targets].reverse() : targets;
     const results = [];
     for (const [index, repository] of ordered.entries()) {
       // Native uninstall can be global (Qwen); disable other workspaces first.
       const action = operation === "remove" && index < ordered.length - 1 ? "disconnect" : operation;
-      results.push(await this.#invokeTarget(storeProject, resolved, repository, action, requestedWorkspace));
+      results.push(await this.#invokeTarget(
+        storeProject, resolved, repository, action, requestedWorkspace, requestOptions,
+      ));
     }
     return results;
   }
 
-  async #invokeTarget(storeProject, resolved, repository, operation, requestedWorkspace) {
+  async #invokeTarget(storeProject, resolved, repository, operation, requestedWorkspace, requestOptions = {}) {
     try {
       return await this.#adapter.invokeExtension(
         await this.#context(storeProject, repository, requestedWorkspace),
         Object.freeze({ id: resolved.id, name: resolved.name, root: resolved.root,
           source: resolved.source, manifests: resolved.manifests, target: Object.freeze({ id: repository.id, role: repository.role }) }),
-        Object.freeze({ operation }),
+        Object.freeze({ operation, ...(requestOptions.refresh ? { refresh: true } : {}) }),
       );
     } catch (cause) {
       throw nativeFailure(resolved.id, repository.id, cause);

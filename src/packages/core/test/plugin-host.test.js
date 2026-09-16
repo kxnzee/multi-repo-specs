@@ -123,7 +123,7 @@ test("PluginHost forwards Extension contribution to Agent Adapter after connect"
   assert.equal(Object.isFrozen(adapterCalls[1][2]), true);
 });
 
-test("PluginHost checks Extension through Agent Adapter after Plugin status", async (t) => {
+test("PluginHost keeps status lightweight and reserves Extension diagnosis for Doctor", async (t) => {
   const calls = [];
   const loadedPlugin = await loadPluginExport(t, pluginExport("sample", calls, {
     extensions: true,
@@ -155,8 +155,15 @@ test("PluginHost checks Extension through Agent Adapter after Plugin status", as
     repositoryId: "frontend",
     storeProject: {},
   }), { state: "ready" });
-  assert.deepEqual(calls.map(([, operation]) => operation), ["status", "extensions"]);
-  assert.deepEqual(operations, ["status"]);
+  assert.deepEqual(await host.diagnose({
+    pluginId: "sample",
+    repositoryId: "frontend",
+    storeProject: {},
+  }), { state: "ready" });
+  assert.deepEqual(calls.map(([, operation]) => operation), [
+    "status", "extensions", "status", "extensions",
+  ]);
+  assert.deepEqual(operations, ["status", "diagnose"]);
 });
 
 test("PluginHost rejects a Plugin Extension root symlink before Agent invocation", async (t) => {

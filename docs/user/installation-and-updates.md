@@ -143,16 +143,17 @@ openspec-orch agent status --agent qwen
 Для самостоятельной или принадлежащей Plugin Extension выполняйте команды из Store:
 
 ```bash
-openspec-orch extension connect <extension-id>
+openspec-orch extension connect <extension-id> --refresh
 openspec-orch extension status <extension-id>
 openspec-orch plugin connect <plugin-id> --repo <repository-id>
 openspec-orch doctor
 ```
 
-Проверка состояния сравнивает предназначенные для выбранного агента файлы с фактической
-установкой, включая добавленные, изменённые и удалённые файлы. Манифесты других агентов,
-служебные данные установки, `.git` и `node_modules` не сравниваются. Проверка ничего
-не изменяет.
+`extension status` проверяет только нативную регистрацию и область подключения.
+Глубокую сверку предназначенных для выбранного агента файлов выполняет `doctor`, включая
+добавленные, изменённые и удалённые файлы. Манифесты других агентов, служебные данные
+установки, `.git` и `node_modules` не сравниваются. Диагностика ничего не изменяет;
+для восстановления используйте явный `extension connect <extension-id> --refresh`.
 
 После обновления откройте новую сессию агента и перезапустите MCP. Совпадение файлов
 на диске не означает, что уже запущенный процесс перечитал их. Не удаляйте общий кеш
@@ -179,7 +180,7 @@ OpenSpec и Orchestrator, точный текст ошибки и `git diff`. Н
 | `PLUGIN_LOAD_INVALID` требует `restart` | Остановите старый процесс CLI/MCP и запустите новый после `package sync` или обновления пакета. Уже загруженные модули нельзя безопасно заменить внутри процесса. |
 | `AGENT_PACK_CONFLICT` | Файл пакета OpenSpec в подключаемом репозитории изменён. Сверьте указанный путь и согласуйте обновление пакета; `connect` намеренно не перезаписывает конфликтующий файл. |
 | Doctor сообщает `AGENT_PACK_DRIFT` | Проверьте перечисленные отсутствующие, изменённые и устаревшие файлы. Обновите пакет агента через согласованное изменение Store и снова выполните `connect`; Doctor сам файлы не меняет. |
-| `AGENT_EXTENSION_STATUS_MISSING`, `AGENT_EXTENSION_STATUS_DISABLED`, `AGENT_EXTENSION_STATUS_SCOPE_MISSING` или `AGENT_EXTENSION_STATUS_STALE` | Для шлюза выполните `agent setup --refresh`; для Extension — `extension connect` либо команду подключения владеющей Plugin. Затем повторите `status` и `doctor` и откройте новую сессию агента. |
+| `AGENT_EXTENSION_STATUS_MISSING`, `AGENT_EXTENSION_STATUS_DISABLED`, `AGENT_EXTENSION_STATUS_SCOPE_MISSING` или `AGENT_EXTENSION_STATUS_STALE` | Для шлюза выполните `agent setup --refresh`; для standalone Extension — `extension connect <extension-id> --refresh`, для принадлежащей Plugin Extension — повторный `plugin connect`. Затем повторите `status` и `doctor` и откройте новую сессию агента. |
 | `AGENT_EXTENSION_STATUS_PROJECT_MISMATCH` | Проверьте выбранный проект, источник и область установки в штатной командной строке агента. Не подменяйте служебные данные вручную и не применяйте `--refresh`, пока причина несовпадения не устранена. |
 | `PROJECT_CONNECT_NOT_READY` | Выполните `doctor` и исправьте указанный отрицательный статус Plugin или Extension. Уже завершённые подключения сохранены; после исправления безопасно повторите `connect`. |
 | Ошибка с окончанием `_ROLLBACK_FAILED` | Сохраните исходную ошибку и ошибку компенсирующего действия, затем проверьте состояние через `status` и `doctor`. Не повторяйте изменение вслепую: сначала восстановите ресурс по инструкции владеющей Plugin или Extension. |
