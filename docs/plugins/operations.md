@@ -76,7 +76,9 @@ openspec-orch plugin remove <plugin-id>
 `plugin exec` запускает команды самого Plugin; `sync` доступен только если Plugin
 его объявляет. `update` всегда явный и не выполняется из обычного `connect`.
 `plugin status` проверяет состояние Plugin и регистрацию его Extension; глубокую
-сверку файлов Extension выполняет только `doctor`.
+сверку файлов Extension выполняет только `doctor`. Ошибка одной Extension сохраняется
+в отчёте как результат владеющего `Plugin <plugin-id> → <repository-id>` с точной
+командой повторного подключения, а не как standalone Extension.
 
 Для нескольких repositories повторяйте `--repo` или используйте `--all`. Без
 selector единственный подходящий Repository выбирается автоматически; в non-TTY

@@ -90,6 +90,12 @@ function recoveryCommand(check) {
     const [, extensionId] = check.id.split(":");
     return extensionId ? `openspec-orch extension connect ${extensionId} --refresh` : null;
   }
+  if (check.code === "PLUGIN_UNAVAILABLE" && check.message.includes("AGENT_EXTENSION_STATUS_STALE:")) {
+    const [, pluginId, repositoryId] = check.id.split(":");
+    return pluginId && repositoryId
+      ? `openspec-orch plugin connect ${pluginId} --repo ${repositoryId}`
+      : null;
+  }
   return null;
 }
 

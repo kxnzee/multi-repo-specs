@@ -325,7 +325,7 @@ test("CandidateCli doctor renders human and JSON output from the same report", a
   assert.equal(cli.createProgram().commands.some((command) => command.name() === "repository"), false);
 });
 
-test("CandidateCli doctor deduplicates actionable Extension refresh commands", async (t) => {
+test("CandidateCli doctor renders actionable standalone and Plugin-owned Extension recovery", async (t) => {
   const report = new DiagnosticReport([
     new DiagnosticResult({
       id: "extension:workflow:specs",
@@ -341,6 +341,13 @@ test("CandidateCli doctor deduplicates actionable Extension refresh commands", a
       code: "EXTENSION_UNAVAILABLE",
       message: "AGENT_EXTENSION_STATUS_STALE: workflow: agent-instructions.md",
     }),
+    new DiagnosticResult({
+      id: "plugin:codegraph:frontend",
+      subject: "Plugin codegraph → frontend",
+      outcome: "error",
+      code: "PLUGIN_UNAVAILABLE",
+      message: "AGENT_EXTENSION_STATUS_STALE: agent: .mcp.json",
+    }),
   ]);
   const output = [];
   t.mock.method(console, "log", (value) => output.push(value));
@@ -354,6 +361,7 @@ test("CandidateCli doctor deduplicates actionable Extension refresh commands", a
     output[0].match(/openspec-orch extension connect workflow --refresh/gu)?.length,
     1,
   );
+  assert.match(output[0], /openspec-orch plugin connect codegraph --repo frontend/u);
   assert.match(output[0], /Затем повторите:\n {4}openspec-orch doctor/u);
 });
 

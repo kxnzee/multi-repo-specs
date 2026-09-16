@@ -699,6 +699,33 @@ test("PluginLifecycleService reports statuses in project order and isolates fail
   ]);
 });
 
+test("PluginLifecycleService keeps Plugin identity when Extension diagnosis fails", async (t) => {
+  const fixture = await createStoreFixture(t, { backendConnected: true, connected: true });
+  const calls = [];
+  const { service } = await lifecycle(t, calls, {
+    extensions: true,
+    agentAdapter: {
+      async invokeExtension(context, _extension, request) {
+        if (request.operation === "diagnose" && context.repositoryId === "backend") {
+          throw new Error("AGENT_EXTENSION_STATUS_STALE: agent: .mcp.json");
+        }
+      },
+    },
+  });
+
+  const diagnostics = await service.diagnoseSelected({ start: fixture.storeRoot });
+
+  assert.deepEqual(diagnostics.map((status) => status.toJSON()), [
+    { pluginId: "sample", repositoryId: "frontend", state: "ready", output: "" },
+    {
+      pluginId: "sample",
+      repositoryId: "backend",
+      state: "unavailable",
+      output: "AGENT_EXTENSION_STATUS_STALE: agent: .mcp.json",
+    },
+  ]);
+});
+
 test("Plugin binding lock fails closed without changing project config", async (t) => {
   const fixture = await createStoreFixture(t);
   const before = await fs.readFile(fixture.configPath, "utf8");

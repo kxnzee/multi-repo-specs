@@ -152,6 +152,14 @@ function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Сохраняет владельца binding в диагностике недоступного Plugin. */
+function unavailablePluginOutput(pluginId, error) {
+  const message = errorMessage(error);
+  if (!message.startsWith("PLUGIN_NOT_LOADED:")) return message;
+  return `PLUGIN_RUNTIME_UNAVAILABLE: ${pluginId} объявлен в Store, но package недоступен; ` +
+    `восстановите его через plugin init --plugin ${pluginId} [--from <source>] и повторите connect`;
+}
+
 /** Координирует Store lookup, Plugin Host и запись binding. */
 export class PluginLifecycleService {
   #applications;
@@ -287,11 +295,18 @@ export class PluginLifecycleService {
           results.push(statusResult(pluginId, repository.id, value));
         }
       } catch (error) {
+        if (["diagnose", "status"].includes(operation)) {
+          results.push(new PluginStatusResult({
+            pluginId,
+            repositoryId: repository.id,
+            state: "unavailable",
+            output: unavailablePluginOutput(pluginId, error),
+          }));
+          continue;
+        }
         if (!error.message?.startsWith("PLUGIN_NOT_LOADED:")) throw error;
         throw new Error(
-          `PLUGIN_RUNTIME_UNAVAILABLE: ${pluginId} объявлен в Store, но package недоступен; ` +
-            `восстановите его через plugin init --plugin ${pluginId} [--from <source>] и ` +
-            "повторите connect",
+          unavailablePluginOutput(pluginId, error),
           { cause: error },
         );
       }
