@@ -11,6 +11,7 @@ import { ExtensionCommands, PackageCommands } from "@openspec-orch/core";
 test("ExtensionCommands and PackageCommands expose separate public groups", async () => {
   const calls = [];
   const output = [];
+  const progress = [];
   let rollbackRemove;
   const storeProject = Object.freeze({
     checkout: Object.freeze({}),
@@ -53,6 +54,12 @@ test("ExtensionCommands and PackageCommands expose separate public groups", asyn
       async statuses(options) { calls.push(["status", options.extensionId]); return [status]; },
     },
     output: { log: (value) => output.push(value) },
+    progress: {
+      async run(message, operation, options) {
+        progress.push([message, options]);
+        return operation();
+      },
+    },
     storeProjectService: { async resolve() { return storeProject; } },
   });
   const packageCommands = new PackageCommands({
@@ -100,11 +107,9 @@ test("ExtensionCommands and PackageCommands expose separate public groups", asyn
   ]);
   assert.deepEqual(output, [
     "✓ workflow — инициализирован",
-    "✓ workflow — подключён",
     "✓ workflow → specs — готов",
     "  enabled",
     "✓ workflow — обновлён; выполните openspec-orch extension connect workflow --refresh",
-    "✓ workflow — подключён",
     "✓ workflow → specs — готов",
     "  enabled",
     `${JSON.stringify({ extensions: [status] }, null, 2)}`,
@@ -112,5 +117,15 @@ test("ExtensionCommands and PackageCommands expose separate public groups", asyn
     "✓ workflow — удалён",
     "✓ Store packages восстановлены из package-lock.json",
     JSON.stringify(packageReport, null, 2),
+  ]);
+  assert.deepEqual(progress, [
+    ["Подключение Extension workflow...", {
+      failure: "Подключение Extension workflow: ошибка",
+      success: "Extension workflow подключён",
+    }],
+    ["Обновление и подключение Extension workflow...", {
+      failure: "Обновление и подключение Extension workflow: ошибка",
+      success: "Extension workflow обновлён и подключён",
+    }],
   ]);
 });

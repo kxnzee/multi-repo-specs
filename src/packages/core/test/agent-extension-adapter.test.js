@@ -640,3 +640,35 @@ for (const agentId of ["qwen", "gigacode", "claude"]) {
     );
   });
 }
+
+for (const agentId of ["qwen", "gigacode"]) {
+  test(`${agentId} refresh reinstalls when native update keeps stale same-version files`, async (t) => {
+    const root = await extensionFixture(t, "openspec-refresh-source-", "agent");
+    await fs.writeFile(path.join(root, "agent-instructions.md"), "current instructions");
+    const installedRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-refresh-installed-"));
+    t.after(() => fs.rm(installedRoot, { recursive: true, force: true }));
+    await fs.cp(root, installedRoot, { recursive: true });
+    await fs.writeFile(path.join(installedRoot, "agent-instructions.md"), "outdated instructions");
+    const fixture = invocationContext(agentId, async (calls) => {
+      const args = calls.at(-1)[1];
+      if (args[1] === "install") await fs.cp(root, installedRoot, { recursive: true });
+      if (args[1] === "list") {
+        return `✓ agent (1.0.0)\n Path: ${installedRoot}\n Enabled (User): true`;
+      }
+      return "done";
+    });
+
+    await agentAdapter.invokeExtension(fixture.context, extension(root), {
+      operation: "connect",
+      scope: "user",
+      refresh: true,
+    });
+
+    assert.equal(
+      await fs.readFile(path.join(installedRoot, "agent-instructions.md"), "utf8"),
+      "current instructions",
+    );
+    assert.equal(fixture.calls.some(([, args]) => args[1] === "uninstall"), true);
+    assert.equal(fixture.calls.some(([, args]) => args[1] === "install"), true);
+  });
+}
