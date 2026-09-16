@@ -1,6 +1,6 @@
 {
   "name": "spec-driven-extended",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "OpenSpec Store workflow, skills, commands and repository evidence subagent",
   "author": {
     "name": "OpenSpec Orchestrator"

@@ -1,19 +1,24 @@
 ---
-description: "[spec-driven-extended] Собрать Intake выбранного Change и предложить переход к Explore или Proposal."
+name: spec-driven-extended-intake
+description: "[spec-driven-extended] Подготовить или актуализировать Intake существующего Change внутри штатного workflow OpenSpec."
 argument-hint: "[change-id]"
 ---
 
-# /spec-driven-extended-intake [change-id]
+# Подготовка Intake существующего Change
 
-Проведи пользователя по одному адаптивному опроснику и сам собери итоговый
+Проведи пользователя по одному адаптивному опроснику и подготовь или актуализируй
 `intake.md`. Пользователь отвечает на вопросы, но не обязан вручную переносить,
 переформатировать или повторно собирать ответы.
 
-Команда работает только с Change по schema `spec-driven-extended`. Она не заменяет Proposal,
-Delta Specs, Design, Tasks или `/opsx-explore` и не запускает следующий этап
-автоматически.
+Навык применяется только к уже существующему Change по schema
+`spec-driven-extended`, когда штатный workflow OpenSpec выбрал Intake текущим
+артефактом. Он не создаёт Change, не выбирает этап самостоятельно, не является
+точкой входа в workflow, не заменяет Proposal, Delta Specs, Design, Tasks или
+`/opsx-explore` и не запускает следующий этап автоматически. Новый Change
+пользователь создаёт штатным интерфейсом OpenSpec, после чего начинает его artifact
+workflow штатной командой `/opsx-continue` (`/opsx:continue` в Claude).
 
-Её входной смысловой prerequisite — согласованный Intent. Им может быть Daily Intent
+Его входной смысловой prerequisite — согласованный Intent. Им может быть Daily Intent
 Brief из `spec-driven-extended-intent` либо явно принятая пользователем Jira Story/другой источник,
 если в нём уже определены изменение, Why Now, ожидаемое улучшение, критерии успеха и
 ограничения. Не требуй повторного запуска `spec-driven-extended-intent` при наличии такого источника.
@@ -38,12 +43,14 @@ Brief из `spec-driven-extended-intent` либо явно принятая по
   Repository Impact или evidence реализации.
 - ЗАПРЕЩЕНО создавать второй questionnaire-файл, пустой `intake.md` или заполнять
   обязательные разделы фиктивным текстом. Не добавлять раздел Owner Confirmation.
+- ЗАПРЕЩЕНО создавать Change или выполнять `openspec new change`. Создание Change
+  и начало его artifact workflow принадлежат штатному OpenSpec.
 - При конфликте источников, неверной schema или невозможности определить точный
   Change вернуть BLOCKER и задать один вопрос, который позволяет продолжить.
 
 ## Начало или продолжение
 
-1. Получи точный `change-id` из аргументов команды или спроси его одним вопросом.
+1. Получи точный `change-id` из аргументов навыка или спроси его одним вопросом.
 2. Используй актуальный `get_status` из текущего Work Context либо вызови его, если
    контекста нет или наступила граница свежести. Сравни `change-id` только по точному
    совпадению. Не ищи Change через fuzzy name или обход файловой системы.
@@ -59,25 +66,25 @@ Brief из `spec-driven-extended-intent` либо явно принятая по
    содержательный `intake.md`, если он есть, не затирая его template.
    Для старого Intake сопоставляй разделы по смыслу, даже если их заголовки на английском.
    Редактируй существующий текст с сохранением ответов, источников и открытых вопросов.
-4. Если Change не существует, проверь согласованный Intent в текущем диалоге или явно
-   переданных материалах. Если его нет, остановись с `BLOCKER: INTENT_REQUIRED` и
-   предложи сначала пройти `spec-driven-extended-intent` либо передать принятый Daily Intent
-   Brief/Jira Story. Не проводи Intent-сессию внутри Intake и не запускай skill
-   автоматически. После подтверждения Intent используй уже выбранный на шаге 1
-   kebab-case `change-id` и создай Change штатной командой:
+4. Если Change не существует, остановись с `BLOCKER: CHANGE_NOT_FOUND`. Не создавай
+   Change из этого навыка. Объясни, что новый Change нужно отдельно создать штатным
+   интерфейсом OpenSpec. Для CLI покажи:
 
    ```bash
    openspec new change <change-id> --schema spec-driven-extended
    ```
 
-   Не создавай Change до явного выбора идентификатора пользователем. После создания
-   вызови `get_change_context` с `artifact: intake` и проверь `openspec_status.schemaName: spec-driven-extended`.
+   После создания предложи запустить `/opsx-continue` в Qwen/GigaCode или
+   `/opsx:continue` в Claude. Не продолжай Intake в текущем вызове.
 
-5. Для нового или существующего Change проверь согласованный Intent в диалоге,
+5. Для существующего Change проверь согласованный Intent в диалоге,
    явно переданных материалах или описании источника согласованной задачи
    существующего Intake (в старом формате: Intent source). Само
    наличие заполненного Intake без такого источника Intent не подтверждает. Если
-   источник отсутствует, верни `BLOCKER: INTENT_REQUIRED` по правилу шага 4.
+   источник отсутствует, верни `BLOCKER: INTENT_REQUIRED` и предложи сначала
+   пройти `spec-driven-extended-intent` либо передать принятый Daily Intent
+   Brief/Jira Story. Не проводи Intent-сессию внутри Intake и не запускай skill
+   автоматически.
 6. Составь внутреннюю карту закрытых полей из Intent, переданных материалов и
    существующего `intake.md`. Сохрани подтверждённые ответы и спрашивай только первый
    действительно отсутствующий, конфликтующий или изменившийся пункт. Не начинай
@@ -190,8 +197,7 @@ degraded behavior, автотесты и сквозная проверка. Эт
 
 Ниже `/opsx-continue` и `/opsx-explore` обозначают команды Qwen/GigaCode. В Claude
 используй `/opsx:continue` и `/opsx:explore`, в том числе в `next_action`.
-Саму команду Intake в Claude вызывают как
-`/spec-driven-extended:spec-driven-extended-intake [change-id]`.
+Навык не заменяет эти команды и не запускает их автоматически.
 
 ## Завершение
 

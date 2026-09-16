@@ -34,7 +34,7 @@ MCP resources. Если следующий шаг неясен, вызови `ge
 | --- | --- |
 | Собрать или обновить долговечный context и ADR | Команда `/spec-driven-extended-context` |
 | Сформулировать Intent нового Change | Skill `spec-driven-extended-intent` |
-| Создать Intake из принятого Intent | Команда `/spec-driven-extended-intake <change-id>` |
+| Подготовить или актуализировать Intake существующего Change | Skill `spec-driven-extended-intake` |
 | Проверить Planning | Skill `spec-driven-extended-meta-planning` |
 | Подготовить Repository scope для штатного Apply | Skill `spec-driven-extended-apply-context` |
 | Подготовить test cases | Skill `spec-driven-extended-test-cases` |
@@ -59,8 +59,18 @@ Apply через механизм Agent; когда он вызван из Apply
 запуска Apply. Если skill недоступен или preflight заблокирован, остановись до кода.
 
 Для нового Change начни с Intent, если он ещё не принят. Готовый полный Intent
-используй без повторного сбора. Первый artifact создаёт команда Intake;
-после неё следующий маршрут выбирает пользователь.
+используй без повторного сбора. Затем пользователь создаёт Change штатным
+интерфейсом OpenSpec. Для CLI это:
+
+```bash
+openspec new change <change-id> --schema spec-driven-extended
+```
+
+После создания продолжай штатной командой OpenSpec `/opsx-continue` в
+Qwen/GigaCode или `/opsx:continue` в Claude. Она получает первый разрешённый
+artifact из schema. Skill `spec-driven-extended-intake` не создаёт Change и не
+является точкой входа в его workflow. Когда штатная команда выбрала Intake текущим
+артефактом, применяй skill для его подготовки или актуализации.
 
 Команда context работает независимо от schema и не требует Change. Её аргумент
 `--change` задаёт источник и scope проверки, а не запускает workflow.
