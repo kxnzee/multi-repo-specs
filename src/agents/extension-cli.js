@@ -75,6 +75,24 @@ async function refreshIfRequested({ context, extension, nativeId, entry, protoco
   await runNative(context, extension, [protocol.commands.group, protocol.commands.update, nativeId]);
 }
 
+/** Отличает подтверждённое рассогласование payload для одной принудительной переустановки. */
+function isPayloadStale(error) {
+  return error instanceof Error && error.message.startsWith("AGENT_EXTENSION_STATUS_STALE:");
+}
+
+/** Переустанавливает копию Extension, если native update сохранил payload той же версии. */
+async function reinstallExtension({ context, extension, nativeId, protocol, scope }) {
+  await runNative(context, extension, [protocol.commands.group, protocol.commands.uninstall, nativeId]);
+  await runNative(context, extension, [
+    protocol.commands.group,
+    protocol.commands.install,
+    `${extension.root}:${nativeId}`,
+    "--scope",
+    scope,
+    "--consent",
+  ]);
+}
+
 /** Verifies one Extension registration without auditing its installed files. */
 async function statusExtension({ context, extension, nativeId, protocol, request, scopeMarkers }) {
   const scope = request.scope ?? protocol.defaultActivationScope;
@@ -110,6 +128,18 @@ async function connectExtension(input, protocol, scopeMarkers) {
   }
   const output = await runNative(context, extension, args);
   await statusExtension({ context, extension, nativeId, protocol, request, scopeMarkers });
+  if (request.refresh === true) {
+    try {
+      await diagnoseExtension({ context, extension, nativeId, protocol, request, scopeMarkers });
+    } catch (error) {
+      if (!isPayloadStale(error)) throw error;
+      await reinstallExtension({ context, extension, nativeId, protocol, scope });
+      await runNative(context, extension, [
+        protocol.commands.group, protocol.commands.enable, nativeId, "--scope", scope,
+      ]);
+      await diagnoseExtension({ context, extension, nativeId, protocol, request, scopeMarkers });
+    }
+  }
   return output;
 }
 

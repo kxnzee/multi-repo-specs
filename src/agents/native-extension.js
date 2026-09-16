@@ -121,7 +121,8 @@ export function unselectedManifestPaths(extension, agentId) {
 function stalePayload(extension, detail, cause) {
   return new Error(
     `AGENT_EXTENSION_STATUS_STALE: ${extension.id}: ${detail}; ` +
-      "обновите нативную установку Extension и повторите doctor",
+      `выполните openspec-orch extension connect ${extension.id} --refresh, ` +
+      "затем повторите openspec-orch doctor",
     cause === undefined ? undefined : { cause },
   );
 }

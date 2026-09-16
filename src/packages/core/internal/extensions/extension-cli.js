@@ -1,6 +1,6 @@
 /** @fileoverview CLI grammar for standalone Agent Extensions. */
 
-import { singleValue } from "@openspec-orch/plugin-sdk";
+import { createCliProgress, singleValue } from "@openspec-orch/plugin-sdk";
 import { Command, Option } from "commander";
 import path from "node:path";
 import process from "node:process";
@@ -13,6 +13,7 @@ export class ExtensionCommands {
   #extensions;
   #lifecycle;
   #output;
+  #progress;
   #storeProjects;
 
   constructor({
@@ -20,6 +21,7 @@ export class ExtensionCommands {
     extensionApplication,
     extensionLifecycle,
     output = console,
+    progress = createCliProgress(),
     storeProjectService = storeProjects,
   } = {}) {
     if (
@@ -32,6 +34,7 @@ export class ExtensionCommands {
       typeof extensionLifecycle?.remove !== "function" ||
       typeof extensionLifecycle?.statuses !== "function" ||
       typeof output?.log !== "function" ||
+      typeof progress?.run !== "function" ||
       typeof storeProjectService?.resolve !== "function"
     ) {
       throw new Error(
@@ -42,6 +45,7 @@ export class ExtensionCommands {
     this.#extensions = extensionApplication;
     this.#lifecycle = extensionLifecycle;
     this.#output = output;
+    this.#progress = progress;
     this.#storeProjects = storeProjectService;
     Object.freeze(this);
   }
@@ -90,8 +94,15 @@ export class ExtensionCommands {
   }
 
   async #connect(extensionId, refresh) {
-    await this.#lifecycle.connect(extensionId, { refresh });
-    this.#output.log(`✓ ${extensionId} — подключён`);
+    const action = refresh ? "Обновление и подключение" : "Подключение";
+    await this.#progress.run(
+      `${action} Extension ${extensionId}...`,
+      () => this.#lifecycle.connect(extensionId, { refresh }),
+      {
+        failure: `${action} Extension ${extensionId}: ошибка`,
+        success: `Extension ${extensionId} ${refresh ? "обновлён и подключён" : "подключён"}`,
+      },
+    );
     await this.#status(extensionId, false);
   }
 

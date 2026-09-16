@@ -325,6 +325,38 @@ test("CandidateCli doctor renders human and JSON output from the same report", a
   assert.equal(cli.createProgram().commands.some((command) => command.name() === "repository"), false);
 });
 
+test("CandidateCli doctor deduplicates actionable Extension refresh commands", async (t) => {
+  const report = new DiagnosticReport([
+    new DiagnosticResult({
+      id: "extension:workflow:specs",
+      subject: "Extension workflow → specs",
+      outcome: "error",
+      code: "EXTENSION_UNAVAILABLE",
+      message: "AGENT_EXTENSION_STATUS_STALE: workflow: agent-instructions.md",
+    }),
+    new DiagnosticResult({
+      id: "extension:workflow:frontend",
+      subject: "Extension workflow → frontend",
+      outcome: "error",
+      code: "EXTENSION_UNAVAILABLE",
+      message: "AGENT_EXTENSION_STATUS_STALE: workflow: agent-instructions.md",
+    }),
+  ]);
+  const output = [];
+  t.mock.method(console, "log", (value) => output.push(value));
+  const previousExitCode = process.exitCode;
+  t.after(() => { process.exitCode = previousExitCode; });
+  const cli = new CandidateCli({ doctorService: { async inspect() { return report; } } });
+
+  await cli.createProgram().parseAsync(["node", "openspec-orch", "doctor"]);
+
+  assert.equal(
+    output[0].match(/openspec-orch extension connect workflow --refresh/gu)?.length,
+    1,
+  );
+  assert.match(output[0], /Затем повторите:\n {4}openspec-orch doctor/u);
+});
+
 for (const isTTY of [false, true]) {
   for (const status of ["ready", "degraded", "blocked", "error"]) {
     test(`Doctor progress is visible while pending and stops for ${status} (TTY=${isTTY})`, async (t) => {

@@ -78,6 +78,21 @@ function withoutLeadingCode(message, code) {
   return message.slice(code.length + 1).trimStart();
 }
 
+/** Возвращает исполнимую команду, когда Doctor знает безопасное восстановление. */
+function recoveryCommand(check) {
+  if (check.code === "REPOSITORY_MISSING") {
+    return "openspec-orch connect";
+  }
+  if (["PACKAGE_RUNTIME_UNAVAILABLE", "PACKAGE_RUNTIME_STALE"].includes(check.code)) {
+    return "openspec-orch package sync";
+  }
+  if (check.code === "EXTENSION_UNAVAILABLE" && check.message.includes("AGENT_EXTENSION_STATUS_STALE:")) {
+    const [, extensionId] = check.id.split(":");
+    return extensionId ? `openspec-orch extension connect ${extensionId} --refresh` : null;
+  }
+  return null;
+}
+
 /** Formats one complete Doctor report for a terminal without changing its JSON contract. */
 export function formatDoctorReport(report) {
   const status = DOCTOR_STATUS_PRESENTATIONS[report.status] ??
@@ -109,9 +124,18 @@ export function formatDoctorReport(report) {
   if (report.status === "ready") {
     lines.push("  Все обязательные проверки пройдены.");
   } else {
-    lines.push(report.status === "blocked"
-      ? "  Исправьте блокирующие ошибки и повторите:"
-      : "  Разберите предупреждения и повторите при необходимости:");
+    const commands = [...new Set(report.checks.map(recoveryCommand).filter(Boolean))];
+    if (commands.length > 0) {
+      lines.push(report.status === "blocked"
+        ? "  Выполните рекомендуемые действия:"
+        : "  Для устранения замечаний выполните при необходимости:");
+      lines.push(...commands.map((command) => `    ${command}`));
+      lines.push("  Затем повторите:");
+    } else {
+      lines.push(report.status === "blocked"
+        ? "  Исправьте блокирующие ошибки и повторите:"
+        : "  Разберите предупреждения и повторите при необходимости:");
+    }
     lines.push("    openspec-orch doctor");
   }
   return Object.freeze(lines);
