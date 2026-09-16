@@ -120,7 +120,7 @@ test("extension CLI installs, runs and removes one external npm package", async 
   assert.deepEqual(runtimeManifest.dependencies, {});
   assert.deepEqual(runtimeManifest.openspecOrchestrator.extensions, {});
   assert.deepEqual(nativeCalls, [
-    "preflight", "validate", "connect", "status", "remove",
+    "preflight", "validate", "connect", "remove",
     "preflight", "validate", "connect", "remove",
   ]);
 });

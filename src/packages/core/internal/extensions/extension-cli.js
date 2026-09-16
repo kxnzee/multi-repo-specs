@@ -103,7 +103,6 @@ export class ExtensionCommands {
         success: `Extension ${extensionId} ${refresh ? "обновлён и подключён" : "подключён"}`,
       },
     );
-    await this.#status(extensionId, false);
   }
 
   async #update(extensionId, source) {
