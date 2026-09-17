@@ -51,6 +51,9 @@ MCP resources. Если следующий шаг неясен, вызови `ge
 При запросе на реализацию существующего Change сначала вызови установленный
 штатный OpenSpec Apply через механизм skills/commands Agent (`/opsx:apply` или
 `/opsx-apply`). Получение MCP Apply Context и tracking не заменяют этот вызов.
+Apply запускается только из назначенного Code Repository. Если текущая Agent-сессия
+открыта из Store, остановись до записи файлов и предложи открыть новую сессию из
+назначенного checkout; не предлагай расширять файловые разрешения Store-сессии.
 Внутри `spec-driven-extended` Apply до изменения кода вызови skill
 `spec-driven-extended-apply-context` и получи `apply_scope.scope_status: ready`
 для текущего Change и Repository. Это preflight helper, а не самостоятельный

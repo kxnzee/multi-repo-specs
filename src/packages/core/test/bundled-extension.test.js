@@ -207,6 +207,17 @@ test("spec-driven-extended leaves Change creation and workflow start to OpenSpec
   assert.doesNotMatch(intakeSkill, /и создай Change штатной командой/u);
 });
 
+test("spec-driven-extended blocks Store sessions before Apply writes", async () => {
+  const applyContext = await fs.readFile(
+    path.join(SPEC_DRIVEN_EXTENDED_ROOT, "skills/spec-driven-extended-apply-context/SKILL.md"),
+    "utf8",
+  );
+
+  assert.match(applyContext, /`current_assignment\.role: store` блокирует Apply/u);
+  assert.match(applyContext, /Не предлагай расширить файловые разрешения\s+Store-сессии/u);
+  assert.doesNotMatch(applyContext, /Для Store-level координации передать исходный набор Tasks/u);
+});
+
 test("shipped orchestrator-agent exposes the same governed MCP to every Agent", async () => {
   const extension = await loadExtension(ORCHESTRATOR_AGENT_ROOT);
 

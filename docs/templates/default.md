@@ -323,9 +323,22 @@ Proposal и Specs являются Store-only стадиями. Repository Impac
 
 ### Apply и несколько repositories
 
+Apply не запускается из Agent-сессии Store. Store используется для координации и
+артефактов Planning, но не получает права записи в соседние Code Repositories.
+После принятия Planning завершите Store-сессию, перейдите в checkout назначенного
+Code Repository и откройте там новую Agent-сессию. Для Qwen/GigaCode вызовите
+`/opsx-apply <change-id>`, для Claude — `/opsx:apply <change-id>`.
+
+Файловая защита агента должна блокировать попытку Store-сессии изменить Code
+Repository. Не обходите её расширением доступа: выберите checkout, который совпадает
+с Repository Impact и секцией Tasks. Если Change затрагивает несколько
+репозиториев, выполните Apply в отдельной сессии каждого назначенного репозитория;
+каждая сессия изменяет только свой checkout и выполняет только свою секцию Tasks.
+
 | Ситуация | Действие |
 |---|---|
 | Planning scope, Delta Specs и Tasks согласованы | Запустить штатный OpenSpec Apply из назначенного Code Repository |
+| Apply запущен из Store и файловая защита запретила запись в Code Repository | Не расширять права; открыть новую Agent-сессию из назначенного Code Repository и повторить Apply |
 | Во время Apply найден новый Repository, capability или изменение scope | Остановить Apply, обновить Planning и повторно принять его |
 | Assignment не совпадает с Repository Impact или Tasks | Не продолжать до исправления Planning или выбора правильного Repository |
 | CodeGraph недоступен или устарел | Использовать адресное read/search в текущем Repository; не запускать sync автоматически |

@@ -54,12 +54,18 @@ Repository; Plugin-specific поведение остаётся вне этог�
 Для `current_assignment.role: code` найти запись с тем же repository-id в
 `assignment_scope.assignments`, требовать `connected: true` и совпадение её
 `checkout` с `current_assignment.path`. `assigned: false` блокирует реализацию; `null`
-требует прямого подтверждения через Proposal, как описано выше. Store с
-`current_assignment.role: store` выполняет только координацию и не считается
-назначенным Code Repository. Неизвестная роль или отсутствующий assignment — blocker.
+требует прямого подтверждения через Proposal, как описано выше.
+
+`current_assignment.role: store` блокирует Apply до изменения файлов. Верни
+`scope_status: blocked`, перечисли назначенные Code Repositories из принятого scope
+и предложи завершить Store-сессию, открыть новую Agent-сессию из checkout одного из
+них и повторить штатный Apply. Не предлагай расширить файловые разрешения
+Store-сессии. Неизвестная роль или отсутствующий assignment также являются blocker.
 
 Для Code Repository передать встроенному Apply только Tasks его принятой repository
-section. Для Store-level координации передать исходный набор Tasks без фильтрации.
+section. Один Apply не выполняет Tasks соседних Code Repositories; для каждого
+назначенного Repository нужна отдельная Agent-сессия из его checkout.
+
 ## Навигация и подтверждения
 
 До кода подтвердить доступность назначенного checkout. Repository-id и checkout
