@@ -9,6 +9,7 @@ import { bundledTemplates } from "../templates/bundled-template.js";
 import { configuration } from "../configuration/configuration.js";
 import { CORE_PATTERNS } from "../configuration/constants.js";
 import { extensionCatalog } from "../extensions/extension-catalog.js";
+import { Repository } from "../project/repository.js";
 import { INIT_SELECTION_UI } from "./init-selection-config.js";
 import { REQUIRED_CHECKBOX_THEME } from "../configuration/prompt-config.js";
 
@@ -110,6 +111,10 @@ export class InitSelectionService {
         extensionIds: options.extension ?? [],
         extensionsSpecified: options.extensions === false || options.extension !== undefined,
         repositories: options.repo ?? [],
+        repositoryDescriptions: options.repoDescription ?? [],
+        storeBranch: options.storeBranch,
+        storeDescription: options.storeDescription,
+        storeRemote: options.storeRemote,
       });
     }
     if (!this.#stdin?.isTTY || !this.#stdout?.isTTY) {
@@ -143,6 +148,10 @@ export class InitSelectionService {
           })
         : []);
     const repositories = options.repo ?? await this.#repositories();
+    const repositoryDescriptions = options.repoDescription ?? await this.#repositoryDescriptions(repositories);
+    const storeRemote = options.storeRemote ?? await this.#optionalInput(messages.storeRemote);
+    const storeBranch = options.storeBranch ?? await this.#optionalInput(messages.storeBranch);
+    const storeDescription = options.storeDescription ?? await this.#optionalInput(messages.storeDescription);
     const normalized = this.#normalize({
       storeId,
       agentId,
@@ -150,6 +159,10 @@ export class InitSelectionService {
       extensionIds,
       extensionsSpecified: true,
       repositories,
+      repositoryDescriptions,
+      storeBranch,
+      storeDescription,
+      storeRemote,
     });
     const accepted = await this.#confirm({
       message: `${this.#summary(normalized)}. Продолжить инициализацию?`,
@@ -165,18 +178,60 @@ export class InitSelectionService {
     extensionIds,
     extensionsSpecified,
     repositories,
+    repositoryDescriptions,
+    storeBranch,
+    storeDescription,
+    storeRemote,
   }) {
     const requiredExtensionIds = this.#requiredExtensionIds(template);
     const selectedExtensionIds = [...new Set([...requiredExtensionIds, ...extensionIds])];
     const extensions = this.#extensionCatalog.select(selectedExtensionIds).map(({ id }) => id);
+    const descriptions = new Map();
+    for (const entry of repositoryDescriptions) {
+      if (descriptions.has(entry.id)) {
+        throw new Error(`INIT_SELECTION_INVALID: повторяется описание Repository ${entry.id}`);
+      }
+      descriptions.set(entry.id, entry.description);
+    }
+    const repositoryIds = new Set(repositories.map(({ id }) => id));
+    for (const repositoryId of descriptions.keys()) {
+      if (!repositoryIds.has(repositoryId)) {
+        throw new Error(`INIT_SELECTION_INVALID: описание задано для неизвестного Repository ${repositoryId}`);
+      }
+    }
+    const describedRepositories = repositories.map((repository) => {
+      const description = descriptions.get(repository.id);
+      return description === undefined
+        ? repository
+        : new Repository({ ...repository.toConfig(), description });
+    });
     return Object.freeze({
       storeId,
       agentId,
       template,
       extensions,
       extensionsSpecified,
-      repositories: Object.freeze([...repositories]),
+      storeRepository: Object.freeze({
+        ...(storeRemote !== undefined && storeRemote !== "" ? { remote: storeRemote } : {}),
+        ...(storeBranch !== undefined && storeBranch !== "" ? { defaultBranch: storeBranch } : {}),
+        ...(storeDescription !== undefined && storeDescription !== "" ? { description: storeDescription } : {}),
+      }),
+      repositories: Object.freeze(describedRepositories),
     });
+  }
+
+  async #optionalInput(message) {
+    const value = await this.#input({ message });
+    return value.trim().length === 0 ? undefined : value;
+  }
+
+  async #repositoryDescriptions(repositories) {
+    const descriptions = [];
+    for (const repository of repositories) {
+      const description = await this.#optionalInput(messages.repositoryDescription(repository.id));
+      if (description !== undefined) descriptions.push({ id: repository.id, description });
+    }
+    return descriptions;
   }
 
   #parseRepositories(source) {
@@ -207,6 +262,7 @@ export class InitSelectionService {
       `Template: ${templateId}`,
       `Agent: ${selection.agentId}`,
       `Extensions: ${selection.extensions.join(", ") || "нет"}`,
+      `Store description: ${selection.storeRepository.description ?? "нет"}`,
       `Code Repositories: ${selection.repositories.map(({ id }) => id).join(", ") || "нет"}`,
     ].join("; ");
   }

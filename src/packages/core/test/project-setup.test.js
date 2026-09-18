@@ -93,9 +93,14 @@ test("ProjectSetupService gives CLI and MCP one fixed-cwd setup sequence", async
           storeId: options.store,
           agentId: options.agent,
           template: options.template ?? "default",
-          extensions: Object.freeze([]),
-          extensionsSpecified: false,
+          extensions: Object.freeze(options.extension ?? []),
+          extensionsSpecified: options.extension !== undefined,
           repositories: options.repo,
+          storeRepository: Object.freeze({
+            remote: options.storeRemote,
+            defaultBranch: options.storeBranch,
+            description: options.storeDescription,
+          }),
         });
       },
     }),
@@ -117,6 +122,10 @@ test("ProjectSetupService gives CLI and MCP one fixed-cwd setup sequence", async
   const initialized = await service.initializeExplicit({
     storeId: "specs",
     agentId: "qwen",
+    extensionIds: ["team-tools"],
+    storeRemote: "ssh://git.example/specs.git",
+    storeDefaultBranch: "main",
+    storeDescription: "Центральные требования проекта.",
     templateId: "default",
     repositories: [{
       id: "frontend",
@@ -127,6 +136,7 @@ test("ProjectSetupService gives CLI and MCP one fixed-cwd setup sequence", async
   });
   assert.deepEqual(selections, [{
     agent: "qwen",
+    extension: ["team-tools"],
     repo: [{
       id: "frontend",
       role: "code",
@@ -134,11 +144,20 @@ test("ProjectSetupService gives CLI and MCP one fixed-cwd setup sequence", async
       defaultBranch: "main",
     }],
     store: "specs",
+    storeBranch: "main",
+    storeDescription: "Центральные требования проекта.",
+    storeRemote: "ssh://git.example/specs.git",
     template: "default",
   }]);
   assert.equal(initializations[0].target, root);
   assert.equal(initializations[0].noStrict, undefined);
-  assert.equal(initializations[0].replaceExtensions, false);
+  assert.equal(initializations[0].replaceExtensions, true);
+  assert.deepEqual(initializations[0].extensions, ["team-tools"]);
+  assert.deepEqual(initializations[0].storeRepository, {
+    remote: "ssh://git.example/specs.git",
+    defaultBranch: "main",
+    description: "Центральные требования проекта.",
+  });
   assert.equal(initialized.execution_mode, undefined);
 
   const connected = await service.connect();

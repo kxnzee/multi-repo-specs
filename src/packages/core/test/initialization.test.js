@@ -23,6 +23,7 @@ import {
   OpenSpecService,
   ProcessService,
   ProjectTemplateService,
+  Repository,
   TemplateCatalog,
   TemplateCatalogEntry,
 } from "@openspec-orch/core";
@@ -211,7 +212,15 @@ test("InitializationService creates Store through domain and public facade contr
     storeId: "payments-specs",
     agentId: "claude",
     templateRoot: TEMPLATE_ROOT,
-    repositories: [codeRepository],
+    storeRepository: {
+      remote: "https://example.test/payments-specs.git",
+      defaultBranch: "main",
+      description: "Требования и бизнес-контекст платежей.",
+    },
+    repositories: [new Repository({
+      ...codeRepository.toConfig(),
+      description: "Пользовательский интерфейс платежей. React.",
+    })],
   });
 
   assert.equal(result.alreadyInitialized, false);
@@ -226,6 +235,10 @@ test("InitializationService creates Store through domain and public facade contr
   assert.deepEqual(project.template, { id: "default" });
   assert.deepEqual(project.agent, { id: "claude" });
   assert.deepEqual(project.codeRepositories.map(({ id }) => id), ["frontend"]);
+  assert.equal(project.storeRepository.remote, "https://example.test/payments-specs.git");
+  assert.equal(project.storeRepository.defaultBranch, "main");
+  assert.equal(project.storeRepository.description, "Требования и бизнес-контекст платежей.");
+  assert.equal(project.codeRepositories[0].description, "Пользовательский интерфейс платежей. React.");
   assert.match(
     await fs.readFile(path.join(root, "CLAUDE.md"), "utf8"),
     /центральный OpenSpec Store/u,
@@ -504,8 +517,16 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
     "superpowers",
     "--extension",
     "company-tools",
+    "--store-remote",
+    "https://example.test/payments-specs.git",
+    "--store-branch",
+    "main",
+    "--store-description",
+    "Требования и бизнес-контекст платежей.",
     "--repo",
     "frontend=https://example.test/frontend.git#main",
+    "--repo-description",
+    "frontend=Пользовательский интерфейс платежей. React.",
   ]);
 
   assert.equal(calls[0].target, "project");
@@ -518,7 +539,13 @@ test("CandidateCli preserves init grammar and passes normalized domain input", a
     "company-tools",
   ]);
   assert.equal(calls[0].replaceExtensions, true);
+  assert.deepEqual(calls[0].storeRepository, {
+    remote: "https://example.test/payments-specs.git",
+    defaultBranch: "main",
+    description: "Требования и бизнес-контекст платежей.",
+  });
   assert.equal(calls[0].repositories[0].id, "frontend");
+  assert.equal(calls[0].repositories[0].description, "Пользовательский интерфейс платежей. React.");
 });
 
 test("CandidateCli resolves an explicit bundled Template ID before initialization", async () => {
@@ -659,6 +686,16 @@ test("CandidateCli interactive init skips an Extension prompt with no selectable
         if (message.startsWith("Code Repositories")) {
           return "frontend=https://example.test/frontend.git#main";
         }
+        if (message === "Описание Code Repository frontend (необязательно)") {
+          return "Пользовательский интерфейс платежей. React.";
+        }
+        if (message === "Git remote основного Store (необязательно)") {
+          return "https://example.test/payments-specs.git";
+        }
+        if (message === "Default branch основного Store (необязательно)") return "main";
+        if (message === "Описание основного Store (необязательно)") {
+          return "Требования и бизнес-контекст платежей.";
+        }
         throw new Error(`unexpected input prompt: ${message}`);
       },
       selectPrompt: async ({ message, choices }) => {
@@ -719,6 +756,11 @@ test("CandidateCli interactive init skips an Extension prompt with no selectable
       "superpowers",
     ],
     replaceExtensions: true,
+    storeRepository: {
+      remote: "https://example.test/payments-specs.git",
+      defaultBranch: "main",
+      description: "Требования и бизнес-контекст платежей.",
+    },
     repositories: undefined,
   });
   assert.equal(calls[0].repositories.length, 1);
@@ -726,6 +768,7 @@ test("CandidateCli interactive init skips an Extension prompt with no selectable
   assert.equal(calls[0].repositories[0].role, "code");
   assert.equal(calls[0].repositories[0].remote, "https://example.test/frontend.git");
   assert.equal(calls[0].repositories[0].defaultBranch, "main");
+  assert.equal(calls[0].repositories[0].description, "Пользовательский интерфейс платежей. React.");
 });
 
 test("CandidateCli starts init progress after interactive selection and closes it on failure", async () => {
@@ -832,6 +875,7 @@ test("init selects Template before Extensions and locks its required Extensions"
       events.push(message);
       if (message === "Store ID") return "payments-specs";
       if (message.startsWith("Code Repositories")) return "";
+      if (message.endsWith("(необязательно)")) return "";
       throw new Error(`unexpected input prompt: ${message}`);
     },
     selectPrompt: async ({ message }) => {
@@ -882,6 +926,9 @@ test("init selects Template before Extensions and locks its required Extensions"
     "Выберите Agent",
     "Выберите standalone Extensions",
     "Code Repositories: id=remote#branch через пробел (необязательно)",
+    "Git remote основного Store (необязательно)",
+    "Default branch основного Store (необязательно)",
+    "Описание основного Store (необязательно)",
     "Итоговое подтверждение",
   ]);
   assert.deepEqual(selection.extensions, [

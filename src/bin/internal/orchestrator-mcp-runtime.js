@@ -181,19 +181,28 @@ export class OrchestratorMcpRuntime {
 
   initializeProject({
     agent_id: agentId,
+    extensions,
     repositories = [],
+    store_default_branch: storeDefaultBranch,
+    store_description: storeDescription,
     store_id: storeId,
+    store_remote: storeRemote,
     template_id: templateId,
   } = {}) {
     return this.#setup.initialize({
       agentId,
+      extensionIds: extensions,
       repositories: repositories.map((repository) => Object.freeze({
         id: repository.repository_id,
         role: "code",
         remote: repository.remote,
         defaultBranch: repository.default_branch,
+        ...(repository.description !== undefined ? { description: repository.description } : {}),
       })),
+      storeDefaultBranch,
+      storeDescription,
       storeId,
+      storeRemote,
       templateId,
     });
   }

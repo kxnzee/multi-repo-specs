@@ -133,18 +133,24 @@ openspec-orch agent setup --agent qwen
 ```json
 {
   "store_id": "specs",
+  "store_remote": "ssh://git.example.org/product/specs.git",
+  "store_default_branch": "main",
+  "store_description": "Центральные требования, бизнес-контекст и процессы продукта.",
   "agent_id": "qwen",
   "template_id": "default",
+  "extensions": ["superpowers"],
   "repositories": [
     {
       "repository_id": "frontend",
       "remote": "ssh://git.example.org/product/frontend.git",
-      "default_branch": "main"
+      "default_branch": "main",
+      "description": "Личный кабинет клиента. React и TypeScript; платежная логика находится в backend."
     },
     {
       "repository_id": "backend",
       "remote": "ssh://git.example.org/product/backend.git",
-      "default_branch": "main"
+      "default_branch": "main",
+      "description": "API продукта и платежная логика. Node.js и PostgreSQL."
     }
   ]
 }
@@ -154,6 +160,10 @@ openspec-orch agent setup --agent qwen
 используется bundled Template по умолчанию. `repositories` можно не передавать для
 Store без Code Repositories. В `repositories` перечисляются только Code Repositories:
 текущий центральный Store уже задан через `store_id` и повторно туда не добавляется.
+Массив `extensions`, поля `store_remote`, `store_default_branch`, `store_description` и
+`repositories[].description` необязательны и напрямую попадают в переносимый
+реестр проекта; обязательные Extensions Template добавляются автоматически, пустые
+описания не допускаются.
 Локальный путь к Template, произвольный target,
 `--workspace` через `initialize_project` не поддерживаются.
 

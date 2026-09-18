@@ -97,6 +97,7 @@ export class InitializationService {
     templateId,
     extensions,
     replaceExtensions,
+    storeRepository = {},
     templateRoot,
     repositories = [],
   } = {}) {
@@ -142,6 +143,7 @@ export class InitializationService {
       templateId,
       extensions: extensions ?? [],
       templateRoot,
+      storeRepository,
       codeRepositories,
     });
   }
@@ -223,6 +225,7 @@ export class InitializationService {
     templateId,
     extensions,
     templateRoot,
+    storeRepository,
     codeRepositories,
   }) {
     if (await lstatOrNull(path.join(storeTarget.root, CORE_FILES.orchestratorConfig))) {
@@ -246,6 +249,7 @@ export class InitializationService {
       plugins: [],
       repositories: [
         new Repository({
+          ...storeRepository,
           id: storeTarget.id,
           role: REPOSITORY_ROLE.store,
           plugins: [],

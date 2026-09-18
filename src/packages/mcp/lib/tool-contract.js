@@ -82,8 +82,16 @@ const TOOL_DEFINITIONS = Object.freeze([
       type: "object",
       properties: Object.freeze({
         store_id: Object.freeze({ ...IDENTIFIER_SCHEMA, description: "Идентификатор нового центрального Store и его ID в реестре. Целевой путь — фиксированный рабочий каталог MCP." }),
+        store_remote: Object.freeze({ ...NON_EMPTY_STRING_SCHEMA, description: "Git remote основного Store для переносимого реестра проекта." }),
+        store_default_branch: Object.freeze({ ...NON_EMPTY_STRING_SCHEMA, description: "Default branch основного Store для переносимого реестра проекта." }),
+        store_description: Object.freeze({ ...NON_EMPTY_STRING_SCHEMA, description: "Краткое описание назначения, технологий и границ ответственности основного Store." }),
         agent_id: Object.freeze({ ...IDENTIFIER_SCHEMA, description: "ID провайдера Agent из get_setup_context. Выбирает интеграцию рабочего процесса, а не модель ИИ." }),
         template_id: Object.freeze({ ...IDENTIFIER_SCHEMA, description: "ID Template из get_setup_context. Без этого аргумента используется Template по умолчанию." }),
+        extensions: Object.freeze({
+          type: "array",
+          description: "Дополнительные standalone Extension ID. Обязательные Extensions выбранного Template добавляются автоматически.",
+          items: IDENTIFIER_SCHEMA,
+        }),
         repositories: Object.freeze({
           type: "array", description: "Только необязательные Code Repository. Не включайте центральный Store: он задаётся исключительно через store_id.",
           items: Object.freeze({
@@ -92,6 +100,7 @@ const TOOL_DEFINITIONS = Object.freeze([
               repository_id: Object.freeze({ ...IDENTIFIER_SCHEMA, description: "ID нового Code Repository в реестре центрального Store; должен отличаться от store_id." }),
               remote: Object.freeze({ ...NON_EMPTY_STRING_SCHEMA, description: "URL для клонирования этого Code Repository через Git." }),
               default_branch: Object.freeze({ ...NON_EMPTY_STRING_SCHEMA, description: "Существующая ветка, выбираемая при клонировании этого Code Repository." }),
+              description: Object.freeze({ ...NON_EMPTY_STRING_SCHEMA, description: "Краткое описание назначения, технологий и границ ответственности Code Repository." }),
             }),
             required: ["repository_id", "remote", "default_branch"], additionalProperties: false,
           }),
