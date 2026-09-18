@@ -166,6 +166,13 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   }
   assert.equal(schemas.initialize_project.properties.if_context_revision, undefined);
   assert.deepEqual(shape(schemas.initialize_project.properties.store_id), identifierSchema);
+  assert.deepEqual(shape(schemas.initialize_project.properties.store_remote), nonEmptyStringSchema);
+  assert.deepEqual(shape(schemas.initialize_project.properties.store_default_branch), nonEmptyStringSchema);
+  assert.deepEqual(shape(schemas.initialize_project.properties.store_description), nonEmptyStringSchema);
+  assert.deepEqual(shape(schemas.initialize_project.properties.extensions), {
+    type: "array",
+    items: identifierSchema,
+  });
   assert.deepEqual(
     shape(schemas.initialize_project.properties.repositories.items.properties),
     {
@@ -173,6 +180,10 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
       remote: nonEmptyStringSchema,
       default_branch: nonEmptyStringSchema,
     },
+  );
+  assert.deepEqual(
+    shape(schemas.initialize_project.properties.repositories.items.properties.description),
+    nonEmptyStringSchema,
   );
   assert.deepEqual(schemas.optional_read.properties.id, nonEmptyStringSchema);
 
@@ -204,10 +215,15 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     arguments: {
       store_id: "specs",
       agent_id: "qwen",
+      store_remote: "ssh://git.example/specs.git",
+      store_default_branch: "main",
+      store_description: "Центральные требования проекта.",
+      extensions: ["team-tools"],
       repositories: [{
         repository_id: "frontend",
         remote: "ssh://git.example/frontend.git",
         default_branch: "main",
+        description: "Пользовательский интерфейс. React.",
       }],
     },
   });
@@ -263,6 +279,16 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   });
   assert.equal(duplicateRepository.isError, true);
   assert.match(duplicateRepository.content[0].text, /повторяющийся repository_id frontend/u);
+  const duplicateExtension = await client.callTool({
+    name: "initialize_project",
+    arguments: {
+      store_id: "specs",
+      agent_id: "qwen",
+      extensions: ["team-tools", "team-tools"],
+    },
+  });
+  assert.equal(duplicateExtension.isError, true);
+  assert.match(duplicateExtension.content[0].text, /повторяющийся extension_id team-tools/u);
   const storeIncludedAsCode = await client.callTool({
     name: "initialize_project",
     arguments: {

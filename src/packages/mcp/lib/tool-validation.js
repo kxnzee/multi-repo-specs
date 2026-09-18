@@ -58,6 +58,19 @@ function assertObjectShape(name, args, inputSchema) {
 
 /** Validates the nested repository declaration used by initialize_project. */
 function assertInitialization(args, inputSchema) {
+  if (args.extensions !== undefined) {
+    if (!Array.isArray(args.extensions)) {
+      throw new Error("MCP_TOOL_INPUT_INVALID: extensions должен быть массивом");
+    }
+    const seen = new Set();
+    for (const extensionId of args.extensions) {
+      assertIdentifier({ extension_id: extensionId }, "extension_id", { required: true });
+      if (seen.has(extensionId)) {
+        throw new Error(`MCP_TOOL_INPUT_INVALID: повторяющийся extension_id ${extensionId}`);
+      }
+      seen.add(extensionId);
+    }
+  }
   if (args.repositories === undefined) return;
   if (!Array.isArray(args.repositories)) {
     throw new Error("MCP_TOOL_INPUT_INVALID: repositories должен быть массивом");
@@ -70,7 +83,7 @@ function assertInitialization(args, inputSchema) {
       throw new Error("MCP_TOOL_INPUT_INVALID: repository должен быть объектом");
     }
     const keys = Object.keys(repository);
-    if (keys.length !== repositoryFields.length || keys.some((key) => !repositoryFields.includes(key))) {
+    if (keys.some((key) => !repositoryFields.includes(key))) {
       throw new Error("MCP_TOOL_INPUT_INVALID: контракт repository несовместим");
     }
     assertObjectShape("repository", repository, repositorySchema);

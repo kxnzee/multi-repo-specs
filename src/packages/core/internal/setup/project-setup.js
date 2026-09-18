@@ -166,6 +166,7 @@ export class ProjectSetupService {
       replaceExtensions: selection.extensionsSpecified,
       templateId: template.id,
       templateRoot: template.root,
+      storeRepository: selection.storeRepository,
       repositories: selection.repositories,
     });
     return Object.freeze({ result, selection });
@@ -174,17 +175,25 @@ export class ProjectSetupService {
   /** Runs fixed-cwd initialization for a machine protocol adapter. */
   async initializeExplicit({
     agentId,
+    extensionIds,
     repositories = [],
+    storeDefaultBranch,
+    storeDescription,
     storeId,
+    storeRemote,
     templateId,
   } = {}) {
     const operation = await this.initialize({
       target: this.#start,
       options: {
         agent: agentId,
+        ...(extensionIds !== undefined ? { extension: extensionIds } : {}),
         repo: repositories,
         store: storeId,
         template: templateId,
+        ...(storeDefaultBranch !== undefined ? { storeBranch: storeDefaultBranch } : {}),
+        ...(storeDescription !== undefined ? { storeDescription } : {}),
+        ...(storeRemote !== undefined ? { storeRemote } : {}),
       },
     });
     const result = initializationResult(operation.result);

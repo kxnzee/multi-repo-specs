@@ -16,7 +16,10 @@ openspec-orch init [path]
   --store <id> --agent <id>
   [--template <id-or-path>]
   [--extension <id>]... [--no-extensions]
+  [--store-remote <remote>] [--store-branch <branch>]
+  [--store-description <text>]
   [--repo <id=remote#branch>]...
+  [--repo-description <id=description>]...
 
 openspec-orch doctor [--repo <id>]... [--json]
 openspec-orch connect [--workspace <path>]
@@ -28,7 +31,10 @@ openspec-orch agent setup|status|remove --agent <id>
 В интерактивном терминале `init` без полного набора обязательных параметров запускает
 выбор. Store ID, целевой путь и их локальная регистрация OpenSpec проверяются сразу
 после выбора Store, до запросов остальных параметров. При запуске без терминала нужны
-`--store` и `--agent`. `doctor` только читает
+`--store` и `--agent`. Переносимые Git-поля и описание основного Store задаются
+через `--store-*`; описание каждого Code Repository связывается с его ID через
+повторяемый `--repo-description`. В интерактивном режиме те же поля запрашиваются
+после списка Code Repositories и могут остаться пустыми. `doctor` только читает
 состояние; только итог `blocked` возвращает код завершения 1.
 
 `doctor` по умолчанию печатает человекочитаемый отчёт, а с `--json` — тот же
@@ -268,10 +274,12 @@ TTL-кэшем и не разрешает переиспользовать со�
 Управляемые инструменты настройки:
 
 - `initialize_project` — только cwd MCP; принимает обязательные
-  `store_id`, `agent_id`, необязательный встроенный `template_id` и массив
+  `store_id`, `agent_id` и необязательные параметры: встроенный `template_id`, массив
+  `extensions`, поля Store `store_remote`, `store_default_branch`,
+  `store_description` и массив
   `repositories` только для репозиториев кода с полями `repository_id`, `remote`,
-  `default_branch`; центральный Store задаётся только через `store_id` и в этот массив
-  не включается;
+  `default_branch`, `description`; центральный Store задаётся только через `store_id`
+  и в этот массив не включается;
 - `connect_project` — без произвольного рабочего пространства.
 
 Перед `initialize_project` клиент должен вызвать `get_setup_context` и подтвердить

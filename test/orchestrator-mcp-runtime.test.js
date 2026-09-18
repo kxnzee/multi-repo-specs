@@ -143,6 +143,7 @@ export default definePlugin({
 
 test("runtime rereads Project state and exposes OpenSpec context without optional Plugins", async () => {
   let resolutions = 0;
+  const initializationCalls = [];
   const storeRepository = Object.freeze({
     id: "specs",
     role: "store",
@@ -239,7 +240,10 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
     }),
     setupService: Object.freeze({
       inspect: () => ({ default_template_id: "default" }),
-      initialize: async (input) => ({ store_id: input.storeId }),
+      initialize: async (input) => {
+        initializationCalls.push(input);
+        return { store_id: input.storeId };
+      },
       connect: async () => ({ status: "ready" }),
     }),
   });
@@ -253,7 +257,20 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
   const next = await runtime.getNextAction({ change_id: "pay" });
   const assignment = await runtime.getAssignmentScope({ change_id: "pay" });
   const setup = await runtime.getSetupContext();
-  const initialized = await runtime.initializeProject({ store_id: "specs", agent_id: "qwen" });
+  const initialized = await runtime.initializeProject({
+    store_id: "specs",
+    store_remote: "ssh://git.example/specs.git",
+    store_default_branch: "main",
+    store_description: "Центральные требования проекта.",
+    agent_id: "qwen",
+    extensions: ["team-tools"],
+    repositories: [{
+      repository_id: "frontend",
+      remote: "ssh://git.example/frontend.git",
+      default_branch: "main",
+      description: "Пользовательский интерфейс. React.",
+    }],
+  });
   const connected = await runtime.connectProject();
   for (const result of [status, context]) {
     assert.equal(result.project.repositories[1].description, codeRepository.description);
@@ -306,6 +323,22 @@ test("runtime rereads Project state and exposes OpenSpec context without optiona
     ],
   });
   assert.equal(initialized.store_id, "specs");
+  assert.deepEqual(initializationCalls, [{
+    agentId: "qwen",
+    extensionIds: ["team-tools"],
+    repositories: [{
+      id: "frontend",
+      role: "code",
+      remote: "ssh://git.example/frontend.git",
+      defaultBranch: "main",
+      description: "Пользовательский интерфейс. React.",
+    }],
+    storeDefaultBranch: "main",
+    storeDescription: "Центральные требования проекта.",
+    storeId: "specs",
+    storeRemote: "ssh://git.example/specs.git",
+    templateId: undefined,
+  }]);
   assert.equal(connected.status, "ready");
   assert.deepEqual(openSpecCalls, [
     "list",

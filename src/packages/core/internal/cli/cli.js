@@ -22,6 +22,17 @@ function collectRepositories(value, previous = []) {
   return [...previous, configuration.parseRepositoryArgument(value)];
 }
 
+/** Собирает описание Code Repository в формате id=description. */
+function collectRepositoryDescriptions(value, previous = []) {
+  const separator = value.indexOf("=");
+  const id = value.slice(0, separator);
+  const description = value.slice(separator + 1);
+  if (separator <= 0 || description.trim().length === 0) {
+    throw new Error(`Некорректное описание '${value}'. Ожидается <id=description>`);
+  }
+  return [...previous, Object.freeze({ id, description })];
+}
+
 /** Печатает список созданных или обновлённых файлов. */
 function printPaths(title, paths) {
   console.log(`${title} (${paths.length})`);
@@ -148,8 +159,13 @@ export class CandidateCli {
       .addOption(new Option("--extension <extension-id>", "выбрать standalone Extension")
         .argParser(collectValues))
       .option("--no-extensions", "явно выбрать пустой список Extensions")
+      .addOption(new Option("--store-remote <remote>", "Git remote основного Store").argParser(singleValue))
+      .addOption(new Option("--store-branch <branch>", "default branch основного Store").argParser(singleValue))
+      .addOption(new Option("--store-description <text>", "описание основного Store").argParser(singleValue))
       .addOption(new Option("--repo <id=remote#branch>", "добавить Code Repository")
         .argParser(collectRepositories))
+      .addOption(new Option("--repo-description <id=description>", "описать Code Repository")
+        .argParser(collectRepositoryDescriptions))
       .action((target = ".", options) => this.#initialize(target, options));
     program.command("doctor")
       .description("проверить готовность Store и локального окружения без изменений")
