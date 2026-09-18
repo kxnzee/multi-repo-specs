@@ -90,7 +90,7 @@ PR используются только из явно предоставлен�
 | Имя | Тип | Аргументы | Результат |
 |---|---|---|---|
 | `spec-driven-extended-intent` | навык | `[описание изменения]` | Намерение в диалоге, без записи файлов |
-| `spec-driven-extended-intake` | команда | `[change-id]` | Первичный разбор и рекомендуемый следующий шаг |
+| `spec-driven-extended-intake` | навык | `[change-id]` | Подготовка или актуализация Intake существующего Change |
 | `spec-driven-extended-context` | команда | `[initialize\|update]` и параметры выбора | Инициализация или дополнение общего контекста |
 | `spec-driven-extended-meta-planning` | навык | `[change-id] [stage]` | Проверка планирования без записи и принятия контрольной точки |
 | `spec-driven-extended-apply-context` | навык | `[change-id]` | Проверенная область для штатного Apply |
@@ -101,12 +101,11 @@ PR используются только из явно предоставлен�
 OpenSpec. Параметры выбора контекста: `--change <change-id>`, повторяемые `--spec <capability-path>`
 и `--domain <domain-path>`.
 
-В Qwen команды вызываются как `/spec-driven-extended-intake`; навыки доступны через
-меню навыков или прямой вызов по имени в поддерживающих его версиях.
+В Qwen навыки доступны через меню навыков или прямой вызов по имени в
+поддерживающих его версиях.
 GigaCode использует Qwen-совместимую поставку; доступность прямого вызова навыков
-зависит от версии клиента. В Claude плагин добавляет пространство имён, например
-`/spec-driven-extended:spec-driven-extended-intent` и
-`/spec-driven-extended:spec-driven-extended-intake`.
+зависит от версии клиента. В Claude навыки Extension доступны через его механизм
+skills.
 Подсказка `argument-hint` предназначена для поддерживающих её клиентов;
 точное отображение меню определяется клиентом.
 
@@ -115,6 +114,13 @@ Qwen/GigaCode и `/opsx:continue`, `/opsx:explore`, `/opsx:apply` в Claude.
 Это разные варианты вызова одного процесса. Правила регистрации описаны в
 [документации Qwen](https://qwenlm.github.io/qwen-code-docs/en/users/features/skills/)
 и [Claude Plugins](https://code.claude.com/docs/en/plugins).
+
+Новый Change создаётся только штатным интерфейсом OpenSpec, например
+`openspec new change <change-id> --schema spec-driven-extended`. После создания
+первый разрешённый схемой артефакт готовится через `/opsx-continue` или
+`/opsx:continue`. Когда штатный workflow выбрал Intake текущим артефактом, навык
+`spec-driven-extended-intake` помогает подготовить или актуализировать его. Сам
+навык не создаёт Change и не запускает workflow.
 
 ## Владение и обновление
 

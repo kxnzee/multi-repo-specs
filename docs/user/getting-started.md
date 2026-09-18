@@ -252,5 +252,26 @@ Change описаны в [Template default](../templates/default.md). Полна
 
 ```text
 проверка Agent CLI → clone Store → connect → doctor
-→ agent setup/status → подключение нужных Plugins → перезапуск Agent → работа с Change
+→ agent setup/status → подключение нужных Plugins → перезапуск Agent
+→ Planning из Store → Apply из назначенного Code Repository
 ```
+
+Planning и реализация требуют разных Agent-сессий. Intent и артефакты Planning
+готовятся из корня Store. Перед Apply завершите эту сессию, перейдите в checkout
+репозитория, назначенного в Repository Impact и соответствующей секции `tasks.md`,
+и откройте новую сессию агента:
+
+```bash
+cd /absolute/path/to/workspace/src/frontend
+qwen
+```
+
+Для GigaCode запустите `gigacode`, для Claude — `claude`. Затем вызовите
+`/opsx-apply <change-id>` в Qwen/GigaCode или `/opsx:apply <change-id>` в Claude.
+Agent-сессия должна изменять только текущий Code Repository. Не выдавайте
+Store-сессии доступ на запись в соседние checkout ради обхода `filesystem guard`.
+
+Если Change назначен нескольким Code Repositories, повторите запуск отдельной
+сессии и Apply в каждом из них. Apply выбирает только задачи секции текущего
+репозитория; несовпадение текущего checkout с Repository Impact или Tasks является
+блокирующей ошибкой.

@@ -179,7 +179,7 @@ test("shipped spec-driven-extended owns the complete workflow payload for every 
   for (const relative of [
     "agent-instructions.md",
     "commands/spec-driven-extended-context.md",
-    "commands/spec-driven-extended-intake.md",
+    "skills/spec-driven-extended-intake/SKILL.md",
     "skills/spec-driven-extended-intent/SKILL.md",
     "skills/spec-driven-extended-apply-context/SKILL.md",
     "skills/spec-driven-extended-meta-planning/SKILL.md",
@@ -188,6 +188,34 @@ test("shipped spec-driven-extended owns the complete workflow payload for every 
   ]) {
     assert.equal((await fs.stat(path.join(SPEC_DRIVEN_EXTENDED_ROOT, relative))).isFile(), true, relative);
   }
+});
+
+test("spec-driven-extended leaves Change creation and workflow start to OpenSpec", async () => {
+  const [instructions, intakeSkill] = await Promise.all([
+    fs.readFile(path.join(SPEC_DRIVEN_EXTENDED_ROOT, "agent-instructions.md"), "utf8"),
+    fs.readFile(
+      path.join(SPEC_DRIVEN_EXTENDED_ROOT, "skills/spec-driven-extended-intake/SKILL.md"),
+      "utf8",
+    ),
+  ]);
+
+  assert.match(instructions, /openspec new change <change-id> --schema spec-driven-extended/u);
+  assert.match(instructions, /После создания продолжай штатной командой OpenSpec/u);
+  assert.match(intakeSkill, /ЗАПРЕЩЕНО создавать Change или выполнять `openspec new change`/u);
+  assert.match(intakeSkill, /BLOCKER: CHANGE_NOT_FOUND/u);
+  assert.doesNotMatch(intakeSkill, /BLOCKER: INTAKE_NOT_FOUND/u);
+  assert.doesNotMatch(intakeSkill, /и создай Change штатной командой/u);
+});
+
+test("spec-driven-extended blocks Store sessions before Apply writes", async () => {
+  const applyContext = await fs.readFile(
+    path.join(SPEC_DRIVEN_EXTENDED_ROOT, "skills/spec-driven-extended-apply-context/SKILL.md"),
+    "utf8",
+  );
+
+  assert.match(applyContext, /`current_assignment\.role: store` блокирует Apply/u);
+  assert.match(applyContext, /Не предлагай расширить файловые разрешения\s+Store-сессии/u);
+  assert.doesNotMatch(applyContext, /Для Store-level координации передать исходный набор Tasks/u);
 });
 
 test("shipped orchestrator-agent exposes the same governed MCP to every Agent", async () => {

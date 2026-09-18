@@ -39,6 +39,22 @@ openspec-orch agent status --agent qwen
 openspec new change update-copy --schema spec-driven-extended
 ```
 
-Дальше выберите [сценарий работы с Change](../templates/default.md). Для
+Планирование Change выполняйте в Agent-сессии, открытой из корня Store. Когда
+Planning завершён и Change готов к реализации, завершите Store-сессию и откройте
+новую сессию из назначенного репозитория кода:
+
+```bash
+cd /absolute/path/to/workspace/src/frontend
+qwen
+```
+
+В GigaCode замените `qwen` на `gigacode`, затем вызовите
+`/opsx-apply update-copy`. Для Claude используйте `/opsx:apply update-copy`.
+Не расширяйте права Store-сессии на соседние репозитории: её попытка записать код
+должна быть заблокирована файловой защитой агента. Если Change затрагивает несколько
+репозиториев, откройте отдельную Agent-сессию и выполните Apply в каждом назначенном
+репозитории.
+
+Дальше используйте [сценарий работы с Change](../templates/default.md). Для
 подключения к уже существующему Store используйте [полное руководство по началу
 работы](getting-started.md).
