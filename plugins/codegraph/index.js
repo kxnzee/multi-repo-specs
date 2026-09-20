@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { definePlugin, REPOSITORY_ROLE } from "@openspec-orch/plugin-sdk";
 
+import { codeGraphAgentContribution } from "./lib/agent.js";
 import { CodeGraphRepositoryStatus } from "./lib/repository.js";
 
 const launcher = fileURLToPath(new URL("./bin/codegraph.js", import.meta.url));
@@ -16,6 +17,7 @@ function run(context, operation, ...args) {
 
 const plugin = definePlugin({
   id: "codegraph",
+  agent: codeGraphAgentContribution,
   supports: [REPOSITORY_ROLE.store, REPOSITORY_ROLE.code],
   extensions(context) {
     return [{

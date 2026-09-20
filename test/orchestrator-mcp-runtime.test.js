@@ -16,6 +16,7 @@ import {
 } from "@openspec-orch/core";
 
 import { OrchestratorMcpRuntime } from "../src/bin/internal/orchestrator-mcp-runtime.js";
+import codeGraphPlugin from "../plugins/codegraph/index.js";
 import { openSpecGraphAgentContribution } from "../plugins/openspec-graph/lib/agent.js";
 import { createPluginMaterializer } from "../src/packages/core/fixtures/plugin-materializer.js";
 
@@ -139,6 +140,92 @@ export default definePlugin({
   const status = await client.callTool({ name: "get_status", arguments: {} });
   assert.notEqual(status.isError, true, JSON.stringify(status.content));
   assert.equal(JSON.parse(status.content[0].text).store_id, "specs");
+});
+
+test("Store MCP routes CodeGraph reads to a bound Code Repository", async () => {
+  const calls = [];
+  const repositories = [
+    Object.freeze({ id: "specs", role: "store", plugins: Object.freeze([]), hasPlugin: () => false }),
+    Object.freeze({
+      id: "frontend", role: "code", plugins: Object.freeze(["codegraph"]),
+      hasPlugin: (pluginId) => pluginId === "codegraph",
+    }),
+    Object.freeze({ id: "backend", role: "code", plugins: Object.freeze([]), hasPlugin: () => false }),
+  ];
+  const [storeRepository] = repositories;
+  const project = Object.freeze({
+    repositories: Object.freeze(repositories),
+    storeRepository,
+    pluginDeclaration: (pluginId) => pluginId === "codegraph"
+      ? Object.freeze({ id: pluginId, source: "bundled:codegraph" })
+      : undefined,
+    requireRepository(repositoryId) {
+      const repository = repositories.find(({ id }) => id === repositoryId);
+      if (!repository) throw new Error(`REPO_UNKNOWN: ${repositoryId}`);
+      return repository;
+    },
+  });
+  const storeProject = Object.freeze({
+    store: Object.freeze({ id: "specs" }),
+    checkout: Object.freeze({}),
+    root: "/workspace/specs",
+    project,
+  });
+  const readyDetails = JSON.stringify({
+    initialized: true,
+    pendingChanges: { added: 0, modified: 0, removed: 0 },
+    worktreeMismatch: null,
+    index: { state: "complete", reindexRecommended: false },
+  });
+  const runtime = new OrchestratorMcpRuntime({
+    agentContributions: [Object.freeze({
+      pluginId: "codegraph",
+      contribution: codeGraphPlugin.agentContribution(),
+    })],
+    start: "/workspace/specs",
+    storeProjectService: Object.freeze({ resolve: async () => storeProject }),
+    currentRepositoryService: Object.freeze({ resolve: async () => repositories[0] }),
+    managerService: Object.freeze({
+      forStore: () => Object.freeze({
+        resolve: async () => Object.freeze({ loadedPlugin: Object.freeze({ plugin: codeGraphPlugin }) }),
+      }),
+    }),
+    contextFactory: Object.freeze({
+      async forRepository({ repositoryId }) {
+        assert.equal(repositoryId, "frontend");
+        return Object.freeze({
+          repository: repositories[1],
+          process: Object.freeze({
+            run(executable, args) {
+              calls.push([executable, args]);
+              return Promise.resolve(args[1] === "status" ? readyDetails : "frontend source");
+            },
+          }),
+        });
+      },
+      forRepositorySetup() { throw new Error("unexpected setup context"); },
+    }),
+    repositoryStatusService: Object.freeze({ inspect: async () => [] }),
+    doctorService: Object.freeze({ inspect: async () => ({ toJSON: () => ({}) }) }),
+    setupService: Object.freeze({
+      inspect: () => ({}), initialize: async () => ({}), connect: async () => ({}),
+    }),
+  });
+
+  assert.deepEqual((await runtime.listAgentTools()).map(({ name }) => name), ["codegraph_explore"]);
+  assert.equal(await runtime.invokeAgentTool("codegraph_explore", {
+    repository_id: "frontend",
+    query: "createOrder",
+  }), "frontend source");
+  assert.equal(calls.length, 2);
+  await assert.rejects(
+    runtime.invokeAgentTool("codegraph_explore", { repository_id: "backend", query: "orders" }),
+    /PLUGIN_NOT_CONNECTED.*backend/u,
+  );
+  await assert.rejects(
+    runtime.invokeAgentTool("codegraph_explore", { repository_id: "missing", query: "orders" }),
+    /REPO_UNKNOWN.*missing/u,
+  );
 });
 
 test("runtime rereads Project state and exposes OpenSpec context without optional Plugins", async () => {

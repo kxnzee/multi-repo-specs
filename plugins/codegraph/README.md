@@ -33,22 +33,27 @@ Passthrough `init` принимает флаги перед путём, напр
 ## Agent Extension
 
 После успешного connect Plugin активирует Extension в workspace target Repository.
-Она запускает Plugin-owned runtime через общий маршрут
-`openspec-orch plugin runtime codegraph serve --mcp` и добавляет общие инструкции:
+Она добавляет общие инструкции использования CodeGraph:
 
 - Claude получает local Plugin;
 - Qwen и GigaCode получают project Extension;
 - GigaCode использует отдельный manifest через Qwen-compatible adapter.
 
-После connect или disconnect перезапустите Agent и проверьте доступность
-`codegraph_explore`. Disconnect деактивирует Extension и удаляет binding, но не
-обязан удалять установленный provider package или index data.
+Сам `codegraph_explore` принадлежит Agent contribution этого Plugin и публикуется
+через общий `openspec-orchestrator` MCP. Поэтому Store-сессия и созданный ею
+subagent используют один каталог инструментов, даже если CodeGraph подключён только
+к Code Repository. Вызов принимает `repository_id`, а Orchestrator разрешает
+соответствующий checkout только через активный binding; путь от модели не принимается.
+
+После connect или disconnect перезапустите Agent или его долгоживущий MCP-процесс и
+проверьте доступность `codegraph_explore`. Disconnect деактивирует Extension и
+удаляет binding, но не обязан удалять установленный provider package или index data.
 
 ## Правила использования
 
 1. Сначала выберите конкретный Repository и технический вопрос.
 2. Подтвердите Git root, revision и clean working tree.
-3. Используйте `codegraph_explore` для карты реализации.
+3. Вызовите `codegraph_explore` с `repository_id` и одним вопросом с точными anchors.
 4. При stale/отсутствующем index перейдите к обычному read/search в том же checkout.
 5. Не считайте граф доказательством runtime behavior, теста или внешнего контракта.
 
