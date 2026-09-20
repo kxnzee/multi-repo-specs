@@ -1,9 +1,8 @@
 {
   "name": "codegraph-agent",
-  "version": "1.0.1",
-  "description": "Repository-scoped CodeGraph MCP and usage rules",
+  "version": "1.0.2",
+  "description": "Repository-scoped CodeGraph usage rules",
   "author": {
     "name": "OpenSpec Orchestrator"
-  },
-  "mcpServers": "./.mcp.json"
+  }
 }

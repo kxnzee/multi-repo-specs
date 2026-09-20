@@ -43,6 +43,7 @@ test("Package owns its CodeGraph dependency and native Plugin entrypoint", async
     id: "codegraph",
     commands: [],
   });
+  assert.equal(plugin.hasAgentContribution(), true);
   assert.equal(plugin.canExec(), true);
   assert.equal(plugin.hasExtensionContribution(), true);
   const repository = Object.freeze({ id: "frontend", role: "code" });
@@ -57,7 +58,7 @@ test("Package owns its CodeGraph dependency and native Plugin entrypoint", async
   }]);
 });
 
-test("Package ships one native Agent Extension for Claude, Qwen and GigaCode", async () => {
+test("Package ships CodeGraph usage rules without a second Agent MCP server", async () => {
   const extensionRoot = path.join(packageRoot, "extension");
   const qwen = JSON.parse(await fs.readFile(
     path.join(extensionRoot, "qwen-extension.json"),
@@ -75,10 +76,6 @@ test("Package ships one native Agent Extension for Claude, Qwen and GigaCode", a
     path.join(extensionRoot, ".claude-plugin", "marketplace.json"),
     "utf8",
   ));
-  const claudeMcp = JSON.parse(await fs.readFile(
-    path.join(extensionRoot, ".mcp.json"),
-    "utf8",
-  ));
 
   assert.equal(qwen.name, "codegraph-agent");
   assert.equal(qwen.contextFileName, "agent-instructions.md");
@@ -91,17 +88,85 @@ test("Package ships one native Agent Extension for Claude, Qwen and GigaCode", a
     owner: { name: "OpenSpec Orchestrator" },
     plugins: [{ name: "codegraph-agent", source: "./" }],
   });
-  assert.deepEqual(qwen.mcpServers["openspec-orch-codegraph"], {
-    command: "openspec-orch",
-    args: ["plugin", "runtime", "codegraph", "serve", "--mcp"],
-    cwd: "${workspacePath}",
+  assert.equal(Object.hasOwn(qwen, "mcpServers"), false);
+  assert.equal(Object.hasOwn(gigacode, "mcpServers"), false);
+  assert.equal(Object.hasOwn(claude, "mcpServers"), false);
+  await assert.rejects(fs.access(path.join(extensionRoot, ".mcp.json")), /ENOENT/u);
+});
+
+test("Agent contribution explores only the selected bound Repository", async () => {
+  const contribution = plugin.agentContribution();
+  const [tool] = contribution.tools;
+  const calls = [];
+  const readyDetails = JSON.stringify({
+    initialized: true,
+    pendingChanges: { added: 0, modified: 0, removed: 0 },
+    worktreeMismatch: null,
+    index: { state: "complete", reindexRecommended: false },
   });
-  assert.deepEqual(gigacode.mcpServers, qwen.mcpServers);
-  assert.deepEqual(claudeMcp.mcpServers["openspec-orch-codegraph"], {
-    command: "openspec-orch",
-    args: ["plugin", "runtime", "codegraph", "serve", "--mcp"],
-    cwd: "${CLAUDE_PROJECT_DIR}",
+  const application = contribution.create(Object.freeze({
+    repository: Object.freeze({ id: "frontend", role: "code" }),
+    process: Object.freeze({
+      run(executable, args) {
+        calls.push([executable, args]);
+        return Promise.resolve(args[1] === "status" ? readyDetails : "source and call paths");
+      },
+    }),
+  }));
+
+  assert.equal(contribution.requireBinding, true);
+  assert.deepEqual(contribution.tools.map(({ name }) => name), ["codegraph_explore"]);
+  assert.equal(tool.repositoryParameter, "repository_id");
+  assert.deepEqual(tool.definition.inputSchema.required, ["repository_id", "query"]);
+  assert.equal(Object.hasOwn(tool.definition.inputSchema.properties, "projectPath"), false);
+  assert.deepEqual(tool.definition.annotations, {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
   });
+  for (const field of ["repository_id", "query"]) {
+    for (const value of [undefined, null, "", " ", 12]) {
+      assert.throws(() => tool.validate({ repository_id: "frontend", query: "orders", [field]: value }), new RegExp(field));
+    }
+  }
+  assert.doesNotThrow(() => tool.validate({ repository_id: "frontend", query: "createOrder" }));
+  assert.equal(await tool.execute(application, {
+    repository_id: "frontend",
+    query: "createOrder",
+  }), "source and call paths");
+  assert.deepEqual(calls, [
+    [process.execPath, [launcher, "status", ".", "--json"]],
+    [process.execPath, [launcher, "explore", "--", "createOrder"]],
+  ]);
+});
+
+test("Agent contribution fails closed for a stale CodeGraph index", async () => {
+  const contribution = plugin.agentContribution();
+  const [tool] = contribution.tools;
+  const calls = [];
+  const application = contribution.create(Object.freeze({
+    repository: Object.freeze({ id: "frontend", role: "code" }),
+    process: Object.freeze({
+      run(executable, args) {
+        calls.push([executable, args]);
+        return Promise.resolve(JSON.stringify({
+          initialized: true,
+          pendingChanges: { added: 0, modified: 1, removed: 0 },
+          worktreeMismatch: null,
+          index: { state: "complete", reindexRecommended: false },
+        }));
+      },
+    }),
+  }));
+
+  await assert.rejects(
+    tool.execute(application, { repository_id: "frontend", query: "createOrder" }),
+    /CODEGRAPH_INDEX_STALE.*frontend/u,
+  );
+  assert.deepEqual(calls, [
+    [process.execPath, [launcher, "status", ".", "--json"]],
+  ]);
 });
 
 test("Native repository lifecycle delegates to the package launcher", async () => {

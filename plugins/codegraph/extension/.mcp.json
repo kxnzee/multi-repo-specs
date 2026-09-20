@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "openspec-orch-codegraph": {
-      "command": "openspec-orch",
-      "args": ["plugin", "runtime", "codegraph", "serve", "--mcp"],
-      "cwd": "${CLAUDE_PROJECT_DIR}"
-    }
-  }
-}

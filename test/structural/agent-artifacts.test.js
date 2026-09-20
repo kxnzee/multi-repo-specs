@@ -172,3 +172,21 @@ test("OpenSpec Graph integration remains owned by its Plugin", async () => {
     );
   }
 });
+
+test("CodeGraph integration remains owned by its Plugin", async () => {
+  const forbidden = /codegraph|codegraph_explore|@openspec-orch\/plugin-codegraph/iu;
+  for (const file of [
+    ...await files(CORE_ROOT),
+    ...await files(SDK_ROOT),
+    ...await files(MCP_ROOT),
+    ...await files(GATEWAY_ROOT),
+    MCP_RUNTIME,
+  ]) {
+    const source = await fs.readFile(file, "utf8");
+    assert.doesNotMatch(
+      source,
+      forbidden,
+      path.relative(fileURLToPath(new URL("../../", import.meta.url)), file),
+    );
+  }
+});

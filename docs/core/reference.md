@@ -181,6 +181,8 @@ MCP-процесс.
 - `get_spec_graph` — полный граф выбранного Store;
 - `get_spec_graph_node` — узел, его связи и соседи; обязательный `node_id`;
 - `get_spec_change_impact` — Specs и Repositories, затронутые Change; обязательный `change_id`.
+- `codegraph_explore` — source и call paths одного Repository с подключённым
+  CodeGraph; обязательны `repository_id` и один конкретный `query`.
 
 В Graph активный Change имеет `change_id`, равный имени каталога; архивный —
 `archive/YYYY-MM-DD-name`. Этот ID используется в узлах, Delta Specs и
@@ -207,9 +209,17 @@ MCP закреплён за рабочим каталогом при запус�
 Это выбор источника графа, а не фильтр по участвующему в Change кодовому репозиторию.
 Неподдерживаемая роль, неизвестный ID и отсутствующее подключение отклоняются.
 
+`codegraph_explore` принадлежит Plugin `codegraph`. Его `repository_id` выбирает
+только Repository с активным binding; checkout разрешает Core и не принимает
+его путём от модели. Перед чтением Plugin проверяет freshness локального индекса.
+Состояния `stale` и `unavailable` отклоняют запрос и не запускают `sync`
+автоматически. Инструмент публикуется через общий MCP, поэтому доступен Store-сессии
+и наследуется её subagent.
+
 | Значение | Точный смысл |
 |---|---|
 | `store_repository_id` | Локальный ID рабочей копии Store в реестре основного проекта |
+| `repository_id` | Локальный ID Repository с требуемым Plugin binding |
 | `node_id` | Полный `nodes[].id` из графа, например `master-spec:shipping-cost` или `repository:shop` |
 | `change_id` | Имя каталога Change, например `free-shipping-threshold`, без префикса `change:` |
 | `artifact` | ID артефакта из `openspec_status.artifacts[].id`; `apply` запрашивает инструкции Apply |
