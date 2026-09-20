@@ -317,3 +317,5 @@ Change Tracking поставляет `tracking_start`, `tracking_checkpoint`,
 `tracking_complete`, `tracking_cancel` и `tracking_status`. Без подключения
 этих инструментов в каталоге нет. `tracking` и `capabilities.tracking`
 добавляются через `agent.enhance`; общий runtime не знает их полей.
+
+[Создание Plugin через команду Orchestrator](../user/creating-addons.md).

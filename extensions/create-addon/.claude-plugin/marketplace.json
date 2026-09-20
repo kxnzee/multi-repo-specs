@@ -1,0 +1,13 @@
+{
+  "name": "openspec-orch-create-addon",
+  "description": "Создание дополнений Orchestrator Agent Extension",
+  "owner": {
+    "name": "Создание дополнений Orchestrator"
+  },
+  "plugins": [
+    {
+      "name": "create-addon",
+      "source": "./"
+    }
+  ]
+}

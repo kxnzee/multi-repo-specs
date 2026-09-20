@@ -1,0 +1,8 @@
+{
+  "name": "create-addon",
+  "version": "1.0.0",
+  "description": "Создание дополнений Orchestrator Agent Extension",
+  "author": {
+    "name": "Создание дополнений Orchestrator"
+  }
+}

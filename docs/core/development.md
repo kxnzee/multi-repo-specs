@@ -249,3 +249,5 @@ git diff --check
 `npm pack --dry-run` проверяет только состав root tarball и не заменяет ни одну из
 них. Новый supported baseline требует isolated smoke с заявленной версией OpenSpec
 и каждым поддерживаемым Agent provider.
+
+[Команда Orchestrator создания дополнений](../user/creating-addons.md).

@@ -7,6 +7,9 @@ import { createRequire } from "node:module";
 import { collectValues, createCliProgress, singleValue } from "@openspec-orch/plugin-sdk";
 import { Command, Option } from "commander";
 
+import { createAuthoringCommand } from "../authoring/cli.js";
+import { bundledAgents } from "../agents/bundled-agent.js";
+
 import { configuration } from "../configuration/configuration.js";
 import { CORE_FILES } from "../configuration/constants.js";
 import { doctor } from "../diagnostics/doctor.js";
@@ -51,6 +54,7 @@ function buildConnectHint(storeRoot, storeId) {
 /** Собирает candidate CLI из публичных Core application services. */
 export class CandidateCli {
   #agentGateway;
+  #agentProvider;
   #doctor;
   #extensionCommands;
   #pluginLifecycleCommands;
@@ -61,6 +65,7 @@ export class CandidateCli {
 
   constructor({
     agentGatewayService,
+    bundledAgentProvider = bundledAgents,
     bundledTemplateProvider,
     connectionService,
     doctorService = doctor,
@@ -85,6 +90,7 @@ export class CandidateCli {
       throw new Error("CLI_INVALID: agentGatewayService несовместим");
     }
     this.#agentGateway = agentGatewayService;
+    this.#agentProvider = bundledAgentProvider;
     if (!hasMethods(doctorService, ["inspect"])) {
       throw new Error("CLI_INVALID: doctorService должен предоставлять inspect");
     }
@@ -148,6 +154,7 @@ export class CandidateCli {
       .enablePositionalOptions()
       .showHelpAfterError()
       .exitOverride();
+    program.addCommand(createAuthoringCommand({ agentProvider: this.#agentProvider }));
     program.command("init [path]")
       .description("создать OpenSpec Store и применить Project Template")
       .addOption(new Option("--store <store-id>", "Store ID").argParser(singleValue))

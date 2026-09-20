@@ -36,6 +36,7 @@ export const CORE_PACKAGE_VERSIONS = Object.freeze({
 export const CORE_CLI_COMMANDS = Object.freeze({
   implicit: Object.freeze(["help"]),
   reserved: Object.freeze([
+    "create",
     "init",
     "connect",
     "disconnect",

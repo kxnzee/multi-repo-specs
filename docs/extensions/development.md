@@ -94,3 +94,5 @@ Release и не подтверждает результат разработки
 Extensions, но не устанавливает внешние packages автоматически. Plugin-owned
 Extension создаётся и отключается вместе с binding Plugin; её контракт описан в
 [документации Plugin SDK](../plugins/development.md#extensions).
+
+[Создание Extension через CLI или навык](../user/creating-addons.md).

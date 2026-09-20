@@ -7,6 +7,9 @@
  */
 
 // Agent adapters and bundled Agent definitions.
+export { AddonAuthoringService } from "./authoring/authoring.js";
+export { createAuthoringCommand } from "./authoring/cli.js";
+export { validateAddon } from "./authoring/validation.js";
 export { AgentDefinition } from "./agents/agent-definition.js";
 export { AgentCatalog, AgentCatalogEntry, BundledAgentPackage, BundledAgentProvider, bundledAgents } from "./agents/bundled-agent.js";
 export { AgentExtensionAdapter, agentExtensions } from "./agents/agent-extension-adapter.js";
