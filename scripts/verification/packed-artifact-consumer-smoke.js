@@ -123,7 +123,16 @@ try {
   if (version !== distributionVersion) {
     throw new Error(`PACKED_SMOKE_VERSION_INVALID: ${version}; expected ${distributionVersion}`);
   }
-  console.log(`Packed consumer smoke passed for ${packages.length} packages, including the public CLI version check.`);
+  const authoringCli = path.join(consumer, "node_modules/openspec-orchestrator/src/bin/openspec-orch.js");
+  const addonRoot = path.join(consumer, "sample-extension");
+  execFileSync(process.execPath, [authoringCli, "create", "extension", "sample-extension", addonRoot, "--json"], {
+    cwd: consumer, encoding: "utf8", timeout: 30000,
+  });
+  const validation = JSON.parse(execFileSync(process.execPath, [
+    authoringCli, "create", "validate", addonRoot, "--kind", "extension", "--json",
+  ], { cwd: consumer, encoding: "utf8", timeout: 30000 }));
+  if (validation.valid !== true) throw new Error("PACKED_SMOKE_AUTHORING_INVALID: Extension validation failed");
+  console.log(`Packed consumer smoke passed for ${packages.length} packages, including CLI version and Extension authoring.`);
 } finally {
   await fs.rm(temporary, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }

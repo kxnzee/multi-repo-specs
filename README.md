@@ -72,3 +72,5 @@ MCP. Авторизацию, сессии и разрешения по-преж�
 
 - [Документация для пользователей](docs/user/README.md)
 - [Техническая документация](docs/core/README.md)
+
+[Создание своих Extensions, Plugins и Templates](docs/user/creating-addons.md).

@@ -86,6 +86,17 @@ async function resolveBundledDirectories({ label, load, Provider, providerOption
   return new Provider(packages, providerOptions);
 }
 
+/** Loads the bundled Agent definitions shared by CLI composition and verification. */
+export async function loadBundledAgentProvider() {
+  const core = await import("@openspec-orch/core");
+  return resolveBundledDirectories({
+    label: "Agent",
+    load: (root, name) => core.BundledAgentPackage.load(root, { expectedId: name }),
+    Provider: core.BundledAgentProvider,
+    root: BUNDLED_ROOTS.agents,
+  });
+}
+
 /** Builds the one distribution Platform used by every public protocol adapter. */
 export async function createDistributionPlatform({ start, loadInstalledPlugins = true }) {
   const core = await import("@openspec-orch/core");
@@ -106,12 +117,7 @@ export async function createDistributionPlatform({ start, loadInstalledPlugins =
     },
   );
   const bundledProvider = new core.BundledPluginProvider(bundledPackages);
-  const bundledAgentProvider = await resolveBundledDirectories({
-    label: "Agent",
-    load: (root, name) => core.BundledAgentPackage.load(root, { expectedId: name }),
-    Provider: core.BundledAgentProvider,
-    root: BUNDLED_ROOTS.agents,
-  });
+  const bundledAgentProvider = await loadBundledAgentProvider();
   const bundledExtensionProvider = await resolveBundledDirectories({
     label: "Extension",
     load: (root) => core.BundledExtensionPackage.load(root, {

@@ -1,0 +1,10 @@
+{
+  "name": "openspec-orch-extension-create-addon",
+  "version": "1.0.0",
+  "type": "module",
+  "license": "UNLICENSED",
+  "openspecOrchestrator": {
+    "apiVersion": 1,
+    "extension": "./extension.yaml"
+  }
+}

@@ -106,11 +106,11 @@ function normalize({
 }
 
 /** Материализует common и provider-specific Agent artifacts для Plugin Extension. */
-async function extensionTemplateFiles({ pluginId, name }, providerTemplateRoots) {
+export async function extensionTemplateFiles({ pluginId, name, extensionId = `${pluginId}-agent` }, providerTemplateRoots) {
   if (providerTemplateRoots.length === 0) {
     throw new Error("PLUGIN_EXTENSION_TEMPLATE_REQUIRED: нужны шаблоны подключённых Agent для Extension");
   }
-  const extensionName = `${pluginId}-agent`;
+  const extensionName = extensionId;
   const values = new Map([
     ["__EXTENSION_NAME_JSON__", JSON.stringify(extensionName)],
     ["__EXTENSION_DESCRIPTION_JSON__", JSON.stringify(`${name} Agent Extension`)],
@@ -205,7 +205,7 @@ import { fileURLToPath } from "node:url";
   },
 `
     : "";
-  const entrypoint = `/** @fileoverview ${name} Plugin. */
+  const entrypoint = `/** @fileoverview ${name.replaceAll("*/", "* /")} Plugin. */
 
 ${nativeImports}import { definePlugin } from "${CORE_PACKAGES.pluginSdk}";
 
@@ -214,7 +214,7 @@ ${launcher}export default definePlugin({
 ${profile === PLUGIN_SCAFFOLD_PROFILE.commands ? "" : `  supports: ${JSON.stringify(supports)},\n`}
 ${extensions}${repository}${commands}});
 `;
-  const contractTest = `/** @fileoverview Contract test ${name} Plugin. */
+  const contractTest = `/** @fileoverview Contract test ${name.replaceAll("*/", "* /")} Plugin. */
 
 import { promises as fs } from "node:fs";
 import { testPluginContract } from "${CORE_PACKAGES.pluginSdk}/testing";
@@ -242,7 +242,13 @@ openspec-orch plugin exec --repo <repository-id> ${pluginId} --help`;
 \`\`\`bash
 npm install
 npm test
-openspec-orch plugin init --plugin ${pluginId} --from .
+\`\`\`
+
+Эти команды выполняются из папки пакета. Затем перейдите в отдельный тестовый
+Store и укажите абсолютный путь созданного пакета:
+
+\`\`\`bash
+openspec-orch plugin init --plugin ${pluginId} --from /absolute/path/to/${pluginId}
 ${usage}
 \`\`\`
 

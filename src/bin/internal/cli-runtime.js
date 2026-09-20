@@ -25,6 +25,22 @@ export async function runCli({ argv = process.argv, start = process.cwd() } = {}
     agentGatewayService,
     version: DISTRIBUTION_CONFIG.version,
   });
-  if (argv.length === 2) program.outputHelp();
-  else await program.parseAsync(argv);
+  const authoringJson = group === "create" && argv.slice(3).includes("--json");
+  if (authoringJson) {
+    /** Suppresses Commander text so create errors preserve the JSON response. */
+    const configure = (command) => {
+      command.configureOutput({ writeErr: () => {} });
+      for (const child of command.commands) configure(child);
+    };
+    configure(program);
+  }
+  try {
+    if (argv.length === 2) program.outputHelp();
+    else await program.parseAsync(argv);
+  } catch (error) {
+    if (!authoringJson || error.exitCode === 0) throw error;
+    const code = error.code ?? error.message?.match(/^([A-Z_]+):/u)?.[1] ?? "AUTHORING_FAILED";
+    process.stdout.write(`${JSON.stringify({ error: { code, message: error.message } })}\n`);
+    process.exitCode = 1;
+  }
 }

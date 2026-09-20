@@ -1,0 +1,8 @@
+id: create-addon
+name: Создание дополнений Orchestrator
+targets:
+  - store
+manifests:
+  claude: .claude-plugin/plugin.json
+  gigacode: gigacode-extension.json
+  qwen: qwen-extension.json

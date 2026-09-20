@@ -47,6 +47,7 @@ export class PluginPlatform {
   #packageCommands;
   #setup;
   #setupCatalog;
+  #bundledAgents;
 
   constructor({
     agentAdapter,
@@ -72,6 +73,7 @@ export class PluginPlatform {
       );
     }
     this.#bundledTemplates = bundledTemplateProvider;
+    this.#bundledAgents = bundledAgentProvider;
     for (const key of ["applicationService", "catalog", "lifecycleService"]) {
       if (Object.hasOwn(pluginCommandOptions, key)) {
         throw new Error(`PLUGIN_PLATFORM_INVALID: ${key} управляется PluginPlatform`);
@@ -221,6 +223,7 @@ export class PluginPlatform {
     return new CandidateCli({
       ...options,
       bundledTemplateProvider: this.#bundledTemplates,
+      bundledAgentProvider: this.#bundledAgents,
       doctorService: this.#doctor,
       extensionCommands: this.#extensionCommands,
       extensionLifecycle: this.#extensionLifecycle,
