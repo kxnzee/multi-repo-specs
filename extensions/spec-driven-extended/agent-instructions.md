@@ -1,7 +1,7 @@
 # Работа с spec-driven-extended
 
-Этот Extension помогает вести контекст проекта и workflow `spec-driven-extended`
-в центральном OpenSpec Store. Основной агент ведёт диалог с пользователем,
+Этот Extension помогает вести workflow `spec-driven-extended` в центральном
+OpenSpec Store. Основной агент ведёт диалог с пользователем,
 работает с артефактами и проверяет evidence. OpenSpec определяет порядок стадий
 и требования к их результатам.
 
@@ -32,17 +32,13 @@ MCP resources. Если следующий шаг неясен, вызови `ge
 
 | Задача | Средство Extension |
 | --- | --- |
-| Собрать или обновить долговечный context и ADR | Команда `/spec-driven-extended-context` |
 | Сформулировать Intent нового Change | Skill `spec-driven-extended-intent` |
 | Подготовить или актуализировать Intake существующего Change | Skill `spec-driven-extended-intake` |
 | Проверить Planning | Skill `spec-driven-extended-meta-planning` |
 | Подготовить Repository scope для штатного Apply | Skill `spec-driven-extended-apply-context` |
 | Подготовить test cases | Skill `spec-driven-extended-test-cases` |
 
-Команды вызываются внутри Agent. Здесь приведены имена Qwen/GigaCode;
-в Claude Plugin добавляет namespace `spec-driven-extended:`, например
-`/spec-driven-extended:spec-driven-extended-context`. Skills подключаются через
-механизм skills Agent и выполняются по своему `SKILL.md`.
+Skills подключаются через механизм skills Agent и выполняются по своему `SKILL.md`.
 
 Штатные действия OpenSpec вызываются через `/opsx-<действие>` в Qwen/GigaCode
 и `/opsx:<действие>` в Claude. Рекомендуя действие, используй фактически
@@ -74,11 +70,6 @@ Qwen/GigaCode или `/opsx:continue` в Claude. Она получает пер�
 artifact из schema. Skill `spec-driven-extended-intake` не создаёт Change и не
 является точкой входа в его workflow. Когда штатная команда выбрала Intake текущим
 артефактом, применяй skill для его подготовки или актуализации.
-
-Команда context работает независимо от schema и не требует Change. Её аргумент
-`--change` задаёт источник и scope проверки, а не запускает workflow.
-`openspec/context/` обновляй через эту команду; требования Change остаются
-в его нормативных артефактах.
 
 ## Разделяй контекст Store и реализацию
 

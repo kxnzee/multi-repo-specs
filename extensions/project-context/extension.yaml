@@ -1,0 +1,7 @@
+id: project-context
+name: Project Context
+targets: [store]
+manifests:
+  claude: .claude-plugin/plugin.json
+  qwen: qwen-extension.json
+  gigacode: gigacode-extension.json

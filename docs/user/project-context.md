@@ -2,6 +2,8 @@
 
 `openspec/context/` центрального Store хранит единое описание бизнеса для всего
 мультирепо-проекта. Количество репозиториев не определяет его структуру.
+Каталог поставляется Template `default` и `initiative`, а schema-independent
+Extension `project-context` предоставляет процедуру его наполнения.
 
 ## Маршрут чтения
 
@@ -25,7 +27,8 @@
 Каждый факт имеет одно место: определения участников — в 01, понятий — в 02,
 условия — в 05. Новая редакция заменяет условие, закрытые вопросы удаляются.
 Самодостаточен весь каталог: разделы дополняют друг друга через внутренние ссылки,
-происхождение внешних сведений записывается текстом.
+но устойчивые разделы не ссылаются на файлы из `_raw/`. Происхождение внешних
+сведений записывается текстом без пути к исходному файлу.
 Подробные требования и критерии приёмки принадлежат Master Specs.
 
 ## Два режима наполнения
@@ -33,15 +36,15 @@
 Вызовите команду внутри выбранного агента. Для Claude:
 
 ```text
-/spec-driven-extended:spec-driven-extended-context initialize
-/spec-driven-extended:spec-driven-extended-context update
+/project-context:project-context initialize
+/project-context:project-context update
 ```
 
 Для Qwen и GigaCode:
 
 ```text
-/spec-driven-extended-context initialize
-/spec-driven-extended-context update
+/project-context initialize
+/project-context update
 ```
 
 `initialize` создаёт первоначальное описание и сохраняет уже заполненные разделы.
@@ -80,6 +83,17 @@ ADR сохраняются для решений о границах проду�
 ADR объясняет выбор. Непринятое предложение остаётся вопросом.
 
 ## Обновление существующего Store
+
+Для Store, созданного до выделения schema-independent Extension, подключите его
+из корня Store и перезапустите агент:
+
+```bash
+openspec-orch extension init project-context
+openspec-orch extension connect project-context
+```
+
+Прежняя команда `spec-driven-extended-context` больше не поставляется Extension
+`spec-driven-extended`; используйте `project-context` с именами вызова выше.
 
 Обновление уже заполненного Store требует отдельного согласованного изменения:
 сохраните существующие знания, распределите их по разделам и проверьте входящие ссылки.

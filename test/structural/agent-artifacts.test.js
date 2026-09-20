@@ -10,6 +10,7 @@ import { parse } from "yaml";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/default/", import.meta.url));
 const EXTENSION_ROOT = fileURLToPath(new URL("../../extensions/spec-driven-extended/", import.meta.url));
+const PROJECT_CONTEXT_ROOT = fileURLToPath(new URL("../../extensions/project-context/", import.meta.url));
 const GATEWAY_ROOT = fileURLToPath(new URL("../../extensions/orchestrator-agent/", import.meta.url));
 const CORE_ROOT = fileURLToPath(new URL("../../src/packages/core/internal/", import.meta.url));
 const MCP_ROOT = fileURLToPath(new URL("../../src/packages/mcp/lib/", import.meta.url));
@@ -75,6 +76,15 @@ test("every skill and command is a self-describing standalone artifact", async (
   }
 });
 
+test("project-context command is a schema-independent standalone artifact", async () => {
+  const relative = "commands/project-context.md";
+  const source = await fs.readFile(path.join(PROJECT_CONTEXT_ROOT, relative), "utf8");
+  const { metadata, body } = parseFrontmatter(source, relative);
+  assert.match(metadata.description, /^\[project-context\] \S/u);
+  assert.equal(typeof metadata["argument-hint"], "string");
+  assert.match(body, /Команда не зависит от schema/u);
+});
+
 test("subagent adapters preserve the canonical body and own only provider metadata", async () => {
   const canonicalRoot = path.join(EXTENSION_ROOT, "subagents");
   const canonical = new Map();
@@ -132,7 +142,7 @@ test("Default and Initiative artifacts do not depend on concrete Plugins", async
   const forbidden = /codegraph|change[ -]tracking|change-tracking|result receipt|\bcycle records?\b|\bsnapshot\b|openspec-orch graph|openspec[ -]graph|\bget_spec_change_impact\b/iu;
   const initiativeRoots = ["../../extensions/initiative/", "../../templates/initiative/"]
     .map((relative) => fileURLToPath(new URL(relative, import.meta.url)));
-  for (const root of [EXTENSION_ROOT, TEMPLATE_ROOT, ...initiativeRoots]) {
+  for (const root of [PROJECT_CONTEXT_ROOT, EXTENSION_ROOT, TEMPLATE_ROOT, ...initiativeRoots]) {
     for (const file of await files(root)) {
       const source = await fs.readFile(file, "utf8");
       assert.doesNotMatch(source, forbidden, path.relative(root, file));

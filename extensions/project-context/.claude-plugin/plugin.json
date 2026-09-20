@@ -1,0 +1,8 @@
+{
+  "name": "project-context",
+  "version": "1.0.0",
+  "description": "Collect and maintain schema-independent project context",
+  "author": {
+    "name": "OpenSpec Orchestrator"
+  }
+}

@@ -37,6 +37,12 @@ function isInside(root, target) {
   return !path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${path.sep}`);
 }
 
+/** Отличает исходные материалы от устойчивых документов контекста. */
+function isRawMaterial(root, target) {
+  const [firstSegment] = path.relative(root, target).split(path.sep);
+  return firstSegment === "_raw";
+}
+
 /** Computes heading anchors for the ordinary headings used by these fixtures. */
 function headingAnchors(source) {
   const counts = new Map();
@@ -119,6 +125,11 @@ export async function auditContextLinks(root) {
       const resolved = resolveInternalDestination(realRoot, relative, decoded.decoded);
       if (resolved.code) {
         diagnostics.push(diagnostic(resolved.code, relative, destination));
+        continue;
+      }
+      if (!isRawMaterial(realRoot, path.join(realRoot, relative))
+        && isRawMaterial(realRoot, resolved.candidate)) {
+        diagnostics.push(diagnostic("RAW_MATERIAL_LINK", relative, destination));
         continue;
       }
       const code = await validateTarget(realRoot, resolved.candidate, resolved.anchor);

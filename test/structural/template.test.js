@@ -16,6 +16,7 @@ import { parse, stringify } from "yaml";
 import { auditContextLinks } from "../../test-support/context-links.js";
 
 const TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/default/", import.meta.url));
+const INITIATIVE_TEMPLATE_ROOT = fileURLToPath(new URL("../../templates/initiative/", import.meta.url));
 const TEMPLATES_ROOT = fileURLToPath(new URL("../../templates/", import.meta.url));
 const AGENTS_ROOT = fileURLToPath(new URL("../../src/agents/", import.meta.url));
 
@@ -81,7 +82,7 @@ test("Default Template is copy-only and applies identically for every independen
   assert.deepEqual(Object.keys(descriptor).sort(), ["agentInstructions", "copy", "id", "name", "requires"]);
   assert.equal(descriptor.id, "default");
   assert.deepEqual(descriptor.requires, {
-    extensions: ["spec-driven-extended", "superpowers"],
+    extensions: ["project-context", "spec-driven-extended", "superpowers"],
   });
   assert.equal(Object.hasOwn(descriptor, "agents"), false);
   const agentDirectories = (await fs.readdir(AGENTS_ROOT, { withFileTypes: true }))
@@ -351,10 +352,23 @@ test("schemas with a human Feature Acceptance gate share one contract", async ()
   assert.doesNotMatch(contract, /PASS_WITH_WARNINGS/u);
 });
 
-test("shipped context Markdown links resolve inside its self-contained tree", async () => {
-  const report = await auditContextLinks(path.join(TEMPLATE_ROOT, "context"));
-  assert.deepEqual(report.diagnostics, []);
-  assert.ok(report.checkedLinks > 0, "context must have usable internal navigation");
+test("Templates ship the same self-contained schema-independent context", async () => {
+  const defaultRoot = path.join(TEMPLATE_ROOT, "context");
+  const initiativeRoot = path.join(INITIATIVE_TEMPLATE_ROOT, "context");
+  const defaultFiles = await listFiles(defaultRoot);
+  assert.deepEqual(await listFiles(initiativeRoot), defaultFiles);
+  for (const relative of defaultFiles) {
+    assert.equal(
+      await fs.readFile(path.join(initiativeRoot, relative), "utf8"),
+      await fs.readFile(path.join(defaultRoot, relative), "utf8"),
+      relative,
+    );
+  }
+  for (const root of [defaultRoot, initiativeRoot]) {
+    const report = await auditContextLinks(root);
+    assert.deepEqual(report.diagnostics, []);
+    assert.ok(report.checkedLinks > 0, "context must have usable internal navigation");
+  }
 });
 
 test("superspec-multirepo preserves the complete skill-driven lifecycle", async () => {

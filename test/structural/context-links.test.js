@@ -13,9 +13,11 @@ test("context links reject external targets and broken anchors while keeping sam
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const context = path.join(root, "context");
   await fs.mkdir(context);
+  await fs.mkdir(path.join(context, "_raw"));
   const file = path.join(context, "index.md");
   const original = "# Context\n";
   await fs.writeFile(path.join(context, "domain.md"), "# Domain\n");
+  await fs.writeFile(path.join(context, "_raw", "source.md"), "# Source\n");
   const mutations = [
     ["EXTERNAL_LINK", "[external](https://example.invalid/policy)"],
     ["EXTERNAL_LINK", "![image](https://example.invalid/diagram.png)"],
@@ -25,6 +27,7 @@ test("context links reject external targets and broken anchors while keeping sam
     ["EXTERNAL_LINK", "[encoded](%2e%2e/%2e%2e/implementation.json)"],
     ["BROKEN_LINK", "[missing](absent.md)"],
     ["BROKEN_ANCHOR", "[missing](domain.md#absent)"],
+    ["RAW_MATERIAL_LINK", "[source](_raw/source.md)"],
   ];
   for (const [expectedCode, addition] of mutations) {
     await fs.writeFile(file, `${original}\n${addition}\n`);
@@ -39,4 +42,5 @@ test("context links reject external targets and broken anchors while keeping sam
   await fs.symlink(outside, path.join(context, "outside-link"), "junction");
   await fs.writeFile(file, `${original}\n[escape](outside-link/policy.md)\n`);
   assert.ok((await auditContextLinks(context)).diagnostics.some(({ code }) => code === "EXTERNAL_LINK"));
+
 });

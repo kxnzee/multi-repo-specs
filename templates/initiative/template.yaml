@@ -2,7 +2,9 @@ id: initiative
 name: Initiative planning
 agentInstructions: assets/agent-instructions.md
 requires:
-  extensions: [initiative]
+  extensions: [initiative, project-context]
 copy:
+  - from: context
+    to: openspec/context
   - from: openspec
     to: openspec
