@@ -656,6 +656,11 @@ test("CandidateCli interactive init skips an Extension prompt with no selectable
   ]);
   const extensionCatalog = new ExtensionCatalog([
     new ExtensionCatalogEntry({
+      id: "project-context",
+      name: "Project Context",
+      source: "bundled:project-context",
+    }),
+    new ExtensionCatalogEntry({
       id: "spec-driven-extended",
       name: "spec-driven-extended Workflow",
       source: "bundled:spec-driven-extended",
@@ -670,7 +675,7 @@ test("CandidateCli interactive init skips an Extension prompt with no selectable
     new TemplateCatalogEntry({
       id: "default",
       name: "Default Project Template",
-      requiredExtensions: ["spec-driven-extended", "superpowers"],
+      requiredExtensions: ["project-context", "spec-driven-extended", "superpowers"],
     }),
   ]);
   const cli = new CandidateCli({
@@ -702,7 +707,7 @@ test("CandidateCli interactive init skips an Extension prompt with no selectable
         if (message === "Выберите Project Template") {
           assert.deepEqual(choices.map(({ name, value }) => ({ name, value })), [
             {
-              name: "Default Project Template (default) — требует: spec-driven-extended, superpowers",
+              name: "Default Project Template (default) — требует: project-context, spec-driven-extended, superpowers",
               value: "default",
             },
             { name: "Локальный Project Template", value: "__local__" },
@@ -752,6 +757,7 @@ test("CandidateCli interactive init skips an Extension prompt with no selectable
     templateId: "default",
     templateRoot: TEMPLATE_ROOT,
     extensions: [
+      "project-context",
       "spec-driven-extended",
       "superpowers",
     ],
@@ -846,6 +852,11 @@ test("init selects Template before Extensions and locks its required Extensions"
     ]),
     extensionCatalog: new ExtensionCatalog([
       new ExtensionCatalogEntry({
+        id: "project-context",
+        name: "Project Context",
+        source: "bundled:project-context",
+      }),
+      new ExtensionCatalogEntry({
         id: "spec-driven-extended",
         name: "spec-driven-extended Workflow",
         source: "bundled:spec-driven-extended",
@@ -865,7 +876,7 @@ test("init selects Template before Extensions and locks its required Extensions"
       new TemplateCatalogEntry({
         id: "default",
         name: "Default Project Template",
-        requiredExtensions: ["spec-driven-extended", "superpowers"],
+        requiredExtensions: ["project-context", "spec-driven-extended", "superpowers"],
       }),
     ]),
     defaultTemplateId: "default",
@@ -891,6 +902,11 @@ test("init selects Template before Extensions and locks its required Extensions"
         checked: checked ?? false,
         disabled: disabled ?? false,
       })), [
+        {
+          value: "project-context",
+          checked: true,
+          disabled: "Требуется Project Template default",
+        },
         {
           value: "spec-driven-extended",
           checked: true,
@@ -932,6 +948,7 @@ test("init selects Template before Extensions and locks its required Extensions"
     "Итоговое подтверждение",
   ]);
   assert.deepEqual(selection.extensions, [
+    "project-context",
     "spec-driven-extended",
     "superpowers",
     "team-extension",
@@ -944,6 +961,11 @@ test("init applies required Extension profiles in flag mode and rejects disablin
       new AgentCatalogEntry({ id: "qwen", name: "Qwen Code" }),
     ]),
     extensionCatalog: new ExtensionCatalog([
+      new ExtensionCatalogEntry({
+        id: "project-context",
+        name: "Project Context",
+        source: "bundled:project-context",
+      }),
       new ExtensionCatalogEntry({
         id: "spec-driven-extended",
         name: "spec-driven-extended Workflow",
@@ -959,7 +981,7 @@ test("init applies required Extension profiles in flag mode and rejects disablin
       new TemplateCatalogEntry({
         id: "default",
         name: "Default Project Template",
-        requiredExtensions: ["spec-driven-extended", "superpowers"],
+        requiredExtensions: ["project-context", "spec-driven-extended", "superpowers"],
       }),
     ]),
     defaultTemplateId: "default",
@@ -969,11 +991,13 @@ test("init applies required Extension profiles in flag mode and rejects disablin
     store: "payments-specs",
     agent: "qwen",
   })).extensions, [
+    "project-context",
     "spec-driven-extended",
     "superpowers",
   ]);
 
   for (const [template, extension] of [
+    ["default", "project-context"],
     ["default", "spec-driven-extended"],
     ["default", "superpowers"],
   ]) {

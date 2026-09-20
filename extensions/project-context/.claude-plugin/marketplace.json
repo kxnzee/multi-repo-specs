@@ -1,0 +1,13 @@
+{
+  "name": "openspec-orch-project-context",
+  "description": "Bundled schema-independent project context Extension",
+  "owner": {
+    "name": "OpenSpec Orchestrator"
+  },
+  "plugins": [
+    {
+      "name": "project-context",
+      "source": "./"
+    }
+  ]
+}

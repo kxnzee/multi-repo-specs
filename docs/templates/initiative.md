@@ -29,9 +29,10 @@ Store по [Template default](default.md).
 openspec-orch init . --store management --agent qwen --template initiative
 ```
 
-Вместо `qwen` можно выбрать `claude` или `gigacode`. Шаблон подключает Extension
-`initiative`; `spec-driven-extended`, `superpowers` и Change Tracking для такого
-Store не требуются.
+Вместо `qwen` можно выбрать `claude` или `gigacode`. Шаблон подключает Extensions
+`initiative` и `project-context`; `spec-driven-extended`, `superpowers` и Change
+Tracking для такого Store не требуются. Общий контекст Store создаётся в
+`openspec/context/` и наполняется независимо от schema.
 
 Если нужен обзор зависимостей, подключите OpenSpec Graph. Store команд добавляйте
 как `specs` по [руководству конфигурации](../core/configuration.md).
@@ -42,12 +43,16 @@ Store не требуются.
 нет профиля инициативы, скопируйте каталог
 `templates/initiative/openspec/schemas/initiative` в
 `openspec/schemas/initiative`. Перед этим сохраните и проверьте локальные изменения.
+Если `openspec/context/` отсутствует, отдельно скопируйте в него содержимое
+`templates/initiative/context/`; существующий контекст не перезаписывайте.
 
 Затем из корня Store выполните:
 
 ```bash
 openspec-orch extension init initiative
 openspec-orch extension connect initiative
+openspec-orch extension init project-context
+openspec-orch extension connect project-context
 openspec schema validate initiative
 openspec new change launch-shared-outcome --schema initiative
 ```

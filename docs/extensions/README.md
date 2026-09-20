@@ -6,6 +6,7 @@
 
 | Расширение | Назначение | Документ |
 |---|---|---|
+| `project-context` | Сбор и обновление общего контекста независимо от schema | [Project Context](project-context.md) |
 | `spec-driven-extended` | Уточнение задачи, Planning, Apply и Verify | [Spec-driven Extended](spec-driven-extended.md) |
 | `superpowers` | Подробный план, разработка через тесты и review | [Superpowers](superpowers.md) |
 | `initiative` | Планирование инициативы нескольких команд | [Initiative](initiative.md) |

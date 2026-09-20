@@ -17,6 +17,9 @@ import { createDirectoryLink } from "../fixtures/filesystem.js";
 const SPEC_DRIVEN_EXTENDED_ROOT = fileURLToPath(
   new URL("../../../../extensions/spec-driven-extended/", import.meta.url),
 );
+const PROJECT_CONTEXT_ROOT = fileURLToPath(
+  new URL("../../../../extensions/project-context/", import.meta.url),
+);
 const SUPERPOWERS_ROOT = fileURLToPath(
   new URL("../../../../extensions/superpowers/", import.meta.url),
 );
@@ -167,7 +170,20 @@ test("Extension payload may declare several simple MCP servers for every Agent",
   }
 });
 
-test("shipped spec-driven-extended owns the complete workflow payload for every Agent", async () => {
+test("shipped project-context owns schema-independent context collection", async () => {
+  const extension = await loadExtension(PROJECT_CONTEXT_ROOT);
+
+  assert.equal(extension.id, "project-context");
+  assert.deepEqual(extension.targets, ["store"]);
+  for (const relative of [
+    "agent-instructions.md",
+    "commands/project-context.md",
+  ]) {
+    assert.equal((await fs.stat(path.join(PROJECT_CONTEXT_ROOT, relative))).isFile(), true, relative);
+  }
+});
+
+test("shipped spec-driven-extended owns the schema workflow payload for every Agent", async () => {
   const extension = await loadExtension(SPEC_DRIVEN_EXTENDED_ROOT);
 
   assert.equal(extension.id, "spec-driven-extended");
@@ -178,7 +194,6 @@ test("shipped spec-driven-extended owns the complete workflow payload for every 
   });
   for (const relative of [
     "agent-instructions.md",
-    "commands/spec-driven-extended-context.md",
     "skills/spec-driven-extended-intake/SKILL.md",
     "skills/spec-driven-extended-intent/SKILL.md",
     "skills/spec-driven-extended-apply-context/SKILL.md",

@@ -26,8 +26,9 @@
 Схемы задают состав, зависимости и требования артефактов, расширения — процедуры
 работы агента. Поэтому вызов навыка в схеме может быть нужен, а в бизнес-описании — нет.
 
-Описание `default` требует самостоятельные расширения `spec-driven-extended` и
-`superpowers`. `init` добавляет их в состав проекта независимо от выбранного агента
+Описание `default` требует самостоятельные расширения `project-context`,
+`spec-driven-extended` и `superpowers`. `init` добавляет их в состав проекта
+независимо от выбранного агента
 и не позволяет отключить через `--no-extensions`. Их содержимое не является частью
 копируемых файлов шаблона: у расширений собственный жизненный цикл.
 
@@ -64,6 +65,10 @@ openspec-orch init /absolute/path/to/store \
 `openspec-orch.yaml`. Обязательные расширения выбранного встроенного шаблона всегда
 добавляются к этому списку.
 
+Template `initiative`, как и `default`, копирует общий каркас
+`openspec/context/` и требует Extension `project-context`. Его workflow остаётся
+в отдельном Extension `initiative` и не зависит от `spec-driven-extended`.
+
 ## Источники правил
 
 `openspec/config.yaml.schema` задаёт только схему по умолчанию. Граф, пути артефактов,
@@ -83,7 +88,8 @@ PR используются только из явно предоставлен�
 
 ## Команды и навыки процесса
 
-Все шесть точек входа расширения имеют метку `[spec-driven-extended]` в описании.
+Все пять точек входа workflow-расширения имеют метку `[spec-driven-extended]`
+в описании.
 Квадратные скобки в подсказке аргументов обозначают необязательный ввод; сами скобки
 вводить не нужно. Если обязательных для работы данных нет в диалоге, агент уточнит их.
 
@@ -91,15 +97,18 @@ PR используются только из явно предоставлен�
 |---|---|---|---|
 | `spec-driven-extended-intent` | навык | `[описание изменения]` | Намерение в диалоге, без записи файлов |
 | `spec-driven-extended-intake` | навык | `[change-id]` | Подготовка или актуализация Intake существующего Change |
-| `spec-driven-extended-context` | команда | `[initialize\|update]` и параметры выбора | Инициализация или дополнение общего контекста |
 | `spec-driven-extended-meta-planning` | навык | `[change-id] [stage]` | Проверка планирования без записи и принятия контрольной точки |
 | `spec-driven-extended-apply-context` | навык | `[change-id]` | Проверенная область для штатного Apply |
 | `spec-driven-extended-test-cases` | навык | `[change-id]` | Тест-кейсы по принятым требованиям |
 
 Значения `stage`: `proposal`, `specs`, `design`, `tasks`, `impact-review`,
 `planning-review`. Последние два — режимы проверки, а не идентификаторы артефактов
-OpenSpec. Параметры выбора контекста: `--change <change-id>`, повторяемые `--spec <capability-path>`
-и `--domain <domain-path>`.
+OpenSpec.
+
+Schema-independent команда `project-context` принадлежит отдельному одноимённому
+Extension и доступна в Template `default` и `initiative`. Её аргументы —
+`[initialize|update]`, `--change <change-id>`, повторяемые
+`--spec <capability-path>` и `--domain <domain-path>`.
 
 В Qwen навыки доступны через меню навыков или прямой вызов по имени в
 поддерживающих его версиях.

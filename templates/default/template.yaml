@@ -3,6 +3,7 @@ name: Default Project Template
 agentInstructions: assets/agent-instructions.md
 requires:
   extensions:
+    - project-context
     - spec-driven-extended
     - superpowers
 copy:
