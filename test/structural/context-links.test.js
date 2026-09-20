@@ -43,4 +43,7 @@ test("context links reject external targets and broken anchors while keeping sam
   await fs.writeFile(file, `${original}\n[escape](outside-link/policy.md)\n`);
   assert.ok((await auditContextLinks(context)).diagnostics.some(({ code }) => code === "EXTERNAL_LINK"));
 
+  await fs.symlink(path.join(context, "_raw"), path.join(context, "raw-link"), "junction");
+  await fs.writeFile(file, `${original}\n[source](raw-link/source.md)\n`);
+  assert.ok((await auditContextLinks(context)).diagnostics.some(({ code }) => code === "RAW_MATERIAL_LINK"));
 });

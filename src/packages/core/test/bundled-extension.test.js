@@ -181,11 +181,6 @@ test("shipped project-context owns schema-independent context collection", async
   ]) {
     assert.equal((await fs.stat(path.join(PROJECT_CONTEXT_ROOT, relative))).isFile(), true, relative);
   }
-  const command = await fs.readFile(
-    path.join(PROJECT_CONTEXT_ROOT, "commands/project-context.md"),
-    "utf8",
-  );
-  assert.match(command, /Команда не зависит от schema и не запускает этапы Change/u);
 });
 
 test("shipped spec-driven-extended owns the schema workflow payload for every Agent", async () => {

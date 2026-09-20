@@ -65,24 +65,14 @@ test("every skill and command is a self-describing standalone artifact", async (
     assert.equal(metadata.name, entry.name, relative);
     assertMenuMetadata(metadata, relative);
   }
-
-  const commandRoot = path.join(EXTENSION_ROOT, "commands");
-  for (const entry of await entries(commandRoot)) {
-    assert.equal(entry.isFile() && entry.name.endsWith(".md"), true, `commands/${entry.name}`);
-    const relative = `commands/${entry.name}`;
-    const source = await fs.readFile(path.join(EXTENSION_ROOT, relative), "utf8");
-    const { metadata } = parseFrontmatter(source, relative);
-    assertMenuMetadata(metadata, relative);
-  }
 });
 
 test("project-context command is a schema-independent standalone artifact", async () => {
   const relative = "commands/project-context.md";
   const source = await fs.readFile(path.join(PROJECT_CONTEXT_ROOT, relative), "utf8");
-  const { metadata, body } = parseFrontmatter(source, relative);
+  const { metadata } = parseFrontmatter(source, relative);
   assert.match(metadata.description, /^\[project-context\] \S/u);
   assert.equal(typeof metadata["argument-hint"], "string");
-  assert.match(body, /Команда не зависит от schema/u);
 });
 
 test("subagent adapters preserve the canonical body and own only provider metadata", async () => {

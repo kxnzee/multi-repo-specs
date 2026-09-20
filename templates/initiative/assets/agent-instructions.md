@@ -3,9 +3,11 @@
 Этот Store хранит общие требования и инициативы нескольких команд. Реестр участников
 находится в `openspec-orch.yaml`; подключённые specs-репозитории читаются как данные.
 
-Перед работой прочитай `openspec/config.yaml`, существующие Master Specs и относящиеся
-к запросу Changes. Для выбранного Change определи точную schema и получи актуальные
-status, инструкции и следующий шаг через Orchestrator MCP.
+Перед работой прочитай `openspec/config.yaml`, `openspec/context/00-start-here.md`,
+относящиеся к задаче разделы контекста, существующие Master Specs и Changes.
+Материалы из `openspec/context/_raw/` считай неподтверждёнными входными данными.
+Для выбранного Change определи точную schema и получи актуальные status, инструкции
+и следующий шаг через Orchestrator MCP.
 
 Профиль initiative описывает Proposal, Delta Specs и Verify общего результата.
 Repository Impact связывает инициативу с участниками реестра, но не означает согласие

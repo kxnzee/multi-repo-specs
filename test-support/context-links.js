@@ -95,6 +95,7 @@ async function validateTarget(root, candidate, anchor) {
     return "BROKEN_LINK";
   }
   if (!isInside(root, target)) return "EXTERNAL_LINK";
+  if (isRawMaterial(root, target)) return "RAW_MATERIAL_LINK";
   if (!(await fs.stat(target)).isFile()) return "NOT_A_FILE";
   if (anchor && !headingAnchors(await fs.readFile(target, "utf8")).includes(anchor)) {
     return "BROKEN_ANCHOR";
