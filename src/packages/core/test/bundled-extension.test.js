@@ -222,6 +222,27 @@ test("spec-driven-extended leaves Change creation and workflow start to OpenSpec
   assert.doesNotMatch(intakeSkill, /и создай Change штатной командой/u);
 });
 
+test("spec-driven-extended keeps Intake readiness synchronized after later stages", async () => {
+  const [intakeSkill, reconcileSkill] = await Promise.all([
+    fs.readFile(
+      path.join(SPEC_DRIVEN_EXTENDED_ROOT, "skills/spec-driven-extended-intake/SKILL.md"),
+      "utf8",
+    ),
+    fs.readFile(
+      path.join(SPEC_DRIVEN_EXTENDED_ROOT, "skills/spec-driven-extended-reconcile/SKILL.md"),
+      "utf8",
+    ),
+  ]);
+
+  for (const content of [intakeSkill, reconcileSkill]) {
+    assert.match(content, /next_stage/u);
+    assert.match(content, /readiness/u);
+    assert.match(content, /reconciled_after/u);
+    assert.doesNotMatch(content, /planning_route|ready_for_proposal|explore_recommended/u);
+  }
+  assert.match(reconcileSkill, /При каждой записи Intake актуализируй/u);
+});
+
 test("spec-driven-extended blocks Store sessions before Apply writes", async () => {
   const applyContext = await fs.readFile(
     path.join(SPEC_DRIVEN_EXTENDED_ROOT, "skills/spec-driven-extended-apply-context/SKILL.md"),

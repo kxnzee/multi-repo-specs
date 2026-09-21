@@ -4,11 +4,11 @@ description: Extended spec-driven workflow - intake → proposal → specs/desig
 artifacts:
   - id: intake
     generates: intake.md
-    description: Confirmed source context and planning route for the change
+    description: Confirmed source context and readiness for the next workflow stage
     template: intake.md
     instruction: |
       Create the intake document before Proposal to preserve the confirmed source
-      context of this Change and make the next planning decision explicit.
+      context of this Change and make its readiness for the next stage explicit.
 
       Use the current Intake template as the single source for document sections,
       readability, applicability and source-provenance rules. Read and apply its
@@ -36,11 +36,12 @@ artifacts:
       - do not create the file until the intake is complete enough for the user to
         choose the next route.
 
-      For explore_recommended, keep "Результаты исследования" pending with exact
-      researchable questions. When Explore results are supplied, classify findings
-      as CONFIRMED, CONTRADICTED, UNKNOWN, or MISSING, update this same intake.md,
-      and reassess the Planning Route. Do not create a second questionnaire or
-      exploration artifact and do not continue to Proposal automatically.
+      When research is required before Proposal, set readiness to not_ready and keep
+      "Результаты исследования" pending with exact researchable questions. When
+      Explore results are supplied, classify findings as CONFIRMED, CONTRADICTED,
+      UNKNOWN, or MISSING, update this same intake.md, and reassess readiness. Do not
+      create a second questionnaire or exploration artifact and do not continue to
+      Proposal automatically.
 
       Before finishing Intake, including after Explore or a repeated interview,
       invoke spec-driven-extended-reconcile. Do not advance automatically.

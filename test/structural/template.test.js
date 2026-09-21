@@ -261,6 +261,10 @@ test("spec-driven-extended adds Verify without a separate Apply artifact", async
   const taskInstruction = schema.artifacts.find(({ id }) => id === "tasks")?.instruction ?? "";
 
   assert.equal(intake.includes("Verification Expectations"), false);
+  assert.match(intake, /next_stage: proposal \| specs \| design \| tasks \| apply \| verify \| complete/u);
+  assert.match(intake, /readiness: ready \| not_ready/u);
+  assert.match(intake, /reconciled_after: intake \| explore \| proposal \| specs \| design \| tasks \| apply \| verify/u);
+  assert.doesNotMatch(intake, /planning_route|ready_for_proposal|explore_recommended/u);
   assert.equal(schema.artifacts.some(({ id }) => id === "apply"), false);
   assert.equal(schema.artifacts.some(({ generates }) => generates === "apply.md"), false);
   assert.deepEqual(schema.artifacts.find(({ id }) => id === "verify")?.requires, ["tasks"]);

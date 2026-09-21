@@ -209,11 +209,18 @@ intake_result:
   change_id: <change-id>
   file: <resolved intake path>
   profiles: []
-  planning_route: ready_for_proposal | explore_recommended | blocked
+  next_stage: proposal
+  readiness: ready | not_ready
+  reconciled_after: intake | explore
   explore_questions: []
   blocking_questions: []
   next_action: /opsx-continue | /opsx-explore | continue_intake
 ```
+
+Для первичного Intake `next_stage` всегда равен `proposal`. Выбирай `ready`, только
+если согласованного контекста достаточно для Proposal. Иначе выбирай `not_ready`,
+а причину выражай через `explore_questions`, `blocking_questions` и `next_action`,
+не вводя дополнительные статусы готовности.
 
 Не выполняй `next_action`. Решение о запуске Explore, переходе к Proposal или
 продолжении уточнений всегда принимает пользователь.

@@ -306,9 +306,10 @@ Brainstorm, исполняемые Tasks, изолированная рабоч�
 
 | Ситуация | Действие |
 |---|---|
-| Intake завершён с `ready_for_proposal` | Перейти к Proposal |
-| Intake завершён с `explore_recommended` | Выполнить только указанный Explore, вернуть findings в тот же `intake.md`; не продолжать автоматически |
-| Intake завершён с `blocked` | Остановиться и получить продуктовое решение владельца |
+| В Intake указаны `next_stage: proposal` и `readiness: ready` | Перейти к Proposal |
+| В Intake указано `readiness: not_ready` и есть исследовательские вопросы | Выполнить только указанный Explore, вернуть findings в тот же `intake.md`; не продолжать автоматически |
+| В Intake указано `readiness: not_ready` и есть блокирующие вопросы | Остановиться и получить продуктовое решение владельца |
+| Intake уточнён на последующем этапе | Обновить `next_stage`, `readiness` и `reconciled_after`; текущий этап Change по-прежнему брать из Work Context |
 | Нужны факты о текущем состоянии | Исследовать только разрешённый Repository и вернуть facts в Planning, не превращая код в Requirements |
 | Техническое решение простое в `spec-driven-extended` | Подготовить обязательный краткий Design и Repository Implementation Map |
 | Design в `superspec-multirepo` доступен, но не нужен | Не создавать его только из-за доступности |
