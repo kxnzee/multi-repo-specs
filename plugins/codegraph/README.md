@@ -48,13 +48,18 @@ subagent используют один каталог инструментов, 
 После connect или disconnect перезапустите Agent или его долгоживущий MCP-процесс и
 проверьте доступность `codegraph_explore`. Disconnect деактивирует Extension и
 удаляет binding, но не обязан удалять установленный provider package или index data.
+Если готовый binding уже существует, но текущая Agent-сессия не получила MCP tool,
+Extension проверяет `plugin status --json` и использует read-only
+`plugin exec --repo <repository-id> codegraph explore` как CodeGraph fallback. Это не
+разрешает обычный поиск по исходникам и не запускает `sync` или reconnect.
 
 ## Правила использования
 
 1. Сначала выберите конкретный Repository и технический вопрос.
 2. Подтвердите Git root, revision и clean working tree.
 3. Вызовите `codegraph_explore` с `repository_id` и одним вопросом с точными anchors.
-4. При stale/отсутствующем index перейдите к обычному read/search в том же checkout.
+4. При недоступном MCP tool используйте Plugin-owned CLI fallback; при
+   stale/отсутствующем index перейдите к обычному read/search в том же checkout.
 5. Не считайте граф доказательством runtime behavior, теста или внешнего контракта.
 
 Store binding не открывает соседние Code Repositories; каждый checkout исследуется

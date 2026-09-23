@@ -184,6 +184,16 @@ MCP-процесс.
 - `codegraph_explore` — source и call paths одного Repository с подключённым
   CodeGraph; обязательны `repository_id` и один конкретный `query`.
 
+Запись прогресса Apply:
+
+- `set_task_completion` — идемпотентно отмечает или переоткрывает одну задачу в
+  основном Store. Принимает `change_id`, точный непрозрачный `task_id` из текущих
+  Apply instructions и `completed`. Перед записью Core повторно сверяет публичный
+  OpenSpec Apply-контекст, единственный `contextFiles.tasks`, полное описание и
+  текущее состояние задачи; под Store lock атомарно меняется только checkbox.
+  Инструмент не оценивает доказательства, не реализует код и не меняет Planning,
+  Git или состояние Plugin.
+
 В Graph активный Change имеет `change_id`, равный имени каталога; архивный —
 `archive/YYYY-MM-DD-name`. Этот ID используется в узлах, Delta Specs и
 `via_changes`, поэтому повторное имя не объединяет разные экземпляры.
@@ -194,9 +204,10 @@ MCP-процесс.
 ### Области действия и идентификаторы
 
 MCP закреплён за рабочим каталогом при запуске. `get_status`, `get_change_context`,
-`get_next_action`, `get_assignment_scope`, `get_doctor_report` и `connect_project`
-разрешают основной проект из этого каталога. Запуск из репозитория кода использует
-его основной Store. `get_setup_context` описывает варианты настройки;
+`get_next_action`, `get_assignment_scope`, `get_doctor_report`,
+`set_task_completion` и `connect_project` разрешают основной проект из этого
+каталога. Запуск из репозитория кода использует его основной Store.
+`get_setup_context` описывает варианты настройки;
 `initialize_project` создаёт Store именно в закреплённом каталоге.
 Записывающие инструменты Tracking работают с текущим репозиторием кода и задачей
 из основного Store. Чтение другого Store через Graph не переключает эти методы.

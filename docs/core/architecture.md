@@ -243,6 +243,10 @@ replace; corruption, неизвестная версия, path escape и symlink
   Plugin — своим runtime/state.
 - CLI и MCP используют общие application services и не реализуют независимые
   варианты init, connect, Graph или Change Tracking.
+- Механическая запись checkbox принадлежит общей OpenSpec/Core границе: Core
+  проверяет task identity и атомарно меняет Store-файл, а решение о достаточности
+  evidence остаётся в instructions выбранной schema. Code Repository Agent не
+  получает прямой файловый доступ к Store.
 - Опциональный Plugin не становится обязательным условием обычного Apply.
 - Agent, Orchestrator и Plugins не принимают человеческие gates и не выполняют
   Release или Archive автоматически.

@@ -228,6 +228,46 @@ test("Store MCP routes CodeGraph reads to a bound Code Repository", async () => 
   );
 });
 
+test("Store MCP records task completion through the Store OpenSpec facade", async () => {
+  const checkout = Object.freeze({ root: "/workspace/specs", role: "store" });
+  const storeProject = Object.freeze({
+    store: Object.freeze({ id: "specs" }),
+    checkout,
+    root: checkout.root,
+    project: Object.freeze({}),
+  });
+  const calls = [];
+  const runtime = new OrchestratorMcpRuntime({
+    start: checkout.root,
+    storeProjectService: Object.freeze({ resolve: async () => storeProject }),
+    currentRepositoryService: Object.freeze({ resolve: async () => null }),
+    managerService: Object.freeze({ forStore: () => Object.freeze({}) }),
+    openSpecService: Object.freeze({
+      forRepository(selected) {
+        assert.equal(selected, checkout);
+        return Object.freeze({
+          setTaskCompletion(changeId, taskId, completed) {
+            calls.push([changeId, taskId, completed]);
+            return { change_id: changeId, task_id: taskId, completed, changed: true };
+          },
+        });
+      },
+    }),
+    repositoryStatusService: Object.freeze({ inspect: async () => [] }),
+    doctorService: Object.freeze({ inspect: async () => ({ toJSON: () => ({}) }) }),
+    setupService: Object.freeze({
+      inspect: () => ({}), initialize: async () => ({}), connect: async () => ({}),
+    }),
+  });
+
+  assert.deepEqual(await runtime.setTaskCompletion({
+    change_id: "pay", task_id: "2", completed: true,
+  }), {
+    change_id: "pay", task_id: "2", completed: true, changed: true,
+  });
+  assert.deepEqual(calls, [["pay", "2", true]]);
+});
+
 test("runtime rereads Project state and exposes OpenSpec context without optional Plugins", async () => {
   let resolutions = 0;
   const initializationCalls = [];

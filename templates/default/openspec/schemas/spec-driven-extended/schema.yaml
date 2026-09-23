@@ -294,15 +294,14 @@ artifacts:
       point, required data, actions and state the verifier should observe. Keep the
       human result PENDING until a person performs or explicitly accepts that case.
 
-      Identify the candidate from the current workflow context: the accepted Change,
-      connected Code Repository checkouts and the environment or build available to
-      the verifier. Describe it once in human-readable terms. verify.md must not copy
-      commit hashes, revisions or PR/CI URLs. Evidence must be usable from the checked-out
-      Store and Code Repository checkouts. Name repository_id and repository-relative
-      paths to the result, test or report. If a required checkout, environment or piece
-      of evidence is unavailable, report BLOCKED instead of reconstructing it from
-      provider data. Never require GitHub, GitLab or Bitbucket API/MCP access to
-      understand the candidate or reproduce a check.
+      Identify the candidate from the current workflow context and describe its version,
+      build or environment once in human-readable terms. Do not include Repository IDs,
+      checkout paths, file or symbol names, test names, report paths, commands, commit
+      hashes, revisions or PR/CI URLs in verify.md. Record automatic verification only
+      as each test or check type, the number executed and its aggregate status. If the
+      candidate or those totals are unavailable, report BLOCKED instead of reconstructing
+      them from provider data. Never require GitHub, GitLab or Bitbucket API/MCP access
+      to understand the candidate or reproduce a check.
       Do not repeat commit lists, branch history, timestamps, raw command output,
       API payloads, tool transcripts or Agent reasoning in verify.md. If Delta Specs
       are intentionally absent, derive a
@@ -337,10 +336,11 @@ artifacts:
       Invoke **openspec-verify-change**, then fill the shared Feature Acceptance
       scenario table and concise automatic-check table.
       Run `openspec validate <change-name> --strict --no-interactive` for this candidate
-      from the Store and record only its status plus a durable evidence link. Keep human decisions and
+      from the Store, but record it only as one OpenSpec validation check and its
+      aggregate status. Keep human decisions and
       future Archive/UAT/Release actions outside executed evidence. Use
       `N/A` only with a reason and `PENDING` for an applicable check that was not run.
-      Present that evidence for an explicit human decision. The Agent must keep the
+      Present that summary for an explicit human decision. The Agent must keep the
       Human gate `PENDING` until a person explicitly selects `PASS` or
       `FAIL`; Agent evidence cannot make this decision. After implementation changes,
       collect current evidence and obtain a new decision. Verify does not perform
@@ -392,8 +392,9 @@ apply:
       полноту; отсутствующий accepted contract не дополняется выдуманным требованием;
     - план проверки или рассуждение не выдаются за выполненную verification.
 
-    После `satisfied` запиши progress по правилам этого Apply. Blocked Task остаётся
-    незакрытой; принятые описания задач не меняются.
+    После `satisfied` запиши progress через общий Orchestrator MCP
+    `set_task_completion`, передав точные `change_id`, `task_id` и `completed: true`.
+    Blocked Task остаётся незакрытой; принятые описания задач не меняются.
     Находки, меняющие ранние артефакты, передай в spec-driven-extended-reconcile.
     После возврата из Planning заново выполни Apply preflight.
 
@@ -410,16 +411,16 @@ apply:
 
     Не объявлять весь Change реализованным по завершению одного Repository.
 
-    Resolve exactly one existing Store task file from contextFiles.tasks; stop if
-    its identity is ambiguous. After verifying the selected task's result, update
-    only its checkbox using the Agent's file editor. Match the task to its full
-    description and repository section. A Store coordinator may record verified
-    Code Repository results without treating Store as an implementation repository.
-    Pending or blocked tasks remain unchecked. Re-read before editing, preserve task
-    descriptions, numbering and unrelated changes, verify the diff and refresh context.
-    Report access failures with the exact path and verified results for handoff,
-    without claiming progress was saved or creating a second tasks.md. Do not bypass
-    environment restrictions, change accepted Planning or commit/publish implicitly.
+    `set_task_completion` сам разрешает ровно один Store task file из актуального
+    `contextFiles.tasks`, повторно сверяет точный task_id, полное описание и текущее
+    состояние, затем атомарно меняет только checkbox. Не открывай и не редактируй
+    Store напрямую из Code Repository, не проси расширить filesystem scope и не
+    предлагай пользователю ручную команду записи. После ответа инструмента обнови
+    Apply-контекст. Если инструмент недоступен или сообщил конфликт, верни handoff с
+    точными task_id и проверенными результатами, не утверждая, что progress сохранён.
+    Store coordinator использует тот же MCP boundary и не становится исполнителем
+    кода. Pending или blocked tasks остаются незакрытыми. Не меняй accepted Planning
+    и не выполняй commit/publish неявно.
     Pause if you hit blockers or need clarification. Human Feature Acceptance belongs
     to the following Verify artifact, not to implementation Tasks.
     At each task completion and before ending Apply invoke spec-driven-extended-reconcile.

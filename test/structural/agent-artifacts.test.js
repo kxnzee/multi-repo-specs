@@ -128,6 +128,47 @@ test("scout examples preserve the public request and response fields", async () 
   );
 });
 
+test("Store agent accepts scout evidence without entering Code Repository", async () => {
+  const instructions = await fs.readFile(
+    path.join(EXTENSION_ROOT, "agent-instructions.md"),
+    "utf8",
+  );
+  const metaPlanning = await fs.readFile(
+    path.join(EXTENSION_ROOT, "skills/spec-driven-extended-meta-planning/SKILL.md"),
+    "utf8",
+  );
+  const scout = await fs.readFile(
+    path.join(EXTENSION_ROOT, "subagents/spec-driven-extended-repository-evidence-scout.md"),
+    "utf8",
+  );
+
+  assert.match(instructions, /не разрешает основному агенту открывать checkout/u);
+  assert.match(metaPlanning, /Основной агент не заменяет scout/u);
+  assert.match(metaPlanning, /его доступность проверяет только scout/u);
+  assert.match(scout, /не открывает Code Repository для его\nперепроверки/u);
+
+  for (const [artifact, source] of [
+    ["agent-instructions.md", instructions],
+    ["spec-driven-extended-meta-planning/SKILL.md", metaPlanning],
+    ["spec-driven-extended-repository-evidence-scout.md", scout],
+  ]) {
+    assert.doesNotMatch(source, /Fallback основного агента допустим/u, artifact);
+    assert.doesNotMatch(source, /Основной агент проверяет evidence/u, artifact);
+    assert.doesNotMatch(source, /проверяет полученные evidence/u, artifact);
+  }
+});
+
+test("Agent gateway routes Apply progress through Store-scoped MCP", async () => {
+  const instructions = await fs.readFile(
+    path.join(GATEWAY_ROOT, "agent-instructions.md"),
+    "utf8",
+  );
+  assert.match(instructions, /set_task_completion/u);
+  assert.match(instructions, /точн.*task_id/isu);
+  assert.match(instructions, /не редактируй.*Store.*Code Repository/isu);
+  assert.doesNotMatch(instructions, /node -e|writeFileSync/iu);
+});
+
 test("Default and Initiative artifacts do not depend on concrete Plugins", async () => {
   const forbidden = /codegraph|change[ -]tracking|change-tracking|result receipt|\bcycle records?\b|\bsnapshot\b|openspec-orch graph|openspec[ -]graph|\bget_spec_change_impact\b/iu;
   const initiativeRoots = ["../../extensions/initiative/", "../../templates/initiative/"]

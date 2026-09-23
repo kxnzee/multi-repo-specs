@@ -280,6 +280,13 @@ export class OrchestratorMcpRuntime {
     return (await this.#doctor.inspect({ start: this.#start })).toJSON();
   }
 
+  /** Updates one OpenSpec task only through the resolved Store checkout. */
+  async setTaskCompletion({ change_id: changeId, task_id: taskId, completed } = {}) {
+    const state = await this.#state();
+    return this.#openSpec.forRepository(state.storeProject.checkout)
+      .setTaskCompletion(changeId, taskId, completed);
+  }
+
   async invokeAgentTool(name, args = {}) {
     const state = await this.#state();
     const entry = this.#agentContributions.find(({ contribution }) => (
