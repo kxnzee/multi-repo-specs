@@ -37,12 +37,21 @@
 Эти правила действуют и при самостоятельном исследовании основным агентом.
 
 Если `.codegraph/` существует, но общий Orchestrator MCP не публикует
-`codegraph_explore`, останови исследование и
-сообщи пользователю, что локальный индекс найден, но Agent не получил
-`codegraph_explore`. Не используй вместо него `plugin exec`, `grep`, `rg`, `find` или
-другой поиск без явного разрешения пользователя. Рекомендуй проверить
-`openspec-orch plugin status --plugin codegraph --repo <repository-id>` и перезапустить
-Agent; не выполняй `sync` или переподключение автоматически.
+`codegraph_explore`, не переходи к обычному поиску. Из текущего project context
+выполни read-only проверку binding:
+`openspec-orch plugin status --plugin codegraph --repo <repository-id> --json`.
+Если статус подтверждает готовый binding, задай тот же вопрос через Plugin-owned
+fallback:
+`openspec-orch plugin exec --repo <repository-id> codegraph explore "<query>"`.
+Он использует зарегистрированный checkout и считается первым CodeGraph-чтением;
+укажи CLI fallback в ответе. Отсутствие MCP-инструмента не является разрешением на
+`grep`, `rg`, `find`, прямой Read исходников или запрос такого разрешения у
+пользователя.
+
+Если binding не готов, команда недоступна или `plugin exec` завершился ошибкой,
+останови исследование и сообщи точную диагностику. Рекомендуй перезапустить Agent
+при готовом binding, но не выполняй `sync`, переподключение или изменение Plugin
+автоматически.
 
 Обычный поиск вместо индексированного source допустим, только если `.codegraph/`
 отсутствует либо сам `codegraph_explore` сообщил, что индекс stale или unavailable. Индекс не доказывает

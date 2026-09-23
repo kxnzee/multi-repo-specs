@@ -26,6 +26,12 @@ checkout по binding и не принимает произвольный пут
 Перед первым использованием после connect, disconnect или обновления перезапустите
 Agent либо долгоживущий MCP-процесс. Если индекс stale или unavailable, инструмент
 завершится ошибкой; `sync` остаётся отдельным явным действием пользователя.
+Если binding готов, но текущая сессия не видит `codegraph_explore`, Agent проверяет
+его через `openspec-orch plugin status --plugin codegraph --repo <repository-id> --json`
+и выполняет тот же read-only запрос командой
+`openspec-orch plugin exec --repo <repository-id> codegraph explore "<query>"`.
+Этот fallback остаётся внутри CodeGraph Plugin и не разрешает `grep`, `rg`, прямое
+чтение исходников, автоматический `sync` или reconnect.
 
 Диагностика и отключение описаны в [общем lifecycle](operations.md). Канонический
 контракт находится в [исходном README](../../plugins/codegraph/README.md).

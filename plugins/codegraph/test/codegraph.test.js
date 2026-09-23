@@ -60,6 +60,10 @@ test("Package owns its CodeGraph dependency and native Plugin entrypoint", async
 
 test("Package ships CodeGraph usage rules without a second Agent MCP server", async () => {
   const extensionRoot = path.join(packageRoot, "extension");
+  const instructions = await fs.readFile(
+    path.join(extensionRoot, "agent-instructions.md"),
+    "utf8",
+  );
   const qwen = JSON.parse(await fs.readFile(
     path.join(extensionRoot, "qwen-extension.json"),
     "utf8",
@@ -92,6 +96,19 @@ test("Package ships CodeGraph usage rules without a second Agent MCP server", as
   assert.equal(Object.hasOwn(gigacode, "mcpServers"), false);
   assert.equal(Object.hasOwn(claude, "mcpServers"), false);
   await assert.rejects(fs.access(path.join(extensionRoot, ".mcp.json")), /ENOENT/u);
+  assert.match(
+    instructions,
+    /openspec-orch plugin status --plugin codegraph --repo <repository-id> --json/u,
+  );
+  assert.match(
+    instructions,
+    /openspec-orch plugin exec --repo <repository-id> codegraph explore "<query>"/u,
+  );
+  assert.match(
+    instructions,
+    /не является разрешением на\s+`grep`, `rg`, `find`/u,
+  );
+  assert.doesNotMatch(instructions, /Не используй вместо него `plugin exec`/u);
 });
 
 test("Agent contribution explores only the selected bound Repository", async () => {
