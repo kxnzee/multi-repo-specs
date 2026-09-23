@@ -60,6 +60,10 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     getNextAction() { return { action: "apply_change", actor: "agent" }; },
     getAssignmentScope() { return { assigned: true }; },
     getDoctorReport() { return { status: "ready" }; },
+    setTaskCompletion(args) {
+      calls.push(["set_task_completion", args]);
+      return { ...args, changed: true };
+    },
     invokeAgentTool(name, args) {
       calls.push([name, args]);
       return { plugin: name, id: args.id };
@@ -101,6 +105,7 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     "get_assignment_scope",
     "get_doctor_report",
     "optional_read",
+    "set_task_completion",
     "initialize_project",
     "connect_project",
   ]);
@@ -110,13 +115,16 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   );
   assert.equal(listed.tools.find(({ name }) => name === "get_status").annotations.readOnlyHint, true);
   assert.deepEqual(
-    listed.tools.filter(({ name }) => ["initialize_project", "connect_project"].includes(name))
+    listed.tools.filter(({ name }) => (
+      ["set_task_completion", "initialize_project", "connect_project"].includes(name)
+    ))
       .map(({ annotations }) => ({
         destructive: annotations.destructiveHint,
         idempotent: annotations.idempotentHint,
         readOnly: annotations.readOnlyHint,
       })),
     [
+      { destructive: false, idempotent: true, readOnly: false },
       { destructive: false, idempotent: true, readOnly: false },
       { destructive: false, idempotent: true, readOnly: false },
     ],
@@ -165,6 +173,9 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     assert.deepEqual(shape(schemas[name].properties.if_context_revision), nonEmptyStringSchema, name);
   }
   assert.equal(schemas.initialize_project.properties.if_context_revision, undefined);
+  assert.deepEqual(shape(schemas.set_task_completion.properties.change_id), identifierSchema);
+  assert.deepEqual(shape(schemas.set_task_completion.properties.task_id), nonEmptyStringSchema);
+  assert.deepEqual(shape(schemas.set_task_completion.properties.completed), { type: "boolean" });
   assert.deepEqual(shape(schemas.initialize_project.properties.store_id), identifierSchema);
   assert.deepEqual(shape(schemas.initialize_project.properties.store_remote), nonEmptyStringSchema);
   assert.deepEqual(shape(schemas.initialize_project.properties.store_default_branch), nonEmptyStringSchema);
@@ -210,6 +221,13 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   assert.equal(nextValue.action, "apply_change");
   assert.equal(nextValue.actor, "agent");
   assert.match(nextValue.context_revision, /^[a-f0-9]{64}$/u);
+  const task = await client.callTool({
+    name: "set_task_completion",
+    arguments: { change_id: "pay", task_id: "2", completed: true },
+  });
+  assert.deepEqual(JSON.parse(task.content[0].text), {
+    change_id: "pay", task_id: "2", completed: true, changed: true,
+  });
   const initialized = await client.callTool({
     name: "initialize_project",
     arguments: {
@@ -332,6 +350,9 @@ test("every advertised MCP tool dispatches to its matching application method", 
     ["get_next_action", "getNextAction", {}],
     ["get_assignment_scope", "getAssignmentScope", {}],
     ["get_doctor_report", "getDoctorReport", {}],
+    ["set_task_completion", "setTaskCompletion", {
+      change_id: "pay", task_id: "2", completed: true,
+    }],
     ["initialize_project", "initializeProject", { store_id: "specs", agent_id: "qwen" }],
     ["connect_project", "connectProject", {}],
 

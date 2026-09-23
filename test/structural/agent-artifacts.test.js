@@ -158,6 +158,17 @@ test("Store agent accepts scout evidence without entering Code Repository", asyn
   }
 });
 
+test("Agent gateway routes Apply progress through Store-scoped MCP", async () => {
+  const instructions = await fs.readFile(
+    path.join(GATEWAY_ROOT, "agent-instructions.md"),
+    "utf8",
+  );
+  assert.match(instructions, /set_task_completion/u);
+  assert.match(instructions, /точн.*task_id/isu);
+  assert.match(instructions, /не редактируй.*Store.*Code Repository/isu);
+  assert.doesNotMatch(instructions, /node -e|writeFileSync/iu);
+});
+
 test("Default and Initiative artifacts do not depend on concrete Plugins", async () => {
   const forbidden = /codegraph|change[ -]tracking|change-tracking|result receipt|\bcycle records?\b|\bsnapshot\b|openspec-orch graph|openspec[ -]graph|\bget_spec_change_impact\b/iu;
   const initiativeRoots = ["../../extensions/initiative/", "../../templates/initiative/"]

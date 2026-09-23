@@ -10,7 +10,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { RepositoryOpenSpec } from "@openspec-orch/core";
+import { RepositoryFiles, RepositoryOpenSpec } from "@openspec-orch/core";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const OPEN_SPEC = path.join(ROOT, "node_modules/@fission-ai/openspec/bin/openspec.js");
@@ -31,7 +31,7 @@ for (const schema of ["spec-driven-extended", "superspec-multirepo"]) {
     for (const file of ["intake.md", "brainstorm.md", "proposal.md", "design.md", "specs/example/spec.md"]) {
       await fs.writeFile(path.join(change, file), "# Planning fixture\n");
     }
-    const application = new RepositoryOpenSpec({ root }, {
+    const application = new RepositoryOpenSpec({ root, role: "store", id: "specs" }, {
       cwd: root,
       async run(executable, args) {
         assert.equal(executable, "openspec");
@@ -42,7 +42,7 @@ for (const schema of ["spec-driven-extended", "superspec-multirepo"]) {
         });
         return stdout;
       },
-    });
+    }, new RepositoryFiles({ root }));
     const tasks = path.join(change, "tasks.md");
     const verify = path.join(change, "verify.md");
     /** Changes only tracked progress to exercise routing across the Apply boundary. */
@@ -66,12 +66,25 @@ for (const schema of ["spec-driven-extended", "superspec-multirepo"]) {
     assert.match(verification.instruction, /Before creating or updating verify\.md/u);
     assert.doesNotMatch(verification.context, /openspec\/process/u);
 
-    await writeTasks("x", " ");
+    assert.deepEqual(await application.setTaskCompletion("verify-order", "1", true), {
+      change_id: "verify-order",
+      task_id: "1",
+      completed: true,
+      changed: true,
+      progress: { total: 2, complete: 1, remaining: 1 },
+    });
+    assert.equal(
+      (await application.setTaskCompletion("verify-order", "1", true)).changed,
+      false,
+    );
     assert.equal((await application.nextAction("verify-order")).action, "apply_change");
     await fs.access(verify).then(() => assert.fail("routing must not create Verify"),
       (error) => assert.equal(error.code, "ENOENT"));
 
-    await writeTasks("x", "x");
+    assert.equal(
+      (await application.setTaskCompletion("verify-order", "2", true)).progress.remaining,
+      0,
+    );
     const complete = await application.nextAction("verify-order");
     assert.equal(complete.action, "prepare_artifact");
     assert.equal(complete.artifact, "verify");

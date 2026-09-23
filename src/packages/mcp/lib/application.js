@@ -9,6 +9,7 @@ const RUNTIME_METHODS = Object.freeze([
   "getNextAction",
   "getAssignmentScope",
   "getDoctorReport",
+  "setTaskCompletion",
   "invokeAgentTool",
   "listResources",
   "readResource",
@@ -38,6 +39,7 @@ export class OrchestratorMcpApplication {
   getNextAction(input = {}) { return this.#runtime.getNextAction(input); }
   getAssignmentScope(input = {}) { return this.#runtime.getAssignmentScope(input); }
   getDoctorReport(input = {}) { return this.#runtime.getDoctorReport(input); }
+  setTaskCompletion(input = {}) { return this.#runtime.setTaskCompletion(input); }
   listAgentTools() { return this.#runtime.listAgentTools?.() ?? this.agentTools; }
   get agentTools() { return this.#runtime.agentTools; }
   invokeAgentTool(name, input = {}) { return this.#runtime.invokeAgentTool(name, input); }

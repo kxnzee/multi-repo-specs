@@ -1,9 +1,12 @@
 /** @fileoverview Shared OpenSpec application recommendations used by protocol adapters. */
 
 import assert from "node:assert/strict";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
-import { RepositoryOpenSpec } from "@openspec-orch/core";
+import { RepositoryFiles, RepositoryOpenSpec } from "@openspec-orch/core";
 
 /** Creates a scoped facade that returns canonical status and Apply fixtures. */
 function repositoryOpenSpec(status, applyInstructions) {
@@ -134,4 +137,58 @@ test("OpenSpec application does not route to Verify from blocked or inconsistent
     }, instructions);
     assert.equal((await application.nextAction("pay")).action, "consult_change_context");
   }
+});
+
+test("OpenSpec application updates one exact Store task without rewriting its description", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "openspec-task-progress-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const taskPath = path.join(root, "openspec/changes/pay/tasks.md");
+  await fs.mkdir(path.dirname(taskPath), { recursive: true });
+  await fs.writeFile(
+    taskPath,
+    "# Tasks\r\n\r\n- [ ] 1.1 Keep first\r\n- [ ] 1.2 Complete second\r\n",
+  );
+  const instructions = [
+    {
+      changeName: "pay",
+      contextFiles: { tasks: [taskPath] },
+      tasks: [
+        { id: "1", description: "1.1 Keep first", done: false },
+        { id: "2", description: "1.2 Complete second", done: false },
+      ],
+      progress: { total: 2, complete: 0, remaining: 2 },
+    },
+    {
+      changeName: "pay",
+      contextFiles: { tasks: [taskPath] },
+      tasks: [
+        { id: "1", description: "1.1 Keep first", done: false },
+        { id: "2", description: "1.2 Complete second", done: true },
+      ],
+      progress: { total: 2, complete: 1, remaining: 1 },
+    },
+  ];
+  const application = new RepositoryOpenSpec(
+    { root, role: "store", id: "specs" },
+    {
+      cwd: root,
+      run: async (_executable, args) => {
+        assert.deepEqual(args, ["instructions", "apply", "--change", "pay", "--json"]);
+        return JSON.stringify(instructions.shift());
+      },
+    },
+    new RepositoryFiles({ root }),
+  );
+
+  assert.deepEqual(await application.setTaskCompletion("pay", "2", true), {
+    change_id: "pay",
+    task_id: "2",
+    completed: true,
+    changed: true,
+    progress: { total: 2, complete: 1, remaining: 1 },
+  });
+  assert.equal(
+    await fs.readFile(taskPath, "utf8"),
+    "# Tasks\r\n\r\n- [ ] 1.1 Keep first\r\n- [x] 1.2 Complete second\r\n",
+  );
 });

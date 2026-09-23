@@ -76,6 +76,27 @@ const TOOL_DEFINITIONS = Object.freeze([
     inputSchema: EMPTY_SCHEMA, annotations: READ_ONLY_ANNOTATIONS,
   }),
   defineMcpTool({
+    name: "set_task_completion", applicationMethod: "setTaskCompletion",
+    description: "Идемпотентно изменить checkbox одной точной OpenSpec Apply task в основном Store. Используйте только после проверки результата задачи; операция сверяет task_id и описание с актуальным публичным Apply-контекстом и не меняет Code Repository, Planning или Git.",
+    inputSchema: Object.freeze({
+      type: "object",
+      properties: Object.freeze({
+        change_id: CHANGE_ID_SCHEMA,
+        task_id: Object.freeze({
+          ...NON_EMPTY_STRING_SCHEMA,
+          description: "Точный непрозрачный id из artifact_instructions.tasks актуального Apply-контекста; не номер из текста описания.",
+        }),
+        completed: Object.freeze({
+          type: "boolean",
+          description: "true отмечает подтверждённый результат; false переоткрывает задачу после принятого изменения Planning.",
+        }),
+      }),
+      required: ["change_id", "task_id", "completed"],
+      additionalProperties: false,
+    }),
+    annotations: WRITE_ANNOTATIONS,
+  }),
+  defineMcpTool({
     name: "initialize_project", applicationMethod: "initializeProject",
     description: "Идемпотентно инициализировать фиксированный рабочий каталог MCP как отдельный центральный Store. Нельзя выбирать рабочую копию Orchestrator, Template или Code Repository. Центральный Store задаётся только через store_id; repositories содержит только необязательные Code Repository.",
     inputSchema: Object.freeze({

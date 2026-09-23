@@ -392,8 +392,9 @@ apply:
       полноту; отсутствующий accepted contract не дополняется выдуманным требованием;
     - план проверки или рассуждение не выдаются за выполненную verification.
 
-    После `satisfied` запиши progress по правилам этого Apply. Blocked Task остаётся
-    незакрытой; принятые описания задач не меняются.
+    После `satisfied` запиши progress через общий Orchestrator MCP
+    `set_task_completion`, передав точные `change_id`, `task_id` и `completed: true`.
+    Blocked Task остаётся незакрытой; принятые описания задач не меняются.
     Находки, меняющие ранние артефакты, передай в spec-driven-extended-reconcile.
     После возврата из Planning заново выполни Apply preflight.
 
@@ -410,16 +411,16 @@ apply:
 
     Не объявлять весь Change реализованным по завершению одного Repository.
 
-    Resolve exactly one existing Store task file from contextFiles.tasks; stop if
-    its identity is ambiguous. After verifying the selected task's result, update
-    only its checkbox using the Agent's file editor. Match the task to its full
-    description and repository section. A Store coordinator may record verified
-    Code Repository results without treating Store as an implementation repository.
-    Pending or blocked tasks remain unchecked. Re-read before editing, preserve task
-    descriptions, numbering and unrelated changes, verify the diff and refresh context.
-    Report access failures with the exact path and verified results for handoff,
-    without claiming progress was saved or creating a second tasks.md. Do not bypass
-    environment restrictions, change accepted Planning or commit/publish implicitly.
+    `set_task_completion` сам разрешает ровно один Store task file из актуального
+    `contextFiles.tasks`, повторно сверяет точный task_id, полное описание и текущее
+    состояние, затем атомарно меняет только checkbox. Не открывай и не редактируй
+    Store напрямую из Code Repository, не проси расширить filesystem scope и не
+    предлагай пользователю ручную команду записи. После ответа инструмента обнови
+    Apply-контекст. Если инструмент недоступен или сообщил конфликт, верни handoff с
+    точными task_id и проверенными результатами, не утверждая, что progress сохранён.
+    Store coordinator использует тот же MCP boundary и не становится исполнителем
+    кода. Pending или blocked tasks остаются незакрытыми. Не меняй accepted Planning
+    и не выполняй commit/publish неявно.
     Pause if you hit blockers or need clarification. Human Feature Acceptance belongs
     to the following Verify artifact, not to implementation Tasks.
     At each task completion and before ending Apply invoke spec-driven-extended-reconcile.

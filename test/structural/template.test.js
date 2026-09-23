@@ -252,6 +252,20 @@ test("both configured OpenSpec schemas have closed acyclic artifact graphs", asy
   }
 });
 
+test("Apply records Store task progress through the generic MCP boundary", async () => {
+  for (const schemaId of ["spec-driven-extended", "superspec-multirepo"]) {
+    const schema = parse(await fs.readFile(
+      path.join(TEMPLATE_ROOT, "openspec/schemas", schemaId, "schema.yaml"),
+      "utf8",
+    ));
+    const instruction = schema.apply?.instruction ?? "";
+    assert.match(instruction, /set_task_completion/u, schemaId);
+    assert.match(instruction, /(?:точн|exact).*task_id/isu, schemaId);
+    assert.match(instruction, /(?:не|Do not).*Store.*(?:file editor|direct|прям)/isu, schemaId);
+    assert.doesNotMatch(instruction, /node -e|writeFileSync/iu, schemaId);
+  }
+});
+
 test("spec-driven-extended adds Verify without a separate Apply artifact", async () => {
   const schemaRoot = path.join(TEMPLATE_ROOT, "openspec/schemas/spec-driven-extended");
   const schema = parse(await fs.readFile(path.join(schemaRoot, "schema.yaml"), "utf8"));

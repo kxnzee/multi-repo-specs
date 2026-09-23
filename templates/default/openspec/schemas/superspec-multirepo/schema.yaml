@@ -212,16 +212,17 @@ apply:
     action. Implement the accepted plan only in Code Repositories listed in Proposal
     Repository Impact; the central Store owns artifacts and is not a code checkout.
 
-    Resolve exactly one existing Store task file from contextFiles.tasks; stop if
-    its identity is ambiguous. After verifying the selected task's result, update
-    only its checkbox using the Agent's file editor. Match the task to its full
-    description and repository section. A Store coordinator may record verified
-    Code Repository results without treating Store as an implementation repository.
-    Pending or blocked tasks remain unchecked. Re-read before editing, preserve task
-    descriptions, numbering and unrelated changes, verify the diff and refresh context.
-    Report access failures with the exact path and verified results for handoff,
-    without claiming progress was saved or creating a second tasks.md. Do not bypass
-    environment restrictions, change accepted Planning or commit/publish implicitly.
+    After verifying one selected task result, invoke the generic Orchestrator MCP
+    `set_task_completion` with the exact `change_id`, opaque `task_id` from current
+    Apply instructions and `completed: true`. The tool resolves exactly one Store
+    task file from current `contextFiles.tasks`, rechecks the full description and
+    current state, and atomically changes only its checkbox. Do not open or edit the
+    Store directly from a Code Repository, request broader filesystem scope or give
+    the user a manual write command. A Store coordinator uses the same MCP boundary
+    without becoming a code executor. Pending or blocked tasks remain unchecked.
+    Refresh Apply context after a successful response. If the tool is unavailable or
+    reports a conflict, return a handoff with exact task_id and verified results without
+    claiming progress was saved. Do not change accepted Planning or commit/publish implicitly.
 
     0. Scope and evidence preflight
        - Resolve exact repository roots from the connected Orchestrator workspace.
@@ -258,9 +259,10 @@ apply:
     3. Repository completion
        Before marking a repository result complete invoke
        **superpowers:verification-before-completion** and run the exact fresh commands
-       from tasks.md. Update only the tasks whose observable repository result is
-       complete. Do not close a repository result from uncommitted work. Human Feature
-       Acceptance belongs to the following Verify artifact.
+       from tasks.md. Record only tasks whose observable repository result is complete
+       through `set_task_completion`; do not edit Store files from the Code Repository.
+       Do not close a repository result from uncommitted work. Human Feature Acceptance
+       belongs to the following Verify artifact.
 
     4. Completion and convergence
        Do not create a separate Apply receipt. Keep tasks.md aligned with only the
