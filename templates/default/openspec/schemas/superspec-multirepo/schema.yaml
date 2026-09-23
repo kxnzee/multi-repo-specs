@@ -141,15 +141,14 @@ artifacts:
       point, required data, actions and state the verifier should observe. Keep the
       human result PENDING until a person performs or explicitly accepts that case.
 
-      Identify the candidate from the current workflow context: the accepted Change,
-      connected Code Repository checkouts and the environment or build available to
-      the verifier. Describe it once in human-readable terms. verify.md must not copy
-      commit hashes, revisions or PR/CI URLs. Evidence must be usable from the checked-out
-      Store and Code Repository checkouts. Name repository_id and repository-relative
-      paths to the result, test or report. If a required checkout, environment or piece
-      of evidence is unavailable, report BLOCKED instead of reconstructing it from
-      provider data. Never require GitHub, GitLab or Bitbucket API/MCP access to
-      understand the candidate or reproduce a check.
+      Identify the candidate from the current workflow context and describe its version,
+      build or environment once in human-readable terms. Do not include Repository IDs,
+      checkout paths, file or symbol names, test names, report paths, commands, commit
+      hashes, revisions or PR/CI URLs in verify.md. Record automatic verification only
+      as each test or check type, the number executed and its aggregate status. If the
+      candidate or those totals are unavailable, report BLOCKED instead of reconstructing
+      them from provider data. Never require GitHub, GitLab or Bitbucket API/MCP access
+      to understand the candidate or reproduce a check.
       Do not repeat commit lists, branch history, timestamps, raw command output,
       API payloads, tool transcripts or Agent reasoning in verify.md. If Delta Specs
       are intentionally absent, derive a
@@ -182,7 +181,8 @@ artifacts:
       First invoke **superpowers:verification-before-completion** for every affected
       Code Repository. Run fresh commands from tasks.md and record actual output; never
       infer success from an earlier run or an agent claim. If a failure is unexpected,
-      invoke **superpowers:systematic-debugging**, return to Apply and preserve evidence.
+      invoke **superpowers:systematic-debugging**, return to Apply and preserve evidence
+      outside verify.md. In verify.md record only check types, counts and aggregate statuses.
 
       Then invoke **openspec-verify-change** and fill the shared scenario and concise
       automatic-check tables. Present them for an explicit human decision. The Agent must keep
@@ -192,8 +192,8 @@ artifacts:
 
       Separately summarize Superspec Process Compliance: Delta Spec sync and
       Design/Specs coherence, clean implementation state, TDD evidence, task reviews,
-      final review and required Superpowers workflow evidence. Link durable evidence;
-      do not paste execution logs or narrate Agent actions. Process Compliance is
+      final review and required Superpowers workflow evidence. Give only a concise
+      result without links, paths, execution logs or Agent narration. Process Compliance is
       PASS, PASS_WITH_WARNINGS or FAIL. Feature Acceptance PASS plus Process
       Compliance PASS or PASS_WITH_WARNINGS completes Verify. Any failure returns to
       the owning artifact or Apply, followed by a fresh Verify.

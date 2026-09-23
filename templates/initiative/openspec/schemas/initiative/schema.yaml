@@ -44,15 +44,14 @@ artifacts:
       point, required data, actions and state the verifier should observe. Keep the
       human result PENDING until a person performs or explicitly accepts that case.
 
-      Identify the candidate from the current workflow context: the accepted Change,
-      connected Code Repository checkouts and the environment or build available to
-      the verifier. Describe it once in human-readable terms. verify.md must not copy
-      commit hashes, revisions or PR/CI URLs. Evidence must be usable from the checked-out
-      Store and Code Repository checkouts. Name repository_id and repository-relative
-      paths to the result, test or report. If a required checkout, environment or piece
-      of evidence is unavailable, report BLOCKED instead of reconstructing it from
-      provider data. Never require GitHub, GitLab or Bitbucket API/MCP access to
-      understand the candidate or reproduce a check.
+      Identify the candidate from the current workflow context and describe its version,
+      build or environment once in human-readable terms. Do not include Repository IDs,
+      checkout paths, file or symbol names, test names, report paths, commands, commit
+      hashes, revisions or PR/CI URLs in verify.md. Record automatic verification only
+      as each test or check type, the number executed and its aggregate status. If the
+      candidate or those totals are unavailable, report BLOCKED instead of reconstructing
+      them from provider data. Never require GitHub, GitLab or Bitbucket API/MCP access
+      to understand the candidate or reproduce a check.
       Do not repeat commit lists, branch history, timestamps, raw command output,
       API payloads, tool transcripts or Agent reasoning in verify.md. If Delta Specs
       are intentionally absent, derive a
@@ -68,8 +67,8 @@ artifacts:
       schema's lifecycle and the project's human acceptance rules.
       Verify the initiative against its Delta Specs and proposal. Separate a
       planning review from acceptance of delivered results. For each requirement
-      and scenario record short manual steps, the expected result, local evidence and
-      unresolved gaps. Use PASS, FAIL, PENDING or justified N/A for
+      and scenario record short manual steps, the expected result, aggregate status and
+      unresolved gaps without technical evidence links. Use PASS, FAIL, PENDING or justified N/A for
       Scenario results; completion of documents or team checkboxes is not proof
       of delivery. Missing evidence means PENDING, never a fabricated success.
       If the work is only planned, say that delivery acceptance remains open.

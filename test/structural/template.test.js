@@ -304,17 +304,27 @@ test("all Templates and schemas share one scenario verification contract", async
     assert.equal(blocks.length, 1, `${file}: exactly one scenario verification contract is required`);
     canonical ??= blocks[0][0];
     assert.equal(blocks[0][0], canonical, `${file}: scenario verification contract drift`);
+
+    const visible = source.replaceAll(/<!--[\s\S]*?-->/gu, "");
+    assert.doesNotMatch(
+      visible,
+      /Evidence|repository_id|Repository ID|checkout|локальн(?:ый|ого|ому|ая|ой) путь|имя файла|имя теста|команд[аыу]|хеш|PR\/CI|URL/iu,
+      `${file}: Verify output must not expose technical evidence details`,
+    );
+    assert.doesNotMatch(visible, /https?:\/\/|\[[^\]]+\]\([^)]+\)/u, `${file}: Verify output must not contain links`);
   }
   assert.match(canonical, /## Краткий вывод агента/u);
   assert.match(
     canonical,
-    /\| Сценарий \| Действия проверяющего \| Ожидаемый результат \| Подтверждение агента \| Решение человека \|/u,
+    /\| Сценарий \| Действия проверяющего \| Ожидаемый результат \| Статус агента \| Решение человека \|/u,
   );
+  assert.match(canonical, /Проверено автоматически.*типы проверок, количество и общий итог/u);
+  assert.match(canonical, /\| Тип проверки \| Выполнено \| Результат \|/u);
+  assert.match(canonical, /только типы выполненных проверок, их количество и итоговый статус/u);
   assert.match(canonical, /интерфейс.*API.*баз/isu);
   assert.match(canonical, /не вставляй.*логи/isu);
-  assert.match(canonical, /Не требуй GitHub\/GitLab\/Bitbucket API или MCP/u);
-  assert.match(canonical, /какие checkout, сборка или среда проверяются/u);
-  assert.match(canonical, /Опиши кандидата человеческим языком; не копируй revisions, хеши и PR\/CI URL/u);
+  assert.match(canonical, /какая версия, сборка или среда проверяется/u);
+  assert.doesNotMatch(canonical, /Evidence|repository_id|локальн(?:ый|ого|ому) путь|ссылка на отч[её]т/iu);
   assert.doesNotMatch(canonical, /Tracking|implementation-map|реестр версий/iu);
   assert.doesNotMatch(canonical, /Подтверждение выполненной проверки/u);
 });
@@ -331,11 +341,15 @@ test("Verify instructions produce a concise human test handoff", async () => {
     assert.match(instruction, /UI, API or database behavior/u, file);
     assert.match(instruction, /Do not\s+repeat commit lists, branch history, timestamps, raw command output/u, file);
     assert.match(instruction, /current workflow context/u, file);
-    assert.match(instruction, /accepted Change,\s+connected Code Repository checkouts/u, file);
-    assert.match(instruction, /must not copy\s+commit hashes, revisions or PR\/CI URLs/u, file);
-    assert.match(instruction, /repository_id[\s\S]*repository-relative\s+paths/u, file);
-    assert.match(instruction, /required checkout, environment or piece\s+of evidence is unavailable, report BLOCKED/u, file);
+    assert.match(instruction, /test or check type, the number executed and its aggregate status/u, file);
+    assert.match(
+      instruction,
+      /Do not include Repository IDs,\s+checkout paths, file or symbol names, test names, report paths, commands, commit\s+hashes, revisions or PR\/CI URLs in verify\.md/u,
+      file,
+    );
+    assert.match(instruction, /candidate or those totals are unavailable, report BLOCKED/u, file);
     assert.match(instruction, /Never require GitHub, GitLab or Bitbucket API\/MCP access/u, file);
+    assert.doesNotMatch(instruction, /repository_id|repository-relative\s+paths|durable evidence link/iu, file);
     assert.doesNotMatch(instruction, /Change Tracking|change-tracking|implementation-map|tracking_/iu, file);
   }
 });
