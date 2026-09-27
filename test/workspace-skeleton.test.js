@@ -15,6 +15,23 @@ async function readManifest(relativePath) {
   return JSON.parse(await fs.readFile(path.resolve(relativePath), "utf8"));
 }
 
+/** Resolves the hoisted runtime closure recorded for one locked package. */
+function lockedDependencyClosure(lock, rootName) {
+  const dependencies = new Set();
+  const pending = [rootName];
+  while (pending.length > 0) {
+    const packageName = pending.pop();
+    const entry = lock.packages[`node_modules/${packageName}`];
+    assert.ok(entry, `Missing lock entry for ${packageName}`);
+    for (const dependency of Object.keys(entry.dependencies ?? {})) {
+      if (dependencies.has(dependency)) continue;
+      dependencies.add(dependency);
+      pending.push(dependency);
+    }
+  }
+  return dependencies;
+}
+
 test("root distribution exposes the candidate entrypoint and required runtime files", async () => {
   const manifest = await readManifest("package.json");
 
@@ -59,6 +76,7 @@ test("root distribution exposes the candidate entrypoint and required runtime fi
 
 test("Core, Plugin SDK and Extension SDK are independently publishable packages", async () => {
   const core = await readManifest("src/packages/core/package.json");
+  const lock = await readManifest("package-lock.json");
   const sdk = await readManifest("src/packages/plugin-sdk/package.json");
   const extensionSdk = await readManifest("src/packages/extension-sdk/package.json");
 
@@ -71,6 +89,18 @@ test("Core, Plugin SDK and Extension SDK are independently publishable packages"
   assert.notEqual(sdk.private, true);
   assert.notEqual(extensionSdk.private, true);
   assert.deepEqual(core.files, ["index.js", "internal"]);
+  assert.deepEqual(
+    Object.keys(core.dependencies).filter((name) => name.startsWith("@inquirer/")),
+    ["@inquirer/prompts"],
+  );
+  for (const dependency of lockedDependencyClosure(lock, "@inquirer/prompts")) {
+    if (dependency.startsWith("@inquirer/")) continue;
+    assert.equal(
+      core.dependencies[dependency],
+      lock.packages[`node_modules/${dependency}`].version,
+      `Core must pin the external Inquirer runtime dependency ${dependency}`,
+    );
+  }
   assert.deepEqual(sdk.files, ["README.md", "index.js", "internal", "testing.js"]);
   assert.deepEqual(sdk.dependencies, {
     "@openspec-orch/extension-sdk": "0.1.0",
