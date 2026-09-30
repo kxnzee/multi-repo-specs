@@ -4,6 +4,7 @@ agentInstructions: assets/agent-instructions.md
 requires:
   extensions:
     - project-context
+    - openspec-apply
     - spec-driven-extended
     - superpowers
 copy:

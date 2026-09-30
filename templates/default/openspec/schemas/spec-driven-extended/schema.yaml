@@ -354,12 +354,16 @@ apply:
   requires: [tasks]
   tracks: tasks.md
   instruction: |
-    Before any implementation edit, invoke the installed spec-driven-extended-apply-context
-    skill through the Agent's skill mechanism and require its apply_scope.scope_status:
-    ready for this Change and Repository. Reading these instructions does not execute
-    the helper. If unavailable or blocked, stop before editing code.
-    Return from the helper to this Apply without recursive invocation, then read context
-    files, work through pending tasks and mark complete as you go. Apply does not create a separate receipt artifact.
+    Confirm the current Code Repository matches Repository Impact and its Tasks section.
+    If the assignment, checkout, accepted scope or repository section is missing or
+    inconsistent, stop before editing code. Do not expand scope or write another Repository.
+
+    Implement exactly one pending Task assigned to the current Repository, then run its
+    relevant checks and review its diff. Present the Task, changed files, checks and exact
+    proposed commit to a person and stop for explicit approval. Only after that approval
+    create one task-scoped commit and mark the Task complete through the active workflow.
+    Do not start the next Task in the same iteration. Apply does not create a separate
+    receipt artifact.
     Перед checkbox сформировать:
 
     Для task_id используй точный `id` выбранной задачи из

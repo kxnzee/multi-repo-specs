@@ -1,6 +1,6 @@
-id: spec-driven-extended
-name: spec-driven-extended Workflow
-targets: [store]
+id: openspec-apply
+name: OpenSpec Apply
+targets: [code]
 manifests:
   claude: .claude-plugin/plugin.json
   qwen: qwen-extension.json

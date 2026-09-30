@@ -32,7 +32,7 @@ test("bundled Template provider discovers checked packages by stable ID", async 
     {
       id: "default",
       name: "Default Project Template",
-      requiredExtensions: ["project-context", "spec-driven-extended", "superpowers"],
+      requiredExtensions: ["project-context", "openspec-apply", "spec-driven-extended", "superpowers"],
     },
     {
       id: "initiative",
@@ -43,7 +43,7 @@ test("bundled Template provider discovers checked packages by stable ID", async 
   assert.equal(provider.resolve("default").root, await fs.realpath(DEFAULT_TEMPLATE_ROOT));
   assert.deepEqual(
     provider.catalog.requiredExtensionsFor("default"),
-    ["project-context", "spec-driven-extended", "superpowers"],
+    ["project-context", "openspec-apply", "spec-driven-extended", "superpowers"],
   );
   assert.deepEqual(
     provider.catalog.requiredExtensionsFor("initiative"),

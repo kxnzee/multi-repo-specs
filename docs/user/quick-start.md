@@ -49,7 +49,8 @@ qwen
 ```
 
 В GigaCode замените `qwen` на `gigacode`, затем вызовите
-`/opsx-apply update-copy`. Для Claude используйте `/opsx:apply update-copy`.
+`/opsx-apply update-copy`. Для Claude используйте
+`/openspec-apply:opsx-apply update-copy`.
 Не расширяйте права Store-сессии на соседние репозитории: её попытка записать код
 должна быть заблокирована файловой защитой агента. Если Change затрагивает несколько
 репозиториев, откройте отдельную Agent-сессию и выполните Apply в каждом назначенном

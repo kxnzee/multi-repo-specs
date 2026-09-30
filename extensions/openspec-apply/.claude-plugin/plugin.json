@@ -1,0 +1,8 @@
+{
+  "name": "openspec-apply",
+  "version": "1.0.0",
+  "description": "Repository-scoped OpenSpec Apply through Orchestrator MCP",
+  "author": {
+    "name": "OpenSpec Orchestrator"
+  }
+}

@@ -1,7 +1,7 @@
 # Implementation Tasks
 
-> **Execution:** Для реализации этого OpenSpec Change вызови установленный
-> штатный OpenSpec Apply и следуй актуальным инструкциям схемы. `tasks.md` —
+> **Execution:** Для реализации этого OpenSpec Change вызови Code-only Extension
+> `openspec-apply` и следуй актуальным инструкциям схемы. `tasks.md` —
 > единственный принятый план; Superpowers executor запускается внутри Apply.
 > Создание Tasks не запускает реализацию.
 

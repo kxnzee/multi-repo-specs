@@ -36,7 +36,6 @@ MCP resources. Если следующий шаг неясен, вызови `ge
 | Сформулировать Intent нового Change | Skill `spec-driven-extended-intent` |
 | Подготовить или актуализировать Intake существующего Change | Skill `spec-driven-extended-intake` |
 | Проверить Planning | Skill `spec-driven-extended-meta-planning` |
-| Подготовить Repository scope для штатного Apply | Skill `spec-driven-extended-apply-context` |
 | Подготовить test cases | Skill `spec-driven-extended-test-cases` |
 
 Skills подключаются через механизм skills Agent и выполняются по своему `SKILL.md`.
@@ -45,18 +44,14 @@ Skills подключаются через механизм skills Agent и вы
 и `/opsx:<действие>` в Claude. Рекомендуя действие, используй фактически
 установленную команду выбранного провайдера.
 
-При запросе на реализацию существующего Change сначала вызови установленный
-штатный OpenSpec Apply через механизм skills/commands Agent (`/opsx:apply` или
-`/opsx-apply`). Получение MCP Apply Context и tracking не заменяют этот вызов.
-Apply запускается только из назначенного Code Repository. Если текущая Agent-сессия
+При запросе на реализацию существующего Change используй Code-only Extension
+`openspec-apply`. В Qwen/GigaCode его команда — `/opsx-apply`, в Claude —
+`/openspec-apply:opsx-apply`. Apply запускается только из назначенного Code Repository.
+Если текущая Agent-сессия
 открыта из Store, остановись до записи файлов и предложи открыть новую сессию из
 назначенного checkout; не предлагай расширять файловые разрешения Store-сессии.
-Внутри `spec-driven-extended` Apply до изменения кода вызови skill
-`spec-driven-extended-apply-context` и получи `apply_scope.scope_status: ready`
-для текущего Change и Repository. Это preflight helper, а не самостоятельный
-workflow реализации. При прямом вызове helper должен передать управление штатному
-Apply через механизм Agent; когда он вызван из Apply, вернуться без повторного
-запуска Apply. Если skill недоступен или preflight заблокирован, остановись до кода.
+Code-only команда получает Apply Context, проверяет assignment и обновляет task
+progress через Orchestrator MCP; Store workflow Extension не реализует код сам.
 
 Для нового Change начни с Intent, если он ещё не принят. Готовый полный Intent
 используй без повторного сбора. Затем пользователь создаёт Change штатным
