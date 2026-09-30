@@ -129,7 +129,8 @@ manifest выбранного в Store Agent перед native mutation.
 или `[store, code]`. По умолчанию используется `[store]`; пустые, повторяющиеся
 и неизвестные роли отклоняются. Lifecycle и диагностика выполняются для каждого
 зарегистрированного Repository выбранных ролей. Bundled workflows
-`spec-driven-extended` и `superpowers` подключаются к Store и Code Repositories.
+`spec-driven-extended` подключается только к Store, `openspec-apply` — только к Code
+Repositories, а `superpowers` — к обоим типам целей.
 
 ```json
 {

@@ -30,7 +30,7 @@ dependency order recorded in `tasks.md`.
 
 ## Apply and Verify convergence
 
-1. `/opsx:apply` (Claude) or `/opsx-apply` (Qwen/GigaCode) performs repository work,
+1. `/openspec-apply:opsx-apply` (Claude) or `/opsx-apply` (Qwen/GigaCode) performs one repository Task,
    updates only completed Tasks and returns a concise execution summary without
    creating a separate receipt artifact.
 2. The next schema artifact invokes `openspec-verify-change`, runs fresh technical

@@ -82,7 +82,7 @@ test("Default Template is copy-only and applies identically for every independen
   assert.deepEqual(Object.keys(descriptor).sort(), ["agentInstructions", "copy", "id", "name", "requires"]);
   assert.equal(descriptor.id, "default");
   assert.deepEqual(descriptor.requires, {
-    extensions: ["project-context", "spec-driven-extended", "superpowers"],
+    extensions: ["project-context", "openspec-apply", "spec-driven-extended", "superpowers"],
   });
   assert.equal(Object.hasOwn(descriptor, "agents"), false);
   const agentDirectories = (await fs.readdir(AGENTS_ROOT, { withFileTypes: true }))

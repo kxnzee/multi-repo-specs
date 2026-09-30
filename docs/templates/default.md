@@ -328,7 +328,7 @@ Apply не запускается из Agent-сессии Store. Store испо�
 артефактов Planning, но не получает права записи в соседние Code Repositories.
 После принятия Planning завершите Store-сессию, перейдите в checkout назначенного
 Code Repository и откройте там новую Agent-сессию. Для Qwen/GigaCode вызовите
-`/opsx-apply <change-id>`, для Claude — `/opsx:apply <change-id>`.
+`/opsx-apply <change-id>`, для Claude — `/openspec-apply:opsx-apply <change-id>`.
 
 Файловая защита агента должна блокировать попытку Store-сессии изменить Code
 Repository. Не обходите её расширением доступа: выберите checkout, который совпадает
@@ -338,11 +338,16 @@ Repository. Не обходите её расширением доступа: в
 
 | Ситуация | Действие |
 |---|---|
-| Planning scope, Delta Specs и Tasks согласованы | Запустить штатный OpenSpec Apply из назначенного Code Repository |
+| Planning scope, Delta Specs и Tasks согласованы | Запустить Code-only `openspec-apply` из назначенного Code Repository |
 | Apply запущен из Store и файловая защита запретила запись в Code Repository | Не расширять права; открыть новую Agent-сессию из назначенного Code Repository и повторить Apply |
 | Во время Apply найден новый Repository, capability или изменение scope | Остановить Apply, обновить Planning и повторно принять его |
 | Assignment не совпадает с Repository Impact или Tasks | Не продолжать до исправления Planning или выбора правильного Repository |
 | CodeGraph недоступен или устарел | Использовать адресное read/search в текущем Repository; не запускать sync автоматически |
+
+Один запуск реализует только одну Task. Перед отдельным task-scoped commit агент
+показывает diff, проверки и сообщение commit и ждёт явного согласия человека.
+Отметка Task выполняется через MCP только после успешного commit; следующая Task
+не начинается автоматически.
 | Task имеет artifacts и прошедшие checks | Отметить Task выполненным и сохранить конкретное evidence |
 | Task заблокирован или проверка не выполнена | Оставить checkbox открытым и зафиксировать blocker |
 | Scopes независимы | В `superspec-multirepo` допускается параллельная работа, если это разрешают зависимости в Tasks |

@@ -1,0 +1,13 @@
+{
+  "name": "openspec-orch-apply",
+  "description": "Bundled repository-scoped Apply Extension",
+  "owner": {
+    "name": "OpenSpec Orchestrator"
+  },
+  "plugins": [
+    {
+      "name": "openspec-apply",
+      "source": "./"
+    }
+  ]
+}

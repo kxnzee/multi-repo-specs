@@ -26,8 +26,8 @@
 Схемы задают состав, зависимости и требования артефактов, расширения — процедуры
 работы агента. Поэтому вызов навыка в схеме может быть нужен, а в бизнес-описании — нет.
 
-Описание `default` требует самостоятельные расширения `project-context`,
-`spec-driven-extended` и `superpowers`. `init` добавляет их в состав проекта
+Описание `default` требует самостоятельные расширения `openspec-apply`,
+`project-context`, `spec-driven-extended` и `superpowers`. `init` добавляет их в состав проекта
 независимо от выбранного агента
 и не позволяет отключить через `--no-extensions`. Их содержимое не является частью
 копируемых файлов шаблона: у расширений собственный жизненный цикл.
@@ -98,7 +98,6 @@ PR используются только из явно предоставлен�
 | `spec-driven-extended-intent` | навык | `[описание изменения]` | Намерение в диалоге, без записи файлов |
 | `spec-driven-extended-intake` | навык | `[change-id]` | Подготовка или актуализация Intake существующего Change |
 | `spec-driven-extended-meta-planning` | навык | `[change-id] [stage]` | Проверка планирования без записи и принятия контрольной точки |
-| `spec-driven-extended-apply-context` | навык | `[change-id]` | Проверенная область для штатного Apply |
 | `spec-driven-extended-test-cases` | навык | `[change-id]` | Тест-кейсы по принятым требованиям |
 
 Значения `stage`: `proposal`, `specs`, `design`, `tasks`, `impact-review`,
@@ -118,9 +117,10 @@ skills.
 Подсказка `argument-hint` предназначена для поддерживающих её клиентов;
 точное отображение меню определяется клиентом.
 
-Штатный OpenSpec использует `/opsx-continue`, `/opsx-explore`, `/opsx-apply` в
-Qwen/GigaCode и `/opsx:continue`, `/opsx:explore`, `/opsx:apply` в Claude.
-Это разные варианты вызова одного процесса. Правила регистрации описаны в
+Штатный OpenSpec в Store использует `/opsx-continue` и `/opsx-explore` в
+Qwen/GigaCode и `/opsx:continue`, `/opsx:explore` в Claude. Repository Apply
+предоставляет Code-only Extension `openspec-apply`: `/opsx-apply` в Qwen/GigaCode
+и `/openspec-apply:opsx-apply` в Claude. Правила регистрации описаны в
 [документации Qwen](https://qwenlm.github.io/qwen-code-docs/en/users/features/skills/)
 и [Claude Plugins](https://code.claude.com/docs/en/plugins).
 
@@ -211,12 +211,10 @@ openspec-orch init /absolute/path/to/store \
 `openspec-orch.yaml` только ID применённого шаблона, а не путь к его источнику;
 храните исходный пользовательский шаблон отдельно для будущих проверяемых миграций.
 
-По запросу на реализацию агент сначала вызывает штатный OpenSpec Apply через
-механизм навыков и команд своего провайдера. Внутри схемы Apply
-`spec-driven-extended` он вызывает `spec-driven-extended-apply-context` до изменения
-кода. Вспомогательный модуль проверяет область; его прямой вызов передаёт управление
-штатному Apply и не разрешает самостоятельную реализацию. MCP Apply Context и Tracking
-не заменяют вызов штатного Apply.
+По запросу на реализацию агент вызывает Code-only Extension `openspec-apply`.
+Она получает Apply Context и assignment через MCP, реализует одну Task, останавливается
+на человеческом commit gate и только после успешного task-scoped commit записывает
+progress через `set_task_completion`. Полный OpenSpec Agent Pack остаётся в Store.
 
 Scout не содержит правил конкретных плагинов. Основной агент передаёт ему
 применимые инструкции навигации через `code_navigation`; Scout соблюдает первый

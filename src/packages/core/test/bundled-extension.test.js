@@ -20,6 +20,9 @@ const SPEC_DRIVEN_EXTENDED_ROOT = fileURLToPath(
 const PROJECT_CONTEXT_ROOT = fileURLToPath(
   new URL("../../../../extensions/project-context/", import.meta.url),
 );
+const OPENSPEC_APPLY_ROOT = fileURLToPath(
+  new URL("../../../../extensions/openspec-apply/", import.meta.url),
+);
 const SUPERPOWERS_ROOT = fileURLToPath(
   new URL("../../../../extensions/superpowers/", import.meta.url),
 );
@@ -183,6 +186,23 @@ test("shipped project-context owns schema-independent context collection", async
   }
 });
 
+test("shipped openspec-apply is a Code-only one-task human-gated workflow", async () => {
+  const extension = await loadExtension(OPENSPEC_APPLY_ROOT);
+  const command = await fs.readFile(
+    path.join(OPENSPEC_APPLY_ROOT, "commands/opsx-apply.md"),
+    "utf8",
+  );
+
+  assert.equal(extension.id, "openspec-apply");
+  assert.deepEqual(extension.targets, ["code"]);
+  assert.match(command, /get_change_context/u);
+  assert.match(command, /set_task_completion/u);
+  assert.match(command, /только первую незавершённую Task/u);
+  assert.match(command, /согласии создать этот commit/u);
+  assert.match(command, /не используй OpenSpec CLI/u);
+  assert.match(command, /не редактируй Store вручную/u);
+});
+
 test("shipped spec-driven-extended owns the schema workflow payload for every Agent", async () => {
   const extension = await loadExtension(SPEC_DRIVEN_EXTENDED_ROOT);
 
@@ -196,7 +216,6 @@ test("shipped spec-driven-extended owns the schema workflow payload for every Ag
     "agent-instructions.md",
     "skills/spec-driven-extended-intake/SKILL.md",
     "skills/spec-driven-extended-intent/SKILL.md",
-    "skills/spec-driven-extended-apply-context/SKILL.md",
     "skills/spec-driven-extended-meta-planning/SKILL.md",
     "skills/spec-driven-extended-test-cases/SKILL.md",
     "subagents/spec-driven-extended-repository-evidence-scout.md",
@@ -241,17 +260,6 @@ test("spec-driven-extended keeps Intake readiness synchronized after later stage
     assert.doesNotMatch(content, /planning_route|ready_for_proposal|explore_recommended/u);
   }
   assert.match(reconcileSkill, /При каждой записи Intake актуализируй/u);
-});
-
-test("spec-driven-extended blocks Store sessions before Apply writes", async () => {
-  const applyContext = await fs.readFile(
-    path.join(SPEC_DRIVEN_EXTENDED_ROOT, "skills/spec-driven-extended-apply-context/SKILL.md"),
-    "utf8",
-  );
-
-  assert.match(applyContext, /`current_assignment\.role: store` блокирует Apply/u);
-  assert.match(applyContext, /Не предлагай расширить файловые разрешения\s+Store-сессии/u);
-  assert.doesNotMatch(applyContext, /Для Store-level координации передать исходный набор Tasks/u);
 });
 
 test("shipped orchestrator-agent exposes the same governed MCP to every Agent", async () => {

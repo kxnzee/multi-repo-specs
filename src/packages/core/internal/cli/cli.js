@@ -363,9 +363,6 @@ export class CandidateCli {
       } else if (repository.pointer_pending) {
         console.log(`  ⚠ ${CORE_FILES.openSpecConfig} ещё не принят; проверьте и сохраните файл`);
       }
-      if (repository.agent_pack_pending) {
-        console.log("  ⚠ OpenSpec commands/skills ещё не приняты; проверьте и сохраните файл");
-      }
     }
     console.log(formatStatusHeading("Локальное подключение", result.status));
   }
