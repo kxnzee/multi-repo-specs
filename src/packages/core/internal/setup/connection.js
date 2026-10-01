@@ -28,7 +28,6 @@ export class RepositoryConnection {
   get revision() { return this.#value.revision; }
   get cloned() { return this.#value.cloned; }
   get pointerCreated() { return this.#value.pointerCreated; }
-  get agentPackPending() { return this.#value.agentPackPending ?? false; }
   get pointerPending() { return this.#value.pointerPending; }
   get status() { return this.#value.status; }
 }
@@ -61,7 +60,6 @@ export class ConnectionResult {
 
 /** Подключает текущую машину через Core domain и scoped infrastructure facades. */
 export class ConnectionService {
-  #packs;
   #git;
   #openspec;
   #pointers;
@@ -70,7 +68,6 @@ export class ConnectionService {
   #workspace;
 
   constructor({
-    agentPackService,
     gitService = git,
     openSpecService = openspec,
     pointerService = pointers,
@@ -78,7 +75,6 @@ export class ConnectionService {
     storeProjectService = storeProjects,
     workspaceService = workspace,
   } = {}) {
-    this.#packs = agentPackService;
     this.#git = gitService;
     this.#openspec = openSpecService;
     this.#pointers = pointerService;
@@ -124,13 +120,11 @@ export class ConnectionService {
     });
     await workspaceModel.ensureRepositoriesRoot();
     if (project.specsRepositories.length > 0) await workspaceModel.ensureSpecsRoot();
-    const agentPackPlan = await this.#packs?.plan(storeProject);
     const repositories = [];
     for (const [index, repository] of project.attachedRepositories.entries()) {
       const prefix = `[${index + 1}/${project.attachedRepositories.length}] ${repository.id}`;
       const connected = await this.#connectRepository({
         repository,
-        agentPackPlan,
         workspaceModel,
         storeId: metadata.id,
         storeRoot,
@@ -152,7 +146,6 @@ export class ConnectionService {
 
   async #connectRepository({
     repository,
-    agentPackPlan,
     workspaceModel,
     storeId,
     storeRoot,
@@ -174,13 +167,10 @@ export class ConnectionService {
       return new RepositoryConnection({
         id: repository.id, role: repository.role, storeId: target.store.id,
         path: checkout.root, cloned,
-        pointerCreated: null, pointerPending: null, agentPackPending: false, status: "ready",
+        pointerCreated: null, pointerPending: null, status: "ready",
       });
     }
-    await agentPackPlan?.check(checkout.root);
     const pointerCreated = await this.#pointers.connect(checkout, storeId);
-    const installed = await agentPackPlan?.install(checkout.root);
-    const agentPackPending = (installed?.length ?? 0) > 0;
     const pointerPending = pointerCreated;
     onProgress("проверка OpenSpec pointer...");
     const repositoryOpenSpec = this.#openspec.forRepository(checkout);
@@ -198,8 +188,7 @@ export class ConnectionService {
       cloned,
       pointerCreated,
       pointerPending,
-      agentPackPending,
-      status: pointerPending || agentPackPending ? "files_changed" : "ready",
+      status: pointerPending ? "files_changed" : "ready",
     });
   }
 

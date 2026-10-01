@@ -94,7 +94,8 @@ openspec-orch init /absolute/path/to/workspace/specs \
 путь и локальный реестр OpenSpec. При конфликте остальные параметры ещё не запрашиваются.
 В non-TTY обязательны `--store` и `--agent`.
 
-Template `default` добавляет Extensions `spec-driven-extended` и `superpowers`. Plugins
+Template `default` добавляет Extensions `openspec-apply`, `project-context`,
+`spec-driven-extended` и `superpowers`. Plugins
 подключаются отдельно.
 
 ### Альтернатива: инициализация через MCP
@@ -215,19 +216,27 @@ openspec-orch doctor
 Отсутствующие Code Repositories клонируются в `<workspace>/src/`. Существующие
 каталоги используются без обновления и без проверок Git origin, ветки или чистоты.
 
-`connect` доставляет из Store OpenSpec-команды и skills выбранного Agent в каждый
-Code Repository, а workflow Extensions подключает по ролям из их `targets`.
-Создание команд, skills или OpenSpec pointer даёт результат `files_changed`.
-Сохраните их по процессу команды. Повторный `connect` не считает совпадающие файлы
-новыми и не проверяет, закоммичены ли они. Настройки Agent и
-пользовательские commands/skills не копируются. Отличающиеся файлы OpenSpec
-останавливают доставку с `AGENT_PACK_CONFLICT`: сначала согласуйте их обновление
-со Store. `disconnect` отключает native Extensions, сохраняя доставленные файлы.
+`connect` создаёт в Code Repository только OpenSpec pointer, после чего native
+Extension lifecycle подключает выбранные Extensions по их `targets`. Полный набор
+встроенных `openspec-*` skills и `opsx-*` commands остаётся в Store. В Code
+Repository Code-only Extension `openspec-apply` предоставляет единственную точку
+входа Apply и получает Change, assignment и progress через Orchestrator MCP.
 
-`doctor` проверяет весь доставляемый Agent Pack: отсутствующие, локально изменённые
-и больше не поставляемые OpenSpec-команды и skills. Он показывает пути с
-`AGENT_PACK_DRIFT`, но ничего не обновляет и не удаляет. Решение об очистке остаётся
-за пользователем.
+Orchestrator не копирует workflow-файлы в checkout и не считает их частью Git diff.
+`disconnect` отключает native Extensions средствами выбранного Agent. `doctor`
+проверяет их через тот же native lifecycle.
+
+Если Repository подключался старой версией Orchestrator, в нём могут остаться ранее
+скопированные `.claude/.qwen/.gigacode` OpenSpec commands и skills. Новая версия их
+не обновляет и не удаляет автоматически: сначала проверьте `git status` и историю,
+удалите только подтверждённые generated-файлы отдельным reviewable commit, затем
+повторите `connect` и `doctor`. Локально изменённые или командные файлы сохраняйте.
+Для существующего Store сначала добавьте новую Extension в Project и подключите её:
+
+```bash
+openspec-orch extension init openspec-apply
+openspec-orch extension connect openspec-apply
+```
 
 Для другой раскладки один раз передайте workspace:
 
@@ -277,11 +286,15 @@ qwen
 ```
 
 Для GigaCode запустите `gigacode`, для Claude — `claude`. Затем вызовите
-`/opsx-apply <change-id>` в Qwen/GigaCode или `/opsx:apply <change-id>` в Claude.
+`/opsx-apply <change-id>` в Qwen/GigaCode или
+`/openspec-apply:opsx-apply <change-id>` в Claude.
 Agent-сессия должна изменять только текущий Code Repository. Не выдавайте
 Store-сессии доступ на запись в соседние checkout ради обхода `filesystem guard`.
 
 Если Change назначен нескольким Code Repositories, повторите запуск отдельной
 сессии и Apply в каждом из них. Apply выбирает только задачи секции текущего
 репозитория; несовпадение текущего checkout с Repository Impact или Tasks является
-блокирующей ошибкой.
+блокирующей ошибкой. Одна итерация реализует одну Task, показывает diff и тесты и
+останавливается перед commit. Только после явного согласия человека создаётся один
+task-scoped commit и progress записывается через MCP; следующая Task начинается
+отдельной итерацией.

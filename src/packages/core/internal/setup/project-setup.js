@@ -52,7 +52,6 @@ function connectionResult(value) {
       ...(repository.storeId ? { store_id: repository.storeId, clean: repository.clean } : {}),
       pointer_created: repository.pointerCreated,
       pointer_pending: repository.pointerPending,
-      ...(repository.agentPackPending ? { agent_pack_pending: true } : {}),
       status: repository.status,
     }))),
   });

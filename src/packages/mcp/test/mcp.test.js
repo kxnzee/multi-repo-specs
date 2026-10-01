@@ -101,6 +101,7 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
     "get_status",
     "get_setup_context",
     "get_change_context",
+    "read_spec_resource",
     "get_next_action",
     "get_assignment_scope",
     "get_doctor_report",
@@ -340,6 +341,15 @@ test("MCP exposes the exact governed surface and completes a real handshake", as
   assert.match(pluginValue.context_revision, /^[a-f0-9]{64}$/u);
   assert.deepEqual((await client.listResources()).resources, resources);
   assert.equal((await client.readResource({ uri: resources[0].uri })).contents[0].text, "# Payments");
+  const resourceTool = await client.callTool({
+    name: "read_spec_resource", arguments: { uri: resources[0].uri },
+  });
+  assert.equal(JSON.parse(resourceTool.content[0].text).text, "# Payments");
+  for (const args of [{}, { uri: "" }, { uri: 42 }, { uri: resources[0].uri, path: "/tmp/spec.md" }]) {
+    const rejected = await client.callTool({ name: "read_spec_resource", arguments: args });
+    assert.equal(rejected.isError, true);
+    assert.match(rejected.content[0].text, /MCP_TOOL_INPUT_INVALID/u);
+  }
 });
 
 test("every advertised MCP tool dispatches to its matching application method", async (t) => {
@@ -347,6 +357,7 @@ test("every advertised MCP tool dispatches to its matching application method", 
     ["get_status", "getStatus", {}],
     ["get_setup_context", "getSetupContext", {}],
     ["get_change_context", "getChangeContext", { change_id: "pay" }],
+    ["read_spec_resource", "readSpecResource", { uri: "openspec-orch://store/specs/openspec/config.yaml" }],
     ["get_next_action", "getNextAction", {}],
     ["get_assignment_scope", "getAssignmentScope", {}],
     ["get_doctor_report", "getDoctorReport", {}],
@@ -384,7 +395,7 @@ test("every advertised MCP tool dispatches to its matching application method", 
     const result = await client.callTool({ name, arguments: args });
     const value = JSON.parse(result.content[0].text);
     assert.equal(value.method, method);
-    if (name.startsWith("get_")) assert.match(value.context_revision, /^[a-f0-9]{64}$/u);
+    if (name.startsWith("get_") || name === "read_spec_resource") assert.match(value.context_revision, /^[a-f0-9]{64}$/u);
     else assert.equal(value.context_revision, undefined);
   }
   assert.deepEqual(

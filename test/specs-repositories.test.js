@@ -16,7 +16,6 @@ import {
   PluginLoader, ProcessService, repositoryStatuses, storeProjects,
 } from "@openspec-orch/core";
 
-import { AgentPackPlan } from "../src/packages/core/internal/agents/agent-pack.js";
 import { createDirectoryLink } from "../src/packages/core/fixtures/filesystem.js";
 import { OrchestratorMcpRuntime } from "../src/bin/internal/orchestrator-mcp-runtime.js";
 import { OpenSpecGraphApplication } from "../plugins/openspec-graph/lib/application.js";
@@ -105,9 +104,6 @@ async function scenario(t, { sharedStoreId = false } = {}) {
   const setupCalls = [];
   const connection = new ConnectionService({
     gitService: new GitService(processService),
-    agentPackService: { plan: async () => new AgentPackPlan([
-      { relative: ".qwen/commands/project.md", contents: "manager instructions" },
-    ]) },
     openSpecService: { forRepository(checkout) {
       setupCalls.push(checkout.root);
       assert.equal(checkout.repository.isSpecs(), false);

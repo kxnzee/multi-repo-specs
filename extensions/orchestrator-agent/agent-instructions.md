@@ -5,6 +5,11 @@ Change, Repository, Doctor и доступных Plugin capabilities. Норма
 Store читай через предоставляемые им ресурсы. `get_change_context.resources`
 содержит артефакты текущего Change, `shared_resources` — конфигурацию, контекст
 и Master Specs.
+Текст получай вызовом `read_spec_resource({ uri })` с точным URI из descriptor.
+Для Apply поле `context_resources` сопоставляет каждую группу `contextFiles`
+с ресурсами: прочитай все перечисленные файлы через этот tool до реализации.
+Пути в OpenSpec instructions не разрешают прямой файловый доступ к Store из Code
+Repository. При недоступном ресурсе или tool остановись без файлового или CLI fallback.
 Descriptors содержат `_meta.content_revision`: при обновлении Work Context
 перечитывай изменившиеся нужные ресурсы; удалённый ресурс не сохраняй как актуальный.
 

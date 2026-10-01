@@ -20,22 +20,6 @@ test("DoctorService reuses read-only status services and keeps checking after fa
     store: Object.freeze({ id: "specs" }),
   });
   const service = new DoctorService({
-    agentPackService: {
-      async plan(project) {
-        assert.equal(project, storeProject);
-        return {
-          async inspect(root) {
-            return root === "/workspace/frontend"
-              ? {
-                missing: [".agent/commands/opsx-apply.md"],
-                changed: [".agent/skills/openspec-apply/SKILL.md"],
-                retired: [".agent/skills/openspec-base-apply-context"],
-              }
-              : { missing: [], changed: [], retired: [] };
-          },
-        };
-      },
-    },
     start: "/workspace/specs",
     storeProjectService: {
       async resolve(start) {
@@ -150,8 +134,7 @@ test("DoctorService reuses read-only status services and keeps checking after fa
 
   assert.deepEqual(stages, [
     "Проверка Store...", "Проверка Store packages...", "Проверка OpenSpec...",
-    "Проверка Repositories...", "Проверка Agent Packs...",
-    "Проверка Standalone Extensions...", "Проверка Plugins...",
+    "Проверка Repositories...", "Проверка Standalone Extensions...", "Проверка Plugins...",
   ]);
   for (const [index, operation] of [
     "store", "packages", "openspec-version", "repositories", "extensions", "plugins",
@@ -162,7 +145,7 @@ test("DoctorService reuses read-only status services and keeps checking after fa
 
   assert.equal(report instanceof DiagnosticReport, true);
   assert.equal(report.status, "blocked");
-  assert.deepEqual(report.summary, { pass: 5, warning: 3, error: 3, skipped: 0 });
+  assert.deepEqual(report.summary, { pass: 5, warning: 2, error: 3, skipped: 0 });
   assert.deepEqual(report.checks.map(({ id, outcome }) => ({ id, outcome })), [
     { id: "store", outcome: "pass" },
     { id: "packages", outcome: "warning" },
@@ -170,7 +153,6 @@ test("DoctorService reuses read-only status services and keeps checking after fa
     { id: "repository:specs", outcome: "pass" },
     { id: "repository:frontend", outcome: "warning" },
     { id: "repository:backend", outcome: "error" },
-    { id: "agent-pack:frontend", outcome: "warning" },
     { id: "extension:spec-driven-extended:specs", outcome: "error" },
     { id: "extension:superpowers:specs", outcome: "pass" },
     { id: "plugin:codegraph:frontend", outcome: "pass" },
@@ -179,14 +161,6 @@ test("DoctorService reuses read-only status services and keeps checking after fa
   assert.equal(calls.some(([operation]) => operation === "plugins"), true);
   assert.equal(calls.some(([operation]) => operation === "extensions"), true);
   assert.equal(report.checks[1].code, "PACKAGE_RUNTIME_STALE");
-  assert.equal(report.checks[6].code, "AGENT_PACK_DRIFT");
-  assert.match(report.checks[6].message, /Doctor ничего не изменяет/u);
-  assert.deepEqual(report.checks[6].details, {
-    path: "/workspace/frontend",
-    missing: ".agent/commands/opsx-apply.md",
-    changed: ".agent/skills/openspec-apply/SKILL.md",
-    retired: ".agent/skills/openspec-base-apply-context",
-  });
   assert.deepEqual(
     calls.find(([operation]) => operation === "repositories"),
     ["repositories", { start: "/workspace/specs", repositoryIds: ["specs"] }],

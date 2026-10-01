@@ -27,7 +27,6 @@ export { DiagnosticReport, DiagnosticResult } from "./diagnostic-report.js";
 
 /** Aggregates existing read-only services without changing their contracts. */
 export class DoctorService {
-  #agentPacks;
   #extensions;
   #openspec;
   #packages;
@@ -37,7 +36,6 @@ export class DoctorService {
   #storeProjects;
 
   constructor({
-    agentPackService,
     extensionStatusService,
     openSpecService = openspec,
     packageSupplyService = packageSupplies,
@@ -58,9 +56,6 @@ export class DoctorService {
     if (!hasMethods(packageSupplyService, ["forStore"])) {
       throw new Error("DOCTOR_INVALID: package supply должен предоставлять forStore");
     }
-    if (agentPackService && !hasMethods(agentPackService, ["plan"])) {
-      throw new Error("DOCTOR_INVALID: Agent Pack service должен предоставлять plan");
-    }
     if (extensionStatusService && !hasMethods(extensionStatusService, ["diagnoseSelected"])) {
       throw new Error("DOCTOR_INVALID: Extension status должен предоставлять diagnoseSelected");
     }
@@ -68,7 +63,6 @@ export class DoctorService {
       throw new Error("DOCTOR_INVALID: Plugin status должен предоставлять diagnoseSelected");
     }
     if (typeof start !== "string") throw new Error("DOCTOR_INVALID: start должен быть строкой");
-    this.#agentPacks = agentPackService;
     this.#extensions = extensionStatusService;
     this.#openspec = openSpecService;
     this.#packages = packageSupplyService;
@@ -92,7 +86,6 @@ export class DoctorService {
         skippedDiagnostic("packages", "Store packages"),
         skippedDiagnostic("openspec", "OpenSpec"),
         skippedDiagnostic("repositories", "Repositories"),
-        ...(this.#agentPacks ? [skippedDiagnostic("agent-packs", "Agent Packs")] : []),
         skippedDiagnostic("extensions", "Standalone Extensions"),
         skippedDiagnostic("plugins", "Plugins"),
       ]);
@@ -102,10 +95,6 @@ export class DoctorService {
       ["packages", "Store packages", "PACKAGE_SUPPLY_UNAVAILABLE", () => this.#inspectPackages(storeProject)],
       ["openspec", "OpenSpec", "OPENSPEC_UNAVAILABLE", () => this.#inspectOpenSpec(storeProject)],
       ["repositories", "Repositories", "REPOSITORY_STATUS_UNAVAILABLE", () => this.#inspectRepositories(storeProject, repositoryIds)],
-      ...(this.#agentPacks ? [[
-        "agent-packs", "Agent Packs", "AGENT_PACK_STATUS_UNAVAILABLE",
-        () => this.#inspectAgentPacks(storeProject, repositoryIds),
-      ]] : []),
       ["extensions", "Standalone Extensions", "EXTENSION_STATUS_UNAVAILABLE", () => this.#inspectExtensions()],
       ["plugins", "Plugins", "PLUGIN_STATUS_UNAVAILABLE", () => this.#inspectPlugins(storeProject)],
     ];
@@ -146,44 +135,6 @@ export class DoctorService {
   async #inspectRepositories(storeProject, repositoryIds) {
     return (await this.#repositories.inspect({ start: storeProject.root, repositoryIds }))
       .map(repositoryDiagnostic);
-  }
-
-  /** Reports all Agent Pack differences but leaves every change to the user. */
-  async #inspectAgentPacks(storeProject, repositoryIds) {
-    const [plan, repositories] = await Promise.all([
-      this.#agentPacks.plan(storeProject),
-      this.#repositories.inspect({ start: storeProject.root, repositoryIds }),
-    ]);
-    const connected = repositories.filter(({ role, state }) => role === "code" && state === "connected");
-    if (connected.length === 0) {
-      return groupDiagnostic("agent-packs", "Agent Packs", "pass", "Подключённые Code Repository отсутствуют");
-    }
-    return Promise.all(connected.map(async ({ id, path: repositoryRoot }) => {
-      const differences = await plan.inspect(repositoryRoot);
-      const subject = `Agent Pack → ${id}`;
-      if (Object.values(differences).every((items) => items.length === 0)) {
-        return new DiagnosticResult({
-          id: `agent-pack:${id}`,
-          subject,
-          outcome: "pass",
-          message: "Commands и skills соответствуют текущему Store pack",
-        });
-      }
-      return new DiagnosticResult({
-        id: `agent-pack:${id}`,
-        subject,
-        outcome: "warning",
-        code: "AGENT_PACK_DRIFT",
-        message: "Agent Pack отличается от текущего Store. Doctor ничего не изменяет: " +
-          "проверьте перечисленные пути и самостоятельно решите, что обновлять или удалять.",
-        details: {
-          path: repositoryRoot,
-          missing: differences.missing.join(", "),
-          changed: differences.changed.join(", "),
-          retired: differences.retired.join(", "),
-        },
-      });
-    }));
   }
 
   async #inspectExtensions() {
