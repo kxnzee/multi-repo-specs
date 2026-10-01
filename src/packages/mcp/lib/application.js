@@ -45,4 +45,5 @@ export class OrchestratorMcpApplication {
   invokeAgentTool(name, input = {}) { return this.#runtime.invokeAgentTool(name, input); }
   listResources() { return this.#runtime.listResources(); }
   readResource(uri) { return this.#runtime.readResource(uri); }
+  readSpecResource({ uri }) { return this.readResource(uri); }
 }

@@ -8,11 +8,15 @@ Extension `openspec-apply` — Code-only точка входа реализац�
 `/openspec-apply:opsx-apply <change-id>`. Команда получает Apply instructions,
 assignment и opaque task IDs через MCP `openspec-orchestrator`. При недоступном MCP
 она останавливается без CLI или файлового fallback к Store.
+Перед реализацией команда читает все артефакты из `context_resources` и относящиеся
+к задаче Master Specs из `shared_resources` через MCP tool `read_spec_resource`.
+Каталог ресурсов не заменяет их текст. Пути `contextFiles` остаются метаданными;
+их сопоставление с URI выполняет сервер. Отсутствие ресурса или tool блокирует Apply.
 
 Одна итерация выполняет одну Task текущего Repository:
 
 1. проверяет Change, assignment и checkout;
-2. реализует Task и запускает относящиеся проверки;
+2. читает спецификации через MCP, реализует Task и запускает относящиеся проверки;
 3. показывает человеку diff, результаты и предлагаемый commit;
 4. ждёт явного согласия на этот commit;
 5. создаёт один task-scoped commit и только затем отмечает Task через

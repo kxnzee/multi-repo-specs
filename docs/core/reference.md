@@ -170,6 +170,10 @@ MCP-процесс.
   вернуть `assignment_scope` в том же ответе без повторной оболочки проекта и второй
   компиляции влияния Graph. `resources` содержит артефакты выбранного Change,
   `shared_resources` — общие инструкции, контекст и Master Specs Store;
+- `read_spec_resource` — принимает точный `uri` опубликованного ресурса и возвращает
+  его текст, descriptor и `_meta.content_revision`. Использует тот же ограниченный
+  reader, что MCP `resources/read`; файловые пути и неопубликованные файлы не допускаются.
+  Поддерживает `if_context_revision` для условного чтения;
 - `get_next_action` — учитывает прогресс Apply перед предложением следующего
   артефакта: незавершённые задачи дают `apply_change`, неизвестный или противоречивый
   прогресс — `consult_change_context`. Доступный Verify предлагается после
@@ -182,6 +186,14 @@ MCP-процесс.
 - `get_spec_change_impact` — Specs и Repositories, затронутые Change; обязательный `change_id`.
 - `codegraph_explore` — source и call paths одного Repository с подключённым
   CodeGraph; обязательны `repository_id` и один конкретный `query`.
+
+В `get_change_context` поле `context_resources` сопоставляет ключи OpenSpec
+`artifact_instructions.contextFiles` с массивами resource descriptors, сохраняя
+порядок файлов. Если `contextFiles` отсутствует, значение равно `null`.
+Пути разрешаются сервером относительно Store; неизвестный или неопубликованный
+файл вызывает `MCP_CONTEXT_RESOURCE_UNAVAILABLE`, несовместимая структура —
+`MCP_CONTEXT_RESOURCE_INVALID`. Исходные OpenSpec instructions сохраняются.
+Агент читает текст через `read_spec_resource` по готовым URI, а не через filesystem.
 
 Запись прогресса Apply:
 

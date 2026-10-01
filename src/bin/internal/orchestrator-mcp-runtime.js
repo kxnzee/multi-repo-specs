@@ -1,6 +1,7 @@
 /** @fileoverview Distribution composition for the built-in Orchestrator Agent API. */
 
 import { createHash } from "node:crypto";
+import path from "node:path";
 
 import {
   createRepositoryCheckout,
@@ -43,6 +44,28 @@ function projectJson(storeProject, invocation) {
       }))),
     }),
   });
+}
+
+/** Maps OpenSpec context files to published resources without exposing a filesystem fallback. */
+function contextResources(instructions, resources, storeRoot) {
+  const contextFiles = instructions?.contextFiles;
+  if (contextFiles === undefined) return null;
+  if (!contextFiles || typeof contextFiles !== "object" || Array.isArray(contextFiles)) {
+    throw new Error("MCP_CONTEXT_RESOURCE_INVALID: contextFiles должен быть объектом массивов путей");
+  }
+  const byPath = new Map(resources.map((resource) => [path.resolve(storeRoot, resource.name), resource]));
+  return Object.freeze(Object.fromEntries(Object.entries(contextFiles).map(([artifact, paths]) => {
+    if (!Array.isArray(paths) || paths.some((value) => typeof value !== "string" || !value)) {
+      throw new Error(`MCP_CONTEXT_RESOURCE_INVALID: contextFiles.${artifact} должен быть массивом путей`);
+    }
+    return [artifact, Object.freeze(paths.map((file) => {
+      const resource = byPath.get(path.resolve(storeRoot, file));
+      if (!resource) {
+        throw new Error(`MCP_CONTEXT_RESOURCE_UNAVAILABLE: contextFiles.${artifact}: ${file}`);
+      }
+      return resource;
+    }))];
+  })));
 }
 
 /** Resolves current state for every request so a long-lived Agent never sees stale Project data. */
@@ -216,14 +239,15 @@ export class OrchestratorMcpRuntime {
     const repositoryOpenSpec = this.#openSpec.forRepository(state.storeProject.checkout);
     const resources = await this.#resourceService(state).list({ changeId });
     const changePrefix = `openspec/changes/${changeId}/`;
+    const status = await repositoryOpenSpec.changeStatus(changeId);
+    const instructions = artifact ? await repositoryOpenSpec.artifactInstructions(changeId, artifact) : null;
     const result = Object.freeze({
       ...projectJson(state.storeProject, state.invocation),
       change_id: changeId,
       artifact: artifact ?? null,
-      openspec_status: await repositoryOpenSpec.changeStatus(changeId),
-      artifact_instructions: artifact
-        ? await repositoryOpenSpec.artifactInstructions(changeId, artifact)
-        : null,
+      openspec_status: status,
+      artifact_instructions: instructions,
+      context_resources: contextResources(instructions, resources, state.storeProject.root),
       resources: Object.freeze(resources.filter(({ name }) => name.startsWith(changePrefix))),
       shared_resources: Object.freeze(resources.filter(({ name }) => !name.startsWith("openspec/changes/"))),
       ...(includeAssignment ? {

@@ -196,6 +196,9 @@ test("shipped openspec-apply is a Code-only one-task human-gated workflow", asyn
   assert.equal(extension.id, "openspec-apply");
   assert.deepEqual(extension.targets, ["code"]);
   assert.match(command, /get_change_context/u);
+  assert.match(command, /context_resources/u);
+  assert.match(command, /read_spec_resource/u);
+  assert.match(command, /не передавай\s+путь в файловые инструменты/u);
   assert.match(command, /set_task_completion/u);
   assert.match(command, /только первую незавершённую Task/u);
   assert.match(command, /согласии создать этот commit/u);

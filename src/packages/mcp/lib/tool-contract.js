@@ -61,6 +61,18 @@ const TOOL_DEFINITIONS = Object.freeze([
     annotations: READ_ONLY_ANNOTATIONS,
   }),
   defineMcpTool({
+    name: "read_spec_resource", applicationMethod: "readSpecResource",
+    description: "Прочитать текст и ревизию опубликованного ресурса Store через MCP. Копируйте uri из get_change_context.context_resources, resources или shared_resources. Файловые пути не принимаются; прямое чтение Store из Code Repository не требуется.",
+    inputSchema: Object.freeze({
+      type: "object",
+      properties: Object.freeze({
+        uri: Object.freeze({ ...NON_EMPTY_STRING_SCHEMA, description: "Точный URI опубликованного ресурса openspec-orch://; не файловый путь." }),
+      }),
+      required: ["uri"], additionalProperties: false,
+    }),
+    annotations: READ_ONLY_ANNOTATIONS,
+  }),
+  defineMcpTool({
     name: "get_next_action", applicationMethod: "getNextAction",
     description: "Прочитать рекомендуемое следующее действие OpenSpec и ответственного участника для Change в основном Store. Действие не выполняется. Без change_id возвращает доступные Changes для выбора пользователем.",
     inputSchema: CHANGE_SCHEMA, annotations: READ_ONLY_ANNOTATIONS,
