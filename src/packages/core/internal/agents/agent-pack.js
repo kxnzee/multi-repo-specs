@@ -6,6 +6,11 @@ import path from "node:path";
 import { lstatOrNull } from "../infrastructure/fs.js";
 import { isContainedPath } from "../infrastructure/path.js";
 
+/** Ignore checkout CRLF conversion while preserving all other content differences. */
+function normalizeLineEndings(contents) {
+  return contents.replaceAll("\r\n", "\n");
+}
+
 /** Checks every existing path component, including parent directories. */
 async function safePath(root, relative, { create = false } = {}) {
   const target = path.resolve(root, relative);
@@ -64,7 +69,10 @@ export class AgentPackPlan {
       const target = await safePath(root, relative);
       const stat = await lstatOrNull(target);
       if (!stat) missing.push(relative);
-      else if (!stat.isFile() || await fs.readFile(target, "utf8") !== contents) changed.push(relative);
+      else if (!stat.isFile()
+        || normalizeLineEndings(await fs.readFile(target, "utf8")) !== normalizeLineEndings(contents)) {
+        changed.push(relative);
+      }
     }
     const retired = [];
     for (const { directory, kind, prefix, suffix } of this.managedEntries) {
