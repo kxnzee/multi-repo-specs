@@ -200,6 +200,37 @@ test("connect delivers the pack, tolerates an identical pending pack and reports
   assert.equal(await fs.readFile(path.join(checkout, relative), "utf8"), "User customization");
 });
 
+test("connect accepts an Agent Pack checked out by Git with core.autocrlf=true", async (t) => {
+  const scenario = await connectionScenario(t, { pointer: true });
+  const relative = ".claude/commands/opsx/apply.md";
+  const contents = "# Apply\n\nRun checks.\n";
+  const plan = new AgentPackPlan([{ relative, contents }]);
+  const service = connectionFixture(connectExecutor(scenario).executor, { plan: async () => plan });
+  const connect = () => service.connect({ start: scenario.storeRoot });
+  await connect();
+  const checkout = path.join(scenario.workspaceRoot, "src/api");
+  const target = path.join(checkout, relative);
+  // Explicit attributes make the checkout independent of host/global Git EOL settings.
+  await fs.writeFile(path.join(checkout, ".gitattributes"), `${relative} text eol=crlf\n`);
+  await execa("git", ["-C", checkout, "-c", "core.autocrlf=true", "add", relative, ".gitattributes"]);
+  await execa("git", ["-C", checkout, "-c", "user.name=Test", "-c", "user.email=test@example.test",
+    "commit", "-m", "Accept pack with Windows line endings"]);
+  await fs.unlink(target);
+  await execa("git", ["-C", checkout, "-c", "core.autocrlf=true", "checkout-index", "--force", "--", relative]);
+  const checkedOut = contents.replaceAll("\n", "\r\n");
+  assert.equal(await fs.readFile(target, "utf8"), checkedOut);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await connect();
+    assert.equal(result.status, "ready");
+    assert.equal(result.repositories[0].agentPackPending, false);
+    assert.equal(await fs.readFile(target, "utf8"), checkedOut);
+  }
+  const customized = checkedOut.replace("Run checks.", "Skip checks.");
+  await fs.writeFile(target, customized);
+  await assert.rejects(connect(), /AGENT_PACK_CONFLICT/u);
+  assert.equal(await fs.readFile(target, "utf8"), customized);
+});
+
 test("ConnectionService registers Store, clones Repository and creates pointer", async (t) => {
   const scenario = await connectionScenario(t);
   const fake = connectExecutor(scenario, { diagnostic: "project config warning" });
