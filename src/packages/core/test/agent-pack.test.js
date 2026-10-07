@@ -23,6 +23,48 @@ test("pack installs missing files, preserves unrelated files and repeats without
   assert.equal(await fs.readFile(path.join(root, "README.md"), "utf8"), "user");
 });
 
+test("pack accepts LF and CRLF differences without rewriting existing commands or skills", async (t) => {
+  const root = await fixture(t);
+  const entries = [
+    { relative: ".agent/commands/opsx-apply.md", contents: "# Apply\n\nKeep  spaces.\n", local: "# Apply\r\n\r\nKeep  spaces.\r\n" },
+    { relative: ".agent/skills/openspec-apply/SKILL.md", contents: "# Apply\r\n\r\nKeep  spaces.\r\n", local: "# Apply\n\nKeep  spaces.\n" },
+    { relative: ".agent/commands/opsx-verify.md", contents: "# Verify\n\nChecks\n", local: "# Verify\r\n\nChecks\r\n" },
+  ];
+  for (const { relative, local } of entries) {
+    await fs.mkdir(path.dirname(path.join(root, relative)), { recursive: true });
+    await fs.writeFile(path.join(root, relative), local);
+  }
+  const plan = new AgentPackPlan(entries.map(({ relative, contents }) => ({ relative, contents })));
+  assert.deepEqual(await plan.inspect(root), { missing: [], changed: [], retired: [] });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    assert.deepEqual(await plan.install(root), []);
+  }
+  for (const { relative, local } of entries) {
+    assert.equal(await fs.readFile(path.join(root, relative), "utf8"), local);
+  }
+});
+
+test("pack still rejects content and whitespace changes when line endings differ", async (t) => {
+  const root = await fixture(t);
+  const contents = "# Apply\nRun checks.\n";
+  const plan = new AgentPackPlan([
+    { relative: "missing.md", contents }, { relative: "existing.md", contents },
+  ]);
+  for (const local of [
+    "# Apply\r\nSkip checks.\r\n", // Changed instruction.
+    "# Apply\r\nRun  checks.\r\n", // Changed internal whitespace.
+    "# Apply\r\nRun checks. \r\n", // Changed trailing whitespace.
+    "# Apply\r\nRun checks.", // Removed final newline.
+    "# Apply\rRun checks.\r", // Standalone CR is not CRLF.
+  ]) {
+    await fs.writeFile(path.join(root, "existing.md"), local);
+    assert.deepEqual(await plan.inspect(root), { missing: ["missing.md"], changed: ["existing.md"], retired: [] });
+    await assert.rejects(plan.install(root), /AGENT_PACK_CONFLICT/u);
+    await assert.rejects(fs.stat(path.join(root, "missing.md")), { code: "ENOENT" });
+    assert.equal(await fs.readFile(path.join(root, "existing.md"), "utf8"), local);
+  }
+});
+
 test("pack reports every managed difference without changing local files", async (t) => {
   const root = await fixture(t);
   const currentSkill = ".agent/skills/openspec-apply/SKILL.md";
