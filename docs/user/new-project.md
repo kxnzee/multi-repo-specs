@@ -8,7 +8,7 @@
 ## 1. Выберите Store ID и каталог
 
 Store ID задаётся один раз, например `specs`. Он записывается в
-`openspec-orch.yaml` и `.openspec-store/store.yaml`, попадает в Git и должен
+`<workspace>/specs/openspec-orch.yaml` и `<workspace>/specs/.openspec-store/store.yaml`, попадает в Git и должен
 совпадать у всех участников. Позже его не меняют.
 
 Проверьте, что ID не занят на этой машине, и создайте пустой каталог:
@@ -77,7 +77,7 @@ openspec-orch doctor
 
 ## 5. Заполните бизнес-контекст
 
-Откройте сессию агента из корня Store и заполните `openspec/context/`:
+Откройте GigaCode из `<workspace>/specs/` и заполните `<workspace>/specs/openspec/context/`:
 назначение продукта, термины, участников, процессы и ограничения. Команды и
 правила описаны в [бизнес-контексте](project-context.md).
 

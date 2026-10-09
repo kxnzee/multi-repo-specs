@@ -5,18 +5,21 @@
 
 ## Что есть в проекте
 
-| Понятие | Что это | Где живёт |
+| Понятие | Что это | Где лежит |
 |---|---|---|
-| Store | Центральный репозиторий спецификаций: Master Specs, Changes, бизнес-контекст, схемы и реестр репозиториев | Отдельный Git-репозиторий, обычно `<workspace>/specs` |
-| Репозиторий кода (Code Repository) | Репозиторий реализации одного компонента. Содержит код, его проверки и указатель на Store | `<workspace>/src/<repository-id>` |
-| Specs Repository | Store другой команды, подключённый только для чтения | `<workspace>/linked-specs/<id>` |
-| Master Spec | Принятый контракт одной capability: Requirements и Scenarios | `openspec/specs/<capability>/spec.md` в Store |
-| Change | Одна доработка: зачем она нужна, дельта требований, план и результат проверки | `openspec/changes/<change-id>/` в Store |
-| Template | Начальный набор файлов Store: контекст, схемы, правила процесса | Копируется в Store при `init` |
-| Schema | Порядок артефактов Change и правила каждого шага | `openspec/schemas/` в Store |
-| Агент | Клиент модели, в этой документации GigaCode. Получает контекст Orchestrator через MCP-шлюз | Устанавливается пользователем |
-| Extension | Инструкции, навыки и команды для агента | Подключается к Store и репозиториям |
-| Plugin | Исполняемая возможность: команды, интеграции, состояние | Подключается к Store и репозиториям |
+| Store | Центральный репозиторий спецификаций: Master Specs, Changes, бизнес-контекст, схемы и реестр репозиториев | `<workspace>/specs/` |
+| Репозиторий кода (Code Repository) | Репозиторий реализации одного компонента. Содержит код, его проверки и указатель на Store | `<workspace>/src/<repository-id>/` |
+| Specs Repository | Store другой команды, подключённый только для чтения | `<workspace>/linked-specs/<id>/` |
+| Master Spec | Принятый контракт одной capability: Requirements и Scenarios | `<workspace>/specs/openspec/specs/<capability>/spec.md` |
+| Change | Одна доработка: зачем она нужна, дельта требований, план и результат проверки | `<workspace>/specs/openspec/changes/<change-id>/` |
+| Бизнес-контекст | Описание продукта для агента | `<workspace>/specs/openspec/context/` |
+| Schema | Порядок артефактов Change и правила каждого шага | `<workspace>/specs/openspec/schemas/` |
+| Template | Начальный набор файлов Store: контекст, схемы, правила процесса | Копируется в `<workspace>/specs/` при `init` |
+| Конфигурация проекта | Агент, плагины, расширения и список репозиториев | `<workspace>/specs/openspec-orch.yaml` |
+| Extension | Инструкции, навыки и команды для агента | Подключается к `<workspace>/specs/` и `<workspace>/src/*/` |
+| Plugin | Исполняемая возможность: команды, интеграции, состояние | Подключается к `<workspace>/specs/` и `<workspace>/src/*/` |
+| Orchestrator | Команда `openspec-orch` и её исходники | `<workspace>/openspec-orchestrator/`, если установлен из Git |
+| Агент | Клиент модели, в этой документации GigaCode. Получает контекст Orchestrator через MCP-шлюз | Устанавливается в систему, шлюз ставится в профиль пользователя |
 
 Capability означает связную возможность продукта, например «восстановление доступа».
 Она может затрагивать несколько репозиториев кода. Отдельный репозиторий, экран
@@ -26,15 +29,15 @@ Capability означает связную возможность продукт
 
 ```text
 <workspace>/
-├── specs/            # Store; здесь запускаются init, connect, doctor
+├── openspec-orchestrator/  # исходники Orchestrator, если установлен из Git
+├── specs/                  # Store; здесь запускаются init, connect, doctor
 ├── src/
-│   ├── frontend/     # репозитории кода; connect клонирует их сюда
+│   ├── frontend/           # репозитории кода; connect клонирует их сюда
 │   └── backend/
-└── linked-specs/     # Store других команд, только чтение
+└── linked-specs/           # Store других команд, только чтение
 ```
 
-Не запускайте `init` в исходниках Orchestrator, в каталоге npm-пакета или в
-репозитории кода. Все команды `openspec-orch` и `openspec` в этой документации
+Все команды `openspec-orch` и `openspec` в этой документации
 выполняются из корня Store, если не сказано иное.
 
 ## Две разные сессии агента
@@ -58,16 +61,3 @@ Store-сессия не получает права записи в репози
 
 Orchestrator не управляет учётными записями, сессиями и разрешениями агента. Template
 не устанавливает плагины. Plugin не меняет шаги, артефакты и задачи OpenSpec.
-
-## Если у вас не GigaCode
-
-Все примеры написаны для GigaCode. Orchestrator поддерживает также Claude и Qwen,
-отличия только в именах:
-
-| Что | GigaCode | Qwen | Claude |
-|---|---|---|---|
-| `--agent` | `gigacode` | `qwen` | `claude` |
-| Запуск клиента | `gigacode` | `qwen` | `claude` |
-| Команды OpenSpec | `/opsx-apply` | `/opsx-apply` | `/opsx:apply` |
-| Бизнес-контекст | `/project-context` | `/project-context` | `/project-context:project-context` |
-| Файл инструкций в Store | `GIGACODE.md` | `QWEN.md` | `CLAUDE.md` |

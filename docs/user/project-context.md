@@ -1,6 +1,6 @@
 # Бизнес-контекст
 
-В `openspec/context/` Store лежит одно описание продукта на все репозитории:
+В `<workspace>/specs/openspec/context/` лежит одно описание продукта на все репозитории:
 назначение, термины, участники, процессы и ограничения. Агент читает его перед
 работой с Change. Контекст помогает понимать требования, но не заменяет
 Requirements и Scenarios из Master Specs.
@@ -64,19 +64,5 @@ Requirements и Scenarios из Master Specs.
 
 Один файл описывает одно принятое решение о границах продукта, ответственности,
 взаимодействиях или ограничениях. Имя файла `NNNN-short-title.md`, шаблон лежит в
-`context/ADR/README.md`. Change для ADR не нужен. Текущее состояние остаётся в
+`<workspace>/specs/openspec/context/ADR/README.md`. Change для ADR не нужен. Текущее состояние остаётся в
 тематическом разделе, ADR объясняет выбор. Непринятое предложение остаётся вопросом.
-
-## Store, созданный до появления project-context
-
-Подключите Extension из корня Store и перезапустите агента:
-
-```bash
-openspec-orch extension init project-context
-openspec-orch extension connect project-context
-```
-
-Прежняя команда `spec-driven-extended-context` больше не поставляется. Перенос
-уже заполненного контекста в новую структуру делается отдельным согласованным изменением
-Store: сохраните существующие знания, проверьте входящие ссылки и не переименовывайте
-файлы молча. Файлы Template обновляются по [миграции Store](maintenance.md#миграция-store).

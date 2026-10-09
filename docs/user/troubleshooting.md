@@ -12,9 +12,9 @@ openspec-orch doctor
 ## Перед восстановлением
 
 1. Остановите команды и процессы агента и MCP, которые используют Store.
-2. Сохраните копию Store вместе с `.openspec-orch/`, вывод `doctor --json`, версии
+2. Сохраните копию `<workspace>/specs/` вместе с `.openspec-orch/`, вывод `doctor --json`, версии
    Node.js, OpenSpec и Orchestrator, точный текст ошибки и `git diff`.
-3. Не удаляйте `.openspec-orch/` целиком: там может быть состояние незавершённой работы.
+3. Не удаляйте `<workspace>/specs/.openspec-orch/` целиком: там может быть состояние незавершённой работы.
 
 ## Ошибки и действия
 

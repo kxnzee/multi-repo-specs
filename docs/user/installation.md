@@ -20,22 +20,28 @@ openspec --version
 
 ### Из Git
 
-Используйте согласованный тег или коммит, а не вершину ветки:
+Исходники кладутся в тот же workspace, что и проект, рядом со Store (см.
+[раскладку каталогов](concepts.md#раскладка-каталогов)). Используйте
+согласованный тег или коммит, а не вершину ветки:
 
 ```bash
-git clone <orchestrator-repository-url> /absolute/path/to/openspec-orchestrator
-cd /absolute/path/to/openspec-orchestrator
+git clone <orchestrator-repository-url> /absolute/path/to/workspace/openspec-orchestrator
+cd /absolute/path/to/workspace/openspec-orchestrator
 git checkout <approved-tag-or-commit>
 npm ci
 npm link
 openspec-orch --version
 ```
 
+Каталог `openspec-orchestrator/` нужен только для установки. Не запускайте в нём
+`init` и не используйте его как Store: Store создаётся отдельно, в
+`<workspace>/specs/`. То же относится к каталогу npm-пакета и к репозиториям кода.
+
 После смены версии Node.js повторите `npm link`. Если глобальная ссылка запрещена,
 запускайте файл напрямую:
 
 ```bash
-node /absolute/path/to/openspec-orchestrator/src/bin/openspec-orch.js --help
+node /absolute/path/to/workspace/openspec-orchestrator/src/bin/openspec-orch.js --help
 ```
 
 ### Из npm-реестра
@@ -81,6 +87,6 @@ openspec-orch agent status --agent gigacode
 после обновления: `agent setup --agent gigacode --refresh`.
 
 Для Claude и Qwen команды те же с другим `--agent`, см.
-[отличия агентов](concepts.md#если-у-вас-не-gigacode).
+[Claude и Qwen](other-agents.md).
 
 Обновление, откат и переход на новую версию описаны в [сопровождении](maintenance.md).

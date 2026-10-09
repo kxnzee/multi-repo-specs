@@ -8,11 +8,11 @@ Planning отвечает на вопросы: что меняется, поче
 
 ## Перед началом
 
-1. В `openspec/context/` есть достаточный для задачи
+1. В `<workspace>/specs/openspec/context/` есть достаточный для задачи
    [бизнес-контекст](../project-context.md).
 2. Есть принятый запрос: Jira Story или согласованный Intent. Понятны наблюдаемый
    результат, границы доработки и то, что должно сохраниться.
-3. Найдены затронутые Master Specs: `openspec/specs/<capability>/spec.md`.
+3. Найдены затронутые Master Specs: `<workspace>/specs/openspec/specs/<capability>/spec.md`.
 
 | Ситуация | Что делать |
 |---|---|
@@ -40,6 +40,8 @@ openspec status --change add-sms-recovery
 | Артефакт `blocked` | Устранить причину или получить решение владельца |
 
 ## Что куда записывается
+
+Все файлы Change лежат в `<workspace>/specs/openspec/changes/<change-id>/`.
 
 | Файл | Содержание |
 |---|---|
@@ -129,7 +131,7 @@ Store, а не команда Orchestrator. Достаточно описать 
    сейчас так делает» и «система должна так делать». По каждому расхождению владелец
    решает: контракт, дефект или неизвестно. Технические подробности (пути, символы,
    вывод тестов) храните вне Store.
-3. **Напишите Master Spec** в `openspec/specs/<capability>/spec.md`: `Purpose` и
+3. **Напишите Master Spec** в `<workspace>/specs/openspec/specs/<capability>/spec.md`: `Purpose` и
    `Requirements`, у каждого Requirement хотя бы один проверяемый Scenario.
    Заголовки `ADDED`/`MODIFIED` здесь не используются. Для ID сценариев согласуйте
    префикс операции, например `baseline-account-recovery-001`.

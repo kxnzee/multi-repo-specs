@@ -44,7 +44,7 @@ openspec-orch plugin status
 ```
 
 Если шлюз не установлен, выполните `openspec-orch agent setup --agent gigacode`.
-Агент должен совпадать с записанным в `openspec-orch.yaml` Store. Затем перезапустите
+Агент должен совпадать с записанным в `<workspace>/specs/openspec-orch.yaml`. Затем перезапустите
 GigaCode.
 
 Итоговый порядок:
@@ -81,7 +81,7 @@ GigaCode.
 
 ## Добавить репозиторий в проект
 
-Список репозиториев хранится в `openspec-orch.yaml` Store. Новый репозиторий
+Список репозиториев хранится в `<workspace>/specs/openspec-orch.yaml`. Новый репозиторий
 добавляется изменением этого файла через ревью Store, после чего все участники
 выполняют `connect`.
 
