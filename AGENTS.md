@@ -19,6 +19,15 @@ compilation step, application server, database or provider account.
    the local OpenSpec PATH and disable telemetry/update checks without changing
    the user's global configuration.
 
+## Установка силами агента
+
+Если пользователь просит установить Orchestrator, развернуть воркспейс или
+подключить Store, репозитории кода и агента, выполни
+`docs/user/agent-install.md` (в чекауте есть команда `/setup-workspace` для Claude, Qwen и GigaCode; она не поставляется в Store). Корень
+воркспейса — родитель этого чекаута. Это пользовательский сценарий, а не
+разработка Orchestrator: не запускай `init`, `connect` и `agent setup` в этом
+чекауте и не меняй из-за него код.
+
 ## Find the owning layer
 
 | Area | Implementation | Tests |
