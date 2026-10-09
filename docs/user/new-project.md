@@ -1,6 +1,7 @@
 # Создание нового проекта
 
-Этот документ для того, кто впервые заводит Store для продукта. Если Store уже
+Этот документ для того, кто впервые заводит Store для продукта. Ниже описана
+настройка из терминала; то же самое можно сделать [через агента](setup-via-agent.md). Если Store уже
 есть, используйте [подключение к существующему проекту](join-project.md).
 
 Перед началом выполните [установку](installation.md).
@@ -104,46 +105,8 @@ remote, указанный в `--store-remote`, по процессу коман
 
 Следующий шаг: [первый Change](change/README.md).
 
-## Альтернатива: инициализация из сессии агента
+## Альтернатива: через агента
 
-Ту же инициализацию можно выполнить через MCP-инструменты. Они работают только
-в каталоге, из которого открыта сессия агента.
-
-1. Установите [шлюз агента](installation.md#4-шлюз-агента) и перезапустите агента.
-2. Откройте новую сессию агента из пустого каталога Store.
-3. Попросите агента вызвать `get_setup_context` с пустым объектом и проверьте:
-   - `cwd` совпадает с корнем Store;
-   - в `constraints` указаны `fixed_cwd: true` и `target_role: store`;
-   - нужные агент и Template есть в `choices.agents[].id` и `choices.templates[].id`;
-   - текущий каталог не входит в `constraints.forbidden_targets`.
-4. Если `cwd` неверный, не продолжайте: закройте сессию и откройте её в корне
-   Store. Сменить каталог аргументом нельзя; вызов из неверного каталога вернёт
-   `INIT_TARGET_INVALID`.
-5. Вызовите `initialize_project`:
-
-```json
-{
-  "store_id": "specs",
-  "agent_id": "gigacode",
-  "template_id": "default",
-  "store_remote": "ssh://git.example.org/product/specs.git",
-  "store_default_branch": "main",
-  "repositories": [
-    {
-      "repository_id": "frontend",
-      "remote": "ssh://git.example.org/product/frontend.git",
-      "default_branch": "main",
-      "description": "Личный кабинет клиента. React и TypeScript."
-    }
-  ]
-}
-```
-
-Обязательны только `store_id` и `agent_id`. В `repositories` перечисляются только
-репозитории кода. Необязательный массив `extensions` добавляет standalone
-Extensions. Свой путь к Template и `--workspace` через MCP не поддерживаются.
-
-6. Затем `connect_project` с пустым объектом и `get_doctor_report`. Перед
-   `connect_project` подтвердите клонирование репозиториев.
-
-Дальше выполните шаги 5–7 выше.
+Те же шаги можно выполнить, попросив об этом GigaCode: агент создаст Store и
+подключит проект через MCP. Порядок описан в
+[настройке через агента](setup-via-agent.md#2-новый-проект).

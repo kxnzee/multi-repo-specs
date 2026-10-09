@@ -44,6 +44,7 @@ openspec new change update-copy --schema spec-driven-extended
 | Установить Orchestrator | [Установка](docs/user/installation.md) |
 | Создать проект с нуля | [Создание нового проекта](docs/user/new-project.md) |
 | Подключиться к проекту команды | [Подключение к существующему проекту](docs/user/join-project.md) |
+| Создать или подключить проект через агента (MCP) | [Настройка через агента](docs/user/setup-via-agent.md) |
 | Описать продукт для агента | [Бизнес-контекст](docs/user/project-context.md) |
 | Вести Change: Planning → Apply → Verify → Archive | [Работа с Change](docs/user/change/README.md) |
 | Обновить версию или мигрировать Store | [Сопровождение](docs/user/maintenance.md) |
