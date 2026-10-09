@@ -17,9 +17,26 @@ git checkout <approved-branch-or-revision>
 openspec store list
 ```
 
-Если `openspec store list` показывает, что этот Store ID уже указывает на другой
-каталог, сначала разберитесь с локальной регистрацией. Не меняйте Store ID в
-клонированных файлах.
+### Если Store ID уже зарегистрирован
+
+На одной машине один Store ID может указывать только на один каталог. Если вы
+раньше уже подключали этот Store из другого места (старый клон, другой workspace),
+`connect` остановится с ошибкой:
+
+```text
+Error: Store 'specs' is already registered at /old/path/specs. One checkout per store id is supported on this machine.
+```
+
+Снимите старую регистрацию и повторите `connect`:
+
+```bash
+openspec store unregister specs
+openspec-orch connect
+```
+
+`unregister` удаляет только запись о регистрации на этой машине, файлы старого
+каталога остаются на месте. Не меняйте Store ID в клонированных файлах, чтобы
+обойти ошибку: он общий для всей команды.
 
 ## 2. Подключите машину
 
