@@ -32,7 +32,7 @@ openspec status --change add-sms-recovery
 
 Дальше агент готовит артефакты по одному: `/opsx:continue add-sms-recovery`
 (Claude) или `/opsx-continue add-sms-recovery` (Qwen, GigaCode). Перед каждым
-артефактом он читает `openspec instructions`, после — проверяет статус.
+артефактом он читает `openspec instructions`, а после проверяет статус.
 
 | Статус | Что делать |
 |---|---|
@@ -67,11 +67,11 @@ Proposal и Specs готовятся только в Store. В Repository Impact
 
 ### Delta Specs
 
-- `ADDED Requirements` — новое обязательство, в том числе в существующей capability.
-- `MODIFIED Requirements` — **полный** изменяемый Requirement со всеми сохраняемыми
+- `ADDED Requirements`: новое обязательство, в том числе в существующей capability.
+- `MODIFIED Requirements`: **полный** изменяемый Requirement со всеми сохраняемыми
   Scenarios в целевом виде. Частичный текст потеряет детали при Archive.
-- `REMOVED Requirements` — удаление с Reason и Migration.
-- `RENAMED Requirements` — только переименование, FROM и TO.
+- `REMOVED Requirements`: удаление с Reason и Migration.
+- `RENAMED Requirements`: только переименование, FROM и TO.
 
 Незатронутые Requirements не копируются. ID существующих Scenarios сохраняются;
 новым даётся суффикс `<change-id>-<NNN>`. `Purpose` пишется только для новой
@@ -86,9 +86,9 @@ capability. Если меняются только refactor, tooling или до
 
 В `spec-driven-extended` Design обязателен перед Tasks. Для простого изменения
 достаточно краткого решения и карты репозиториев. Design описывает архитектуру и
-изменяемые публичные контракты: для HTTP — метод и URL, для событий — канал, а
+изменяемые публичные контракты: для HTTP это метод и URL, для событий канал, а
 также поля, доступ, ошибки и совместимость по применимости. Внутренние пути и
-номера строк остаются в рабочих заметках агента. Правила — в шаблоне
+номера строк остаются в рабочих заметках агента. Правила лежат в шаблоне
 `templates/design.md` schema.
 
 Design нужен до Tasks всегда, когда есть зависимости, миграция, безопасность,
@@ -117,7 +117,7 @@ openspec validate add-sms-recovery --type change --strict --no-interactive
 
 ## Baseline для уже работающего поведения
 
-Baseline — первичное описание поведения, которое уже работает и которое владелец
+Baseline: первичное описание поведения, которое уже работает и которое владелец
 продукта принимает как обязательство системы. Это отдельная ручная операция в
 Store, а не команда Orchestrator. Достаточно описать затронутую capability, а не
 всю систему.

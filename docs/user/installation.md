@@ -79,6 +79,6 @@ openspec-orch agent status --agent qwen
 
 Вместо `qwen` укажите `claude` или `gigacode`. После установки перезапустите
 клиент агента. `agent status` только проверяет установку; повторное подключение
-после обновления — `agent setup --agent <id> --refresh`.
+после обновления: `agent setup --agent <id> --refresh`.
 
 Обновление, откат и переход на новую версию описаны в [сопровождении](maintenance.md).

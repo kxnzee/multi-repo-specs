@@ -53,7 +53,7 @@ openspec-orch plugin status
 установка → clone Store → connect → doctor → agent status/setup → plugin status → перезапуск агента
 ```
 
-Дальше — [работа с Change](change/README.md).
+Дальше: [работа с Change](change/README.md).
 
 ## Что делает connect
 
@@ -73,7 +73,7 @@ openspec-orch plugin status
 `AGENT_PACK_CONFLICT` и ничего не перезаписывает.
 
 `doctor` ничего не меняет. Он проверяет окружение, конфигурацию, пакеты, шлюз и
-доставленные файлы и показывает, что исправить. Коды ошибок — в
+доставленные файлы и показывает, что исправить. Коды ошибок разобраны в
 [диагностике](troubleshooting.md).
 
 `openspec-orch disconnect` отключает Extensions агента на этой машине, не меняя
@@ -85,9 +85,9 @@ openspec-orch plugin status
 добавляется изменением этого файла через ревью Store, после чего все участники
 выполняют `connect`.
 
-- Репозиторий кода — запись с `roles: [code]`.
-- Store другой команды только для чтения — запись с `roles: [specs]` и `store_id`.
+- Репозиторий кода: запись с `roles: [code]`.
+- Store другой команды только для чтения: запись с `roles: [specs]` и `store_id`.
   Все участники должны предварительно обновить Orchestrator до версии с поддержкой
   этой роли.
 
-Формат записей — в [конфигурации](../core/configuration.md).
+Формат записей описан в [конфигурации](../core/configuration.md).

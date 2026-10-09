@@ -17,7 +17,7 @@
 
 | Этап | Где | Документ |
 |---|---|---|
-| Обзор | — | [Жизненный цикл Change](change/README.md): этапы, команды агента, выбор schema |
+| Обзор | Store и репозитории | [Жизненный цикл Change](change/README.md): этапы, команды агента, выбор schema |
 | 1. Planning | Store | [Planning](change/planning.md): требования, план, принятие; baseline для работающей системы |
 | 2. Apply | Репозиторий кода | [Apply](change/apply.md): реализация в каждом назначенном репозитории |
 | 3. Verify | Store | [Verify](change/verify.md): проверка кандидата и решение человека |

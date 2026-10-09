@@ -51,5 +51,5 @@ openspec new change update-copy --schema spec-driven-extended
 | Подключить плагины | [Плагины](docs/plugins/README.md) |
 | Создать свой Extension, Plugin или Template | [Создание дополнений](docs/user/creating-addons.md) |
 
-Полное оглавление — [документация для пользователей](docs/user/README.md).
-Устройство, конфигурация и разработка Orchestrator — [техническая документация](docs/core/README.md).
+Полное оглавление: [документация для пользователей](docs/user/README.md).
+Устройство, конфигурация и разработка Orchestrator описаны в [технической документации](docs/core/README.md).
