@@ -3,7 +3,8 @@
 Archive переносит принятую дельту Change в Master Specs и закрывает Change.
 Выполняется в Store-сессии после успешного Verify.
 
-**Кто:** аналитик ([роли](../story-delivery-process.md#роли)).
+**Кто:** аналитик. Результат проверяют ревьюеры Story Store PR; после Archive
+потребители проводят UAT, а владелец продукта решает о выпуске ([роли](../story-delivery-process.md#роли)).
 
 [← Verify](verify.md) · [Обзор этапов](README.md)
 

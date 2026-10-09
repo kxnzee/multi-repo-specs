@@ -21,13 +21,13 @@
 
 ## Работа с Change
 
-| Этап | Кто | Где | Документ |
-|---|---|---|---|
-| Обзор | Все | Store и репозитории | [Жизненный цикл Change](change/README.md): этапы, команды агента, выбор schema |
-| 1. Planning | Аналитик | Store | [Planning](change/planning.md): требования, план, принятие; baseline для работающей системы |
-| 2. Apply | Разработчик | Репозиторий кода | [Apply](change/apply.md): реализация в каждом назначенном репозитории |
-| 3. Verify | Тестировщик | Store | [Verify](change/verify.md): проверка кандидата и решение человека |
-| 4. Archive | Аналитик | Store | [Archive](change/archive.md): перенос дельты в Master Specs |
+| Этап | Кто делает | Кто проверяет и принимает | Где | Документ |
+|---|---|---|---|---|
+| Обзор | Все | | Store и репозитории | [Жизненный цикл Change](change/README.md): этапы, команды агента, выбор schema |
+| 1. Planning | Аналитик | Разработчик, тестировщик, лид разработки | Store | [Planning](change/planning.md): требования, план, принятие; baseline для работающей системы |
+| 2. Apply | Разработчик | Ревьюеры Code PR | Репозиторий кода | [Apply](change/apply.md): реализация в каждом назначенном репозитории |
+| 3. Verify | Тестировщик | Тестировщик (`PASS` или `FAIL`) | Store | [Verify](change/verify.md): проверка кандидата и решение человека |
+| 4. Archive | Аналитик | Ревьюеры Story Store PR, затем UAT и владелец продукта | Store | [Archive](change/archive.md): перенос дельты в Master Specs |
 
 ## Сопровождение
 
