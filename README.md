@@ -2,7 +2,7 @@
 
 OpenSpec Orchestrator помогает ИИ-агентам работать с требованиями и кодом в
 нескольких репозиториях. Он связывает центральный репозиторий спецификаций
-(Store), репозитории кода и агента (Claude, Qwen или GigaCode).
+(Store), репозитории кода и агента GigaCode (поддерживаются также Claude и Qwen).
 
 - **Store** хранит требования, Changes и бизнес-контекст продукта.
 - **Репозитории кода** подключаются к Store и получают команды OpenSpec для агента.
@@ -20,11 +20,11 @@ Orchestrator не управляет моделью, её сессиями и р
 
 ```bash
 # один раз на машину
-openspec-orch agent setup --agent qwen
+openspec-orch agent setup --agent gigacode
 
 # новый проект
 mkdir -p ~/work/specs && cd ~/work/specs
-openspec-orch init . --store specs --agent qwen \
+openspec-orch init . --store specs --agent gigacode \
   --repo frontend=ssh://git.example.org/product/frontend.git#main
 openspec-orch connect
 openspec-orch doctor

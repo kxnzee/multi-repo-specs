@@ -39,13 +39,13 @@ openspec-orch connect --workspace /absolute/path/to/workspace
 ## 3. Проверьте агента и плагины
 
 ```bash
-openspec-orch agent status --agent qwen
+openspec-orch agent status --agent gigacode
 openspec-orch plugin status
 ```
 
-Если шлюз не установлен, выполните `openspec-orch agent setup --agent qwen`.
-Используйте агента, записанного в `openspec-orch.yaml` Store. Затем перезапустите
-клиент агента.
+Если шлюз не установлен, выполните `openspec-orch agent setup --agent gigacode`.
+Агент должен совпадать с записанным в `openspec-orch.yaml` Store. Затем перезапустите
+GigaCode.
 
 Итоговый порядок:
 

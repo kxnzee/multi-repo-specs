@@ -36,7 +36,7 @@ cd /absolute/path/to/workspace/specs
 ```bash
 openspec-orch init . \
   --store specs \
-  --agent qwen \
+  --agent gigacode \
   --store-remote ssh://git.example.org/product/specs.git \
   --store-branch main \
   --repo frontend=ssh://git.example.org/product/frontend.git#main \
@@ -47,7 +47,7 @@ openspec-orch init . \
 | Параметр | Обязателен | Назначение |
 |---|---|---|
 | `--store` | да | Store ID |
-| `--agent` | да | `claude`, `qwen` или `gigacode`. Агент фиксируется для Store |
+| `--agent` | да | `gigacode` (или `claude`, `qwen`). Агент фиксируется для Store |
 | `--repo id=remote#branch` | нет | Репозиторий кода; повторяется для каждого |
 | `--repo-description id=text` | нет | Описание репозитория для агента: назначение, технологии, границы |
 | `--store-remote`, `--store-branch`, `--store-description` | нет | Сведения о самом Store |
@@ -124,7 +124,7 @@ remote, указанный в `--store-remote`, по процессу коман
 ```json
 {
   "store_id": "specs",
-  "agent_id": "qwen",
+  "agent_id": "gigacode",
   "template_id": "default",
   "store_remote": "ssh://git.example.org/product/specs.git",
   "store_default_branch": "main",

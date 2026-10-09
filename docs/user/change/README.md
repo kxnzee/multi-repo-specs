@@ -19,16 +19,15 @@ Planning ──принят──▶ Apply ──кандидат собран�
 
 ## Команды агента
 
-Orchestrator доставляет в Store и репозитории кода команды OpenSpec. В Claude они
-вызываются через двоеточие, в Qwen и GigaCode через дефис:
+Orchestrator доставляет в Store и репозитории кода команды OpenSpec. В GigaCode:
 
-| Действие | Claude | Qwen, GigaCode |
-|---|---|---|
-| Исследовать вопрос без изменений | `/opsx:explore` | `/opsx-explore` |
-| Подготовить следующий артефакт | `/opsx:continue <change-id>` | `/opsx-continue <change-id>` |
-| Реализовать задачи | `/opsx:apply <change-id>` | `/opsx-apply <change-id>` |
-| Проверить результат | `/opsx:verify <change-id>` | `/opsx-verify <change-id>` |
-| Архивировать | `/opsx:archive <change-id>` | `/opsx-archive <change-id>` |
+| Действие | Команда |
+|---|---|
+| Исследовать вопрос без изменений | `/opsx-explore` |
+| Подготовить следующий артефакт | `/opsx-continue <change-id>` |
+| Реализовать задачи | `/opsx-apply <change-id>` |
+| Проверить результат | `/opsx-verify <change-id>` |
+| Архивировать | `/opsx-archive <change-id>` |
 
 Состояние Change в любой момент:
 

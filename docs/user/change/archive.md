@@ -13,8 +13,7 @@ Archive переносит принятую дельту Change в Master Specs 
 
 ## Запуск
 
-Вызовите `/opsx:archive <change-id>` (Claude) или `/opsx-archive <change-id>`
-(Qwen, GigaCode) из Store-сессии. Агент читает условия Archive из инструкций
+Вызовите `/opsx-archive <change-id>` из Store-сессии. Агент читает условия Archive из инструкций
 schema и проверяет требуемые решения людей. Ветки и направления PR агент не
 угадывает: они берутся из правил проекта, а если правил нет, их уточняют у команды.
 

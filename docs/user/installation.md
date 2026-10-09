@@ -7,7 +7,7 @@
 
 - Node.js 22.16.0 или новее, npm и Git;
 - OpenSpec 1.11.0, доступный как команда `openspec`;
-- CLI выбранного агента: `claude`, `qwen` или `gigacode`.
+- CLI агента GigaCode: команда `gigacode`.
 
 OpenSpec устанавливается способом, разрешённым в вашей среде, например:
 
@@ -60,10 +60,10 @@ node --version
 git --version
 openspec --version
 openspec-orch --help
-claude --version    # или qwen --version, gigacode --version
+gigacode --version
 ```
 
-CLI агента должен быть в `PATH` до первого `connect`: команда проверяет его
+`gigacode` должен быть в `PATH` до первого `connect`: команда проверяет его
 раньше, чем подключает репозитории и расширения.
 
 ## 4. Шлюз агента
@@ -73,12 +73,14 @@ CLI агента должен быть в `PATH` до первого `connect`: 
 всеми проектами этого агента:
 
 ```bash
-openspec-orch agent setup --agent qwen
-openspec-orch agent status --agent qwen
+openspec-orch agent setup --agent gigacode
+openspec-orch agent status --agent gigacode
 ```
 
-Вместо `qwen` укажите `claude` или `gigacode`. После установки перезапустите
-клиент агента. `agent status` только проверяет установку; повторное подключение
-после обновления: `agent setup --agent <id> --refresh`.
+После установки перезапустите GigaCode. `agent status` только проверяет установку; повторное подключение
+после обновления: `agent setup --agent gigacode --refresh`.
+
+Для Claude и Qwen команды те же с другим `--agent`, см.
+[отличия агентов](concepts.md#если-у-вас-не-gigacode).
 
 Обновление, откат и переход на новую версию описаны в [сопровождении](maintenance.md).

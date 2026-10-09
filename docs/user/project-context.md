@@ -28,12 +28,14 @@ Requirements и Scenarios из Master Specs.
 
 ## Заполнение и обновление
 
-Откройте сессию агента из корня Store и вызовите команду:
+Откройте GigaCode из корня Store и вызовите команду:
 
-| Агент | Первое заполнение | Обновление |
-|---|---|---|
-| Claude | `/project-context:project-context initialize` | `/project-context:project-context update` |
-| Qwen, GigaCode | `/project-context initialize` | `/project-context update` |
+```text
+/project-context initialize
+/project-context update
+```
+
+`initialize` нужен для первого заполнения, `update` для дополнения и исправлений.
 
 Без указания режима агент выберет `initialize` для пустого шаблона и `update`,
 если сведения уже есть. Проверка согласованности входит в оба режима.

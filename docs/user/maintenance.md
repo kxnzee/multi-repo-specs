@@ -32,8 +32,8 @@
 6. Если изменились файлы шлюза, обновите его и откройте новую сессию агента:
 
    ```bash
-   openspec-orch agent setup --agent qwen --refresh
-   openspec-orch agent status --agent qwen
+   openspec-orch agent setup --agent gigacode --refresh
+   openspec-orch agent status --agent gigacode
    ```
 
 Отдельной команды `upgrade` нет. `connect` восстанавливает версии, зафиксированные

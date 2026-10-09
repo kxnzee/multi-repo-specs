@@ -30,8 +30,7 @@ openspec new change add-sms-recovery --schema spec-driven-extended
 openspec status --change add-sms-recovery
 ```
 
-Дальше агент готовит артефакты по одному: `/opsx:continue add-sms-recovery`
-(Claude) или `/opsx-continue add-sms-recovery` (Qwen, GigaCode). Перед каждым
+Дальше агент готовит артефакты по одному: `/opsx-continue add-sms-recovery`. Перед каждым
 артефактом он читает `openspec instructions`, а после проверяет статус.
 
 | Статус | Что делать |

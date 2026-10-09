@@ -20,11 +20,10 @@
 
 ```bash
 cd /absolute/path/to/workspace/src/frontend
-qwen        # или claude, gigacode
+gigacode
 ```
 
-В сессии вызовите `/opsx:apply <change-id>` (Claude) или `/opsx-apply <change-id>`
-(Qwen, GigaCode). Агент выполнит только задачи секции текущего репозитория.
+В сессии вызовите `/opsx-apply <change-id>`. Агент выполнит только задачи секции текущего репозитория.
 
 Если Change затрагивает несколько репозиториев, повторите запуск в каждом из них
 отдельной сессией.

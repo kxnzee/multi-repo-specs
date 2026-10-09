@@ -14,7 +14,7 @@
 | Change | Одна доработка: зачем она нужна, дельта требований, план и результат проверки | `openspec/changes/<change-id>/` в Store |
 | Template | Начальный набор файлов Store: контекст, схемы, правила процесса | Копируется в Store при `init` |
 | Schema | Порядок артефактов Change и правила каждого шага | `openspec/schemas/` в Store |
-| Агент | Клиент модели: Claude, Qwen или GigaCode. Получает контекст Orchestrator через MCP-шлюз | Устанавливается пользователем |
+| Агент | Клиент модели, в этой документации GigaCode. Получает контекст Orchestrator через MCP-шлюз | Устанавливается пользователем |
 | Extension | Инструкции, навыки и команды для агента | Подключается к Store и репозиториям |
 | Plugin | Исполняемая возможность: команды, интеграции, состояние | Подключается к Store и репозиториям |
 
@@ -58,3 +58,16 @@ Store-сессия не получает права записи в репози
 
 Orchestrator не управляет учётными записями, сессиями и разрешениями агента. Template
 не устанавливает плагины. Plugin не меняет шаги, артефакты и задачи OpenSpec.
+
+## Если у вас не GigaCode
+
+Все примеры написаны для GigaCode. Orchestrator поддерживает также Claude и Qwen,
+отличия только в именах:
+
+| Что | GigaCode | Qwen | Claude |
+|---|---|---|---|
+| `--agent` | `gigacode` | `qwen` | `claude` |
+| Запуск клиента | `gigacode` | `qwen` | `claude` |
+| Команды OpenSpec | `/opsx-apply` | `/opsx-apply` | `/opsx:apply` |
+| Бизнес-контекст | `/project-context` | `/project-context` | `/project-context:project-context` |
+| Файл инструкций в Store | `GIGACODE.md` | `QWEN.md` | `CLAUDE.md` |
