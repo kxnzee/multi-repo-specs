@@ -3,6 +3,8 @@
 Archive переносит принятую дельту Change в Master Specs и закрывает Change.
 Выполняется в Store-сессии после успешного Verify.
 
+**Кто:** аналитик ([роли](../story-delivery-process.md#роли)).
+
 [← Verify](verify.md) · [Обзор этапов](README.md)
 
 ## Перед началом
