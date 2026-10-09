@@ -14,7 +14,7 @@ Orchestrator, работает без Store и настроенного аген
 ## Что понадобится
 
 Установленный Orchestrator с командой `create`, Node.js и Git согласно
-[требованиям установки](installation-and-updates.md). Для создания папки дополнения
+[требованиям установки](installation.md). Для создания папки дополнения
 не нужен Store. Для подключения результата нужен отдельный тестовый Store;
 для проверки Extension — настроенный агент, выбранный в этом Store.
 
@@ -44,7 +44,7 @@ openspec-orch extension status create-addon
 
 ```bash
 openspec-orch create extension requirements-review ./requirements-review \
-  --name "Проверка требований" --agent claude --target store
+  --name "Проверка требований" --agent gigacode --target store
 openspec-orch create plugin dependency-audit ./dependency-audit --profile commands
 openspec-orch create template team-project ./team-project
 ```
@@ -132,7 +132,7 @@ connect/status и не проверяет все динамические Plugin
 ### Extension
 
 После создания и заполнения `requirements-review` перейдите в тестовый Store
-с выбранным Claude:
+с агентом GigaCode:
 
 ```bash
 cd /absolute/path/to/test-store
@@ -142,7 +142,7 @@ openspec-orch extension status requirements-review
 openspec-orch doctor
 ```
 
-Откройте новую сессию Claude в этом Store и дайте навыку два требования: одно с
+Откройте новую сессию GigaCode в этом Store и дайте навыку два требования: одно с
 неоднозначной формулировкой, другое с конкретными критериями приёмки. Проверьте,
 что первое приводит к уточняющим вопросам, а второе — к подтверждению проверяемости.
 Наличие регистрации Extension само по себе не подтверждает качество ответа.
@@ -176,10 +176,10 @@ openspec-orch plugin exec --repo frontend dependency-audit inspect
 Template применяется при создании нового Store:
 
 ```bash
-openspec-orch init /absolute/path/to/new-store --store team-specs --agent claude --template /absolute/path/to/team-project
+openspec-orch init /absolute/path/to/new-store --store team-specs --agent gigacode --template /absolute/path/to/team-project
 ```
 
-Проверьте появление `openspec/context/README.md` и `CLAUDE.md` в новом Store.
+Проверьте появление `openspec/context/README.md` и `GIGACODE.md` в новом Store.
 Повторный `init` не обновляет файлы уже существующего Store. Для изменений
 существующего проекта используйте [порядок обновления Template](../templates/development.md).
 
