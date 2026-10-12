@@ -23,7 +23,7 @@ packages и точную dev-версию OpenSpec 1.11.0 из lockfile. Гло�
 `check:environment` проверяет Git, локальный OpenSpec, поддерживаемый Node и
 загрузку CLI/workspaces. Он не создаёт Store, не устанавливает gateway и не
 меняет глобальную конфигурацию пользователя. Для работы с реальным Store вне
-checkout следуйте [инструкции установки](../user/installation-and-updates.md).
+checkout следуйте [инструкции установки](../user/installation.md).
 
 ## Проверки и быстрый цикл
 

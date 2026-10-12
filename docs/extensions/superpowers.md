@@ -5,5 +5,5 @@
 `superspec-multirepo`; отдельный `plan.md` для этого не нужен.
 
 Правила выбора схемы находятся в
-[Template default](../templates/default.md). Исходные инструкции и
+[работе с Change](../user/change/README.md#выбор-schema). Исходные инструкции и
 уведомления о поставляемых материалах лежат в `extensions/superpowers/`.
