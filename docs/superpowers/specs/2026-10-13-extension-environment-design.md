@@ -35,35 +35,54 @@ MCP-сервера, который она подключает. Перед на�
   невозможно, нужен перезапуск.
 - Удаление сохранённых значений при `disconnect` или `remove`.
 
-## Источник требований: нативный манифест
+## Источник требований: MCP-конфиг в нативном манифесте
 
-Список берёт адаптер выбранного агента в `src/agents/`. Каждый элемент:
-`{ name, description, sensitive }`.
+У всех агентов один источник: ссылки на переменные окружения в конфигурации
+MCP-серверов Extension. Именно эти значения агент подставляет из окружения при
+запуске MCP-сервера. Отличается только место, где лежит `mcpServers`:
 
-| Agent | Источник | Поля |
-|---|---|---|
-| `qwen`, `gigacode` | `settings[]` в manifest агента | `envVar` → `name`; `description`; `sensitive` (по умолчанию `false`) |
-| `claude` | `${VAR}` в MCP-конфиге Plugin: `mcpServers` в `.claude-plugin/plugin.json` как объект или путь к JSON-файлу внутри Extension | `name` = `VAR`; `description` — «нужна MCP-серверу `<server>`»; `sensitive: true` |
+| Agent | Где `mcpServers` |
+|---|---|
+| `qwen`, `gigacode` | Поле `mcpServers` в manifest агента (`qwen-extension.json`, `gigacode-extension.json`) |
+| `claude` | Поле `mcpServers` в `.claude-plugin/plugin.json`: объект или путь к JSON-файлу внутри Extension, например `./.mcp.json` |
 
-Правила:
+Каждый элемент списка: `{ name, description, sensitive: true }`. `description` —
+«нужна MCP-серверу `<server>` Extension `<id>`». Все переменные считаются
+секретными: ввод скрытый.
 
-- Имя переменной соответствует `^[A-Za-z_][A-Za-z0-9_]*$`, иначе
-  `AGENT_EXTENSION_INVALID`.
-- Для Qwen и GigaCode `settings` отсутствует или является массивом объектов со
-  строковым `envVar`. Некорректная структура даёт `AGENT_EXTENSION_INVALID` уже
-  в `validateExtension`, то есть в preflight.
-- Для Claude рекурсивно просматриваются строковые значения MCP-конфига.
-  Не требуются: `${VAR:-default}` (у неё есть значение по умолчанию), `CLAUDE_*`
-  (их задаёт Claude) и `${user_config.*}`. Путь к MCP-файлу читается через
-  существующий `readNativeManifest`, без symlink и без выхода из Extension root.
-- Порядок элементов стабилен: в порядке появления, без повторов.
+Правила разбора (общий helper в `src/agents/native-extension.js`):
+
+- Рекурсивно просматриваются строковые значения конфигурации каждого сервера:
+  `command`, `args`, `env`, `url`, `headers` и вложенные поля.
+- Требуются ссылки `${NAME}` и `$NAME`, где `NAME` соответствует
+  `^[A-Za-z_][A-Za-z0-9_]*$`.
+- Не требуются:
+  - `${NAME:-default}`: есть значение по умолчанию;
+  - переменные самих агентов `extensionPath`, `workspacePath`, `/`,
+    `pathSeparator`, `CLAUDE_*`, `user_config.*`.
+- Порядок стабилен: в порядке появления, без повторов.
+- Путь к MCP-файлу у Claude читается существующим `readNativeManifest`: без
+  symlink и без выхода из Extension root.
+
+Ограничения для Qwen и GigaCode:
+
+- Manifest с полем `settings` отклоняется в `validateExtension`, то есть уже в
+  preflight: `AGENT_EXTENSION_INVALID: <id>: settings не поддерживается,
+  укажите переменные как ${VAR} в mcpServers`. Причина проверена на Qwen CLI
+  0.25.1: при наличии `settings` и закрытом stdin `extensions install` задаёт
+  вопрос, завершается с кодом 0 и не устанавливает Extension.
+- Переменную, которую сервер просто наследует из окружения без ссылки в
+  manifest, Orchestrator не видит. Авторы Extensions указывают каждую нужную
+  переменную явно, например `"env": { "GITLAB_TOKEN": "${GITLAB_TOKEN}" }`.
 
 ## Компоненты
 
 ### 1. Операция адаптера `requiredEnvironment`
 
 - `src/agents/extension-cli.js` и `src/agents/claude-plugin.js` реализуют
-  `requiredEnvironment(extension, agent, { nativeId })`.
+  `requiredEnvironment(extension, agent, { nativeId })`. Они находят свой
+  `mcpServers` и передают его общему helper `mcpEnvironmentReferences`.
+- `validateExtension` в `extension-cli.js` отклоняет `settings`.
 - `createNativeExtensionAdapter` в `src/agents/native-extension.js` принимает её
   как обязательную функцию и экспортирует.
 - `AgentExtensionAdapter` (Core) получает метод
@@ -182,10 +201,11 @@ Plugin-owned Extensions вычисляются в контексте репоз�
 ## Тесты
 
 - Адаптеры (`src/packages/core/test/`, рядом с существующими тестами адаптеров):
-  - Qwen и GigaCode: разбор `settings`, отсутствие `settings`, некорректный
-    `envVar`;
-  - Claude: встроенные `mcpServers` и путь к `.mcp.json`; пропуск
-    `${VAR:-x}`, `CLAUDE_*`, `${user_config.*}`; дубли.
+  - общий helper: `${VAR}` и `$VAR` в `env`, `args`, `url`, `headers`; пропуск
+    `${VAR:-x}`, `${extensionPath}`, `${/}`, `CLAUDE_*`, `${user_config.*}`;
+    дубли и порядок;
+  - Qwen и GigaCode: `mcpServers` в manifest; отказ при `settings`;
+  - Claude: встроенные `mcpServers` и путь к `.mcp.json`.
 - `UserEnvironment` на временном `HOME` и `XDG_CONFIG_HOME`:
   - экранирование;
   - права `0600`;
@@ -211,16 +231,18 @@ Plugin-owned Extensions вычисляются в контексте репоз�
 
 - `docs/user/join-project.md`, раздел «Что делает connect»: ввод переменных,
   где они хранятся, перезапуск агента, поведение через MCP.
-- `docs/extensions/development.md`: как объявить переменные: `settings` для Qwen
-  и GigaCode, `${VAR}` в MCP-конфиге для Claude.
+- `docs/extensions/development.md`: как объявить переменные: `${VAR}` в `env`
+  MCP-сервера для всех агентов; `settings` в Qwen и GigaCode не поддерживается.
 - `docs/user/troubleshooting.md`: `EXTENSION_ENV_MISSING`,
   `EXTENSION_ENV_CANCELLED`, `USER_ENVIRONMENT_WRITE_FAILED`.
 
 ## Ограничения
 
-- Тесты используют fake нативные CLI. На реальных Qwen и GigaCode не проверено,
-  что `extensions install` с `settings` и закрытым stdin не задаёт вопрос. По
-  исходному коду Qwen значение `undefined` пропускается, а MCP-сервер берёт `${VAR}`
-  из `process.env`.
+- Поведение Qwen CLI 0.25.1 проверено вручную в изолированном `HOME`:
+  - Extension без `settings` ставится при закрытом stdin;
+  - MCP-сервер получает `${VAR}` из окружения процесса агента, подтверждено
+    через `qwen mcp list`.
+
+  GigaCode не проверялся. Автотесты используют fake нативные CLI.
 - Агенты, запущенные из GUI на macOS, не читают профиль shell. Для них нужен
   запуск из терминала. Это отмечено в документации.
